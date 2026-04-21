@@ -13,6 +13,7 @@ final class HistoryPanelViewModel: ObservableObject {
   @Published var searchText: String = ""
   @Published var selectedID: UUID?
   @Published var currentTab: HistoryPanelTab = .all
+  @Published var kindFilter: ClipKind?
   /// Bumped every time the UI should force-scroll the list back to
   /// its top (e.g., when the panel reopens). The view observes
   /// changes to this value via .onChange.
@@ -27,9 +28,13 @@ final class HistoryPanelViewModel: ObservableObject {
   }
 
   var filteredItems: [ClipItem] {
+    var result = items
+    if let kind = kindFilter {
+      result = result.filter { $0.kind == kind }
+    }
     switch currentTab {
-    case .all: return items
-    case .pinned: return items.filter(\.pinned)
+    case .all: return result
+    case .pinned: return result.filter(\.pinned)
     }
   }
 
@@ -55,6 +60,17 @@ final class HistoryPanelViewModel: ObservableObject {
   /// panel is (re)opened so stale state from last session doesn't
   /// stick around.
   func resetSelection() {
+    // "Every open is a fresh session" — clear transient filters that
+    // the user may have forgotten about between sessions.
+    kindFilter = nil
+    selectedID = filteredItems.first?.id
+    scrollEpoch &+= 1
+  }
+
+  /// Called when the kind filter changes within a session. Keeps
+  /// selection on a visible row without wiping kindFilter itself
+  /// (which would cause a feedback loop with .onChange observers).
+  func realignAfterFilterChange() {
     selectedID = filteredItems.first?.id
     scrollEpoch &+= 1
   }

@@ -31,12 +31,16 @@ struct HistoryPanelView: View {
     .onChange(of: viewModel.currentTab) { _ in
       viewModel.resetSelection()
     }
+    .onChange(of: viewModel.kindFilter) { _ in
+      viewModel.realignAfterFilterChange()
+    }
   }
 
   private var listColumn: some View {
     VStack(spacing: 0) {
       searchField
       tabBar
+      KindChipBar(selection: $viewModel.kindFilter)
       Divider()
       if viewModel.filteredItems.isEmpty {
         emptyState

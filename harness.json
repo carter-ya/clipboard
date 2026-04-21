@@ -661,6 +661,26 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S19: launch at login via SMAppService"
+    },
+    {
+      "id": "S20",
+      "title": "Kind 过滤 chips（All / Text / Image / File）",
+      "goal": "补上 S9 延后的『kind 过滤 chips』——扩容后用户希望按类型快速聚焦（比如只看 image / 只看 file），而不是滚长列表。",
+      "deliverables": [
+        "HistoryPanelViewModel 新增 @Published var kindFilter: ClipKind?（nil = 不过滤）；filteredItems 在 tab 过滤之前先按 kindFilter 过滤。",
+        "HistoryPanelView 在 tabBar 下方加一行横向可滚动的 chip 条：All（nil）/ Text / Image / File；当前选中的 chip 填充 accentColor、其他填淡灰；再次点选中的 chip 会取消（回到 nil）。",
+        "resetSelection() 同时清 kindFilter ——保持『每次打开面板都是一次干净的会话』语义（与 S10 ui_interactions.panel_open_resets_selection 一致）。",
+        "HistoryPanelView .onChange(of: kindFilter) 调 viewModel.resetSelection()，确保选中/滚动跟上新的 filteredItems。",
+        "chip 上显示 kind 图标 + 文字；字号 .caption 保持 panel 顶部紧凑。",
+        "测试：视图层行为由 live run 覆盖；ViewModel 层的 filteredItems 组合逻辑（kindFilter × currentTab）在新增一条单测里走一遍 (nil × .all) / (.text × .all) / (.image × .pinned) 等组合。"
+      ],
+      "acceptance": [
+        "⌥⌘V 打开面板 → 点击 Image chip → 列表只剩 image kind 的条目；再点 Image chip → 恢复显示全部。",
+        "点 Image chip → 切换到 Pinned tab → 列表显示 image kind 且 pinned=true 的条目；切回 All → 列表显示 image kind 的全部条目。",
+        "Esc 关闭面板 → ⌥⌘V 再次打开 → kindFilter 已重置到 nil（All chip 选中），首行高亮。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S20: kind filter chips in history panel"
     }
   ],
   "slice_rhythm": [
@@ -773,7 +793,8 @@
       "S16",
       "S17",
       "S18",
-      "S19"
+      "S19",
+      "S20"
     ]
   },
   "open_questions": [
