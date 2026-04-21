@@ -45,6 +45,14 @@ final class HistoryPanelViewModel: ObservableObject {
     searchTask?.cancel()
   }
 
+  /// Move the selection to the first visible row (honouring the
+  /// current tab + search filter). Called by the delegate whenever
+  /// the panel is (re)opened so stale state from last session
+  /// doesn't stick around.
+  func resetSelection() {
+    selectedID = filteredItems.first?.id
+  }
+
   func setSearch(_ text: String) {
     searchText = text
     searchTask?.cancel()

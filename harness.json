@@ -128,11 +128,18 @@
       "primary": "按条数限制（默认 100，可配置）。固定项不计入上限，也不会因上限被驱逐——即便固定项的条数本身 ≥ cap，也全部保留。",
       "secondary_optional": "按时间上限（默认关闭）、按总大小上限（默认关闭），均可由用户配置。"
     },
-    "dedup": "插入时对所有 payload 计算 sha256。若已有条目的 sha256 相同，则更新其 createdAt 为当前时间、移到队首、**保留原 sourceBundleID 和 pinned 状态**（first-write-wins），丢弃新来的条目。去重不做时间窗口限制——符合主流剪贴板管理器的 UX。若原条目是非敏感而新来的是敏感（源 App 切到黑名单时），不升格——去重命中以第一次为准。",
+    "dedup": "插入时对条目的**规范化主内容**计算 sha256，而非对整组 payload 做整体哈希。原因：同一份内容被不同 App 复制时，附带的 UTI 元数据（如 NSStringPboardType、各家 App 的动态派生类型）会不同，但主内容相同——若整组哈希，稍微不同的 UTI 集合会产出不同的 sha 并导致重复行。规范化规则：按优先级（public.png / public.tiff / public.jpeg > public.rtf > public.utf8-plain-text / public.plain-text > public.html > public.file-url）选取首个命中的主 payload，只对该 payload 的 (pasteboardType + data) 做哈希；若没有任何主类型命中，则退回全 payload 哈希。若已有条目的 sha256 相同，则更新其 createdAt 为当前时间、移到队首、**保留原 sourceBundleID 和 pinned 状态**（first-write-wins），丢弃新来的条目。去重不做时间窗口限制。若原条目是非敏感而新来的是敏感（源 App 切到黑名单时），不升格——以第一次为准。",
     "persistence_strategy": "运行期以内存数组为权威，同时持有 sensitive 条目；磁盘快照仅包含非敏感条目。任何非敏感变更都会安排一次防抖（500ms）的原子快照写入 history.json；敏感变更不触发写盘。优雅关闭时立即 flush（仅非敏感）。崩溃时最多丢失一个防抖窗口的非敏感数据；敏感条目必然丢失（符合『不明文落盘』的安全目标）。启动末尾跑一次 reconcileBlobs() 清理孤儿 blob。",
     "search_semantics": "仅对 preview（硬截断 256 字符）做大小写不敏感子串匹配，再叠加 kind/pinned/sourceBundleID/sensitive 过滤。长文本中段不可搜是 v1 的已知限制；若未来要支持全文搜索需引入索引（v1 不做）。sensitive 条目默认包含在搜索结果中但展示时遮罩。",
     "ui_mask_policy": "sensitive=true 的条目在 HistoryPanel 中：row 显示『●●●●（来自 <App>）』+ 锁图标，时间与 kind 正常显示；选中该行即写入剪贴板（行为一致），但 preview 不明文渲染；预览面板同样以遮罩呈现，提供『临时显示』按钮（仅本次会话生效，不改变持久状态）。",
     "import_semantics": "导入 JSON 采用合并语义——按 sha256 去重后与现有历史合并；缺失 blob 的条目整条跳过并在导入结果里计数；导入不会带入 sensitive 条目（导出时就已排除）。"
+  },
+  "ui_interactions": {
+    "panel_open_resets_selection": "每次 HistoryPanel 打开时（菜单栏点击 / ⌥⌘V / 菜单『Show History』），自动把 selectedID 重置为 filteredItems.first?.id——避免上次的陈旧选中状态影响这次操作，用户打开后可立即按 ↵ 或 ↑↓ 继续操作。",
+    "panel_close_commits_selection": "HistoryPanel 的**任何**关闭路径（Esc / 面板外点击 / 再次按 ⌥⌘V / 菜单栏再点图标 / 窗口 X 按钮）都会把**当前选中项**写回系统剪贴板——等同于用户显式按 ↵。副作用：该条目经由 Monitor→Store 的去重链路自动移到队首（dedup first-write-wins 保留原 sourceBundleID）。如果关闭时无选中项（列表空），则普通关闭。显式的 ↵ 路径已提交过则不重复提交（用 suppress 标志避免双写）。",
+    "click_outside_closes": "面板可见期间通过 NSEvent.addGlobalMonitorForEvents(.leftMouseDown | .rightMouseDown) 监听其他 App 的鼠标点击；任何外部点击立即 orderOut 面板。监听器的生命周期和面板可见性严格绑定——show 时添加、close 时移除，避免泄漏。",
+    "preferences_activation_policy": "打开偏好设置窗口前把 NSApp.activationPolicy 切到 .regular（App 短暂获得 Dock 图标与完整键盘焦点），关闭偏好后切回 .accessory。原因：LSUIElement=true 的菜单栏 App 默认不接受标准键盘输入焦点，KeyboardShortcuts.Recorder 等需要录制键盘的控件在 .accessory 下会失灵。切换时机：PreferencesWindowController.show() 之前切 .regular；windowWillClose 通知到达时切回 .accessory。",
+    "menu_bar_click_behavior": "菜单栏图标左键 = 切换 HistoryPanel（open/close）；右键 = 弹出菜单（Show History / Preferences… / Pause Monitoring / Clear History… / About / Quit）。右键不触发左键的 toggle 行为。"
   },
   "filtering": {
     "pipeline_order": [
@@ -448,6 +455,28 @@
         "打开 VoiceOver 后，面板的每一行都有可读的描述。"
       ],
       "commit_message": "S9: UX polish (onboarding, menu, hotkey conflict, feedback, accessibility)"
+    },
+    {
+      "id": "S10",
+      "title": "日常使用回归修复",
+      "goal": "修复实测中发现的 5 个交互/行为问题：(1) 跨 App 相同内容被当作重复入库，(2) 偏好设置里无法修改 Hotkey，(3) 打开面板时选中项不归位到首行，(4) 关闭面板不会把选中项写回剪贴板 + 移动到队首，(5) 点击面板外部不会自动关闭面板。",
+      "deliverables": [
+        "Hashing.sha256 引入规范化：按优先级（image > rtf > text > html > file-url）选首个主 payload 参与哈希，而非整组 payload——跨 App 复制同一内容不再因 UTI 元数据差异产生重复条目。原 all-payload 路径作为兜底保留，仅当没有任何主类型命中时才启用。",
+        "HistoryPanelViewModel 新增 resetSelection()；AppDelegate.togglePanel 在调用 panel.toggle 之前，于 open 分支调用 vm.resetSelection() 确保首行高亮；配合 filteredItems（受 tab 影响）而非 items。",
+        "HistoryPanel 新增 willCloseCommit 钩子（由 AppDelegate 注入）+ suppressNextCloseCommit 标志；override 其 close() / orderOut(_:) 在关闭流经过时若未被 suppress 则调用钩子；钩子读取 viewModel.selectedID 对应的 ClipItem 并调用 wiring.activate；显式 ↵ 路径先置 suppress=true 再调 activate+orderOut，避免双写。",
+        "HistoryPanel 在 makeKeyAndOrderFront 之后通过 NSEvent.addGlobalMonitorForEvents([.leftMouseDown, .rightMouseDown]) 注册外部点击监听，回调直接调 self.close；orderOut 或 close 时移除监听（NSEvent.removeMonitor）；监听器引用必须弱化避免自循环。",
+        "AppDelegate.openPreferences 在 show 之前 NSApp.setActivationPolicy(.regular)；PreferencesWindowController 通过 NotificationCenter 订阅自身 window 的 windowWillClose 通知，delegate 回调在收到时切回 .accessory。同时 LSUIElement=true 在 Info.plist 保持不变——activationPolicy 的运行时切换是合法互补手段。",
+        "测试：HashingTests × 2——canonicalization 在 text 同内容 + 不同 UTI 元数据下产生相同 hash；image 优先级高于 text；回归 JSONSnapshotClipStoreTests 中的 dedup 用例仍然通过。"
+      ],
+      "acceptance": [
+        "从 TextEdit 复制『hello』→ 从 Safari 复制『hello』→ history.json 只留一条，createdAt 为最近一次，sourceBundleID 为 TextEdit（first-write-wins）。",
+        "菜单栏『Preferences…』打开 → General 的 Recorder 处按下新快捷键（如 ⌃⌥⌘C）→ 录制成功并在关闭偏好后立即生效；再按 ⌥⌘V 无反应、按新快捷键召唤面板。",
+        "⌥⌘V 打开面板 → 列表非空时首行立即高亮；可直接按 ↵。",
+        "⌥⌘V 打开面板 → 鼠标移到其他 App 的窗口并左/右键点击 → 面板立即关闭。",
+        "⌥⌘V 打开面板 → ↑↓ 选第 3 条 → 按 Esc（或点击外部）→ 第 3 条被写回剪贴板且在 history 中成为队首；未按 ↵ 也完成了『选择并粘贴』语义。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S10: dedup canonicalization, hotkey editing, open-selects-first, close-commits, outside-click-closes"
     }
   ],
   "slice_rhythm": [
@@ -549,6 +578,9 @@
     "v1_2": [
       "S8",
       "S9"
+    ],
+    "v1_2_patch": [
+      "S10"
     ]
   },
   "open_questions": [

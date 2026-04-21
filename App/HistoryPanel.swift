@@ -1,11 +1,26 @@
 import AppKit
+import ClipboardCore
 import SwiftUI
 
 @MainActor
 final class HistoryPanel: NSPanel {
+  /// Called just before the panel is hidden via any close path
+  /// (Esc, outside click, X button, re-toggle). The implementation
+  /// is expected to consult the view model's current selection and
+  /// activate (write-to-pasteboard) it. Set
+  /// `suppressNextCloseCommit` immediately before a known-to-be-
+  /// already-committed close path (e.g., the explicit ↵ handler) to
+  /// avoid double-firing.
+  var onWillCloseCommit: (() -> Void)?
+
+  /// One-shot flag: the next close path will skip onWillCloseCommit.
+  var suppressNextCloseCommit = false
+
+  private var outsideClickMonitor: Any?
+
   init(rootView: some View) {
     super.init(
-      contentRect: NSRect(x: 0, y: 0, width: 420, height: 520),
+      contentRect: NSRect(x: 0, y: 0, width: 680, height: 520),
       styleMask: [.titled, .closable, .resizable, .nonactivatingPanel],
       backing: .buffered,
       defer: false
@@ -26,16 +41,57 @@ final class HistoryPanel: NSPanel {
   override var canBecomeMain: Bool { false }
 
   override func cancelOperation(_ sender: Any?) {
-    orderOut(nil)
+    close()
   }
 
   func toggle(anchoredTo statusItem: NSStatusItem?) {
     if isVisible {
-      orderOut(nil)
+      close()
       return
     }
     positionNear(statusItem: statusItem)
     makeKeyAndOrderFront(nil)
+    startOutsideClickMonitor()
+  }
+
+  override func close() {
+    commitBeforeCloseIfNeeded()
+    stopOutsideClickMonitor()
+    super.close()
+  }
+
+  override func orderOut(_ sender: Any?) {
+    commitBeforeCloseIfNeeded()
+    stopOutsideClickMonitor()
+    super.orderOut(sender)
+  }
+
+  private func commitBeforeCloseIfNeeded() {
+    guard isVisible else { return }
+    if suppressNextCloseCommit {
+      suppressNextCloseCommit = false
+      return
+    }
+    onWillCloseCommit?()
+  }
+
+  private func startOutsideClickMonitor() {
+    stopOutsideClickMonitor()
+    outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+      matching: [.leftMouseDown, .rightMouseDown]
+    ) { [weak self] _ in
+      guard let self else { return }
+      MainActor.assumeIsolated {
+        if self.isVisible { self.close() }
+      }
+    }
+  }
+
+  private func stopOutsideClickMonitor() {
+    if let monitor = outsideClickMonitor {
+      NSEvent.removeMonitor(monitor)
+      outsideClickMonitor = nil
+    }
   }
 
   private func positionNear(statusItem: NSStatusItem?) {
@@ -62,5 +118,11 @@ final class HistoryPanel: NSPanel {
 
   private func screen(for rect: NSRect) -> NSScreen? {
     NSScreen.screens.first { $0.frame.intersects(rect) }
+  }
+
+  deinit {
+    if let monitor = outsideClickMonitor {
+      NSEvent.removeMonitor(monitor)
+    }
   }
 }

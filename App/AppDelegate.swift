@@ -21,9 +21,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       button.image = image
       button.toolTip = "Clipboard"
       button.target = self
-      button.action = #selector(togglePanel)
+      button.action = #selector(statusItemClicked(_:))
+      button.sendAction(on: [.leftMouseDown, .rightMouseDown])
     }
-    item.menu = buildMenu()
     statusItem = item
 
     let wiring = AppWiring()
@@ -58,15 +58,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @MainActor
+  @objc private func statusItemClicked(_ sender: Any?) {
+    let event = NSApp.currentEvent
+    if event?.type == .rightMouseDown {
+      showStatusMenu()
+    } else {
+      togglePanel()
+    }
+  }
+
+  @MainActor
+  private func showStatusMenu() {
+    guard let statusItem else { return }
+    statusItem.menu = buildMenu()
+    statusItem.button?.performClick(nil)
+    // Reset so left-click continues to toggle the panel next time.
+    DispatchQueue.main.async { [weak self] in
+      self?.statusItem?.menu = nil
+    }
+  }
+
+  @MainActor
   @objc private func togglePanel() {
     preferencesController?.window?.orderOut(nil)
     installPanelIfReady()
-    panel?.toggle(anchoredTo: statusItem)
+    guard let panel else { return }
+    guard let vm = wiring?.viewModel else {
+      panel.toggle(anchoredTo: statusItem)
+      return
+    }
+    if panel.isVisible {
+      panel.close()
+      return
+    }
+    vm.resetSelection()
+    panel.toggle(anchoredTo: statusItem)
+  }
+
+  @MainActor
+  @objc private func showHistory() {
+    // Always open (not toggle) — menu entry intent is "bring it up".
+    installPanelIfReady()
+    guard let panel, let vm = wiring?.viewModel else { return }
+    if panel.isVisible { return }
+    vm.resetSelection()
+    panel.toggle(anchoredTo: statusItem)
   }
 
   @MainActor
   @objc private func openPreferences() {
-    panel?.orderOut(nil)
+    panel?.close()
     installPreferencesIfReady()
     preferencesController?.show()
   }
@@ -126,11 +167,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       thumbnailLoader: wiring.thumbnailLoader,
       resolver: wiring.payloadResolver,
       onClose: { [weak self] in
-        self?.panel?.orderOut(nil)
+        self?.panel?.close()
       },
       onActivate: { [weak self] item in
+        self?.panel?.suppressNextCloseCommit = true
         wiring.activate(item)
-        self?.panel?.orderOut(nil)
+        self?.panel?.close()
       },
       onTogglePin: { item in
         Task { await vm.togglePin(item) }
@@ -139,7 +181,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await vm.delete(item) }
       }
     )
-    panel = HistoryPanel(rootView: root)
+    let panel = HistoryPanel(rootView: root)
+    panel.onWillCloseCommit = { [weak self] in
+      guard let self,
+        let vm = self.wiring?.viewModel,
+        let id = vm.selectedID,
+        let item = vm.filteredItems.first(where: { $0.id == id })
+      else { return }
+      self.wiring?.activate(item)
+    }
+    self.panel = panel
   }
 
   @MainActor
@@ -174,17 +225,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
+  @MainActor
   private func buildMenu() -> NSMenu {
     let menu = NSMenu()
     menu.addItem(
-      NSMenuItem(title: "Show History", action: #selector(togglePanel), keyEquivalent: "")
+      NSMenuItem(title: "Show History", action: #selector(showHistory), keyEquivalent: "")
     )
     menu.addItem(
       NSMenuItem(title: "Preferences…", action: #selector(openPreferences), keyEquivalent: ",")
     )
     menu.addItem(NSMenuItem.separator())
     let pause = NSMenuItem(
-      title: "Pause Monitoring",
+      title: wiring?.isMonitoringPaused == true ? "Resume Monitoring" : "Pause Monitoring",
       action: #selector(togglePauseMonitoring),
       keyEquivalent: ""
     )

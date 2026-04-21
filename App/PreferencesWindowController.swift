@@ -3,7 +3,7 @@ import ClipboardCore
 import SwiftUI
 
 @MainActor
-final class PreferencesWindowController: NSWindowController {
+final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
   private let store: PreferencesStore
   private let onChange: (Preferences) -> Void
   private let onClearHistory: () -> Void
@@ -28,6 +28,7 @@ final class PreferencesWindowController: NSWindowController {
     )
     window.title = "Clipboard Preferences"
     super.init(window: window)
+    window.delegate = self
     rebuildContent()
   }
 
@@ -38,9 +39,16 @@ final class PreferencesWindowController: NSWindowController {
 
   func show() {
     rebuildContent()
+    // LSUIElement apps can't normally get keyboard focus; temporarily
+    // promote activation so KeyboardShortcuts.Recorder etc. work.
+    NSApp.setActivationPolicy(.regular)
     window?.center()
     window?.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    NSApp.setActivationPolicy(.accessory)
   }
 
   private func rebuildContent() {
