@@ -9,6 +9,7 @@ struct HistoryPanelView: View {
   var onActivate: (ClipItem) -> Void = { _ in }
   var onTogglePin: (ClipItem) -> Void = { _ in }
   var onDelete: (ClipItem) -> Void = { _ in }
+  var onShowOverflowMenu: (NSView) -> Void = { _ in }
 
   @FocusState private var searchFocused: Bool
 
@@ -60,6 +61,7 @@ struct HistoryPanelView: View {
       .focused($searchFocused)
       .onSubmit { activateSelected() }
       .accessibilityLabel("Search history")
+      OverflowMenuButton(onShowMenu: onShowOverflowMenu)
     }
     .padding(10)
   }

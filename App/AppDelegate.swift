@@ -21,8 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       button.image = image
       button.toolTip = "Clipboard"
       button.target = self
-      button.action = #selector(statusItemClicked(_:))
-      button.sendAction(on: [.leftMouseDown, .rightMouseDown])
+      button.action = #selector(togglePanel)
     }
     statusItem = item
 
@@ -58,28 +57,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @MainActor
-  @objc private func statusItemClicked(_ sender: Any?) {
-    let event = NSApp.currentEvent
-    if event?.type == .rightMouseDown {
-      showStatusMenu()
-    } else {
-      togglePanel()
-    }
-  }
-
-  @MainActor
-  private func showStatusMenu() {
-    guard let button = statusItem?.button, let event = NSApp.currentEvent else { return }
-    let menu = buildMenu()
-    // Hand the current right-click event to AppKit's context-menu
-    // pipeline — it handles positioning, event tracking, and
-    // synchronous dismissal. Manually computing coordinates against
-    // button.bounds in the y-up coordinate space in S11 pushed the
-    // menu off-screen; popUpContextMenu avoids that entirely.
-    NSMenu.popUpContextMenu(menu, with: event, for: button)
-  }
-
-  @MainActor
   @objc private func togglePanel() {
     preferencesController?.window?.orderOut(nil)
     installPanelIfReady()
@@ -92,16 +69,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       panel.close()
       return
     }
-    vm.resetSelection()
-    panel.toggle(anchoredTo: statusItem)
-  }
-
-  @MainActor
-  @objc private func showHistory() {
-    // Always open (not toggle) — menu entry intent is "bring it up".
-    installPanelIfReady()
-    guard let panel, let vm = wiring?.viewModel else { return }
-    if panel.isVisible { return }
     vm.resetSelection()
     panel.toggle(anchoredTo: statusItem)
   }
@@ -180,6 +147,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       },
       onDelete: { item in
         Task { await vm.delete(item) }
+      },
+      onShowOverflowMenu: { [weak self] sourceView in
+        MainActor.assumeIsolated {
+          self?.showOverflowMenu(from: sourceView)
+        }
       }
     )
     let panel = HistoryPanel(rootView: root)
@@ -227,11 +199,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @MainActor
+  private func showOverflowMenu(from sourceView: NSView) {
+    // Panel's close-commit would otherwise treat the menu transition
+    // as a "close with selection" and overwrite the clipboard.
+    panel?.suppressNextCloseCommit = true
+    let menu = buildMenu()
+    if let event = NSApp.currentEvent {
+      NSMenu.popUpContextMenu(menu, with: event, for: sourceView)
+    } else {
+      // Synthesize a generic event when invoked from keyboard.
+      let fakeEvent = NSEvent.mouseEvent(
+        with: .leftMouseDown,
+        location: sourceView.convert(sourceView.bounds.origin, to: nil),
+        modifierFlags: [],
+        timestamp: 0,
+        windowNumber: sourceView.window?.windowNumber ?? 0,
+        context: nil,
+        eventNumber: 0,
+        clickCount: 1,
+        pressure: 1
+      )
+      if let fakeEvent {
+        NSMenu.popUpContextMenu(menu, with: fakeEvent, for: sourceView)
+      }
+    }
+  }
+
+  @MainActor
   private func buildMenu() -> NSMenu {
     let menu = NSMenu()
-    menu.addItem(
-      NSMenuItem(title: "Show History", action: #selector(showHistory), keyEquivalent: "")
-    )
     menu.addItem(
       NSMenuItem(title: "Preferences…", action: #selector(openPreferences), keyEquivalent: ",")
     )

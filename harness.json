@@ -140,7 +140,8 @@
     "panel_close_commits_selection": "HistoryPanel 的**任何**关闭路径（Esc / 面板外点击 / 再次按 ⌥⌘V / 菜单栏再点图标 / 窗口 X 按钮）都会把**当前选中项**写回系统剪贴板——等同于用户显式按 ↵。副作用：该条目经由 Monitor→Store 的去重链路自动移到队首（dedup first-write-wins 保留原 sourceBundleID）。如果关闭时无选中项（列表空），则普通关闭。显式的 ↵ 路径已提交过则不重复提交（用 suppress 标志避免双写）。",
     "click_outside_closes": "面板可见期间通过 NSEvent.addGlobalMonitorForEvents(.leftMouseDown | .rightMouseDown) 监听其他 App 的鼠标点击；任何外部点击立即 orderOut 面板。监听器的生命周期和面板可见性严格绑定——show 时添加、close 时移除，避免泄漏。",
     "preferences_activation_policy": "打开偏好设置窗口前把 NSApp.activationPolicy 切到 .regular（App 短暂获得 Dock 图标与完整键盘焦点），关闭偏好后切回 .accessory。原因：LSUIElement=true 的菜单栏 App 默认不接受标准键盘输入焦点，KeyboardShortcuts.Recorder 等需要录制键盘的控件在 .accessory 下会失灵。切换时机：PreferencesWindowController.show() 之前切 .regular；windowWillClose 通知到达时切回 .accessory。",
-    "menu_bar_click_behavior": "菜单栏图标左键 = 切换 HistoryPanel（open/close）；右键 = 弹出菜单（Show History / Preferences… / Pause Monitoring / Clear History… / About / Quit）。右键不触发左键的 toggle 行为。**实现要点**：button.sendAction(on: [.leftMouseDown, .rightMouseDown]) 捕获两种按键；统一 action 里读 NSApp.currentEvent.type 分流；右键走 NSMenu.popUpContextMenu(menu, with: NSApp.currentEvent!, for: button) ——这是 AppKit 官方的『把事件直接交给菜单』路径，menu 会原地弹出、阻塞到用户选择或 dismiss，返回后不挂在 statusItem 上。不要手动算坐标调 popUp(positioning:at:in:)——曾在 button.bounds 的 y-up 坐标里算出的点把菜单定位到屏幕外。",
+    "menu_bar_click_behavior": "菜单栏图标**任何**点击（鼠标左键、鼠标右键、Mac 触控板单指/双指点按、Control+点按）一律触发同一动作——**切换 HistoryPanel（open/close）**。**不再做左右键分流**：Mac 触控板点按到应用的事件几乎总是 .leftMouseDown，区分会在相当比例的硬件上失败，且对用户心智模型不友好。因此 action 里不读 NSApp.currentEvent.type，button.sendAction(on:) 保持 AppKit 默认（.leftMouseUp）。Preferences / Pause Monitoring / Clear History / About / Quit 等次级操作改由 HistoryPanel 内部提供入口——见 `ui_interactions.panel_overflow_menu`。",
+    "panel_overflow_menu": "HistoryPanel 右上角放一个溢出按钮（SF Symbol: ellipsis.circle，accessibilityLabel『More actions』），按钮点击时用 NSMenu.popUpContextMenu(menu, with: event, for: view) 弹出菜单，内容与原菜单栏右键菜单一致（Preferences… / Pause Monitoring / Clear History… / About / Quit，Show History 这条不再需要——用户已经在 panel 里了）。按钮用 SwiftUI 的 Menu 或桥到 NSHostingView + NSButton 都行，但必须与 HistoryPanel 的 onClose/onActivate 解耦：菜单里选中一项前先调 panel.suppressNextCloseCommit=true，避免触发 close-commit 逻辑误写剪贴板。",
     "activate_bumps_to_top": "用户选中并激活（click / ↵ / close-commit）一条历史时，该条目应**立即**移到队首，不依赖 Monitor→Store 的 poll 循环。AppWiring.activate 除了 PasteboardWriter.write 还需调 ClipStore.bumpToTop(id:)——同步更新 createdAt、移到数组首、发出 .updated 事件、触发防抖写盘。（Monitor 随后对新的 pasteboard 状态也会触发一次 insert，但因 sha256 去重命中，会无副作用地再 bump 一次 createdAt。）",
     "tab_switch_resets_selection": "切换 All / Pinned 标签时，若原 selectedID 已不在 filteredItems 里，键盘 ↑↓ 无法继续工作——必须把 selectedID 重新指向新列表的首行。实现：HistoryPanelView 的 .onChange(of: viewModel.currentTab) 回调里调 viewModel.resetSelection()——也顺便把列表滚到顶端，和面板开启路径一致。"
   },
@@ -517,6 +518,26 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S12: menu popUpContextMenu, tab reset, immediate bumpToTop"
+    },
+    {
+      "id": "S13",
+      "title": "菜单栏点击统一化 + 面板内溢出菜单",
+      "goal": "Mac 触控板的点按事件几乎总是 .leftMouseDown，S10–S12 的『左键 toggle / 右键弹菜单』分流在真实设备上不可靠；改为：菜单栏单击统一 toggle 面板，Preferences / Pause / Clear / Quit 等放进面板右上角的溢出菜单。",
+      "deliverables": [
+        "AppDelegate 去掉 button.sendAction(on: [.leftMouseDown, .rightMouseDown]) 和 statusItemClicked(_:) 里的事件类型分流；action 直接是 togglePanel——任何点击（鼠标 / 触控板 / Control+click / 二指）行为一致。",
+        "HistoryPanelView 顶部加一个溢出按钮（ellipsis.circle 图标，accessibilityLabel『More actions』）放在搜索框右侧；按钮点击时 onShowMenu 回调里 AppKit NSMenu.popUpContextMenu 弹出与原右键菜单相同的项（不含『Show History』）。",
+        "弹菜单前 HistoryPanel.suppressNextCloseCommit = true，防止菜单打开引发的焦点切换让 panel 的 close-commit 误写剪贴板。",
+        "AppDelegate 移除 showStatusMenu 旧实现（现在不再用），保留 buildMenu() 以便溢出按钮复用。",
+        "回归：S10–S12 的 close-commits、outside-click、bumpToTop、tab reset、single-click activate 不受影响。"
+      ],
+      "acceptance": [
+        "用触控板单指点按菜单栏图标 → HistoryPanel 切换显示 / 隐藏；多次重复行为一致，不出现『打开菜单』的意外路径。",
+        "HistoryPanel 打开后，点击右上角 ellipsis.circle 按钮 → 菜单弹出，包含 Preferences… / Pause Monitoring / Clear History… / About / Quit。",
+        "从溢出菜单选『Preferences…』后 → 偏好窗口打开；HistoryPanel 依据 S4 互斥规则关闭；**剪贴板内容没有被任何条目覆盖**（即 close-commit 被 suppress 成功）。",
+        "⌥⌘V 打开面板 / Esc 关闭 / 单击条目激活 / All↔Pinned 切换的键盘行为全部保持 S10–S12 的语义。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S13: unify menu bar click, move submenu into panel overflow"
     }
   ],
   "slice_rhythm": [
@@ -622,7 +643,8 @@
     "v1_2_patch": [
       "S10",
       "S11",
-      "S12"
+      "S12",
+      "S13"
     ]
   },
   "open_questions": [
