@@ -24,8 +24,8 @@ final class AppWiring {
     self.cap = cap
     let chain = FilterChain(filters: [
       SizeFilter(maxClipSizeBytes: maxClipSizeBytes),
-      NoOpSensitivityFilter(),
-      NoOpBlocklistFilter(),
+      SensitivityFilter(skipSensitive: true),
+      BlocklistFilter(blockedBundleIDs: BlocklistFilter.defaults),
     ])
     self.monitor = NSPasteboardMonitor(
       filter: chain,

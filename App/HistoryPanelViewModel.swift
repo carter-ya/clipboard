@@ -2,11 +2,17 @@ import ClipboardCore
 import Combine
 import Foundation
 
+enum HistoryPanelTab: Equatable, Hashable {
+  case all
+  case pinned
+}
+
 @MainActor
 final class HistoryPanelViewModel: ObservableObject {
   @Published private(set) var items: [ClipItem] = []
   @Published var searchText: String = ""
   @Published var selectedID: UUID?
+  @Published var currentTab: HistoryPanelTab = .all
 
   private let store: any ClipStore
   private var searchTask: Task<Void, Never>?
@@ -14,6 +20,13 @@ final class HistoryPanelViewModel: ObservableObject {
 
   init(store: any ClipStore) {
     self.store = store
+  }
+
+  var filteredItems: [ClipItem] {
+    switch currentTab {
+    case .all: return items
+    case .pinned: return items.filter(\.pinned)
+    }
   }
 
   func start() {
@@ -42,15 +55,26 @@ final class HistoryPanelViewModel: ObservableObject {
     }
   }
 
+  func togglePin(_ item: ClipItem) async {
+    if item.pinned {
+      await store.unpin(id: item.id)
+    } else {
+      await store.pin(id: item.id)
+    }
+  }
+
+  func delete(_ item: ClipItem) async {
+    await store.delete(id: item.id)
+  }
+
   private func refresh() async {
     let results = await store.search(query: searchText, filters: .all)
     await MainActor.run {
       self.items = results
-      // Preserve selection only if still present
       if let selected = self.selectedID,
         !results.contains(where: { $0.id == selected })
       {
-        self.selectedID = results.first?.id
+        self.selectedID = self.filteredItems.first?.id
       }
     }
   }

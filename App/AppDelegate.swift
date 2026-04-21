@@ -64,6 +64,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       onActivate: { [weak self] item in
         wiring.activate(item)
         self?.panel?.orderOut(nil)
+      },
+      onTogglePin: { item in
+        Task { await vm.togglePin(item) }
+      },
+      onDelete: { item in
+        Task { await vm.delete(item) }
       }
     )
     panel = HistoryPanel(rootView: root)
