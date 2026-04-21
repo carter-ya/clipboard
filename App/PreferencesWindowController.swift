@@ -41,7 +41,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     fatalError("Unavailable")
   }
 
-  func show(on anchorScreen: NSScreen? = nil) {
+  func show(anchorRect: NSRect? = nil) {
     // Refresh the persisted prefs view against the OS's real login-item
     // state so we don't lie if the user disabled us in System Settings.
     reconcileLaunchAtLogin()
@@ -49,8 +49,8 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     // LSUIElement apps can't normally get keyboard focus; temporarily
     // promote activation so KeyboardShortcuts.Recorder etc. work.
     NSApp.setActivationPolicy(.regular)
-    if let anchorScreen, let window {
-      centerWindow(window, on: anchorScreen)
+    if let anchorRect, let window {
+      positionWindow(window, centeredOn: anchorRect)
     } else {
       window?.center()
     }
@@ -58,13 +58,31 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     NSApp.activate(ignoringOtherApps: true)
   }
 
-  private func centerWindow(_ window: NSWindow, on screen: NSScreen) {
-    let visible = screen.visibleFrame
+  /// Place `window` so its center matches the center of `anchor`,
+  /// then clamp into the visibleFrame of the screen that contains
+  /// the anchor's center (with an 8pt margin so the window never
+  /// kisses the menu bar or an edge).
+  private func positionWindow(_ window: NSWindow, centeredOn anchor: NSRect) {
     let size = window.frame.size
-    let origin = NSPoint(
-      x: visible.midX - size.width / 2,
-      y: visible.midY - size.height / 2
+    let center = NSPoint(x: anchor.midX, y: anchor.midY)
+    var origin = NSPoint(
+      x: center.x - size.width / 2,
+      y: center.y - size.height / 2
     )
+    let screen =
+      NSScreen.screens.first(where: { $0.frame.contains(center) })
+      ?? NSScreen.main
+    if let screen {
+      let visible = screen.visibleFrame
+      origin.x = max(
+        visible.minX + 8,
+        min(visible.maxX - size.width - 8, origin.x)
+      )
+      origin.y = max(
+        visible.minY + 8,
+        min(visible.maxY - size.height - 8, origin.y)
+      )
+    }
     window.setFrameOrigin(origin)
   }
 

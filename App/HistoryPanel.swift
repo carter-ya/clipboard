@@ -7,10 +7,10 @@ final class HistoryPanel: NSPanel {
   var onWillCloseCommit: (() -> Void)?
   var onArrowDown: (() -> Void)?
   var onArrowUp: (() -> Void)?
-  /// Fired just before the panel is hidden, carrying the screen the
-  /// panel was last on so callers (e.g., AppDelegate) can remember it
+  /// Fired just before the panel is hidden, carrying the panel's
+  /// last frame (in screen coordinates) so callers can remember it
   /// as the anchor for auxiliary windows like Preferences.
-  var onBeforeClose: ((NSScreen?) -> Void)?
+  var onBeforeClose: ((NSRect) -> Void)?
   var suppressNextCloseCommit = false
 
   private var outsideClickMonitor: Any?
@@ -71,7 +71,7 @@ final class HistoryPanel: NSPanel {
 
   private func notifyBeforeCloseIfVisible() {
     guard isVisible else { return }
-    onBeforeClose?(screen)
+    onBeforeClose?(frame)
   }
 
   private func commitBeforeCloseIfNeeded() {

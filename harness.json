@@ -796,6 +796,23 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S26: center history panel + Preferences follows panel's screen"
+    },
+    {
+      "id": "S27",
+      "title": "Preferences 锚定到 History 面板的实际位置（而非仅屏）",
+      "goal": "S26 只把 Preferences 定位到面板所在屏的屏中央，没参考面板的实际 frame——若用户把面板拖到角落，Prefs 仍然跑回屏中央，视觉上是『跳跃的』，不符合『Preferences 基于 History 位置』的期望。改为 Prefs 的中心与面板上次关闭前的 frame 中心重合（再 clamp 到该点所在屏的 visibleFrame 内防止越界）。",
+      "deliverables": [
+        "HistoryPanel.onBeforeClose 回调签名从 ((NSScreen?) -> Void) 改为 ((NSRect) -> Void)——传 self.frame 过去（frame 在 screen 置 nil 之前一直有效）。",
+        "AppDelegate 的 lastPanelScreen: NSScreen? 字段替换为 lastPanelFrame: NSRect?；openPreferences 里锚点链变为 panel?.frame ?? lastPanelFrame ?? fallbackCenterRect()——fallback 用光标所在屏的屏中央构造一个伪 rect（让 Prefs 居中在光标屏）。",
+        "PreferencesWindowController.show 的参数改为 `anchorRect: NSRect?`；内部用新助手 `positionWindow(_:centeredOn:)` 把 Prefs 的 frame 中心对齐 anchorRect 的中心，然后在该中心所在屏的 visibleFrame 上 clamp（边距 8pt），防止 Prefs 部分跑到屏外。"
+      ],
+      "acceptance": [
+        "⌥⌘V 打开面板 → 面板居中（S26 行为）→ ⌘, 开 Prefs → Prefs 居中、与面板重合。",
+        "⌥⌘V 打开面板 → 手动把面板拖到副屏右下角 → 关闭面板 → ⌘, 开 Prefs → Prefs 窗口中心与面板关闭前的中心一致，但被 clamp 在副屏 visibleFrame 内（不出屏）。",
+        "面板从未打开过、用 Finder 双击 Clipboard.app 触发 applicationShouldHandleReopen → Prefs 居中在光标所在屏（fallback 分支）。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S27: Preferences centers on last History panel frame, not just its screen"
     }
   ],
   "slice_rhythm": [
@@ -915,7 +932,8 @@
       "S23",
       "S24",
       "S25",
-      "S26"
+      "S26",
+      "S27"
     ]
   },
   "open_questions": [

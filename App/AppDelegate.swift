@@ -9,7 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var wiring: AppWiring?
   private var preferencesController: PreferencesWindowController?
   private var onboarding: OnboardingController?
-  private var lastPanelScreen: NSScreen?
+  private var lastPanelFrame: NSRect?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     installMainMenu()
@@ -92,19 +92,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   @MainActor
   @objc private func openPreferences() {
-    // Pick up the panel's current screen BEFORE closing it
-    // (panel.screen becomes nil once it's off-screen).
-    let anchor = panel?.screen ?? lastPanelScreen ?? screenContainingCursor()
+    // Capture the panel's actual on-screen rect BEFORE closing so
+    // Prefs can center on the same point — not just the same screen.
+    let anchor = panel?.frame ?? lastPanelFrame ?? fallbackAnchorRect()
     panel?.close()
     installPreferencesIfReady()
-    preferencesController?.show(on: anchor)
+    preferencesController?.show(anchorRect: anchor)
   }
 
+  /// Builds a zero-size anchor at the center of the cursor screen —
+  /// used when neither the panel nor a remembered frame is
+  /// available (e.g., user double-clicks Clipboard.app without ever
+  /// opening the panel).
   @MainActor
-  private func screenContainingCursor() -> NSScreen? {
+  private func fallbackAnchorRect() -> NSRect {
     let mouse = NSEvent.mouseLocation
-    return NSScreen.screens.first(where: { $0.frame.contains(mouse) })
+    let screen =
+      NSScreen.screens.first(where: { $0.frame.contains(mouse) })
       ?? NSScreen.main
+      ?? NSScreen.screens.first!
+    let visible = screen.visibleFrame
+    return NSRect(x: visible.midX, y: visible.midY, width: 0, height: 0)
   }
 
   @MainActor
@@ -250,8 +258,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     panel.onArrowDown = { [weak vm] in vm?.selectNext() }
     panel.onArrowUp = { [weak vm] in vm?.selectPrevious() }
-    panel.onBeforeClose = { [weak self] screen in
-      self?.lastPanelScreen = screen
+    panel.onBeforeClose = { [weak self] rect in
+      self?.lastPanelFrame = rect
     }
     self.panel = panel
   }
