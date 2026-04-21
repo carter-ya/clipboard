@@ -1,8 +1,10 @@
 import AppKit
 import ClipboardCore
+import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
   private var statusItem: NSStatusItem?
+  private var panel: HistoryPanel?
   private var wiring: AppWiring?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
@@ -15,12 +17,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       image?.isTemplate = true
       button.image = image
       button.toolTip = "Clipboard"
+      button.target = self
+      button.action = #selector(togglePanel)
     }
     statusItem = item
 
     let wiring = AppWiring()
     self.wiring = wiring
-    Task { await wiring.start() }
+    Task { @MainActor in
+      await wiring.start()
+      self.installPanelIfReady()
+    }
   }
 
   func applicationWillTerminate(_ notification: Notification) {
@@ -31,5 +38,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       semaphore.signal()
     }
     _ = semaphore.wait(timeout: .now() + 2.0)
+  }
+
+  @MainActor
+  @objc private func togglePanel() {
+    installPanelIfReady()
+    panel?.toggle(anchoredTo: statusItem)
+  }
+
+  @MainActor
+  private func installPanelIfReady() {
+    guard panel == nil, let vm = wiring?.viewModel else { return }
+    let root = HistoryPanelView(viewModel: vm) { [weak self] in
+      self?.panel?.orderOut(nil)
+    }
+    panel = HistoryPanel(rootView: root)
   }
 }

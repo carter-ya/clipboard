@@ -5,6 +5,7 @@ import Foundation
 final class AppWiring {
   let monitor: any ClipboardMonitoring
   private(set) var store: (any ClipStore)?
+  private(set) var viewModel: HistoryPanelViewModel?
   private var consumerTask: Task<Void, Never>?
   private let maxClipSizeBytes: Int
   private let cap: Int
@@ -28,6 +29,9 @@ final class AppWiring {
       let root = try AppPaths.defaultStoreRoot()
       let store = try await JSONSnapshotClipStore(root: root, cap: cap)
       self.store = store
+      let vm = HistoryPanelViewModel(store: store)
+      vm.start()
+      self.viewModel = vm
       consumerTask = Task { [monitor, store] in
         for await raw in monitor.changes {
           await store.insert(raw)
@@ -46,6 +50,7 @@ final class AppWiring {
     monitor.stop()
     consumerTask?.cancel()
     consumerTask = nil
+    viewModel?.stop()
     await store?.flush()
   }
 }
