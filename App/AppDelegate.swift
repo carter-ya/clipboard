@@ -258,13 +258,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     panel.onArrowDown = { [weak vm] in vm?.selectNext() }
     panel.onArrowUp = { [weak vm] in vm?.selectPrevious() }
-    panel.onDelete = { [weak vm] in
-      guard let vm,
-        let id = vm.selectedID,
-        let item = vm.filteredItems.first(where: { $0.id == id })
-      else { return }
-      Task { await vm.delete(item) }
-    }
     panel.onBeforeClose = { [weak self] rect in
       self?.lastPanelFrame = rect
     }

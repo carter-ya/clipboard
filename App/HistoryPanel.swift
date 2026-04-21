@@ -7,7 +7,6 @@ final class HistoryPanel: NSPanel {
   var onWillCloseCommit: (() -> Void)?
   var onArrowDown: (() -> Void)?
   var onArrowUp: (() -> Void)?
-  var onDelete: (() -> Void)?
   /// Fired just before the panel is hidden, carrying the panel's
   /// last frame (in screen coordinates) so callers can remember it
   /// as the anchor for auxiliary windows like Preferences.
@@ -124,13 +123,6 @@ final class HistoryPanel: NSPanel {
         return nil
       case 126:  // up arrow
         MainActor.assumeIsolated { self.onArrowUp?() }
-        return nil
-      case 51:  // ⌫ / Delete
-        // Only consume when the search field does NOT have focus —
-        // otherwise Delete in the text field would silently delete
-        // the selected row instead of a character.
-        if self.firstResponder is NSText { return event }
-        MainActor.assumeIsolated { self.onDelete?() }
         return nil
       default:
         return event

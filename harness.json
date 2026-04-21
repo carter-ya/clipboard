@@ -832,6 +832,24 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S28: epoch-guarded preview loads + bare Delete key deletes the selected row"
+    },
+    {
+      "id": "S29",
+      "title": "撤销『⌫ 键删行』的功能",
+      "goal": "S28 给 ⌫ 绑了『当前行是否被选中』驱动的删行动作。但 Alfred 风格的焦点模型里搜索框**永远**是 firstResponder——哪怕用户用 ↑↓ 在行间跳转，光标仍在搜索框闪烁。让同一个 ⌫ 键既管搜索字符又管行，要么吞错要么判错，体验就是坏的。干脆回到：⌫ 永远给搜索框用；删行走 ⌘⌫（hidden keyboardShortcut Button）或右键菜单。",
+      "deliverables": [
+        "HistoryPanel 去掉 S28 引入的 `onDelete: (() -> Void)?` 字段以及 keyMonitor 里的 keyCode 51（⌫）分支；上一轮 patch 里临时加的 `shouldInterceptDelete` 字段也一并删除——整条路径不再存在。",
+        "AppDelegate 在 installPanelIfReady 里对 panel.onDelete 的赋值也一并移除。",
+        "⌘⌫（hidden keyboardShortcut Button in HistoryPanelView）保留不动；右键菜单 Delete 保留不动。",
+        "S28 的另一半修复——ClipPreviewView 的 epoch 守卫——**不回滚**，那是独立的正确修复。"
+      ],
+      "acceptance": [
+        "搜索框有焦点（光标闪烁）→ 按 ⌫ → 删除搜索框里的一个字符（不删行）。",
+        "任何时候按 ⌘⌫ → 删除当前选中行；右键某一行选 Delete → 同样删行。",
+        "切换图片条目时的 Loading 不再卡住（S28 epoch 修复仍生效）。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S29: drop bare-Delete row-delete (search owns ⌫ exclusively)"
     }
   ],
   "slice_rhythm": [
@@ -953,7 +971,8 @@
       "S25",
       "S26",
       "S27",
-      "S28"
+      "S28",
+      "S29"
     ]
   },
   "open_questions": [
