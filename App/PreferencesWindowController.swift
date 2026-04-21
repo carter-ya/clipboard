@@ -41,7 +41,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     fatalError("Unavailable")
   }
 
-  func show() {
+  func show(on anchorScreen: NSScreen? = nil) {
     // Refresh the persisted prefs view against the OS's real login-item
     // state so we don't lie if the user disabled us in System Settings.
     reconcileLaunchAtLogin()
@@ -49,9 +49,23 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     // LSUIElement apps can't normally get keyboard focus; temporarily
     // promote activation so KeyboardShortcuts.Recorder etc. work.
     NSApp.setActivationPolicy(.regular)
-    window?.center()
+    if let anchorScreen, let window {
+      centerWindow(window, on: anchorScreen)
+    } else {
+      window?.center()
+    }
     window?.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
+  }
+
+  private func centerWindow(_ window: NSWindow, on screen: NSScreen) {
+    let visible = screen.visibleFrame
+    let size = window.frame.size
+    let origin = NSPoint(
+      x: visible.midX - size.width / 2,
+      y: visible.midY - size.height / 2
+    )
+    window.setFrameOrigin(origin)
   }
 
   private func reconcileLaunchAtLogin() {

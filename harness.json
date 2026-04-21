@@ -776,6 +776,26 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S25: install NSApp.mainMenu so standard Edit shortcuts route to NSTextField"
+    },
+    {
+      "id": "S26",
+      "title": "窗口居中 + Preferences 基于历史面板位置",
+      "goal": "(1) HistoryPanel 和 Preferences 都未居中——前者是『顶部中央』（S14 改成了 visibleFrame.maxY - height - 40），后者用 NSWindow.center() 只居中在 NSScreen.main。(2) Preferences 应出现在和历史面板同一个屏幕上、居中，而不是漂在主屏上。",
+      "deliverables": [
+        "HistoryPanel.positionAtCursorScreen 改为真正的居中：origin.y = visibleFrame.midY - panelSize.height / 2（之前是靠上）。光标所在屏依旧是锚点屏。",
+        "AppDelegate 新增 `lastPanelScreen: NSScreen?` 私有字段；HistoryPanel 关闭（close / orderOut）前通过回调把 `self.screen` 捕获回 AppDelegate——用作 Preferences 开启时的锚点屏回退。",
+        "HistoryPanel 新增 `onBeforeClose: ((NSScreen?) -> Void)?` 回调，close()/orderOut(_:) 最开始调用（在 commitBeforeCloseIfNeeded 之前即可，只要能拿到 self.screen）。",
+        "PreferencesWindowController.show 接受可选 `on: NSScreen?` 参数——传入则在该屏居中，否则维持原行为（center()）。",
+        "AppDelegate.openPreferences 决定锚点屏：panel?.screen ?? lastPanelScreen ?? 光标所在屏 ?? main；传给 preferencesController.show。",
+        "辅助函数 `screenContainingCursor() -> NSScreen?` 复用 positionAtCursorScreen 的逻辑——用 NSEvent.mouseLocation 在 NSScreen.screens 里找包含该点的屏。"
+      ],
+      "acceptance": [
+        "⌥⌘V 在副屏召唤面板 → 面板居中在副屏（不是顶部、也不是主屏）；切回主屏再按 ⌥⌘V → 面板居中在主屏。",
+        "面板在副屏打开 → 按 ⌘, 开 Preferences → Preferences 窗口居中在副屏（与面板同屏）。",
+        "面板从未打开过、直接通过 `applicationShouldHandleReopen`（Finder 双击重启已运行 App）打开 Preferences → Preferences 居中在光标所在屏。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S26: center history panel + Preferences follows panel's screen"
     }
   ],
   "slice_rhythm": [
@@ -894,7 +914,8 @@
       "S22",
       "S23",
       "S24",
-      "S25"
+      "S25",
+      "S26"
     ]
   },
   "open_questions": [

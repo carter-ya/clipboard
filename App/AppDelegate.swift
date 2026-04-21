@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var wiring: AppWiring?
   private var preferencesController: PreferencesWindowController?
   private var onboarding: OnboardingController?
+  private var lastPanelScreen: NSScreen?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     installMainMenu()
@@ -91,9 +92,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   @MainActor
   @objc private func openPreferences() {
+    // Pick up the panel's current screen BEFORE closing it
+    // (panel.screen becomes nil once it's off-screen).
+    let anchor = panel?.screen ?? lastPanelScreen ?? screenContainingCursor()
     panel?.close()
     installPreferencesIfReady()
-    preferencesController?.show()
+    preferencesController?.show(on: anchor)
+  }
+
+  @MainActor
+  private func screenContainingCursor() -> NSScreen? {
+    let mouse = NSEvent.mouseLocation
+    return NSScreen.screens.first(where: { $0.frame.contains(mouse) })
+      ?? NSScreen.main
   }
 
   @MainActor
@@ -239,6 +250,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     panel.onArrowDown = { [weak vm] in vm?.selectNext() }
     panel.onArrowUp = { [weak vm] in vm?.selectPrevious() }
+    panel.onBeforeClose = { [weak self] screen in
+      self?.lastPanelScreen = screen
+    }
     self.panel = panel
   }
 

@@ -7,6 +7,10 @@ final class HistoryPanel: NSPanel {
   var onWillCloseCommit: (() -> Void)?
   var onArrowDown: (() -> Void)?
   var onArrowUp: (() -> Void)?
+  /// Fired just before the panel is hidden, carrying the screen the
+  /// panel was last on so callers (e.g., AppDelegate) can remember it
+  /// as the anchor for auxiliary windows like Preferences.
+  var onBeforeClose: ((NSScreen?) -> Void)?
   var suppressNextCloseCommit = false
 
   private var outsideClickMonitor: Any?
@@ -50,6 +54,7 @@ final class HistoryPanel: NSPanel {
   }
 
   override func close() {
+    notifyBeforeCloseIfVisible()
     commitBeforeCloseIfNeeded()
     stopOutsideClickMonitor()
     stopKeyMonitor()
@@ -57,10 +62,16 @@ final class HistoryPanel: NSPanel {
   }
 
   override func orderOut(_ sender: Any?) {
+    notifyBeforeCloseIfVisible()
     commitBeforeCloseIfNeeded()
     stopOutsideClickMonitor()
     stopKeyMonitor()
     super.orderOut(sender)
+  }
+
+  private func notifyBeforeCloseIfVisible() {
+    guard isVisible else { return }
+    onBeforeClose?(screen)
   }
 
   private func commitBeforeCloseIfNeeded() {
@@ -136,7 +147,7 @@ final class HistoryPanel: NSPanel {
     let visibleFrame = screen.visibleFrame
     let origin = NSPoint(
       x: visibleFrame.midX - panelSize.width / 2,
-      y: visibleFrame.maxY - panelSize.height - 40
+      y: visibleFrame.midY - panelSize.height / 2
     )
     setFrameOrigin(origin)
   }
