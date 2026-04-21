@@ -4,6 +4,7 @@ import SwiftUI
 struct HistoryPanelView: View {
   @ObservedObject var viewModel: HistoryPanelViewModel
   var onClose: () -> Void = {}
+  var onActivate: (ClipItem) -> Void = { _ in }
 
   var body: some View {
     VStack(spacing: 0) {
@@ -40,8 +41,23 @@ struct HistoryPanelView: View {
     List(viewModel.items, selection: $viewModel.selectedID) { item in
       ClipRowView(item: item)
         .tag(item.id)
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) { onActivate(item) }
     }
     .listStyle(.plain)
+    .background(
+      Button("") { activateSelected() }
+        .keyboardShortcut(.return, modifiers: [])
+        .hidden()
+    )
+  }
+
+  private func activateSelected() {
+    if let id = viewModel.selectedID,
+      let item = viewModel.items.first(where: { $0.id == id })
+    {
+      onActivate(item)
+    }
   }
 
   private var emptyState: some View {

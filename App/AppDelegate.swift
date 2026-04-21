@@ -53,10 +53,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   @MainActor
   private func installPanelIfReady() {
-    guard panel == nil, let vm = wiring?.viewModel else { return }
-    let root = HistoryPanelView(viewModel: vm) { [weak self] in
-      self?.panel?.orderOut(nil)
-    }
+    guard panel == nil, let wiring = wiring, let vm = wiring.viewModel else { return }
+    let root = HistoryPanelView(
+      viewModel: vm,
+      onClose: { [weak self] in
+        self?.panel?.orderOut(nil)
+      },
+      onActivate: { [weak self] item in
+        wiring.activate(item)
+        self?.panel?.orderOut(nil)
+      }
+    )
     panel = HistoryPanel(rootView: root)
   }
 }
