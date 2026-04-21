@@ -15,9 +15,12 @@ final class AppWiring {
 
   private var consumerTask: Task<Void, Never>?
   private var hotkeyTask: Task<Void, Never>?
+  private var storeEventsTask: Task<Void, Never>?
   private var blobRoot: URL?
+  private(set) var isMonitoringPaused: Bool = false
 
   var onHotkey: (() -> Void)?
+  var onStoreCorrupted: ((String) -> Void)?
 
   init() {
     self.preferencesStore = PreferencesStore.shared
@@ -44,6 +47,7 @@ final class AppWiring {
 
       installMonitor(prefs: prefs)
       startHotkey()
+      startStoreEventObserver()
 
       Log.ui.info("app.launched{root:\(root.path, privacy: .public)}")
     } catch {
@@ -60,8 +64,19 @@ final class AppWiring {
     hotkey.unbind()
     hotkeyTask?.cancel()
     hotkeyTask = nil
+    storeEventsTask?.cancel()
+    storeEventsTask = nil
     viewModel?.stop()
     await store?.flush()
+  }
+
+  func setMonitoringPaused(_ paused: Bool) {
+    isMonitoringPaused = paused
+    if paused {
+      monitor?.stop()
+    } else {
+      monitor?.start()
+    }
   }
 
   func activate(_ item: ClipItem) {
@@ -114,6 +129,22 @@ final class AppWiring {
       for await _ in hotkey.events {
         await MainActor.run {
           self.onHotkey?()
+        }
+      }
+    }
+  }
+
+  private func startStoreEventObserver() {
+    guard let store = self.store else { return }
+    storeEventsTask = Task { [store] in
+      for await event in store.events {
+        switch event {
+        case .corrupted(let path, _):
+          await MainActor.run {
+            self.onStoreCorrupted?(path)
+          }
+        default:
+          break
         }
       }
     }

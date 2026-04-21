@@ -7,6 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var panel: HistoryPanel?
   private var wiring: AppWiring?
   private var preferencesController: PreferencesWindowController?
+  private var onboarding: OnboardingController?
+  private var pauseMenuItem: NSMenuItem?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -30,10 +32,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self?.togglePanel()
       }
     }
+    wiring.onStoreCorrupted = { [weak self] path in
+      MainActor.assumeIsolated {
+        self?.notifyCorruptionRecovery(path: path)
+      }
+    }
     self.wiring = wiring
     Task { @MainActor in
       await wiring.start()
       self.installPanelIfReady()
+      let onboarding = OnboardingController()
+      self.onboarding = onboarding
+      onboarding.showIfFirstRun()
     }
   }
 
@@ -49,8 +59,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   @MainActor
   @objc private func togglePanel() {
-    // Mutual exclusion: close prefs before opening the panel so the
-    // non-activating panel doesn't get covered by it.
     preferencesController?.window?.orderOut(nil)
     installPanelIfReady()
     panel?.toggle(anchoredTo: statusItem)
@@ -58,7 +66,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   @MainActor
   @objc private func openPreferences() {
-    // Mutual exclusion: S4 rule — any other window dismisses panel first.
     panel?.orderOut(nil)
     installPreferencesIfReady()
     preferencesController?.show()
@@ -78,8 +85,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @MainActor
+  @objc private func togglePauseMonitoring() {
+    guard let wiring else { return }
+    let willPause = !wiring.isMonitoringPaused
+    wiring.setMonitoringPaused(willPause)
+    updatePauseMenuItemState(paused: willPause)
+    if let button = statusItem?.button {
+      button.appearsDisabled = willPause
+    }
+  }
+
+  @MainActor
+  @objc private func showOnboarding() {
+    if onboarding == nil { onboarding = OnboardingController() }
+    onboarding?.show()
+  }
+
+  @MainActor
   @objc private func quit() {
     NSApplication.shared.terminate(nil)
+  }
+
+  @MainActor
+  private func notifyCorruptionRecovery(path: String) {
+    let alert = NSAlert()
+    alert.messageText = "History was recovered from a backup"
+    alert.informativeText =
+      "The original file appeared corrupted and has been renamed to history.json.bak. "
+      + "Clipboard started with an empty history."
+    alert.alertStyle = .informational
+    alert.addButton(withTitle: "OK")
+    alert.runModal()
   }
 
   @MainActor
@@ -141,17 +177,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func buildMenu() -> NSMenu {
     let menu = NSMenu()
     menu.addItem(
-      NSMenuItem(title: "Show History…", action: #selector(togglePanel), keyEquivalent: "")
+      NSMenuItem(title: "Show History", action: #selector(togglePanel), keyEquivalent: "")
     )
     menu.addItem(
       NSMenuItem(title: "Preferences…", action: #selector(openPreferences), keyEquivalent: ",")
     )
     menu.addItem(NSMenuItem.separator())
+    let pause = NSMenuItem(
+      title: "Pause Monitoring",
+      action: #selector(togglePauseMonitoring),
+      keyEquivalent: ""
+    )
+    pauseMenuItem = pause
+    menu.addItem(pause)
     menu.addItem(
       NSMenuItem(title: "Clear History…", action: #selector(clearHistory), keyEquivalent: "")
     )
     menu.addItem(NSMenuItem.separator())
+    menu.addItem(
+      NSMenuItem(title: "About Clipboard…", action: #selector(showOnboarding), keyEquivalent: "")
+    )
     menu.addItem(NSMenuItem(title: "Quit Clipboard", action: #selector(quit), keyEquivalent: "q"))
     return menu
+  }
+
+  @MainActor
+  private func updatePauseMenuItemState(paused: Bool) {
+    pauseMenuItem?.title = paused ? "Resume Monitoring" : "Pause Monitoring"
   }
 }
