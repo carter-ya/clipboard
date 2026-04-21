@@ -19,6 +19,12 @@ public protocol ClipStore: Sendable {
   func delete(id: UUID) async
   func clearAll() async
 
+  /// Move the item to the head of the list and refresh its createdAt.
+  /// Used when the user activates an entry so the UI reflects the new
+  /// order immediately, without waiting for the monitor's next poll
+  /// tick to re-observe the clipboard and run dedup.
+  func bumpToTop(id: UUID) async
+
   /// Forces any pending debounced write to complete. Should be called
   /// before app termination.
   func flush() async

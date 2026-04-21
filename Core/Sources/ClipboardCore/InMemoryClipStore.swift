@@ -85,6 +85,14 @@ public actor InMemoryClipStore: ClipStore {
     eventsContinuation.yield(.deleted(id))
   }
 
+  public func bumpToTop(id: UUID) async {
+    guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
+    var item = items.remove(at: idx)
+    item.createdAt = Date()
+    items.insert(item, at: 0)
+    eventsContinuation.yield(.updated(item))
+  }
+
   public func clearAll() async {
     items.removeAll()
     eventsContinuation.yield(.cleared)

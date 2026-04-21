@@ -142,6 +142,15 @@ public actor JSONSnapshotClipStore: ClipStore {
     if !removed.sensitive { scheduleWrite() }
   }
 
+  public func bumpToTop(id: UUID) async {
+    guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
+    var item = items.remove(at: idx)
+    item.createdAt = Date()
+    items.insert(item, at: 0)
+    eventsContinuation.yield(.updated(item))
+    if !item.sensitive { scheduleWrite() }
+  }
+
   public func clearAll() async {
     for item in items {
       await releaseBlobs(for: item)

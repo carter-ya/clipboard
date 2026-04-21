@@ -26,6 +26,9 @@ struct HistoryPanelView: View {
     .frame(width: 680, height: 520)
     .background(.regularMaterial)
     .background(keyboardShortcutButtons)
+    .onChange(of: viewModel.currentTab) { _ in
+      viewModel.resetSelection()
+    }
   }
 
   private var listColumn: some View {

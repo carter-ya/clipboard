@@ -88,6 +88,12 @@ final class AppWiring {
         "paste.failed err=\(String(describing: error), privacy: .public)"
       )
     }
+    // Bump to top synchronously so the UI reflects the new order on
+    // the next panel open without waiting for the monitor's poll
+    // tick to re-observe the clipboard.
+    if let store = self.store {
+      Task { await store.bumpToTop(id: item.id) }
+    }
   }
 
   /// Rebuild the monitor + filter chain using the current preferences.

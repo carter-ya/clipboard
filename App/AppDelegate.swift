@@ -69,14 +69,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   @MainActor
   private func showStatusMenu() {
-    guard let button = statusItem?.button else { return }
+    guard let button = statusItem?.button, let event = NSApp.currentEvent else { return }
     let menu = buildMenu()
-    // Pop up directly at the button — do NOT route through
-    // statusItem.menu= + performClick. Setting menu inside an action
-    // handler either drops the event or recurses into the same
-    // action; popUp(positioning:at:in:) is the supported path.
-    let origin = NSPoint(x: 0, y: button.bounds.height + 4)
-    menu.popUp(positioning: nil, at: origin, in: button)
+    // Hand the current right-click event to AppKit's context-menu
+    // pipeline — it handles positioning, event tracking, and
+    // synchronous dismissal. Manually computing coordinates against
+    // button.bounds in the y-up coordinate space in S11 pushed the
+    // menu off-screen; popUpContextMenu avoids that entirely.
+    NSMenu.popUpContextMenu(menu, with: event, for: button)
   }
 
   @MainActor
