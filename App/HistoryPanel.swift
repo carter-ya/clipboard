@@ -4,19 +4,13 @@ import SwiftUI
 
 @MainActor
 final class HistoryPanel: NSPanel {
-  /// Called just before the panel is hidden via any close path
-  /// (Esc, outside click, X button, re-toggle). The implementation
-  /// is expected to consult the view model's current selection and
-  /// activate (write-to-pasteboard) it. Set
-  /// `suppressNextCloseCommit` immediately before a known-to-be-
-  /// already-committed close path (e.g., the explicit ↵ handler) to
-  /// avoid double-firing.
   var onWillCloseCommit: (() -> Void)?
-
-  /// One-shot flag: the next close path will skip onWillCloseCommit.
+  var onArrowDown: (() -> Void)?
+  var onArrowUp: (() -> Void)?
   var suppressNextCloseCommit = false
 
   private var outsideClickMonitor: Any?
+  private var keyMonitor: Any?
 
   init(rootView: some View) {
     super.init(
@@ -44,25 +38,28 @@ final class HistoryPanel: NSPanel {
     close()
   }
 
-  func toggle(anchoredTo statusItem: NSStatusItem?) {
+  func toggle() {
     if isVisible {
       close()
       return
     }
-    positionNear(statusItem: statusItem)
+    positionAtCursorScreen()
     makeKeyAndOrderFront(nil)
     startOutsideClickMonitor()
+    startKeyMonitor()
   }
 
   override func close() {
     commitBeforeCloseIfNeeded()
     stopOutsideClickMonitor()
+    stopKeyMonitor()
     super.close()
   }
 
   override func orderOut(_ sender: Any?) {
     commitBeforeCloseIfNeeded()
     stopOutsideClickMonitor()
+    stopKeyMonitor()
     super.orderOut(sender)
   }
 
@@ -94,34 +91,53 @@ final class HistoryPanel: NSPanel {
     }
   }
 
-  private func positionNear(statusItem: NSStatusItem?) {
-    guard let button = statusItem?.button,
-      let buttonWindow = button.window
-    else {
-      center()
-      return
+  private func startKeyMonitor() {
+    stopKeyMonitor()
+    keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
+      [weak self] event in
+      guard let self else { return event }
+      // Only intercept events targeting our panel window.
+      guard event.window === self else { return event }
+      switch event.keyCode {
+      case 125:  // down arrow
+        MainActor.assumeIsolated { self.onArrowDown?() }
+        return nil
+      case 126:  // up arrow
+        MainActor.assumeIsolated { self.onArrowUp?() }
+        return nil
+      default:
+        return event
+      }
     }
-    let buttonRectInScreen = buttonWindow.convertToScreen(
-      button.convert(button.bounds, to: nil)
-    )
-    let panelSize = frame.size
-    let screen = screen(for: buttonRectInScreen) ?? NSScreen.main ?? NSScreen.screens.first!
-    let visibleFrame = screen.visibleFrame
-    var origin = NSPoint(
-      x: buttonRectInScreen.midX - panelSize.width / 2,
-      y: buttonRectInScreen.minY - panelSize.height - 6
-    )
-    origin.x = max(visibleFrame.minX + 8, min(visibleFrame.maxX - panelSize.width - 8, origin.x))
-    origin.y = max(visibleFrame.minY + 8, origin.y)
-    setFrameOrigin(origin)
   }
 
-  private func screen(for rect: NSRect) -> NSScreen? {
-    NSScreen.screens.first { $0.frame.intersects(rect) }
+  private func stopKeyMonitor() {
+    if let monitor = keyMonitor {
+      NSEvent.removeMonitor(monitor)
+      keyMonitor = nil
+    }
+  }
+
+  private func positionAtCursorScreen() {
+    let panelSize = frame.size
+    let mouseLocation = NSEvent.mouseLocation
+    let screen =
+      NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
+      ?? NSScreen.main
+      ?? NSScreen.screens.first!
+    let visibleFrame = screen.visibleFrame
+    let origin = NSPoint(
+      x: visibleFrame.midX - panelSize.width / 2,
+      y: visibleFrame.maxY - panelSize.height - 40
+    )
+    setFrameOrigin(origin)
   }
 
   deinit {
     if let monitor = outsideClickMonitor {
+      NSEvent.removeMonitor(monitor)
+    }
+    if let monitor = keyMonitor {
       NSEvent.removeMonitor(monitor)
     }
   }

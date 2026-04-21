@@ -59,6 +59,36 @@ final class HistoryPanelViewModel: ObservableObject {
     scrollEpoch &+= 1
   }
 
+  /// Move selection one row down. Clamps at the last row (no wrap).
+  func selectNext() {
+    let items = filteredItems
+    guard !items.isEmpty else {
+      selectedID = nil
+      return
+    }
+    if let id = selectedID, let idx = items.firstIndex(where: { $0.id == id }) {
+      let next = min(idx + 1, items.count - 1)
+      selectedID = items[next].id
+    } else {
+      selectedID = items.first?.id
+    }
+  }
+
+  /// Move selection one row up. Clamps at the first row (no wrap).
+  func selectPrevious() {
+    let items = filteredItems
+    guard !items.isEmpty else {
+      selectedID = nil
+      return
+    }
+    if let id = selectedID, let idx = items.firstIndex(where: { $0.id == id }) {
+      let prev = max(idx - 1, 0)
+      selectedID = items[prev].id
+    } else {
+      selectedID = items.last?.id
+    }
+  }
+
   func setSearch(_ text: String) {
     searchText = text
     searchTask?.cancel()

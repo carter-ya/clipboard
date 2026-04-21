@@ -9,7 +9,7 @@ struct HistoryPanelView: View {
   var onActivate: (ClipItem) -> Void = { _ in }
   var onTogglePin: (ClipItem) -> Void = { _ in }
   var onDelete: (ClipItem) -> Void = { _ in }
-  var onShowOverflowMenu: (NSView) -> Void = { _ in }
+  var onShowPreferences: () -> Void = {}
 
   @FocusState private var searchFocused: Bool
 
@@ -27,6 +27,7 @@ struct HistoryPanelView: View {
     .frame(width: 680, height: 520)
     .background(.regularMaterial)
     .background(keyboardShortcutButtons)
+    .onAppear { searchFocused = true }
     .onChange(of: viewModel.currentTab) { _ in
       viewModel.resetSelection()
     }
@@ -61,7 +62,6 @@ struct HistoryPanelView: View {
       .focused($searchFocused)
       .onSubmit { activateSelected() }
       .accessibilityLabel("Search history")
-      OverflowMenuButton(onShowMenu: onShowOverflowMenu)
     }
     .padding(10)
   }
@@ -97,6 +97,9 @@ struct HistoryPanelView: View {
           proxy.scrollTo(id, anchor: .top)
         }
       }
+      .onChange(of: viewModel.selectedID) { newID in
+        if let newID { proxy.scrollTo(newID, anchor: .center) }
+      }
     }
   }
 
@@ -127,14 +130,14 @@ struct HistoryPanelView: View {
       Button("") { activateSelected() }
         .keyboardShortcut(.return, modifiers: [])
         .hidden()
-      Button("") { searchFocused = true }
-        .keyboardShortcut("f", modifiers: .command)
-        .hidden()
       Button("") { deleteSelected() }
         .keyboardShortcut(.delete, modifiers: .command)
         .hidden()
       Button("") { togglePinSelected() }
         .keyboardShortcut("p", modifiers: .command)
+        .hidden()
+      Button("") { onShowPreferences() }
+        .keyboardShortcut(",", modifiers: .command)
         .hidden()
       Button("") { selectQuick(index: 0) }
         .keyboardShortcut("1", modifiers: .command)

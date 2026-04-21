@@ -3,28 +3,12 @@ import ClipboardCore
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-  private var statusItem: NSStatusItem?
   private var panel: HistoryPanel?
   private var wiring: AppWiring?
   private var preferencesController: PreferencesWindowController?
   private var onboarding: OnboardingController?
-  private var pauseMenuItem: NSMenuItem?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
-    let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    if let button = item.button {
-      let image = NSImage(
-        systemSymbolName: "doc.on.clipboard",
-        accessibilityDescription: "Clipboard"
-      )
-      image?.isTemplate = true
-      button.image = image
-      button.toolTip = "Clipboard"
-      button.target = self
-      button.action = #selector(togglePanel)
-    }
-    statusItem = item
-
     let wiring = AppWiring()
     wiring.onHotkey = { [weak self] in
       MainActor.assumeIsolated {
@@ -56,21 +40,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     _ = semaphore.wait(timeout: .now() + 2.0)
   }
 
+  /// Relaunching the app (double-click Clipboard.app from Finder /
+  /// Dock / Spotlight) opens Preferences — the only fallback path
+  /// we offer now that there is no menu bar icon.
+  func applicationShouldHandleReopen(
+    _ sender: NSApplication,
+    hasVisibleWindows flag: Bool
+  ) -> Bool {
+    openPreferences()
+    return true
+  }
+
   @MainActor
   @objc private func togglePanel() {
     preferencesController?.window?.orderOut(nil)
     installPanelIfReady()
     guard let panel else { return }
-    guard let vm = wiring?.viewModel else {
-      panel.toggle(anchoredTo: statusItem)
-      return
-    }
     if panel.isVisible {
       panel.close()
       return
     }
-    vm.resetSelection()
-    panel.toggle(anchoredTo: statusItem)
+    wiring?.viewModel?.resetSelection()
+    panel.toggle()
   }
 
   @MainActor
@@ -91,28 +82,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     guard alert.runModal() == .alertFirstButtonReturn else { return }
     guard let wiring else { return }
     Task { await wiring.clearHistory() }
-  }
-
-  @MainActor
-  @objc private func togglePauseMonitoring() {
-    guard let wiring else { return }
-    let willPause = !wiring.isMonitoringPaused
-    wiring.setMonitoringPaused(willPause)
-    updatePauseMenuItemState(paused: willPause)
-    if let button = statusItem?.button {
-      button.appearsDisabled = willPause
-    }
-  }
-
-  @MainActor
-  @objc private func showOnboarding() {
-    if onboarding == nil { onboarding = OnboardingController() }
-    onboarding?.show()
-  }
-
-  @MainActor
-  @objc private func quit() {
-    NSApplication.shared.terminate(nil)
   }
 
   @MainActor
@@ -148,9 +117,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       onDelete: { item in
         Task { await vm.delete(item) }
       },
-      onShowOverflowMenu: { [weak self] sourceView in
+      onShowPreferences: { [weak self] in
         MainActor.assumeIsolated {
-          self?.showOverflowMenu(from: sourceView)
+          self?.panel?.suppressNextCloseCommit = true
+          self?.openPreferences()
         }
       }
     )
@@ -163,6 +133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       else { return }
       self.wiring?.activate(item)
     }
+    panel.onArrowDown = { [weak vm] in vm?.selectNext() }
+    panel.onArrowUp = { [weak vm] in vm?.selectPrevious() }
     self.panel = panel
   }
 
@@ -196,62 +168,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     } catch {
       Log.ui.error("export.failed err=\(String(describing: error), privacy: .public)")
     }
-  }
-
-  @MainActor
-  private func showOverflowMenu(from sourceView: NSView) {
-    // Panel's close-commit would otherwise treat the menu transition
-    // as a "close with selection" and overwrite the clipboard.
-    panel?.suppressNextCloseCommit = true
-    let menu = buildMenu()
-    if let event = NSApp.currentEvent {
-      NSMenu.popUpContextMenu(menu, with: event, for: sourceView)
-    } else {
-      // Synthesize a generic event when invoked from keyboard.
-      let fakeEvent = NSEvent.mouseEvent(
-        with: .leftMouseDown,
-        location: sourceView.convert(sourceView.bounds.origin, to: nil),
-        modifierFlags: [],
-        timestamp: 0,
-        windowNumber: sourceView.window?.windowNumber ?? 0,
-        context: nil,
-        eventNumber: 0,
-        clickCount: 1,
-        pressure: 1
-      )
-      if let fakeEvent {
-        NSMenu.popUpContextMenu(menu, with: fakeEvent, for: sourceView)
-      }
-    }
-  }
-
-  @MainActor
-  private func buildMenu() -> NSMenu {
-    let menu = NSMenu()
-    menu.addItem(
-      NSMenuItem(title: "Preferences…", action: #selector(openPreferences), keyEquivalent: ",")
-    )
-    menu.addItem(NSMenuItem.separator())
-    let pause = NSMenuItem(
-      title: wiring?.isMonitoringPaused == true ? "Resume Monitoring" : "Pause Monitoring",
-      action: #selector(togglePauseMonitoring),
-      keyEquivalent: ""
-    )
-    pauseMenuItem = pause
-    menu.addItem(pause)
-    menu.addItem(
-      NSMenuItem(title: "Clear History…", action: #selector(clearHistory), keyEquivalent: "")
-    )
-    menu.addItem(NSMenuItem.separator())
-    menu.addItem(
-      NSMenuItem(title: "About Clipboard…", action: #selector(showOnboarding), keyEquivalent: "")
-    )
-    menu.addItem(NSMenuItem(title: "Quit Clipboard", action: #selector(quit), keyEquivalent: "q"))
-    return menu
-  }
-
-  @MainActor
-  private func updatePauseMenuItemState(paused: Bool) {
-    pauseMenuItem?.title = paused ? "Resume Monitoring" : "Pause Monitoring"
   }
 }
