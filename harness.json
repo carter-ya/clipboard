@@ -756,6 +756,26 @@
         "`just build` / `just test` / `just lint` 全绿（不新增测试，本身就是可运行的测试工具）。"
       ],
       "commit_message": "S24: add minimal scenario-runner executable"
+    },
+    {
+      "id": "S25",
+      "title": "注入 NSApp.mainMenu 以恢复标准编辑快捷键",
+      "goal": "搜索框等 NSTextField 不响应 Cmd+A / Cmd+C / Cmd+V / Cmd+X / Cmd+Z / Cmd+Q——原因：LSUIElement 应用从未设置 NSApp.mainMenu，这些快捷键在 macOS 上依赖主菜单的 Edit 菜单项的 key equivalent 把 selectAll: / copy: / paste: 等 selector 沿响应链派发给 NSTextField；没有菜单就没有派发，TextField 再焦点也收不到。",
+      "deliverables": [
+        "AppDelegate.applicationDidFinishLaunching 在最前构建并安装 NSApp.mainMenu。菜单不可见（LSUIElement 本就不显示菜单栏），但 key equivalent 仍会被 AppKit 捕获并派发。",
+        "App 菜单至少含 Hide (⌘H) / Hide Others (⌥⌘H) / Show All / Quit (⌘Q) —— 标准 Cocoa 约定。",
+        "Edit 菜单至少含 Undo (⌘Z) / Redo (⇧⌘Z) / Cut (⌘X) / Copy (⌘C) / Paste (⌘V) / Select All (⌘A) ——这些 selector 会经响应链抵达当前 first responder（即搜索框对应的 NSTextView）。",
+        "已有的 ⌥⌘V 全局快捷键（KeyboardShortcuts 库注册）与标准 ⌘V（Paste）不冲突——前者有 ⌥ 修饰、后者没有；事实上 Paste 的 ⌘V 在主菜单里存在也没关系，因为全局快捷键优先于窗口内菜单。",
+        "已有的 HistoryPanelView 隐藏 keyboardShortcut 按钮（⌘,、⌘P、⌘1–9、⌘⌫ 等）与主菜单新增项不冲突——这些字符都未被主菜单占用。"
+      ],
+      "acceptance": [
+        "⌥⌘V 打开面板、搜索框获焦、输入『foo bar』→ ⌘A 全选、⌘C 复制、⌘V 再粘贴、⌘Z 撤销、⌘X 剪切均正常。",
+        "在任意输入框按 ⌘Q → Clipboard 退出（通过 `pgrep -x Clipboard` 验证进程消失）。",
+        "⌘H 隐藏应用（Preferences 窗口若开着会隐藏）。",
+        "原有交互不退步：⌥⌘V 仍然召唤面板、⌘, 仍然打开 Preferences、⌘P 仍然置顶选中、面板外点击仍然关闭。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S25: install NSApp.mainMenu so standard Edit shortcuts route to NSTextField"
     }
   ],
   "slice_rhythm": [
@@ -873,7 +893,8 @@
       "S21",
       "S22",
       "S23",
-      "S24"
+      "S24",
+      "S25"
     ]
   },
   "open_questions": [

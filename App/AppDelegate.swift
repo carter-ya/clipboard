@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var onboarding: OnboardingController?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    installMainMenu()
+
     DistributedNotificationCenter.default().addObserver(
       self,
       selector: #selector(handleReopenNotification(_:)),
@@ -105,6 +107,85 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     guard alert.runModal() == .alertFirstButtonReturn else { return }
     guard let wiring else { return }
     Task { await wiring.clearHistory() }
+  }
+
+  /// Install NSApp.mainMenu so standard Cocoa key equivalents
+  /// (⌘A / ⌘C / ⌘V / ⌘X / ⌘Z / ⌘Q / ⌘H) reach the current first
+  /// responder. Our app is LSUIElement=true so this menu is never
+  /// visible, but AppKit still routes keyEquivalents through it.
+  @MainActor
+  private func installMainMenu() {
+    let mainMenu = NSMenu()
+
+    // App menu
+    let appItem = NSMenuItem()
+    let appMenu = NSMenu()
+    appMenu.addItem(
+      withTitle: "Hide Clipboard",
+      action: #selector(NSApplication.hide(_:)),
+      keyEquivalent: "h"
+    )
+    let hideOthers = appMenu.addItem(
+      withTitle: "Hide Others",
+      action: #selector(NSApplication.hideOtherApplications(_:)),
+      keyEquivalent: "h"
+    )
+    hideOthers.keyEquivalentModifierMask = [.command, .option]
+    appMenu.addItem(
+      withTitle: "Show All",
+      action: #selector(NSApplication.unhideAllApplications(_:)),
+      keyEquivalent: ""
+    )
+    appMenu.addItem(NSMenuItem.separator())
+    appMenu.addItem(
+      withTitle: "Quit Clipboard",
+      action: #selector(NSApplication.terminate(_:)),
+      keyEquivalent: "q"
+    )
+    appItem.submenu = appMenu
+    mainMenu.addItem(appItem)
+
+    // Edit menu — the key fix: these key equivalents dispatch
+    // selectAll:, copy:, paste:, cut:, undo:, redo: down the
+    // responder chain so NSTextField/NSTextView behave normally.
+    let editItem = NSMenuItem()
+    let editMenu = NSMenu(title: "Edit")
+    editMenu.addItem(
+      withTitle: "Undo",
+      action: Selector(("undo:")),
+      keyEquivalent: "z"
+    )
+    let redo = editMenu.addItem(
+      withTitle: "Redo",
+      action: Selector(("redo:")),
+      keyEquivalent: "z"
+    )
+    redo.keyEquivalentModifierMask = [.command, .shift]
+    editMenu.addItem(NSMenuItem.separator())
+    editMenu.addItem(
+      withTitle: "Cut",
+      action: #selector(NSText.cut(_:)),
+      keyEquivalent: "x"
+    )
+    editMenu.addItem(
+      withTitle: "Copy",
+      action: #selector(NSText.copy(_:)),
+      keyEquivalent: "c"
+    )
+    editMenu.addItem(
+      withTitle: "Paste",
+      action: #selector(NSText.paste(_:)),
+      keyEquivalent: "v"
+    )
+    editMenu.addItem(
+      withTitle: "Select All",
+      action: #selector(NSText.selectAll(_:)),
+      keyEquivalent: "a"
+    )
+    editItem.submenu = editMenu
+    mainMenu.addItem(editItem)
+
+    NSApp.mainMenu = mainMenu
   }
 
   @MainActor
