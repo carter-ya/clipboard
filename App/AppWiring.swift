@@ -4,8 +4,9 @@ import KeyboardShortcuts
 
 @MainActor
 final class AppWiring {
-  let monitor: any ClipboardMonitoring
   let hotkey: any HotkeyService
+  let preferencesStore: PreferencesStore
+  private(set) var monitor: (any ClipboardMonitoring)?
   private(set) var store: (any ClipStore)?
   private(set) var viewModel: HistoryPanelViewModel?
   private(set) var pasteboardWriter: (any PasteboardWriting)?
@@ -14,32 +15,25 @@ final class AppWiring {
 
   private var consumerTask: Task<Void, Never>?
   private var hotkeyTask: Task<Void, Never>?
+  private var blobRoot: URL?
 
-  private let maxClipSizeBytes: Int
-  private let cap: Int
   var onHotkey: (() -> Void)?
 
-  init(maxClipSizeBytes: Int = 10 * 1024 * 1024, cap: Int = 100) {
-    self.maxClipSizeBytes = maxClipSizeBytes
-    self.cap = cap
-    let chain = FilterChain(filters: [
-      SizeFilter(maxClipSizeBytes: maxClipSizeBytes),
-      SensitivityFilter(skipSensitive: true),
-      BlocklistFilter(blockedBundleIDs: BlocklistFilter.defaults),
-    ])
-    self.monitor = NSPasteboardMonitor(
-      filter: chain,
-      maxClipSizeBytes: maxClipSizeBytes
-    )
+  init() {
+    self.preferencesStore = PreferencesStore.shared
     self.hotkey = KeyboardShortcutsHotkeyService()
   }
 
   func start() async {
     do {
       let root = try AppPaths.defaultStoreRoot()
-      let store = try await JSONSnapshotClipStore(root: root, cap: cap)
-      self.store = store
+      let prefs = preferencesStore.current
       let blobRoot = root.appendingPathComponent("blobs")
+      self.blobRoot = blobRoot
+
+      let store = try await JSONSnapshotClipStore(root: root, cap: prefs.cap)
+      self.store = store
+
       self.pasteboardWriter = NSPasteboardWriter(blobRoot: blobRoot)
       self.thumbnailLoader = ThumbnailLoader(blobRoot: blobRoot)
       self.payloadResolver = PayloadResolver(blobRoot: blobRoot)
@@ -48,21 +42,8 @@ final class AppWiring {
       vm.start()
       self.viewModel = vm
 
-      consumerTask = Task { [monitor, store] in
-        for await raw in monitor.changes {
-          await store.insert(raw)
-        }
-      }
-      monitor.start()
-
-      hotkey.bind(.toggleHistoryPanel)
-      hotkeyTask = Task { [hotkey] in
-        for await _ in hotkey.events {
-          await MainActor.run {
-            self.onHotkey?()
-          }
-        }
-      }
+      installMonitor(prefs: prefs)
+      startHotkey()
 
       Log.ui.info("app.launched{root:\(root.path, privacy: .public)}")
     } catch {
@@ -73,7 +54,7 @@ final class AppWiring {
   }
 
   func stop() async {
-    monitor.stop()
+    monitor?.stop()
     consumerTask?.cancel()
     consumerTask = nil
     hotkey.unbind()
@@ -91,6 +72,50 @@ final class AppWiring {
       Log.paste.error(
         "paste.failed err=\(String(describing: error), privacy: .public)"
       )
+    }
+  }
+
+  /// Rebuild the monitor + filter chain using the current preferences.
+  /// Called both on startup and when the user edits prefs.
+  func applyPreferences(_ prefs: Preferences) {
+    monitor?.stop()
+    consumerTask?.cancel()
+    installMonitor(prefs: prefs)
+  }
+
+  func clearHistory() async {
+    await store?.clearAll()
+  }
+
+  private func installMonitor(prefs: Preferences) {
+    let chain = FilterChain(filters: [
+      SizeFilter(maxClipSizeBytes: prefs.maxClipSizeBytes),
+      SensitivityFilter(skipSensitive: prefs.skipSensitive),
+      BlocklistFilter(blockedBundleIDs: Set(prefs.blockedBundleIDs)),
+    ])
+    let monitor = NSPasteboardMonitor(
+      filter: chain,
+      maxClipSizeBytes: prefs.maxClipSizeBytes
+    )
+    self.monitor = monitor
+    if let store = self.store {
+      consumerTask = Task {
+        for await raw in monitor.changes {
+          await store.insert(raw)
+        }
+      }
+    }
+    monitor.start()
+  }
+
+  private func startHotkey() {
+    hotkey.bind(.toggleHistoryPanel)
+    hotkeyTask = Task { [hotkey] in
+      for await _ in hotkey.events {
+        await MainActor.run {
+          self.onHotkey?()
+        }
+      }
     }
   }
 }

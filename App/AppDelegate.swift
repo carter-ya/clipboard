@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var statusItem: NSStatusItem?
   private var panel: HistoryPanel?
   private var wiring: AppWiring?
+  private var preferencesController: PreferencesWindowController?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -20,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       button.target = self
       button.action = #selector(togglePanel)
     }
+    item.menu = buildMenu()
     statusItem = item
 
     let wiring = AppWiring()
@@ -47,8 +49,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   @MainActor
   @objc private func togglePanel() {
+    // Mutual exclusion: close prefs before opening the panel so the
+    // non-activating panel doesn't get covered by it.
+    preferencesController?.window?.orderOut(nil)
     installPanelIfReady()
     panel?.toggle(anchoredTo: statusItem)
+  }
+
+  @MainActor
+  @objc private func openPreferences() {
+    // Mutual exclusion: S4 rule — any other window dismisses panel first.
+    panel?.orderOut(nil)
+    installPreferencesIfReady()
+    preferencesController?.show()
+  }
+
+  @MainActor
+  @objc private func clearHistory() {
+    let alert = NSAlert()
+    alert.messageText = "Clear all clipboard history?"
+    alert.informativeText = "Pinned items will also be removed. This cannot be undone."
+    alert.addButton(withTitle: "Clear")
+    alert.addButton(withTitle: "Cancel")
+    alert.alertStyle = .warning
+    guard alert.runModal() == .alertFirstButtonReturn else { return }
+    guard let wiring else { return }
+    Task { await wiring.clearHistory() }
+  }
+
+  @MainActor
+  @objc private func quit() {
+    NSApplication.shared.terminate(nil)
   }
 
   @MainActor
@@ -73,5 +104,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       }
     )
     panel = HistoryPanel(rootView: root)
+  }
+
+  @MainActor
+  private func installPreferencesIfReady() {
+    guard preferencesController == nil, let wiring else { return }
+    preferencesController = PreferencesWindowController(
+      store: wiring.preferencesStore,
+      onChange: { prefs in wiring.applyPreferences(prefs) },
+      onClearHistory: { [weak self] in self?.clearHistory() },
+      onExportHistory: { [weak self] in self?.exportHistory() }
+    )
+  }
+
+  @MainActor
+  private func exportHistory() {
+    let savePanel = NSSavePanel()
+    savePanel.nameFieldStringValue = "clipboard-history.json"
+    savePanel.allowedContentTypes = [.json]
+    guard savePanel.runModal() == .OK, let url = savePanel.url else { return }
+    do {
+      let source = try AppPaths.defaultStoreRoot().appendingPathComponent("history.json")
+      if FileManager.default.fileExists(atPath: source.path) {
+        if FileManager.default.fileExists(atPath: url.path) {
+          try FileManager.default.removeItem(at: url)
+        }
+        try FileManager.default.copyItem(at: source, to: url)
+      } else {
+        try Data("{\"version\":1,\"items\":[]}".utf8).write(to: url)
+      }
+    } catch {
+      Log.ui.error("export.failed err=\(String(describing: error), privacy: .public)")
+    }
+  }
+
+  private func buildMenu() -> NSMenu {
+    let menu = NSMenu()
+    menu.addItem(
+      NSMenuItem(title: "Show History…", action: #selector(togglePanel), keyEquivalent: "")
+    )
+    menu.addItem(
+      NSMenuItem(title: "Preferences…", action: #selector(openPreferences), keyEquivalent: ",")
+    )
+    menu.addItem(NSMenuItem.separator())
+    menu.addItem(
+      NSMenuItem(title: "Clear History…", action: #selector(clearHistory), keyEquivalent: "")
+    )
+    menu.addItem(NSMenuItem.separator())
+    menu.addItem(NSMenuItem(title: "Quit Clipboard", action: #selector(quit), keyEquivalent: "q"))
+    return menu
   }
 }
