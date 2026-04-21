@@ -14,15 +14,19 @@ struct HistoryPanelView: View {
   @FocusState private var searchFocused: Bool
 
   var body: some View {
-    HStack(spacing: 0) {
-      listColumn
+    VStack(spacing: 0) {
+      HStack(spacing: 0) {
+        listColumn
+        Divider()
+        ClipPreviewView(
+          item: selectedItem,
+          thumbnailLoader: thumbnailLoader,
+          resolver: resolver
+        )
+        .frame(width: 260)
+      }
       Divider()
-      ClipPreviewView(
-        item: selectedItem,
-        thumbnailLoader: thumbnailLoader,
-        resolver: resolver
-      )
-      .frame(width: 260)
+      footerBar
     }
     .frame(width: 680, height: 520)
     .background(.regularMaterial)
@@ -34,6 +38,21 @@ struct HistoryPanelView: View {
     .onChange(of: viewModel.kindFilter) { _ in
       viewModel.realignAfterFilterChange()
     }
+  }
+
+  private var footerBar: some View {
+    HStack(spacing: 14) {
+      ShortcutHint(keys: "↑↓", label: "Select")
+      ShortcutHint(keys: "↵", label: "Copy")
+      ShortcutHint(keys: "⌘P", label: "Pin")
+      ShortcutHint(keys: "⌘⌫", label: "Delete")
+      Spacer(minLength: 0)
+      ShortcutHint(keys: "⌘,", label: "Preferences")
+      ShortcutHint(keys: "Esc", label: "Close")
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 6)
+    .frame(height: 28)
   }
 
   private var listColumn: some View {

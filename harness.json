@@ -872,6 +872,24 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S30: generated app icon + custom row selection + preview header"
+    },
+    {
+      "id": "S31",
+      "title": "面板底部快捷键提示条（keyboard hint bar）",
+      "goal": "用户不知道面板里有哪些键盘操作——方向键选择、↵ 激活、⌘P 置顶、⌘⌫ 删除等都没有视觉线索。加一条 Alfred/Raycast 风格的底部提示条把这些暴露出来。",
+      "deliverables": [
+        "App/ShortcutHint.swift：可复用的 key+label 胶囊（keys 用 11pt monospaced + 4pt 圆角灰底，label 用 10pt secondary 文字）；顶层 HistoryPanelView 再用它们组成一个 FooterBar。",
+        "HistoryPanelView 的 body 从单 HStack 改成 VStack：上层是原有的 [list | divider | preview] 横向三栏，下层是 Divider + footerBar；固定高度 520 维持不变，footerBar 占底部 ~28pt。",
+        "footerBar 展示：↑↓ Select · ↵ Copy · ⌘P Pin · ⌘⌫ Delete · ⌘, Preferences · Esc Close。\"Pin\" label 是静态文字（不随选中项 pinned 状态切换『Unpin』——只是提示有此键可用，保持稳定不闪烁）。",
+        "总体色调保持中性灰，不抢 accent 选中色的视觉重点；`.background(.regularMaterial)` 既有面板材质继承过来。"
+      ],
+      "acceptance": [
+        "⌥⌘V 打开面板 → 底部可见一条浅灰提示条，列出所有主要键盘操作。",
+        "新的 footerBar 不影响既有行为：方向键仍导航、↵ 仍激活、⌘P 仍切换 pin、⌘⌫ 仍删行、⌘, 仍开 Prefs、Esc 仍关窗。",
+        "列表滚动时 footerBar 固定不动（不随内容滚）。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S31: keyboard hint bar at the bottom of the history panel"
     }
   ],
   "slice_rhythm": [
@@ -995,7 +1013,8 @@
       "S27",
       "S28",
       "S29",
-      "S30"
+      "S30",
+      "S31"
     ]
   },
   "open_questions": [
