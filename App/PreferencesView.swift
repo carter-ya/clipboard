@@ -7,9 +7,11 @@ struct PreferencesView: View {
   var onSave: (Preferences) -> Void
   var onClearHistory: () -> Void
   var onExportHistory: () -> Void
+  var onImportHistory: () -> Void = {}
   /// Returns true on success. Failure path tells the view to roll
   /// back the local `prefs.launchAtLogin` value.
   var onApplyLaunchAtLogin: (Bool) -> Bool = { _ in true }
+  var hotkeyMissing: Bool = false
 
   private let capRange: ClosedRange<Double> = 20...2000
   private let sizeRange: ClosedRange<Double> = 0...(100 * 1024 * 1024)
@@ -29,6 +31,21 @@ struct PreferencesView: View {
 
   private var general: some View {
     Form {
+      if hotkeyMissing {
+        Section {
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+              .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+              Text("No shortcut is set")
+                .font(.caption)
+              Text("Record a shortcut below — the panel can't be summoned without one.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+      }
       Section("Hotkey") {
         KeyboardShortcuts.Recorder("Toggle panel", name: .toggleHistoryPanel)
       }
@@ -134,6 +151,9 @@ struct PreferencesView: View {
       Section("History data") {
         Button(action: onExportHistory) {
           Label("Export history…", systemImage: "square.and.arrow.up")
+        }
+        Button(action: onImportHistory) {
+          Label("Import history…", systemImage: "square.and.arrow.down")
         }
         Button(role: .destructive, action: onClearHistory) {
           Label("Clear history…", systemImage: "trash")

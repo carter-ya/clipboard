@@ -17,6 +17,10 @@ let package = Package(
         .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts")
       ]
     ),
+    .executableTarget(
+      name: "scenario-runner",
+      dependencies: ["ClipboardCore"]
+    ),
     .testTarget(
       name: "ClipboardCoreTests",
       dependencies: ["ClipboardCore"]

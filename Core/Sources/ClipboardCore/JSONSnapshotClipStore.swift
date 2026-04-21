@@ -173,6 +173,61 @@ public actor JSONSnapshotClipStore: ClipStore {
     await writeSnapshotNow()
   }
 
+  public func importItems(_ envelopeItems: [ClipItem], blobsRoot: URL?) async -> ImportResult {
+    var added = 0
+    var skipped = 0
+    var blobsMissing = 0
+    let existingHashes = Set(items.map(\.sha256))
+
+    outer: for incoming in envelopeItems {
+      if incoming.sensitive {
+        skipped += 1
+        continue
+      }
+      if existingHashes.contains(incoming.sha256) {
+        skipped += 1
+        continue
+      }
+
+      // Copy any referenced blobs into our own blob store.
+      for payload in incoming.payloads {
+        guard let blobPath = payload.blobPath, let sha = payload.blobSHA256 else {
+          continue
+        }
+        guard let blobsRoot else {
+          blobsMissing += 1
+          continue outer
+        }
+        let source = blobsRoot.appendingPathComponent(blobPath)
+        guard FileManager.default.fileExists(atPath: source.path),
+          let data = try? Data(contentsOf: source)
+        else {
+          blobsMissing += 1
+          continue outer
+        }
+        do {
+          _ = try await blobStore.store(
+            data: data,
+            sha256: sha,
+            ext: payload.pasteboardType.blobExtension
+          )
+        } catch {
+          blobsMissing += 1
+          continue outer
+        }
+      }
+
+      var reindexed = incoming
+      reindexed.id = UUID()
+      items.insert(reindexed, at: 0)
+      eventsContinuation.yield(.inserted(reindexed))
+      added += 1
+    }
+    await enforceCapacity()
+    if added > 0 { scheduleWrite() }
+    return ImportResult(added: added, skipped: skipped, blobsMissing: blobsMissing)
+  }
+
   // MARK: - Bootstrap / persistence
 
   private func bootstrap() async {

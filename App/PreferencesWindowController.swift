@@ -1,5 +1,6 @@
 import AppKit
 import ClipboardCore
+import KeyboardShortcuts
 import SwiftUI
 
 @MainActor
@@ -8,17 +9,20 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
   private let onChange: (Preferences) -> Void
   private let onClearHistory: () -> Void
   private let onExportHistory: () -> Void
+  private let onImportHistory: () -> Void
 
   init(
     store: PreferencesStore,
     onChange: @escaping (Preferences) -> Void,
     onClearHistory: @escaping () -> Void,
-    onExportHistory: @escaping () -> Void
+    onExportHistory: @escaping () -> Void,
+    onImportHistory: @escaping () -> Void
   ) {
     self.store = store
     self.onChange = onChange
     self.onClearHistory = onClearHistory
     self.onExportHistory = onExportHistory
+    self.onImportHistory = onImportHistory
 
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 520, height: 380),
@@ -64,6 +68,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
   }
 
   private func rebuildContent() {
+    let hotkeyMissing = KeyboardShortcuts.getShortcut(for: .toggleHistoryPanel) == nil
     let view = PreferencesView(
       prefs: store.current,
       onSave: { [weak self] prefs in
@@ -72,6 +77,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
       },
       onClearHistory: { [weak self] in self?.onClearHistory() },
       onExportHistory: { [weak self] in self?.onExportHistory() },
+      onImportHistory: { [weak self] in self?.onImportHistory() },
       onApplyLaunchAtLogin: { [weak self] desired in
         guard let self else { return true }
         do {
@@ -81,7 +87,8 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
           self.showLaunchAtLoginFailure(error: error)
           return false
         }
-      }
+      },
+      hotkeyMissing: hotkeyMissing
     )
     window?.contentViewController = NSHostingController(rootView: view)
   }

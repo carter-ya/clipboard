@@ -34,6 +34,16 @@ public protocol ClipStore: Sendable {
   /// before app termination.
   func flush() async
 
+  /// Bulk-import ClipItems (typically from a user-chosen export zip).
+  /// De-dupes by sha256 against the current contents. When a target
+  /// payload references a blob file, the source file is looked up
+  /// under `blobsRoot/<sha>.<ext>`; missing blob files cause the
+  /// whole item to be counted under `blobsMissing` and skipped.
+  /// Sensitive items in the envelope are ignored (they shouldn't be
+  /// in the envelope in the first place — S21 persistence_strategy
+  /// guarantees that).
+  func importItems(_ items: [ClipItem], blobsRoot: URL?) async -> ImportResult
+
   /// Event stream for UI layers to observe store mutations.
   var events: AsyncStream<StoreEvent> { get }
 }

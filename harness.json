@@ -701,6 +701,61 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S21: SizeFilter rejection banner in history panel"
+    },
+    {
+      "id": "S22",
+      "title": "ZIP 导出/导入（含 blobs）",
+      "goal": "把 S8 延后的『JSON 导出 / 导入』补全——现版本只导出 history.json，漏掉 blobs/，导入后所有大图片引用都失效。改为整包 zip。",
+      "deliverables": [
+        "ClipStore 协议新增 importItems(_ items: [ClipItem], blobsRoot: URL?) async -> ImportResult，返回 (added, skipped, blobsMissing)；JSONSnapshotClipStore 与 InMemoryClipStore 都实现。",
+        "BlobStore 新增 importBlob(from sourceURL: URL, sha256: String, ext: String) throws -> String——已存在则复用路径 + refcount+1；否则拷贝文件 + refcount=1。",
+        "ImportResult 值类型（added/skipped/blobsMissing）放 Core 层。",
+        "AppDelegate.exportHistory 改用 NSFileCoordinator.coordinate(readingItemAt:options:.forUploading,...) 把整个 Support 目录打包成 zip 拷贝到用户选择位置；导出文件扩展改为 .zip，Info.plist 的 savePanel.allowedContentTypes 改成 [.zip]。",
+        "AppDelegate 新增 importHistory：NSOpenPanel 选 .zip → unzip 到临时目录（通过 Process /usr/bin/unzip）→ 读 history.json 反序列化为 [ClipItem] → 调 store.importItems，传入临时目录的 blobs/ 作为 blobsRoot → 展示结果 NSAlert（『导入 N 条，跳过 M 条重复，P 条因 blob 缺失跳过』）。",
+        "PreferencesView.data 区块加 Import history… 按钮；Preferences 窗口把 onImportHistory 回调加到 PreferencesView 构造；PreferencesWindowController 接线。",
+        "测试：BlobStore.importBlob 新文件/已存在 sha256 两种路径；ClipStore.importItems 在目标库已有 / 无该 sha256 时的去重逻辑；sensitive 条目无法通过 import 进入持久化（写盘过滤仍然生效）。"
+      ],
+      "acceptance": [
+        "拷贝若干条（含 >16KB 图片）→ 打开 Preferences → Data tab → Export history… → 选择 .zip 路径 → 保存；解压 zip 能看到 history.json + blobs/ 完整结构。",
+        "`just reset` 清空库 → Preferences → Data → Import history… → 选刚才的 zip → 提示『已导入 N 条』 → 打开面板能看到所有条目，图片缩略图可见（blob 已落地到当前库的 blobs/）。",
+        "再次导入同一个 zip → 提示全部跳过（sha256 已存在）。",
+        "故意从 zip 里删掉某个 blob 文件后导入 → 该条目的 blobsMissing+1，其它条目正常导入。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S22: full-fidelity zip export + import"
+    },
+    {
+      "id": "S23",
+      "title": "快捷键未绑定时的救援路径",
+      "goal": "用户若在 Preferences 的 Recorder 里把快捷键清空（或初始安装时系统把默认 ⌥⌘V 被别家占用），再次启动时 ⌥⌘V 不工作、又没菜单栏图标，用户就卡住了。S14 的 applicationShouldHandleReopen → Preferences 已经是兜底；此处加一条启动即检测并主动引导。",
+      "deliverables": [
+        "AppWiring.startHotkey 后查 KeyboardShortcuts.getShortcut(for: .toggleHistoryPanel)——若 nil，不调 bind；通过新的 onHotkeyUnbound 回调告知 AppDelegate。",
+        "AppDelegate 收到 onHotkeyUnbound 时：弹出 Preferences 窗口并聚焦到 General 页（Recorder 就在那里），并在窗口上方加一个 warning 提示『快捷键已清空；请重新录制或应用将无法通过键盘召唤面板』。",
+        "PreferencesView.general 新增条件渲染的 warning banner：当 KeyboardShortcuts.getShortcut(for: .toggleHistoryPanel) == nil 时显示；一旦 Recorder 收到新绑定，banner 自动消失（SwiftUI 重绘时重新判定）。",
+        "首启引导（Onboarding）在快捷键未绑定时也会额外显示一条『⌥⌘V 可能被其他 App 占用；请到 Preferences 改绑』。"
+      ],
+      "acceptance": [
+        "在 Preferences 的 Recorder 里清掉快捷键 → 重启 App → Preferences 自动打开，顶部红黄色 warning 提示『无快捷键可用』；Recorder 绑定新快捷键后 warning 消失。",
+        "保持已绑快捷键的情况下启动 App → Preferences 不自动弹出，按 ⌥⌘V 正常工作。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S23: detect and recover from cleared hotkey"
+    },
+    {
+      "id": "S24",
+      "title": "Scenario 脚本占位",
+      "goal": "补上 Justfile 的 `scenario: swift run --package-path Core scenario-runner`——目前这条命令执行会报找不到可执行目标；补一个最小可执行 scenario-runner，用 InMemoryClipStore 跑几个预置情景并输出 JSON 报告。",
+      "deliverables": [
+        "Core/Package.swift 新增 `executableTarget(name: \"scenario-runner\", dependencies: [\"ClipboardCore\"])`。",
+        "Core/Sources/scenario-runner/main.swift：从 CLI 参数读场景名（默认 rich-types），执行：插入 text/rtf/image/file/sensitive 各一条 → 校验 dedup、搜索、sensitive 不入持久快照、pin/bump 顺序；把结果以 JSON 输出到 stdout（{scenario, passed, details}）。",
+        "场景 rich-types 至少覆盖：text+NSString 同内容进货只得 1 条；image payload 进库后按 image kind；sensitive 条目搜索可见但不在 history.json 的 in-memory 版本里不 applicable（InMemoryClipStore 就是纯内存）。",
+        "Justfile 的 `scenario` 命令已存在，不改动。"
+      ],
+      "acceptance": [
+        "`just scenario` 能成功执行并输出合规 JSON；退出码 0 表示全部通过、非 0 表示有失败。",
+        "`just build` / `just test` / `just lint` 全绿（不新增测试，本身就是可运行的测试工具）。"
+      ],
+      "commit_message": "S24: add minimal scenario-runner executable"
     }
   ],
   "slice_rhythm": [
@@ -815,7 +870,10 @@
       "S18",
       "S19",
       "S20",
-      "S21"
+      "S21",
+      "S22",
+      "S23",
+      "S24"
     ]
   },
   "open_questions": [

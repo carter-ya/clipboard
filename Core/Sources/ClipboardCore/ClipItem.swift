@@ -1,7 +1,7 @@
 import Foundation
 
 public struct ClipItem: Sendable, Codable, Equatable, Identifiable {
-  public let id: UUID
+  public var id: UUID
   public var createdAt: Date
   public var kind: ClipKind
   public var preview: String

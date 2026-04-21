@@ -29,6 +29,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self?.notifyCorruptionRecovery(path: path)
       }
     }
+    wiring.onHotkeyUnbound = { [weak self] in
+      MainActor.assumeIsolated {
+        self?.openPreferences()
+      }
+    }
     self.wiring = wiring
     Task { @MainActor in
       await wiring.start()
@@ -163,28 +168,147 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       store: wiring.preferencesStore,
       onChange: { prefs in wiring.applyPreferences(prefs) },
       onClearHistory: { [weak self] in self?.clearHistory() },
-      onExportHistory: { [weak self] in self?.exportHistory() }
+      onExportHistory: { [weak self] in self?.exportHistory() },
+      onImportHistory: { [weak self] in self?.importHistory() }
     )
   }
 
   @MainActor
   private func exportHistory() {
     let savePanel = NSSavePanel()
-    savePanel.nameFieldStringValue = "clipboard-history.json"
-    savePanel.allowedContentTypes = [.json]
+    savePanel.nameFieldStringValue = "clipboard-history.zip"
+    savePanel.allowedContentTypes = [.zip]
     guard savePanel.runModal() == .OK, let url = savePanel.url else { return }
     do {
-      let source = try AppPaths.defaultStoreRoot().appendingPathComponent("history.json")
-      if FileManager.default.fileExists(atPath: source.path) {
-        if FileManager.default.fileExists(atPath: url.path) {
-          try FileManager.default.removeItem(at: url)
-        }
-        try FileManager.default.copyItem(at: source, to: url)
-      } else {
-        try Data("{\"version\":1,\"items\":[]}".utf8).write(to: url)
-      }
+      let root = try AppPaths.defaultStoreRoot()
+      try zipDirectory(root, to: url)
     } catch {
       Log.ui.error("export.failed err=\(String(describing: error), privacy: .public)")
+      showAlert(title: "Export failed", message: String(describing: error))
+    }
+  }
+
+  @MainActor
+  private func importHistory() {
+    let openPanel = NSOpenPanel()
+    openPanel.allowedContentTypes = [.zip]
+    openPanel.allowsMultipleSelection = false
+    openPanel.canChooseDirectories = false
+    openPanel.canChooseFiles = true
+    guard openPanel.runModal() == .OK, let url = openPanel.url else { return }
+
+    let tempDir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("clipboard-import-\(UUID().uuidString)")
+    do {
+      try FileManager.default.createDirectory(
+        at: tempDir, withIntermediateDirectories: true
+      )
+      try unzipArchive(url, to: tempDir)
+      guard let wiring else { return }
+      Task { @MainActor [weak self] in
+        defer {
+          try? FileManager.default.removeItem(at: tempDir)
+        }
+        do {
+          let result = try await self?.performImport(
+            from: tempDir, wiring: wiring
+          )
+          self?.showImportSummary(result)
+        } catch {
+          self?.showAlert(title: "Import failed", message: String(describing: error))
+        }
+      }
+    } catch {
+      try? FileManager.default.removeItem(at: tempDir)
+      showAlert(title: "Import failed", message: String(describing: error))
+    }
+  }
+
+  private struct ImportEnvelope: Decodable {
+    var version: Int
+    var items: [ClipItem]
+  }
+
+  @MainActor
+  private func performImport(from dir: URL, wiring: AppWiring) async throws -> ImportResult {
+    let historyURL = dir.appendingPathComponent("history.json")
+    let data = try Data(contentsOf: historyURL)
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let envelope = try decoder.decode(ImportEnvelope.self, from: data)
+    guard let store = wiring.store else {
+      return ImportResult(added: 0, skipped: 0, blobsMissing: 0)
+    }
+    let blobsRoot = dir.appendingPathComponent("blobs")
+    return await store.importItems(envelope.items, blobsRoot: blobsRoot)
+  }
+
+  @MainActor
+  private func showImportSummary(_ result: ImportResult?) {
+    guard let result else { return }
+    let alert = NSAlert()
+    alert.messageText = "Import complete"
+    alert.informativeText =
+      "Added: \(result.added)\nSkipped (duplicates): \(result.skipped)\n"
+      + "Skipped (missing blobs): \(result.blobsMissing)"
+    alert.alertStyle = .informational
+    alert.addButton(withTitle: "OK")
+    alert.runModal()
+  }
+
+  @MainActor
+  private func showAlert(title: String, message: String) {
+    let alert = NSAlert()
+    alert.messageText = title
+    alert.informativeText = message
+    alert.alertStyle = .warning
+    alert.addButton(withTitle: "OK")
+    alert.runModal()
+  }
+
+  /// Zip a directory into a single .zip at `dest`. Uses
+  /// NSFileCoordinator's `.forUploading` option which produces a
+  /// deterministic zip in a system temp location; we then copy to
+  /// the user's chosen destination.
+  private func zipDirectory(_ source: URL, to dest: URL) throws {
+    let coordinator = NSFileCoordinator()
+    var nsError: NSError?
+    var thrown: Error?
+    coordinator.coordinate(
+      readingItemAt: source,
+      options: [.forUploading],
+      error: &nsError
+    ) { zippedURL in
+      do {
+        if FileManager.default.fileExists(atPath: dest.path) {
+          try FileManager.default.removeItem(at: dest)
+        }
+        try FileManager.default.copyItem(at: zippedURL, to: dest)
+      } catch {
+        thrown = error
+      }
+    }
+    if let thrown { throw thrown }
+    if let nsError { throw nsError }
+  }
+
+  private func unzipArchive(_ zipURL: URL, to destDir: URL) throws {
+    let task = Process()
+    task.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+    task.arguments = ["-q", "-o", zipURL.path, "-d", destDir.path]
+    task.standardOutput = Pipe()
+    task.standardError = Pipe()
+    try task.run()
+    task.waitUntilExit()
+    guard task.terminationStatus == 0 else {
+      throw NSError(
+        domain: "com.clipboard.import",
+        code: Int(task.terminationStatus),
+        userInfo: [
+          NSLocalizedDescriptionKey:
+            "unzip exited with status \(task.terminationStatus)"
+        ]
+      )
     }
   }
 }

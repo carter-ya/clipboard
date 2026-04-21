@@ -105,4 +105,26 @@ public actor InMemoryClipStore: ClipStore {
   }
 
   public func flush() async {}
+
+  public func importItems(_ envelopeItems: [ClipItem], blobsRoot: URL?) async -> ImportResult {
+    var added = 0
+    var skipped = 0
+    let existingHashes = Set(items.map(\.sha256))
+    for incoming in envelopeItems {
+      if incoming.sensitive {
+        skipped += 1
+        continue
+      }
+      if existingHashes.contains(incoming.sha256) {
+        skipped += 1
+        continue
+      }
+      var reindexed = incoming
+      reindexed.id = UUID()
+      items.insert(reindexed, at: 0)
+      eventsContinuation.yield(.inserted(reindexed))
+      added += 1
+    }
+    return ImportResult(added: added, skipped: skipped, blobsMissing: 0)
+  }
 }
