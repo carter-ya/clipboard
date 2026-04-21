@@ -16,6 +16,7 @@ final class PreferencesStoreTests: XCTestCase {
     XCTAssertTrue(prefs.skipSensitive)
     XCTAssertEqual(prefs.cap, 100)
     XCTAssertTrue(prefs.blockedBundleIDs.contains("com.1password.1password"))
+    XCTAssertFalse(prefs.launchAtLogin)
   }
 
   func testRoundTripSaveLoad() {
@@ -25,6 +26,7 @@ final class PreferencesStoreTests: XCTestCase {
     prefs.skipSensitive = false
     prefs.cap = 42
     prefs.blockedBundleIDs = ["com.test.app"]
+    prefs.launchAtLogin = true
     store.save(prefs)
 
     let reloaded = store.current
@@ -32,6 +34,7 @@ final class PreferencesStoreTests: XCTestCase {
     XCTAssertEqual(reloaded.skipSensitive, false)
     XCTAssertEqual(reloaded.cap, 42)
     XCTAssertEqual(reloaded.blockedBundleIDs, ["com.test.app"])
+    XCTAssertTrue(reloaded.launchAtLogin)
   }
 
   func testResetFallsBackToDefaults() {

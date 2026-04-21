@@ -639,6 +639,28 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S18: optimistic togglePin, preview pane pre-decodes via ImageIO"
+    },
+    {
+      "id": "S19",
+      "title": "开机启动（Launch at Login）",
+      "goal": "把 S8 延后的『开机启动』补上——剪贴板 App 是 24/7 驻留工具，用户每次重启都要记得手动起动是最高频的卡点。",
+      "deliverables": [
+        "Preferences 结构新增 launchAtLogin: Bool（默认 false）；PreferencesStore.current / save 同步读写 UserDefaults 的 launchAtLogin 键。",
+        "新文件 LoginItemController（App 层）：封装 SMAppService.mainApp 的 register() / unregister() / status 查询；status 映射为 enabled / disabled / notRegistered / requiresApproval 等状态。",
+        "PreferencesView.general 追加 『Start at Login』 Toggle，绑定到 prefs.launchAtLogin；onSave 回调里除了持久化到 UserDefaults，还调 LoginItemController.apply(_:) 把状态推给系统。",
+        "失败路径：SMAppService 在未签名 / 未放入 /Applications / 用户拒绝时会抛错或返回 notFound。apply 失败时用 NSAlert 提示用户（『需要把 Clipboard 移到 /Applications 后再启用』），并把 Toggle 状态回滚到持久化前的值，避免 UI 与系统实际状态偏离。",
+        "初次打开 Preferences 时 LoginItemController 重新查询系统状态并把真值反馈到 View，避免用户在外部（系统设置 → 登录项）禁用后 UI 还显示为开启。",
+        "`guardrails.must_not` 无需新增——SMAppService 是公开 API 且不依赖外部二进制。`non_goals` 的『不上 MAS』仍保持。"
+      ],
+      "acceptance": [
+        "Preferences 的 General 页出现『Start at Login』开关。",
+        "开启开关 → 重启 macOS → 登录后 Clipboard 自动在后台启动（可通过 `pgrep -x Clipboard` 验证）。",
+        "在『系统设置 → 通用 → 登录项』里看到 Clipboard 列在『允许在后台启动』条目内。",
+        "关闭开关 → 重启 → 登录后 Clipboard 不自动启动，且系统设置里移除。",
+        "Debug 构建下（未签名 / 未在 /Applications）开启开关 → 弹出 NSAlert 说明限制，Toggle 回滚到 false，`launchAtLogin` 不被错误持久化为 true。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S19: launch at login via SMAppService"
     }
   ],
   "slice_rhythm": [
@@ -750,7 +772,8 @@
       "S15",
       "S16",
       "S17",
-      "S18"
+      "S18",
+      "S19"
     ]
   },
   "open_questions": [

@@ -38,6 +38,9 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
   }
 
   func show() {
+    // Refresh the persisted prefs view against the OS's real login-item
+    // state so we don't lie if the user disabled us in System Settings.
+    reconcileLaunchAtLogin()
     rebuildContent()
     // LSUIElement apps can't normally get keyboard focus; temporarily
     // promote activation so KeyboardShortcuts.Recorder etc. work.
@@ -45,6 +48,15 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     window?.center()
     window?.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
+  }
+
+  private func reconcileLaunchAtLogin() {
+    var prefs = store.current
+    let systemEnabled = LoginItemController.isEnabled
+    if prefs.launchAtLogin != systemEnabled {
+      prefs.launchAtLogin = systemEnabled
+      store.save(prefs)
+    }
   }
 
   func windowWillClose(_ notification: Notification) {
@@ -59,8 +71,29 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         self?.onChange(prefs)
       },
       onClearHistory: { [weak self] in self?.onClearHistory() },
-      onExportHistory: { [weak self] in self?.onExportHistory() }
+      onExportHistory: { [weak self] in self?.onExportHistory() },
+      onApplyLaunchAtLogin: { [weak self] desired in
+        guard let self else { return true }
+        do {
+          try LoginItemController.apply(desired)
+          return true
+        } catch {
+          self.showLaunchAtLoginFailure(error: error)
+          return false
+        }
+      }
     )
     window?.contentViewController = NSHostingController(rootView: view)
+  }
+
+  private func showLaunchAtLoginFailure(error: Error) {
+    let alert = NSAlert()
+    alert.messageText = "Could not update Start at Login"
+    alert.informativeText =
+      (error as? LocalizedError)?.errorDescription
+      ?? String(describing: error)
+    alert.alertStyle = .warning
+    alert.addButton(withTitle: "OK")
+    alert.runModal()
   }
 }

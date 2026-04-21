@@ -7,6 +7,9 @@ struct PreferencesView: View {
   var onSave: (Preferences) -> Void
   var onClearHistory: () -> Void
   var onExportHistory: () -> Void
+  /// Returns true on success. Failure path tells the view to roll
+  /// back the local `prefs.launchAtLogin` value.
+  var onApplyLaunchAtLogin: (Bool) -> Bool = { _ in true }
 
   private let capRange: ClosedRange<Double> = 20...2000
   private let sizeRange: ClosedRange<Double> = 0...(100 * 1024 * 1024)
@@ -28,6 +31,27 @@ struct PreferencesView: View {
     Form {
       Section("Hotkey") {
         KeyboardShortcuts.Recorder("Toggle panel", name: .toggleHistoryPanel)
+      }
+      Section("Startup") {
+        Toggle(
+          "Start at Login",
+          isOn: Binding(
+            get: { prefs.launchAtLogin },
+            set: { newValue in
+              let old = prefs.launchAtLogin
+              prefs.launchAtLogin = newValue
+              if !onApplyLaunchAtLogin(newValue) {
+                // Roll back the UI if the system rejected the change.
+                prefs.launchAtLogin = old
+                return
+              }
+              onSave(prefs)
+            }
+          )
+        )
+        Text("Clipboard launches in the background when you log in.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
       Section("Retention") {
         HStack {

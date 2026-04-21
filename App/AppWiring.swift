@@ -48,6 +48,7 @@ final class AppWiring {
       installMonitor(prefs: prefs)
       startHotkey()
       startStoreEventObserver()
+      reconcileLoginItem(desired: prefs.launchAtLogin)
 
       Log.ui.info("app.launched{root:\(root.path, privacy: .public)}")
     } catch {
@@ -137,6 +138,25 @@ final class AppWiring {
           self.onHotkey?()
         }
       }
+    }
+  }
+
+  /// Nudge the OS to match the user's saved preference at launch.
+  /// If the user toggled "Start at Login" off in System Settings,
+  /// `LoginItemController.isEnabled` will be false and we'll write
+  /// that back so the Preferences panel displays the real state
+  /// next time it opens. Errors here are non-fatal (we just log).
+  private func reconcileLoginItem(desired: Bool) {
+    if LoginItemController.isEnabled == desired { return }
+    do {
+      try LoginItemController.apply(desired)
+    } catch {
+      Log.ui.info(
+        "login_item.apply_failed err=\(String(describing: error), privacy: .public)"
+      )
+      var prefs = preferencesStore.current
+      prefs.launchAtLogin = LoginItemController.isEnabled
+      preferencesStore.save(prefs)
     }
   }
 
