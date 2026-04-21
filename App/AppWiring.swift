@@ -1,14 +1,20 @@
 import ClipboardCore
 import Foundation
+import KeyboardShortcuts
 
 @MainActor
 final class AppWiring {
   let monitor: any ClipboardMonitoring
+  let hotkey: any HotkeyService
   private(set) var store: (any ClipStore)?
   private(set) var viewModel: HistoryPanelViewModel?
+
   private var consumerTask: Task<Void, Never>?
+  private var hotkeyTask: Task<Void, Never>?
+
   private let maxClipSizeBytes: Int
   private let cap: Int
+  var onHotkey: (() -> Void)?
 
   init(maxClipSizeBytes: Int = 10 * 1024 * 1024, cap: Int = 100) {
     self.maxClipSizeBytes = maxClipSizeBytes
@@ -22,6 +28,7 @@ final class AppWiring {
       filter: chain,
       maxClipSizeBytes: maxClipSizeBytes
     )
+    self.hotkey = KeyboardShortcutsHotkeyService()
   }
 
   func start() async {
@@ -38,6 +45,16 @@ final class AppWiring {
         }
       }
       monitor.start()
+
+      hotkey.bind(.toggleHistoryPanel)
+      hotkeyTask = Task { [hotkey] in
+        for await _ in hotkey.events {
+          await MainActor.run {
+            self.onHotkey?()
+          }
+        }
+      }
+
       Log.ui.info("app.launched{root:\(root.path, privacy: .public)}")
     } catch {
       Log.ui.error(
@@ -50,6 +67,9 @@ final class AppWiring {
     monitor.stop()
     consumerTask?.cancel()
     consumerTask = nil
+    hotkey.unbind()
+    hotkeyTask?.cancel()
+    hotkeyTask = nil
     viewModel?.stop()
     await store?.flush()
   }

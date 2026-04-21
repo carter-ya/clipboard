@@ -23,6 +23,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     statusItem = item
 
     let wiring = AppWiring()
+    wiring.onHotkey = { [weak self] in
+      MainActor.assumeIsolated {
+        self?.togglePanel()
+      }
+    }
     self.wiring = wiring
     Task { @MainActor in
       await wiring.start()
