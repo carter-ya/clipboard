@@ -850,6 +850,28 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S29: drop bare-Delete row-delete (search owns ⌫ exclusively)"
+    },
+    {
+      "id": "S30",
+      "title": "App 图标 + UI 视觉一轮打磨",
+      "goal": "(1) 没有 App 图标，Finder/Dock/Alert 里显示的是 macOS 默认占位图；(2) HistoryPanel / ClipRowView / ClipPreviewView 整体视觉过于朴素——缺少视觉层次、选中高亮是系统默认、没有预览头部。",
+      "deliverables": [
+        "tools/generate-icon.swift：独立 Swift 脚本，用 CGContext 直接渲染 10 个 AppIcon PNG（16/32/32/64/128/256/256/512/512/1024 px），蓝紫渐变圆角方形底 + 白色剪贴板卡片 + 小夹子 tab + 3 条『文本行』。脚本可通过 `just icon` 重新生成。",
+        "App/Assets.xcassets/AppIcon.appiconset/Contents.json 列出 10 张图；App/Assets.xcassets/Contents.json 顶层文件；project.yml 把 Assets.xcassets 加进 App target 的 sources，并把 ASSETCATALOG_COMPILER_APPICON_NAME 设为 AppIcon。",
+        "Justfile 加 `icon: swift tools/generate-icon.swift App/Assets.xcassets/AppIcon.appiconset` recipe。",
+        "HistoryPanelView.list 从 SwiftUI `List` 改成 ScrollViewReader + ScrollView + LazyVStack——拿到对选中高亮的完整视觉控制（List 在 macOS 上系统选中环不可定制）；选中态由 ClipRowView 自己画：AccentColor 20% 半透 + 6pt 圆角 + 4pt 水平内边距，Alfred/Raycast 风格。",
+        "ClipRowView 加 `isSelected: Bool` 参数；内部用 isSelected 切换背景；图片缩略图 36×36 → 40×40 + 4pt 圆角 + 细浅灰描边；行间距 2pt；改用 .body/.caption/.caption2 语义字号。",
+        "ClipPreviewView 加一条头部条（preview 面板顶部）：kind 图标（胶囊背景）+ 源 App bundleID + 相对时间 + pin/sensitive 小图标；提高预览页的可读性。",
+        "保留既有交互：方向键导航、↵ 激活、⌘⌫ 删行、右键菜单、outside-click close、tab 切换 resetSelection；ScrollViewReader 仍用 scrollEpoch / selectedID 作为滚动锚。"
+      ],
+      "acceptance": [
+        "`just icon` 能重新生成 AppIcon.appiconset 下全部 10 个 PNG，内容无差异（若无改动则幂等）。",
+        "`just build` 产物 Clipboard.app 的 Contents/Resources/AppIcon.icns 存在；在 Finder 中右键 Clipboard.app → 『获取简介』看到新图标，不是默认白板。",
+        "⌥⌘V 打开面板 → 选中的行高亮为带圆角的半透 accent 色条；↑↓ 移动时选中视觉跟上；图片行显示圆角缩略图。",
+        "预览窗口顶部显示一条头部：胶囊 kind 图标 + 源 App + 相对时间 + 可能的 pin/sensitive 标记。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S30: generated app icon + custom row selection + preview header"
     }
   ],
   "slice_rhythm": [
@@ -972,7 +994,8 @@
       "S26",
       "S27",
       "S28",
-      "S29"
+      "S29",
+      "S30"
     ]
   },
   "open_questions": [

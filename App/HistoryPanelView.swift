@@ -88,26 +88,40 @@ struct HistoryPanelView: View {
 
   private var list: some View {
     ScrollViewReader { proxy in
-      List(viewModel.filteredItems, selection: $viewModel.selectedID) { item in
-        ClipRowView(item: item, thumbnailLoader: thumbnailLoader)
-          .tag(item.id)
-          .contentShape(Rectangle())
-          .onTapGesture { onActivate(item) }
-          .contextMenu {
-            Button(item.pinned ? "Unpin" : "Pin") { onTogglePin(item) }
-            Divider()
-            Button("Delete", role: .destructive) { onDelete(item) }
+      ScrollView {
+        LazyVStack(spacing: 2) {
+          ForEach(viewModel.filteredItems) { item in
+            ClipRowView(
+              item: item,
+              isSelected: viewModel.selectedID == item.id,
+              thumbnailLoader: thumbnailLoader
+            )
+            .id(item.id)
+            .onTapGesture {
+              viewModel.selectedID = item.id
+              onActivate(item)
+            }
+            .contextMenu {
+              Button(item.pinned ? "Unpin" : "Pin") { onTogglePin(item) }
+              Divider()
+              Button("Delete", role: .destructive) { onDelete(item) }
+            }
+            .accessibilityLabel(accessibilityLabel(for: item))
+            .accessibilityAddTraits(
+              viewModel.selectedID == item.id ? .isSelected : []
+            )
           }
-          .accessibilityLabel(accessibilityLabel(for: item))
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 4)
       }
-      .listStyle(.plain)
       .onChange(of: viewModel.scrollEpoch) { _ in
         if let id = viewModel.filteredItems.first?.id {
-          proxy.scrollTo(id, anchor: .top)
+          withAnimation(nil) { proxy.scrollTo(id, anchor: .top) }
         }
       }
       .onChange(of: viewModel.selectedID) { newID in
-        if let newID { proxy.scrollTo(newID, anchor: .center) }
+        if let newID { withAnimation(nil) { proxy.scrollTo(newID, anchor: .center) } }
       }
     }
   }

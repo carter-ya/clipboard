@@ -13,18 +13,104 @@ struct ClipPreviewView: View {
   @State private var revealed: Bool = false
 
   var body: some View {
-    Group {
+    VStack(spacing: 0) {
       if let item {
-        if item.sensitive, !revealed {
-          masked(item)
-        } else {
-          content(for: item)
-        }
-      } else {
-        empty
+        header(for: item)
+        Divider()
       }
+      Group {
+        if let item {
+          if item.sensitive, !revealed {
+            masked(item)
+          } else {
+            content(for: item)
+          }
+        } else {
+          empty
+        }
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  @ViewBuilder
+  private func header(for item: ClipItem) -> some View {
+    HStack(spacing: 8) {
+      HStack(spacing: 4) {
+        Image(systemName: kindIcon(for: item.kind))
+          .font(.system(size: 10, weight: .semibold))
+        Text(kindLabel(for: item.kind))
+          .font(.system(size: 10, weight: .semibold))
+      }
+      .foregroundStyle(kindTint(for: item.kind))
+      .padding(.horizontal, 7)
+      .padding(.vertical, 3)
+      .background(Capsule().fill(kindTint(for: item.kind).opacity(0.15)))
+
+      if let bundle = item.sourceBundleID {
+        Text(bundle)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
+      Spacer(minLength: 4)
+      if item.pinned {
+        Image(systemName: "pin.fill")
+          .font(.caption2)
+          .foregroundStyle(.orange)
+      }
+      if item.sensitive {
+        Image(systemName: "lock.fill")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      Text(
+        Self.relativeFormatter.localizedString(
+          for: item.createdAt, relativeTo: Date()
+        )
+      )
+      .font(.caption)
+      .foregroundStyle(.secondary)
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
+  }
+
+  private static let relativeFormatter: RelativeDateTimeFormatter = {
+    let f = RelativeDateTimeFormatter()
+    f.unitsStyle = .short
+    return f
+  }()
+
+  private func kindIcon(for kind: ClipKind) -> String {
+    switch kind {
+    case .text: return "text.alignleft"
+    case .rtf: return "doc.richtext"
+    case .image: return "photo"
+    case .file: return "doc"
+    case .mixed: return "square.stack"
+    }
+  }
+
+  private func kindLabel(for kind: ClipKind) -> String {
+    switch kind {
+    case .text: return "Text"
+    case .rtf: return "Rich Text"
+    case .image: return "Image"
+    case .file: return "File"
+    case .mixed: return "Mixed"
+    }
+  }
+
+  private func kindTint(for kind: ClipKind) -> Color {
+    switch kind {
+    case .text: return .blue
+    case .rtf: return .purple
+    case .image: return .green
+    case .file: return .orange
+    case .mixed: return .gray
+    }
   }
 
   private var empty: some View {

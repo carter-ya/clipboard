@@ -30,3 +30,6 @@ scenario:
 
 clean:
     rm -rf build .build *.xcodeproj DerivedData
+
+icon:
+    swift tools/generate-icon.swift App/Assets.xcassets/AppIcon.appiconset
