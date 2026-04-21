@@ -4,9 +4,14 @@ import Foundation
 @MainActor
 final class AppWiring {
   let monitor: any ClipboardMonitoring
+  private(set) var store: (any ClipStore)?
   private var consumerTask: Task<Void, Never>?
+  private let maxClipSizeBytes: Int
+  private let cap: Int
 
-  init(maxClipSizeBytes: Int = 10 * 1024 * 1024) {
+  init(maxClipSizeBytes: Int = 10 * 1024 * 1024, cap: Int = 100) {
+    self.maxClipSizeBytes = maxClipSizeBytes
+    self.cap = cap
     let chain = FilterChain(filters: [
       SizeFilter(maxClipSizeBytes: maxClipSizeBytes),
       NoOpSensitivityFilter(),
@@ -18,20 +23,29 @@ final class AppWiring {
     )
   }
 
-  func start() {
-    monitor.start()
-    consumerTask = Task { [monitor] in
-      for await item in monitor.changes {
-        Log.ui.debug(
-          "consumed item changeCount=\(item.changeCount, privacy: .public) sensitive=\(item.isSensitive, privacy: .public)"
-        )
+  func start() async {
+    do {
+      let root = try AppPaths.defaultStoreRoot()
+      let store = try await JSONSnapshotClipStore(root: root, cap: cap)
+      self.store = store
+      consumerTask = Task { [monitor, store] in
+        for await raw in monitor.changes {
+          await store.insert(raw)
+        }
       }
+      monitor.start()
+      Log.ui.info("app.launched{root:\(root.path, privacy: .public)}")
+    } catch {
+      Log.ui.error(
+        "app.launchFailed err=\(String(describing: error), privacy: .public)"
+      )
     }
   }
 
-  func stop() {
+  func stop() async {
     monitor.stop()
     consumerTask?.cancel()
     consumerTask = nil
+    await store?.flush()
   }
 }

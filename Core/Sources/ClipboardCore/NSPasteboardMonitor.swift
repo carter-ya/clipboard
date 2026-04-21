@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-public final class NSPasteboardMonitor: ClipboardMonitoring {
+public final class NSPasteboardMonitor: ClipboardMonitoring, @unchecked Sendable {
   public let changes: AsyncStream<RawClipItem>
 
   private let continuation: AsyncStream<RawClipItem>.Continuation

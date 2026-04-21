@@ -19,12 +19,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     statusItem = item
 
     let wiring = AppWiring()
-    wiring.start()
     self.wiring = wiring
-    Log.ui.info("app.launched{}")
+    Task { await wiring.start() }
   }
 
   func applicationWillTerminate(_ notification: Notification) {
-    wiring?.stop()
+    guard let wiring else { return }
+    let semaphore = DispatchSemaphore(value: 0)
+    Task {
+      await wiring.stop()
+      semaphore.signal()
+    }
+    _ = semaphore.wait(timeout: .now() + 2.0)
   }
 }
