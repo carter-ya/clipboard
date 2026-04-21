@@ -1,0 +1,559 @@
+{
+  "$schema_version": "1.0",
+  "document_purpose": "Clipboard 项目的唯一权威文档。任何代理或开发者在提议改动前都必须先读这份文件。若代码与本文档不一致，必须在同一次提交中一并更新本文档——不得让两者静默分叉。",
+  "last_updated": "2026-04-21",
+  "project": {
+    "name": "Clipboard",
+    "one_liner": "macOS 的 Alfred 风格剪贴板历史——常驻菜单栏，支持全局快捷键、快速搜索；选中条目会写回系统剪贴板（由用户手动 Cmd+V 粘贴）。",
+    "platform": "macOS 13.0+（部署目标）",
+    "distribution": "直接分发（经公证的 .app / .dmg）。不上 Mac App Store。",
+    "language_locale": "UI 文案双语 zh-Hans + en（跟随系统语言，可在偏好设置中显式覆盖）；代码、注释、commit 信息一律使用英文。"
+  },
+  "non_goals": [
+    "v1.x 不做 iCloud / 跨设备同步",
+    "不移植到 Windows / Linux",
+    "不走 Mac App Store 分发（对后台剪贴板监听应用而言 MAS 审核不现实）",
+    "不做插件 / 扩展机制",
+    "不做移动端伴侣应用",
+    "v1.x 不做 AI 功能（摘要 / 翻译 / 改写）"
+  ],
+  "tech_stack": {
+    "language": "Swift 5.9+",
+    "ui_framework": "视图用 SwiftUI；NSStatusItem + NSPanel 外壳用 AppKit",
+    "storage": "内存数组（权威）+ 磁盘 JSON 快照（Codable，原子写入）。较大的 payload（图片、RTF 二进制块）单独存为 blobs/<sha256>.<ext> 文件，由路径引用。容量默认上限 N=100，固定项（pinned）豁免。敏感条目只驻留内存、不落盘（见 data_model.persistence_strategy）。不引入任何数据库引擎。",
+    "global_hotkey": "sindresorhus/KeyboardShortcuts（SPM）",
+    "project_generation": "XcodeGen（project.yml 是源头；.xcodeproj 由其生成，不提交仓库）",
+    "package_manager": "Swift Package Manager（不用 CocoaPods、不用 Carthage）",
+    "task_runner": "just（仓库根目录的 Justfile）",
+    "lint_format": "swift-format（Apple 官方）",
+    "logging": "os.Logger（统一日志系统）",
+    "testing": "XCTest + swift-testing（能简化书写时使用）",
+    "ci": "GitHub Actions（在 macOS runner 上 build + test）——延后到 S5 之后再启用"
+  },
+  "targets": [
+    {
+      "name": "ClipboardApp",
+      "type": "macOS .app",
+      "role": "轻量的 UI 外壳与装配层，不包含业务逻辑。",
+      "info_plist_keys": {
+        "LSUIElement": true,
+        "LSMinimumSystemVersion": "13.0"
+      },
+      "entitlements": {
+        "com.apple.security.app-sandbox": false
+      }
+    },
+    {
+      "name": "ClipboardCore",
+      "type": "Swift Package（library）",
+      "role": "所有业务逻辑；不依赖 App 运行即可完整做单元测试。",
+      "depends_on": [
+        "KeyboardShortcuts"
+      ]
+    },
+    {
+      "name": "ClipboardCoreTests",
+      "type": "Swift Package 测试 target",
+      "role": "面向协议与 Fake 实现的单元测试 + 集成测试。"
+    }
+  ],
+  "concurrency_model": {
+    "monitor_queue": "专用 serial DispatchQueue（标签 com.clipboard.monitor）：承载 300ms 轮询定时器 + pasteboard 读取 + 廉价尺寸探测 + sourceBundleID 抓取 + ClipFilter 链执行。只做轻量工作，绝不算 sha256、绝不做磁盘 I/O。",
+    "store_queue": "专用 serial DispatchQueue（标签 com.clipboard.store）：承载 sha256 计算、去重、容量驱逐、blob 写入、JSON 原子写入。ClipStore 对外的 async API 内部都调度到此队列。",
+    "main_queue": "SwiftUI / AppKit / HotkeyService 事件处理在主线程；ViewModel 通过 Combine / AsyncStream 订阅 ClipStore 的变更并在主线程刷新 UI。",
+    "timer_leeway": "DispatchSourceTimer 给 50–100ms leeway，让调度器合并唤醒、降低功耗。",
+    "rationale": "三队列分工杜绝『轮询线程因为 sha256 或磁盘写入阻塞而漏拷贝』以及『主线程被同步 I/O 卡住』。"
+  },
+  "module_protocols": [
+    {
+      "name": "ClipboardMonitoring",
+      "responsibility": "输出原始剪贴板变更事件流。每次 changeCount 变化时在 monitor_queue 上：(1) 用 NSWorkspace 抓一次前台 App 的 bundleID；(2) 构造 ClipContext 并执行 ClipFilter 链；(3) 把未被 .reject 的条目发给下游（.markSensitive 的条目会带上 sensitive=true 标记）。",
+      "api": "var changes: AsyncStream<RawClipItem> { get }  ; func start() ; func stop()",
+      "impl": "NSPasteboardMonitor 在 monitor_queue 的 DispatchSourceTimer 每 300ms 轮询一次 NSPasteboard.general.changeCount；未变化则直接返回。变化时：(1) 读 NSPasteboardItem.types 做粗分流；(2) 廉价探测尺寸——public.file-url 用 stat() 累加被引文件大小（不读文件内容），对大概率大体积的内联类型（public.tiff/public.png/public.data/public.image）按 maxClipSizeBytes 为上限限长读取，一旦累计超过立即丢弃该类型并把整条 RawClipItem 标记为 tooLarge；(3) 抓前台 App bundleID；(4) 把 RawClipItem + ClipContext 交给 ClipFilter 链，让链路决定 accept / reject / markSensitive；(5) 把决策结果发给下游。Monitor 本身不做 sha256、不写盘、不持久化。",
+      "fake": "FakeClipboardMonitor 接受测试或场景中手动调用 .push(item:)。"
+    },
+    {
+      "name": "ClipFilter",
+      "responsibility": "判定一个原始剪贴项应被接受（.accept）、拒绝（.reject，绝不进 store）还是标记为敏感（.markSensitive，进 store 但仅驻留内存、UI 遮罩、不落盘）。作为可组合链路在 Monitor 内部、发出事件之前应用。",
+      "api": "struct ClipContext { sourceBundleID: String?; changeCount: Int; timestamp: Date } ; enum FilterDecision { case accept, reject(String), markSensitive(String) } ; func evaluate(_ item: RawClipItem, context: ClipContext) -> FilterDecision",
+      "impl": "有序链路，首次遇到 .reject 即短路返回；首次遇到 .markSensitive 也短路返回（后续 filter 不再评估，该条目一律敏感）：SizeFilter(maxClipSizeBytes) → SensitivityFilter（识别 org.nspasteboard.ConcealedType）→ BlocklistFilter（按 sourceBundleID 匹配黑名单）。每个 filter 都是独立的小类型，便于单测。",
+      "fake": "各 filter 本就是纯函数，测试直接使用真实实现并注入配置即可。"
+    },
+    {
+      "name": "ClipStore",
+      "responsibility": "在内存中持有剪贴项（权威数据），快照落盘（sensitive 条目排除），提供搜索、置顶、删除，并执行容量上限。",
+      "api": "insert(_:) / search(query:filters:) / pin(id:) / delete(id:) / clearAll() / item(id:) / all() / observe() -> AsyncStream<StoreEvent>",
+      "impl": "JSONSnapshotClipStore：内存中是按时间倒序的数组（最新在前），所有写操作在 store_queue 上串行执行。插入时先算 sha256 → 若已存在相同哈希则更新 createdAt、移到队首、保留原 sourceBundleID（first-write-wins）与 pinned 状态、丢弃新来的条目；否则新增。blob 引用按 sha256 计数：新增条目若 payload.blobPath 指向的 sha256 首次出现才真正写文件，去重命中时 refcount+1，驱逐时 refcount-1、归零才 unlink。sensitive 条目进入内存数组，但写盘阶段过滤掉——即不进入 history.json、其大 payload 也不写 blobs/（仅保留内联 inlineData 于内存）。任何非敏感变更都会安排一次防抖（500ms）的原子写入 history.json（先写 .tmp 再 rename）。启动时：解码 history.json；若失败则重命名为 .bak 并以空历史启动，然后发出一个可被 UI 捕获的 store.corrupted 事件；启动末尾跑一次 reconcileBlobs()——扫描 blobs/ 目录，凡不在 in-memory refcount 表里的文件一律删除（孤儿清理）。搜索是对 preview 字段的大小写不敏感子串匹配（preview 已硬截断到 256 字符；长文本中段不可搜是已知限制），再按 kind/pinned/sourceBundleID/sensitive 过滤——N ≤ 几千时线性扫描完全够用。",
+      "fake": "InMemoryClipStore（不做磁盘 I/O）用于测试；真实实现也可以指向临时目录运行。"
+    },
+    {
+      "name": "HotkeyService",
+      "responsibility": "监听用户配置的全局快捷键并发出事件；暴露『绑定失败 / 冲突』信号给 UI 层。",
+      "api": "var events: AsyncStream<Void> { get } ; var bindingStatus: AsyncStream<BindingStatus> { get } ; func bind(_ shortcut: KeyboardShortcuts.Name)",
+      "impl": "KeyboardShortcutsHotkeyService 包装 sindresorhus/KeyboardShortcuts；bind 失败时通过 bindingStatus 发出 .conflict(reason) 让 UI 弹引导页。",
+      "fake": "FakeHotkeyService 提供 .fire() / .simulateConflict() 手动触发，用于测试。"
+    },
+    {
+      "name": "PasteboardWriter",
+      "responsibility": "把选中的 ClipItem 的所有 payload 写回系统剪贴板。不会模拟 Cmd+V——由用户自行粘贴。敏感条目同样可被写回（用户主动选择的行为）。",
+      "api": "func write(_ item: ClipItem) throws",
+      "impl": "NSPasteboardWriter：清空 NSPasteboard.general，然后按每个 payload 的原始 pasteboardType 声明并写入（inlineData 或从 blobPath 读回的文件内容）。接收方 App 自行挑选它支持的最丰富类型。",
+      "fake": "RecordingPasteboardWriter 记录调用以便断言。"
+    }
+  ],
+  "data_model": {
+    "storage_layout": {
+      "root": "~/Library/Application Support/Clipboard/",
+      "files": [
+        "history.json — 有序历史，仅含非敏感条目，原子写入（tmp + rename）",
+        "history.json.bak — 启动时解码失败会自动生成",
+        "blobs/<sha256>.<ext> — 不适合内联的非敏感二进制 payload（图片、rtf、file-url 列表）；敏感条目的大 payload 不落盘",
+        "preferences.json — 用户设置（快捷键绑定、保留策略、maxClipSizeBytes、skipSensitive、blockedBundleIDs、外观、语言覆盖等）"
+      ]
+    },
+    "clip_item_schema": {
+      "id": "UUID 字符串",
+      "createdAt": "ISO-8601 字符串（去重命中时也会被更新）",
+      "kind": "text | rtf | image | file | mixed。mixed 指单次剪贴同时包含多种主要 kind（例如同时带 public.rtf 和 public.tiff）；判定规则：按 pasteboardType 优先级（rtf > image > file > text）取主 kind，其余类型并存于 payloads。",
+      "preview": "用于列表展示和搜索的短人类可读字符串——**硬截断到 256 字符**（超长文本只搜索截断后的前缀；完整内容仍在 payloads 中）",
+      "sha256": "跨所有 payload 计算的内容哈希，用于去重",
+      "sizeBytes": "所有 payload 的总字节数",
+      "pinned": "bool",
+      "sensitive": "bool——SensitivityFilter 或 BlocklistFilter 返回 .markSensitive 时置 true。语义：该条目只驻留内存、不写 history.json 也不写 blobs/；UI 默认以遮罩呈现 preview 和 payloads，可通过『显示敏感内容』操作临时揭示；App 重启后丢失。",
+      "sourceBundleID": "拷贝时前台 App 的 bundle identifier（可空）——在 Monitor 抓取 changeCount 变化时同步读取 NSWorkspace.shared.frontmostApplication",
+      "payloads": "{ pasteboardType, inlineData?（≤ 16KB 时用 base64 内联；sensitive 条目一律内联，无论大小，以避免落盘）, blobPath?（相对于 blobs/） } 数组——inlineData / blobPath 二者只占其一"
+    },
+    "inline_threshold_bytes": 16384,
+    "retention": {
+      "primary": "按条数限制（默认 100，可配置）。固定项不计入上限，也不会因上限被驱逐——即便固定项的条数本身 ≥ cap，也全部保留。",
+      "secondary_optional": "按时间上限（默认关闭）、按总大小上限（默认关闭），均可由用户配置。"
+    },
+    "dedup": "插入时对所有 payload 计算 sha256。若已有条目的 sha256 相同，则更新其 createdAt 为当前时间、移到队首、**保留原 sourceBundleID 和 pinned 状态**（first-write-wins），丢弃新来的条目。去重不做时间窗口限制——符合主流剪贴板管理器的 UX。若原条目是非敏感而新来的是敏感（源 App 切到黑名单时），不升格——去重命中以第一次为准。",
+    "persistence_strategy": "运行期以内存数组为权威，同时持有 sensitive 条目；磁盘快照仅包含非敏感条目。任何非敏感变更都会安排一次防抖（500ms）的原子快照写入 history.json；敏感变更不触发写盘。优雅关闭时立即 flush（仅非敏感）。崩溃时最多丢失一个防抖窗口的非敏感数据；敏感条目必然丢失（符合『不明文落盘』的安全目标）。启动末尾跑一次 reconcileBlobs() 清理孤儿 blob。",
+    "search_semantics": "仅对 preview（硬截断 256 字符）做大小写不敏感子串匹配，再叠加 kind/pinned/sourceBundleID/sensitive 过滤。长文本中段不可搜是 v1 的已知限制；若未来要支持全文搜索需引入索引（v1 不做）。sensitive 条目默认包含在搜索结果中但展示时遮罩。",
+    "ui_mask_policy": "sensitive=true 的条目在 HistoryPanel 中：row 显示『●●●●（来自 <App>）』+ 锁图标，时间与 kind 正常显示；选中该行即写入剪贴板（行为一致），但 preview 不明文渲染；预览面板同样以遮罩呈现，提供『临时显示』按钮（仅本次会话生效，不改变持久状态）。",
+    "import_semantics": "导入 JSON 采用合并语义——按 sha256 去重后与现有历史合并；缺失 blob 的条目整条跳过并在导入结果里计数；导入不会带入 sensitive 条目（导出时就已排除）。"
+  },
+  "filtering": {
+    "pipeline_order": [
+      "SizeFilter",
+      "SensitivityFilter",
+      "BlocklistFilter"
+    ],
+    "applied_at": "在 ClipboardMonitoring 内部、RawClipItem 被发到下游之前应用；链路的决策会附加到条目上传递给 ClipStore（reject 的条目根本不会到 store；markSensitive 的条目到 store 时 sensitive=true）。",
+    "filters": {
+      "SizeFilter": {
+        "config_key": "maxClipSizeBytes",
+        "default": 10485760,
+        "default_human": "10 MiB (10 * 1024 * 1024)",
+        "configurable": true,
+        "unit": "bytes",
+        "semantics": "单次剪贴的所有 pasteboard 类型总字节数。public.file-url 的大小为被引路径的 stat() 文件大小之和（不读取文件内容）。内联类型（text/rtf/image/data）的大小按限额读取——读到 >= maxClipSizeBytes 即早停并返回 .reject(tooLarge)，不读完整数据。maxClipSizeBytes 设为 0 表示禁用上限。返回值：超限时 .reject('tooLarge'); 否则 .accept。",
+        "user_setting_label": "跳过大于 … 的条目",
+        "owner_slice": "S1"
+      },
+      "SensitivityFilter": {
+        "config_key": "skipSensitive",
+        "default": true,
+        "semantics": "若剪贴板声明了 'org.nspasteboard.ConcealedType' 类型（密码管理器社区约定），返回 .markSensitive('concealedType')——条目进入 store 但仅驻留内存、UI 遮罩、不落盘。当 skipSensitive 为 false 时，直接返回 .accept（用户显式选择不做标记）。",
+        "owner_slice": "S7"
+      },
+      "BlocklistFilter": {
+        "config_key": "blockedBundleIDs",
+        "default": [
+          "com.1password.1password",
+          "com.1password.1password7",
+          "com.agilebits.onepassword7",
+          "com.bitwarden.desktop",
+          "com.apple.keychainaccess"
+        ],
+        "semantics": "若 ClipContext.sourceBundleID 命中黑名单，返回 .markSensitive('blockedSource:<bundleID>')——条目进入 store 但仅驻留内存、UI 遮罩、不落盘。",
+        "owner_slice": "S7"
+      }
+    },
+    "logging": "每次 .reject 或 .markSensitive 都会发出结构化事件（monitor.skipped 或 monitor.sensitive）——用户调查『为什么我刚复制的东西没出现 / 为什么显示为遮罩』时可通过 `just logs` 查看。"
+  },
+  "harness": {
+    "justfile_commands": {
+      "gen": "xcodegen generate",
+      "build": "xcodebuild -scheme ClipboardApp -destination 'platform=macOS' -derivedDataPath build build",
+      "run": "just build && open build/Build/Products/Debug/Clipboard.app",
+      "test": "swift test --package-path Core",
+      "lint": "swift-format lint --strict --recursive Core/Sources Core/Tests App",
+      "fmt": "swift-format format --in-place --recursive Core/Sources Core/Tests App",
+      "logs": "log stream --level debug --predicate 'subsystem == \"com.clipboard.app\"'",
+      "reset": "rm -rf \"$HOME/Library/Application Support/Clipboard\"",
+      "scenario": "swift run --package-path Core scenario-runner",
+      "clean": "rm -rf build .build *.xcodeproj DerivedData"
+    },
+    "observability": {
+      "log_subsystem": "com.clipboard.app",
+      "log_categories": [
+        "monitor",
+        "store",
+        "hotkey",
+        "paste",
+        "ui",
+        "scenario"
+      ],
+      "structured_events": [
+        "monitor.change{changeCount,types,bundleID}",
+        "monitor.skipped{reason,bytes?,limit?,types,bundleID}",
+        "monitor.sensitive{reason,types,bundleID}",
+        "store.insert{id,kind,size,sensitive}",
+        "store.evict{id,sha256,blobDeleted}",
+        "store.corrupted{path,renamedTo}",
+        "store.reconcile{orphansDeleted}",
+        "hotkey.fired{elapsedMs}",
+        "hotkey.bindingFailed{reason}",
+        "paste.write{itemId,types,sizeBytes,sensitive}"
+      ],
+      "dev_mirror_log_to_file": "~/Library/Logs/Clipboard/dev.log（仅当环境变量 CLIPBOARD_DEV=1 时生效）"
+    },
+    "conventions": [
+      "NSPasteboard 的读只在 ClipboardMonitoring 的实现里发生；NSPasteboard 的写只在 PasteboardWriter 的实现里发生。",
+      "不合成键盘事件（不用 CGEvent / AppleScript / Accessibility 自动化）——选中条目只负责写入剪贴板，由用户手动粘贴。",
+      "HistoryPanel（.floating 层级）与本应用任何其他窗口互斥——展示其他窗口前必须先 dismiss HistoryPanel，避免置顶冲突。",
+      "敏感条目绝不以明文形式落盘——JSON 快照和 blobs/ 均排除 sensitive=true 的条目；导出也排除。",
+      "Monitor 只做 probe + bundleID 抓取 + filter 链；sha256 / 持久化 / blob 读写一律交给 store_queue。",
+      "队列分工：monitor_queue（轮询与过滤）、store_queue（哈希与持久化）、main_queue（UI）——不得跨队列同步阻塞。",
+      "UI 层通过协议依赖 Core，不直接依赖具体实现——装配点在 App/AppWiring.swift。",
+      "SwiftUI View 和 AppDelegate 内不放业务逻辑。",
+      "Core 的公共 API 只有显式标注时才 @MainActor 安全，其余默认按后台线程对待。",
+      "人体工程学场景下错误用 Swift typed throws；其他情况用领域特定的 Error enum。",
+      "测试之外禁止 force unwrap；除调试期的程序员错误外禁止 fatalError。",
+      "日志只走 os.Logger；提交的代码中不得使用 print()。"
+    ]
+  },
+  "slices": [
+    {
+      "id": "S0",
+      "title": "Harness 脚手架",
+      "goal": "项目可编译，菜单栏图标可见，测试通过，Justfile 可用。",
+      "deliverables": [
+        "`git init` 初始化仓库（默认分支 main），先落 .gitignore 再提交任何源码",
+        ".gitignore（忽略 *.xcodeproj、build/、DerivedData/、.build/、.DS_Store）",
+        "project.yml（XcodeGen）",
+        "Justfile",
+        "Core Swift Package 骨架，含空协议",
+        "ClipboardApp target：AppDelegate 注册 NSStatusItem 并显示占位图标",
+        "CLAUDE.md：列出构建命令与约定概要",
+        "一个通过的占位 XCTest",
+        "初始 commit 使用 commit_message 提交骨架"
+      ],
+      "acceptance": [
+        "`git status` 在干净工作区显示无未追踪文件（*.xcodeproj、build/、DerivedData/、.build/ 等均被忽略）。",
+        "`git log` 至少有一条 commit，即 S0 的初始 commit。",
+        "冷启动 `just gen && just build` 成功。",
+        "`just run` 后 App 打开，菜单栏有图标（无 Dock 图标）。",
+        "`just test` 输出至少一个通过的用例。",
+        "`just lint` 对已提交代码零违规。"
+      ],
+      "commit_message": "S0: harness bootstrap (xcodegen, just, core skeleton, menu bar shell)"
+    },
+    {
+      "id": "S1",
+      "title": "剪贴板监听 → 日志",
+      "goal": "系统中的每一次拷贝事件都产生一条结构化日志，过滤链骨架就位。",
+      "deliverables": [
+        "ClipboardMonitoring 协议 + NSPasteboardMonitor 实现（monitor_queue 上 300ms DispatchSourceTimer，leeway 50–100ms）",
+        "RawClipItem 值类型，覆盖所有可用的 NSPasteboard.PasteboardType",
+        "ClipContext 结构 + FilterDecision 枚举（.accept | .reject(String) | .markSensitive(String)）+ ClipFilter 协议",
+        "ClipFilter 链路装配（在 Monitor 内部、发出条目之前），首遇 .reject / .markSensitive 即短路",
+        "SizeFilter 实现：file-url 用 stat() 不读文件；内联类型按 maxClipSizeBytes 为上限限长读取，累计超限即早停并返回 .reject('tooLarge')；maxClipSizeBytes=0 禁用",
+        "SensitivityFilter 的 no-op 占位实现（始终 .accept）——真正的 ConcealedType 识别放 S7",
+        "BlocklistFilter 的 no-op 占位实现（始终 .accept）——真正的黑名单匹配放 S7",
+        "sourceBundleID 抓取点：monitor 每次 changeCount 变化时在 monitor_queue 上同步调一次 NSWorkspace.shared.frontmostApplication.bundleIdentifier，放入 ClipContext",
+        "App 启动时装配 Monitor 并为每次变更记日志；被拒条目发出 monitor.skipped{reason,bytes?,limit?,types,bundleID}",
+        "为测试提供 FakeClipboardMonitor",
+        "单元测试覆盖：同 changeCount 不重复发出、多类型抽取、SizeFilter 接受/拒绝边界、超大 file-url 在不读取文件内容的前提下被拒、内联类型读满 maxClipSizeBytes 即早停未读完整数据、maxClipSizeBytes=0 禁用、占位 filter 始终 .accept"
+      ],
+      "acceptance": [
+        "在任意 App 中拷贝文本 / 图片 / 文件 → `just logs` 1 秒内看到 monitor.change 事件，伴随正确的 bundleID。",
+        "拷贝 >10 MiB 文件 → `just logs` 看到 monitor.skipped{reason:'tooLarge',...}，且没有对应的 monitor.change。",
+        "将 maxClipSizeBytes 设为 0 → 之前被拒的大文件此时能被接受。",
+        "单元测试全绿。"
+      ],
+      "commit_message": "S1: NSPasteboard monitor, filter chain skeleton, size filter"
+    },
+    {
+      "id": "S2",
+      "title": "内存 store + JSON 快照持久化",
+      "goal": "所有被监听到的非敏感变更都持久化、去重、并执行容量上限——不引入数据库依赖。敏感条目仅驻留内存。",
+      "deliverables": [
+        "ClipItem / Payload Codable 模型（sensitive、sourceBundleID 字段齐全）",
+        "实现 ClipStore 的 JSONSnapshotClipStore（有序内存数组 + 防抖原子写，所有写在 store_queue 上串行）",
+        "preview 硬截断到 256 字符",
+        "Blob 写入路径：非敏感 payload > inline_threshold_bytes（16KB）走 blobs/<sha256>.<ext>；敏感 payload 一律内联于内存，不写盘",
+        "blob 引用计数表（按 sha256 计数）——去重命中 refcount+1；驱逐 refcount-1；归零才 unlink。驱逐事件 store.evict{...,blobDeleted} 记录是否删文件",
+        "启动末尾的 reconcileBlobs()：扫描 blobs/ 目录，与 in-memory refcount 表做差集，删除孤儿；发出 store.reconcile{orphansDeleted}",
+        "持久化过滤：写 history.json 时排除 sensitive=true 的条目；敏感条目不触发防抖写盘",
+        "桥接：ClipboardMonitoring 事件流 → ClipStore.insert（把 filter 的决策转为 sensitive 标志）",
+        "插入时执行容量上限（超过上限就驱逐最旧的非 pinned 条目）；pinned 不计入 cap 也不会被驱逐",
+        "去重命中时：更新 createdAt、移到队首、保留原 sourceBundleID 与 pinned 状态、不升格 sensitive 标志",
+        "启动加载带损坏恢复（解码失败则重命名为 .bak 并以空历史启动；发出 store.corrupted 事件）",
+        "优雅关闭时的 flush 钩子（通过 NSApplication willTerminate）",
+        "测试：去重把已有条目移到队首而非复制且 sourceBundleID 保留；容量驱逐跳过 pinned；pinned 超过 cap 也全部保留；损坏文件恢复生成 .bak 且发出 store.corrupted；round-trip（写入 → 重载 → 相等）；sensitive 条目不出现在 history.json、其 blob 文件不出现在 blobs/；reconcileBlobs 删除孤儿；blob 引用计数在多条目共享同一 sha256 时正确；搜索按 kind/pinned/sensitive 过滤；preview 被硬截断"
+      ],
+      "acceptance": [
+        "拷贝 5 个不同内容 → history.json 有 5 个条目，按时间倒序。",
+        "同一内容拷贝两次 → 只剩 1 条在队首，createdAt 被更新，sourceBundleID 保留首次值。",
+        "cap=3 且已有 1 条 pinned 的情况下再拷贝 5 个新内容 → 剩下 1 pinned + 3 最新 = 共 4 条。",
+        "杀掉 App 再重启 → 非敏感历史完好无损；敏感历史如预期丢失。",
+        "手动破坏 history.json 后重启 → 启动成功，生成 .bak 文件，发出 store.corrupted 事件。",
+        "模拟注入一个 sensitive=true 的条目 → 它能被搜索到、可被选中写回剪贴板；但 history.json 里没有它；blobs/ 里没有它的大 payload 文件。",
+        "在 blobs/ 手工放一个无人引用的文件，重启 App → 该文件被 reconcileBlobs 删除。"
+      ],
+      "commit_message": "S2: in-memory store, JSON snapshot, dedup, refcounted blobs, sensitive items stay in memory"
+    },
+    {
+      "id": "S3",
+      "title": "最小 HistoryPanel UI",
+      "goal": "点击菜单栏图标会打开面板，列出最近条目并支持实时搜索；UI 能对 store 的变更做增量刷新。",
+      "deliverables": [
+        "HistoryPanel（NSPanel 内的 SwiftUI），含搜索框 + List",
+        "观察 ClipStore 的 ViewModel（通过 AsyncStream），对搜索输入做 150ms 防抖",
+        "行视图显示 kind 图标、preview（已截断）、相对时间、来源 App",
+        "面板打开时发生新拷贝：列表自动增量刷新、当前选中行保留（通过 item id）",
+        "缩略图策略预埋：行视图从 payload 生成 64×64 预览位图并通过 LRU 内存缓存（容量 64 项或 16MB 上限，取先到）——S3 先提供文本/图标的轻量实现，S6 接入真实缩略图生成",
+        "键盘：↑↓ 移动选择，Esc 关闭"
+      ],
+      "acceptance": [
+        "点击菜单栏图标可切换面板显示 / 隐藏。",
+        "面板处于打开状态时再拷贝新内容，列表会在 1 秒内出现新行，已选中行不被重置。",
+        "1k 行数据下搜索的感知延迟 <100ms。",
+        "Esc 可关闭面板。"
+      ],
+      "commit_message": "S3: history panel with search, keyboard nav, live refresh, thumbnail cache"
+    },
+    {
+      "id": "S4",
+      "title": "全局快捷键 + 非激活面板",
+      "goal": "按下已配置的快捷键即可召唤面板，浮现在所有 App、所有 Space、全屏应用之上，且不从前台 App 抢走焦点。",
+      "deliverables": [
+        "HotkeyService 实现（基于 KeyboardShortcuts）；默认 ⌥⌘V",
+        "NSPanel 配置：.nonactivatingPanel 样式，层级使用 NSWindow.Level.floating（必要时可上调到 .popUpMenu），collectionBehavior 包含 .canJoinAllSpaces + .fullScreenAuxiliary + .stationary（面板浮现在所有 App、所有 Space、包括全屏应用之上），hidesOnDeactivate=false，becomesKeyOnlyIfNeeded=true——这样目标 App 始终保持前台状态，面板关闭后用户可直接 Cmd+V",
+        "多显示器规则：面板出现在光标所在的那块屏幕（而非主屏）",
+        "窗口互斥约束：HistoryPanel 与本应用其他任何窗口（偏好设置、引导页等）互斥；在显示其他窗口之前必须先 dismiss HistoryPanel"
+      ],
+      "acceptance": [
+        "TextEdit 处于前台时，⌥⌘V 显示面板；整个过程中 TextEdit 保持前台（可在 Dock / Mission Control 中验证）。",
+        "把 Safari 切到全屏后按 ⌥⌘V → 面板浮现在全屏 Safari 之上（验证 .fullScreenAuxiliary）。",
+        "切换到其他 Space 后再按 ⌥⌘V → 面板出现在当前 Space（验证 .canJoinAllSpaces）。",
+        "把鼠标移到副屏后按 ⌥⌘V → 面板出现在副屏。",
+        "面板可接收键盘输入（搜索框能打字），但不会在 Dock 中激活本 App。",
+        "关闭面板后 TextEdit 仍保持焦点，可直接接收手动的 Cmd+V。"
+      ],
+      "commit_message": "S4: global hotkey + always-on-top non-activating panel"
+    },
+    {
+      "id": "S5",
+      "title": "选中条目回写剪贴板",
+      "goal": "选中条目会把它的所有 payload 写回系统剪贴板并关闭面板；用户在任意 App 中手动 Cmd+V 粘贴。",
+      "deliverables": [
+        "PasteboardWriter 实现：清空 NSPasteboard.general，再按每个 payload 的原始 pasteboardType 声明并写入",
+        "HistoryPanel 的选中处理：↵ 或点击某行 → PasteboardWriter.write → 关闭面板；不操纵焦点、不合成按键",
+        "结构化日志事件 paste.write{itemId,types,sizeBytes,sensitive}",
+        "使用 RecordingPasteboardWriter 的集成测试：覆盖所有 payload 类型是否被写入、选中是否关闭面板、sensitive 条目也能被正常写回"
+      ],
+      "acceptance": [
+        "TextEdit 处于前台时，⌥⌘V → 选中一条 → 面板关闭，TextEdit 仍在前台，按 Cmd+V 可粘贴内容。",
+        "选中 RTF 条目后，在 Pages 中粘贴为富文本、在 Terminal 中粘贴为纯文本（同一次剪贴板状态，接收方自行挑选）——确认原始所有类型都被写入。",
+        "`just logs` 在每次选中时都能看到一条 paste.write 事件。"
+      ],
+      "commit_message": "S5: restore selected item to system clipboard on selection"
+    },
+    {
+      "id": "S6",
+      "title": "富类型：RTF、图片、文件",
+      "goal": "非纯文本剪贴内容的往返完整性。",
+      "deliverables": [
+        "扩展 RawClipItem 抽取：public.rtf、public.tiff/public.png、public.file-url",
+        "行视图：图片行显示缩略图（接入 S3 预埋的 LRU 缓存，异步在 store_queue 生成），文件行显示图标 + 文件名",
+        "预览面板（面板右侧）按 kind 渲染完整内容",
+        "场景脚本：按剧本生成多种拷贝类型并端到端校验",
+        "可选：↵ 按住 ⇧ 时以纯文本粘贴（只写 public.utf8-plain-text 到剪贴板）——实现时需与 S9 的快捷键集中规划一致"
+      ],
+      "acceptance": [
+        "从 Safari 复制带样式文本 → 在 Pages 中粘贴保留格式。",
+        "从 Finder 复制 PNG → 在 Preview 中粘贴能打开正确图片。",
+        "`just scenario rich-types` 通过。"
+      ],
+      "commit_message": "S6: rich clipboard types (rtf / image / file)"
+    },
+    {
+      "id": "S7",
+      "title": "隐私（敏感遮罩）与置顶",
+      "goal": "敏感内容进入 store 但被遮罩显示、不落盘；用户可以把条目置顶。",
+      "deliverables": [
+        "SensitivityFilter 真实实现：识别 org.nspasteboard.ConcealedType → .markSensitive('concealedType')",
+        "BlocklistFilter 真实实现：ClipContext.sourceBundleID 命中 → .markSensitive('blockedSource:<bundleID>')",
+        "ClipStore 的敏感写盘排除逻辑接入（S2 已预埋，此处验证行为）",
+        "UI 遮罩：sensitive 行显示『●●●●（来自 <App>）』+ 锁图标；预览面板遮罩；提供『临时显示敏感内容』按钮（仅当次会话有效）",
+        "行右键菜单的置顶开关 + 专属的『已置顶』标签页",
+        "隐私设置 UI（skipSensitive 开关、blockedBundleIDs 列表编辑）"
+      ],
+      "acceptance": [
+        "从 1Password 拷贝密码 → HistoryPanel 中出现一行『●●●●（来自 1Password）』，选中后可正常粘贴密码到目标 App。",
+        "重启 App → 上面这条敏感记录消失；非敏感记录保留。",
+        "检查 history.json → 不含该敏感条目；检查 blobs/ → 不含该敏感条目的任何文件。",
+        "清空所有类型的操作不会清掉已置顶项。"
+      ],
+      "commit_message": "S7: sensitive masking (in-memory only) and pinned items"
+    },
+    {
+      "id": "S8",
+      "title": "偏好设置",
+      "goal": "暴露面向用户的设置界面。",
+      "deliverables": [
+        "偏好设置窗口：快捷键、保留策略（cap 滑块）、maxClipSizeBytes、skipSensitive、blockedBundleIDs、开机启动（ServiceManagement）、外观（跟随系统/浅色/深色）、语言覆盖",
+        "打开偏好设置前先 dismiss HistoryPanel（遵守 S4 的窗口互斥约束）",
+        "带确认的『清空历史』操作",
+        "JSON 导出 / 导入：导出把 history.json（已排除 sensitive）+ blobs/ 打包为 .zip；导入按 sha256 合并去重，缺失 blob 的条目跳过并在导入结果里计数",
+        "Dark Mode 校验：所有 UI 在深色模式下显示正常",
+        "显式的本地化键集合与 zh-Hans/en 两份 Localizable.strings"
+      ],
+      "acceptance": [
+        "所有设置在重启后保留。",
+        "⌥⌘V 打开 HistoryPanel 后，从菜单栏选择『偏好设置…』→ HistoryPanel 立即关闭，偏好设置窗口正常显示且可交互。",
+        "导出 → reset 到空 → 导入 → 历史（非敏感部分）完整恢复；故意删掉一个 blob 再导入 → 该条目被跳过并在日志里计数。",
+        "深色模式下面板与偏好设置窗口显示正常，无对比度问题。"
+      ],
+      "commit_message": "S8: preferences, launch-at-login, export/import, dark mode"
+    },
+    {
+      "id": "S9",
+      "title": "UX 打磨与日常可用",
+      "goal": "补齐首启引导、反馈、快捷键、菜单栏入口、异常态通知，让普通用户能零配置日常使用。",
+      "deliverables": [
+        "首启引导（仅首次启动）：介绍默认快捷键 ⌥⌘V、告知工作在菜单栏、一键打开偏好设置",
+        "快捷键冲突检测：HotkeyService 绑定失败时通过 bindingStatus 发 .conflict，UI 弹引导页让用户重绑（解决原 open_question 中 ⌥⌘V 可能冲突的问题）",
+        "菜单栏图标右键菜单：显示历史面板、偏好设置…、暂停监听、清空历史…、关于、退出",
+        "『暂停监听』开关：开启时 Monitor 暂停轮询（输密码 / 调试场景），菜单栏图标显示暂停态",
+        "SizeFilter 拒绝的 UI 反馈：菜单栏图标短暂角标 + 可选的 toast『已跳过大于 10 MiB 的条目』，避免用户怀疑 App 坏掉",
+        "选中写剪贴板后的确认反馈：菜单栏图标短暂闪烁 + 可选的轻 toast『已复制，按 Cmd+V 粘贴』",
+        "history.json 损坏恢复后的用户可见通知：『历史已恢复到备份，原文件保存在 history.json.bak』",
+        "搜索 UI 升级：kind 过滤 chips（全部 / 文本 / 图片 / 文件 / 已置顶）",
+        "快捷键补齐：⌘F 聚焦搜索、⌘1–9 快速选中前 N 条、⌘⌫ 删除当前选中、⌘P 置顶当前选中、Tab 切换『全部/已置顶』",
+        "Accessibility：VoiceOver label、Dynamic Type 基本支持、键盘完全可达"
+      ],
+      "acceptance": [
+        "全新安装后首次启动 → 看到引导页并能成功完成默认快捷键绑定。",
+        "将系统级的 ⌥⌘V 占用（例如绑给别的 App）→ 本 App 启动时提示冲突并引导重绑。",
+        "在菜单栏图标右键菜单中能看到并成功触发：暂停监听、清空历史（带确认）、偏好设置、退出。",
+        "拷贝一个 > 10 MiB 的文件 → 菜单栏图标出现短暂反馈，用户能知晓条目被跳过。",
+        "选中一条历史并回写剪贴板 → 菜单栏图标出现短暂反馈。",
+        "手动破坏 history.json 后重启 → 用户看到『历史已恢复到备份』的通知，而不是静默清空。",
+        "在面板中按 ⌘F 聚焦搜索、⌘1 选第一条、⌘⌫ 删当前选中、⌘P 置顶当前选中——均按预期工作。",
+        "打开 VoiceOver 后，面板的每一行都有可读的描述。"
+      ],
+      "commit_message": "S9: UX polish (onboarding, menu, hotkey conflict, feedback, accessibility)"
+    }
+  ],
+  "slice_rhythm": [
+    "1. 先改协议与测试（红）。",
+    "2. 实现至测试全绿。",
+    "3. `just run` 手动演示本 slice 的验收标准。",
+    "4. `just lint` 干净，然后按 slice 指定的 commit_message 提交。",
+    "5. 如果本 harness.json 里有任何与现实不符之处，在同一次提交里一并修订。"
+  ],
+  "definition_of_done_per_slice": [
+    "所有 deliverables 均已合入。",
+    "所有验收项都已校验（能自动化的用自动化；手动步骤写入 commit 正文）。",
+    "Core 测试全绿；没有新增 @Skipped 用例。",
+    "`just lint` 干净。",
+    "若约定有变，同步更新 CLAUDE.md。",
+    "若计划有变，同步更新 harness.json。"
+  ],
+  "guardrails": {
+    "must": [
+      "业务逻辑留在 ClipboardCore 内部。",
+      "先定义协议，再写具体实现。",
+      "每个新模块都要有一份可在测试中使用的 Fake 实现。",
+      "每个 slice 以绿色、可运行、可提交的状态结束。",
+      "任何偏离 harness.json 的改动必须在同一次提交中更新 harness.json。"
+    ],
+    "must_not": [
+      "在 ClipboardMonitoring（读）/ PasteboardWriter（写）之外触碰 NSPasteboard。",
+      "通过 CGEvent / AppleScript / Accessibility 合成键盘事件——本应用绝不自动粘贴。",
+      "把 sensitive=true 的条目以任何形式写入磁盘（history.json、blobs/、导出文件、日志中的 payload 正文均不得明文出现）。",
+      "在 monitor_queue 上算 sha256 或做磁盘 I/O；在 store_queue 上读写 NSPasteboard。",
+      "引入 tech_stack 未列出的依赖，除非先更新本文档。",
+      "启用 App Sandbox（会把开机启动和源 App bundle ID 检测搞复杂）。",
+      "提交生成的 .xcodeproj。",
+      "引入跨平台抽象——本项目有意只做 macOS。",
+      "用 print() 记日志；统一用 os.Logger。"
+    ],
+    "required_permissions": []
+  },
+  "risks": [
+    {
+      "risk": "轮询可能漏掉 <300ms 内的连续拷贝。",
+      "mitigation": "v1 可接受；若有用户反馈再考虑更短间隔或 NSPasteboardObserver 私有 API。",
+      "owner": "S1"
+    },
+    {
+      "risk": "RTF / HTML 往返在某些目标 App 中会丢失格式。",
+      "mitigation": "PasteboardWriter 始终写入所有原始 pasteboard 类型，由接收方挑选；场景测试覆盖常见组合。",
+      "owner": "S6"
+    },
+    {
+      "risk": "用户关闭面板后焦点没有被正确保留，Cmd+V 落到错误的 App。",
+      "mitigation": "非激活面板（S4）保证目标 App 始终不失去前台状态——本应用不会在 Dock 中被激活。S4 的验收项会显式校验目标 App 保持前台。",
+      "owner": "S4"
+    },
+    {
+      "risk": "大图片即便有条数上限仍可能让磁盘无限增长。",
+      "mitigation": "按 sha256 的 blob 引用计数在驱逐时 decrement 并在归零时 unlink；启动 reconcileBlobs() 清理孤儿；可选的第二道总大小上限；列表中只显示缩略图而非完整图片。",
+      "owner": "S2"
+    },
+    {
+      "risk": "防抖写入可能在崩溃时丢失最后 N 个非敏感事件。",
+      "mitigation": "500ms 防抖可接受；NSApplication willTerminate 时强制 flush；仅当用户反馈丢失才重新评估。",
+      "owner": "S2"
+    },
+    {
+      "risk": "敏感条目在 App 重启后丢失，对期望持久保留的用户可能反直觉。",
+      "mitigation": "这是『不明文落盘』安全目标的有意权衡，不是缺陷。UI 中对 sensitive 条目明示『关闭 App 后将丢失』；v1 不提供加密持久化（若未来需要再评估 Keychain 方案）。",
+      "owner": "S7"
+    },
+    {
+      "risk": "Monitor 在大 payload 上做探测时阻塞 poll tick → 漏拷贝。",
+      "mitigation": "SizeFilter 的内联读取早停（达到 maxClipSizeBytes 即中断）；sha256 和磁盘 I/O 搬到 store_queue；monitor_queue 只做 probe + bundleID + filter 链。",
+      "owner": "S1/S2"
+    },
+    {
+      "risk": "超过几千条且大量 payload 被内联时，JSON 快照性能会下降。",
+      "mitigation": "默认 100 条的容量上限足以把文件控制得很小。较大 payload 单独存到 blobs/，history.json 保持只存元数据。用户把 cap 调到 >5000 再讨论换存储格式——v1 不用操心。",
+      "owner": "S2"
+    },
+    {
+      "risk": "S9 把太多 UX 打磨挤进一个 slice，工作量失控。",
+      "mitigation": "S9 按 deliverables 的顺序实现，允许按清单切 sub-commit；如果 v1.x 要提前发布，可先合入『首启引导 + 冲突检测 + 菜单栏菜单 + 拒绝反馈』四项作为 S9a，剩余作为 S9b。",
+      "owner": "S9"
+    }
+  ],
+  "features_roadmap": {
+    "mvp_v1_0": [
+      "S0",
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5"
+    ],
+    "v1_1": [
+      "S6",
+      "S7"
+    ],
+    "v1_2": [
+      "S8",
+      "S9"
+    ]
+  },
+  "open_questions": [
+    "macOS 最低版本：保持 13.0 底线——已决，不用数据库，没理由再抬高",
+    "未来是否对 sensitive 条目提供 Keychain 加密持久化（而非仅内存）——v1 不做，需积累用户反馈后再评估",
+    "默认 cap=100 是否仍需调整——v1 定为 100（同类产品多为 200+，此值偏保守），S8 偏好中滑块量程给足，必要时按用户反馈再改默认"
+  ]
+}
