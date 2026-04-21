@@ -134,6 +134,13 @@ public actor JSONSnapshotClipStore: ClipStore {
     if !items[idx].sensitive { scheduleWrite() }
   }
 
+  public func togglePin(id: UUID) async {
+    guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
+    items[idx].pinned.toggle()
+    eventsContinuation.yield(.updated(items[idx]))
+    if !items[idx].sensitive { scheduleWrite() }
+  }
+
   public func delete(id: UUID) async {
     guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
     let removed = items.remove(at: idx)

@@ -7,6 +7,7 @@ struct ClipPreviewView: View {
   let resolver: PayloadResolver?
 
   @State private var previewImage: NSImage?
+  @State private var loadedImageForID: UUID?
   @State private var revealed: Bool = false
 
   var body: some View {
@@ -70,7 +71,7 @@ struct ClipPreviewView: View {
 
   private func imageView(_ item: ClipItem) -> some View {
     VStack {
-      if let previewImage {
+      if let previewImage, loadedImageForID == item.id {
         Image(nsImage: previewImage)
           .resizable()
           .interpolation(.high)
@@ -81,6 +82,15 @@ struct ClipPreviewView: View {
       }
     }
     .padding()
+    .onChange(of: item.id) { _ in
+      // Selection changed while preview is visible — discard the
+      // previously-loaded image and refetch for the new item. Without
+      // this the preview keeps rendering whichever picture was
+      // resolved first.
+      previewImage = nil
+      loadedImageForID = nil
+      loadImage(item)
+    }
   }
 
   private func fileView(_ item: ClipItem) -> some View {
@@ -134,9 +144,30 @@ struct ClipPreviewView: View {
   }
 
   private func loadImage(_ item: ClipItem) {
-    guard let loader = thumbnailLoader else { return }
-    _ = loader.thumbnail(for: item) { img in
-      previewImage = img
+    // Load the full-resolution image for the preview pane.
+    // Do NOT use ThumbnailLoader here — that cache is keyed on
+    // 64×64 versions for the list rows and would both stretch
+    // blurrily and potentially return the wrong payload's
+    // thumbnail if multiple images share cache keys.
+    guard let resolver else { return }
+    guard
+      let payload = item.payloads.first(where: {
+        ["public.png", "public.tiff", "public.jpeg", "public.image"]
+          .contains($0.pasteboardType)
+      })
+    else { return }
+    let targetID = item.id
+    DispatchQueue.global(qos: .userInitiated).async {
+      guard let data = try? resolver.data(for: payload),
+        let image = NSImage(data: data)
+      else { return }
+      DispatchQueue.main.async {
+        // Only apply if the user hasn't selected a different item in
+        // the meantime.
+        guard loadedImageForID != targetID else { return }
+        previewImage = image
+        loadedImageForID = targetID
+      }
     }
   }
 }

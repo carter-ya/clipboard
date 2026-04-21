@@ -100,11 +100,7 @@ final class HistoryPanelViewModel: ObservableObject {
   }
 
   func togglePin(_ item: ClipItem) async {
-    if item.pinned {
-      await store.unpin(id: item.id)
-    } else {
-      await store.pin(id: item.id)
-    }
+    await store.togglePin(id: item.id)
   }
 
   func delete(_ item: ClipItem) async {

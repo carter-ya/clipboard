@@ -79,6 +79,12 @@ public actor InMemoryClipStore: ClipStore {
     eventsContinuation.yield(.updated(items[idx]))
   }
 
+  public func togglePin(id: UUID) async {
+    guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
+    items[idx].pinned.toggle()
+    eventsContinuation.yield(.updated(items[idx]))
+  }
+
   public func delete(id: UUID) async {
     guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
     items.remove(at: idx)

@@ -16,6 +16,11 @@ public protocol ClipStore: Sendable {
   func item(id: UUID) async -> ClipItem?
   func pin(id: UUID) async
   func unpin(id: UUID) async
+  /// Atomically flip the pinned flag on an item. Prefer this over
+  /// reading item.pinned in the caller and then calling pin/unpin —
+  /// the caller's copy may be stale if another event has already
+  /// updated the store.
+  func togglePin(id: UUID) async
   func delete(id: UUID) async
   func clearAll() async
 

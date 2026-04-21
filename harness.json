@@ -580,6 +580,25 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S15: frame-based outside-click detection (title bar stays clickable)"
+    },
+    {
+      "id": "S16",
+      "title": "Pin 原子化 + 预览窗口用全分辨率图片",
+      "goal": "修复 3 个实测问题：(1) ⌘P 要按至少两次才出现钉子图标；(2) 预览窗口里的图片不是原图；(3) 预览窗口里的图片模糊。",
+      "deliverables": [
+        "ClipStore 协议新增 togglePin(id:) async——在 actor 内部原子翻转 pinned 状态，避免调用方用过期的 item.pinned 判断。JSONSnapshotClipStore 与 InMemoryClipStore 都实现。",
+        "HistoryPanelViewModel.togglePin(_:) 改为调 store.togglePin(id:) ——不再依赖传入的 item.pinned；第一次 ⌘P 立即生效。",
+        "ClipPreviewView.imageView 不再调 ThumbnailLoader——缩略图是给行视图（36×36）预渲染的 64×64 LRU 缓存，把它塞进预览窗口会被拉伸、像素化且可能是错的 payload。改为通过 PayloadResolver 从 inlineData / blobPath 加载**原始图片数据**构造 NSImage，再用 SwiftUI Image.resizable().interpolation(.high).aspectRatio(.fit) 渲染。异步在 DispatchQueue.global() 读取 → 主线程回写 @State。",
+        "imageView 的选型与行视图的缩略图解耦：行继续用 ThumbnailLoader（小、快、缓存友好），预览窗口用全分辨率（因为用户期望『在预览里看得清楚』）。",
+        "测试：ClipStore togglePin 翻转单条状态；不存在的 id 是 no-op；sensitive 条目的 pinned 翻转不触发磁盘写（保持 S2 的不落盘不变量）。"
+      ],
+      "acceptance": [
+        "⌥⌘V 打开面板 → 选中一条非 pinned 条目 → 按 ⌘P → 立即出现钉子图标（1 次按压）；再按 ⌘P → 钉子消失。",
+        "⌥⌘V 打开面板 → 选中一张 PNG/TIFF 条目 → 预览窗口显示**与该条目实际对应**的图片，不是别的条目的缩略图。",
+        "同上，预览窗口里的图片清晰（按原分辨率渲染再按 aspectRatio .fit 缩放），而非 64×64 模糊拉伸。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S16: atomic togglePin, preview pane loads full image"
     }
   ],
   "slice_rhythm": [
@@ -688,7 +707,8 @@
       "S12",
       "S13",
       "S14",
-      "S15"
+      "S15",
+      "S16"
     ]
   },
   "open_questions": [
