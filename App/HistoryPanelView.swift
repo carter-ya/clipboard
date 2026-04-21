@@ -3,10 +3,27 @@ import SwiftUI
 
 struct HistoryPanelView: View {
   @ObservedObject var viewModel: HistoryPanelViewModel
+  let thumbnailLoader: ThumbnailLoader?
+  let resolver: PayloadResolver?
   var onClose: () -> Void = {}
   var onActivate: (ClipItem) -> Void = { _ in }
 
   var body: some View {
+    HStack(spacing: 0) {
+      listColumn
+      Divider()
+      ClipPreviewView(
+        item: selectedItem,
+        thumbnailLoader: thumbnailLoader,
+        resolver: resolver
+      )
+      .frame(width: 260)
+    }
+    .frame(width: 680, height: 520)
+    .background(.regularMaterial)
+  }
+
+  private var listColumn: some View {
     VStack(spacing: 0) {
       searchField
       Divider()
@@ -16,8 +33,7 @@ struct HistoryPanelView: View {
         list
       }
     }
-    .frame(width: 420, height: 520)
-    .background(.regularMaterial)
+    .frame(width: 420)
   }
 
   private var searchField: some View {
@@ -39,7 +55,7 @@ struct HistoryPanelView: View {
 
   private var list: some View {
     List(viewModel.items, selection: $viewModel.selectedID) { item in
-      ClipRowView(item: item)
+      ClipRowView(item: item, thumbnailLoader: thumbnailLoader)
         .tag(item.id)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { onActivate(item) }
@@ -52,14 +68,6 @@ struct HistoryPanelView: View {
     )
   }
 
-  private func activateSelected() {
-    if let id = viewModel.selectedID,
-      let item = viewModel.items.first(where: { $0.id == id })
-    {
-      onActivate(item)
-    }
-  }
-
   private var emptyState: some View {
     VStack(spacing: 8) {
       Image(systemName: "tray")
@@ -69,5 +77,16 @@ struct HistoryPanelView: View {
         .foregroundStyle(.secondary)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  private var selectedItem: ClipItem? {
+    guard let id = viewModel.selectedID else { return nil }
+    return viewModel.items.first(where: { $0.id == id })
+  }
+
+  private func activateSelected() {
+    if let item = selectedItem {
+      onActivate(item)
+    }
   }
 }

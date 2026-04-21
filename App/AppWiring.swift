@@ -9,6 +9,8 @@ final class AppWiring {
   private(set) var store: (any ClipStore)?
   private(set) var viewModel: HistoryPanelViewModel?
   private(set) var pasteboardWriter: (any PasteboardWriting)?
+  private(set) var thumbnailLoader: ThumbnailLoader?
+  private(set) var payloadResolver: PayloadResolver?
 
   private var consumerTask: Task<Void, Never>?
   private var hotkeyTask: Task<Void, Never>?
@@ -37,9 +39,10 @@ final class AppWiring {
       let root = try AppPaths.defaultStoreRoot()
       let store = try await JSONSnapshotClipStore(root: root, cap: cap)
       self.store = store
-      self.pasteboardWriter = NSPasteboardWriter(
-        blobRoot: root.appendingPathComponent("blobs")
-      )
+      let blobRoot = root.appendingPathComponent("blobs")
+      self.pasteboardWriter = NSPasteboardWriter(blobRoot: blobRoot)
+      self.thumbnailLoader = ThumbnailLoader(blobRoot: blobRoot)
+      self.payloadResolver = PayloadResolver(blobRoot: blobRoot)
 
       let vm = HistoryPanelViewModel(store: store)
       vm.start()

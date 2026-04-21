@@ -56,6 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     guard panel == nil, let wiring = wiring, let vm = wiring.viewModel else { return }
     let root = HistoryPanelView(
       viewModel: vm,
+      thumbnailLoader: wiring.thumbnailLoader,
+      resolver: wiring.payloadResolver,
       onClose: { [weak self] in
         self?.panel?.orderOut(nil)
       },
