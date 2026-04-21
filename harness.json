@@ -813,6 +813,25 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S27: Preferences centers on last History panel frame, not just its screen"
+    },
+    {
+      "id": "S28",
+      "title": "预览图载入的竞态修复 + Delete 键删除条目",
+      "goal": "(1) 加载图片期间切换到另一条图片条目时，预览窗口有机会永远卡在 Loading——旧载入的完成回调拿过期 targetID 覆盖掉新载入的结果，且回调里的 stale-check 逻辑判反。(2) 面板里按 Delete（非 Cmd+Delete）不删条目——目前只绑了 ⌘⌫，用户自然按 ⌫ 无反应。",
+      "deliverables": [
+        "ClipPreviewView 新增 @State loadEpoch: Int；loadImage 每次调用都 loadEpoch += 1，后台闭包捕获当时的 epoch；主线程 DispatchQueue.main.async 回调里 `guard epoch == loadEpoch` 才应用结果，否则丢弃——这样无论旧载入多慢都不会覆盖新载入的正确结果，也不会让新载入被旧 guard 屏蔽。",
+        "删除原来基于 loadedImageForID 的 stale-check（含义正好判反了，保留反而增加复杂度）；loadedImageForID 仍用于『这张图是否已加载过、不需要重启 ProgressView』的 UI 判定，语义不变。",
+        "HistoryPanel 的 NSEvent.addLocalMonitorForEvents(.keyDown) 扩展为拦截 keyCode 51（⌫ / Delete）并调 onDelete 回调——但仅当当前 firstResponder 不是 NSText 时才吞事件；否则让事件走 AppKit 原本的路径（用户在搜索框里按 Delete 还是得能删字符）。",
+        "HistoryPanel 新增 var onDelete: (() -> Void)?；AppDelegate 接线到 viewModel.delete(selectedItem)，与现有 ⌘⌫ 的 keyboardShortcut 按钮共用同一 delete 路径。",
+        "HistoryPanelView 的隐藏 ⌘⌫ 按钮保留——功能等价、作为键盘用户的另一种触发方式。"
+      ],
+      "acceptance": [
+        "选中一个大截图条目 → 预览窗口显示 Loading → 在 Loading 期间按 ↓ 切到另一张图 → 最终稳定显示第二张图（不是卡住的 Loading、也不是第一张图）。",
+        "面板里选中一条（焦点不在搜索框）→ 按 Delete → 该条目从列表消失；搜索框依然有焦点时按 Delete → 正常删除搜索文本字符，不影响条目。",
+        "回归：⌘⌫ 依然删除选中条目；⌘A / ⌘C / ⌘V / ⌘X / ⌘Z 仍然在搜索框内正常工作；方向键仍然控制选中；⌘, 仍然打开 Preferences。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S28: epoch-guarded preview loads + bare Delete key deletes the selected row"
     }
   ],
   "slice_rhythm": [
@@ -933,7 +952,8 @@
       "S24",
       "S25",
       "S26",
-      "S27"
+      "S27",
+      "S28"
     ]
   },
   "open_questions": [

@@ -9,6 +9,7 @@ struct ClipPreviewView: View {
 
   @State private var previewImage: NSImage?
   @State private var loadedImageForID: UUID?
+  @State private var loadEpoch: Int = 0
   @State private var revealed: Bool = false
 
   var body: some View {
@@ -145,15 +146,12 @@ struct ClipPreviewView: View {
   }
 
   private func loadImage(_ item: ClipItem) {
-    // Load a full-resolution preview image in the background and
-    // pre-decode it via ImageIO so the main thread only has to paint
-    // — not decompress — when the View is re-rendered.
-    //
-    // NSImage(data:) is lazy; its first draw would happen on the
-    // main queue, which is exactly where SwiftUI is trying to render
-    // and where the user perceives "loading" delay even for tiny
-    // screenshots. CGImageSourceCreateThumbnailAtIndex forces decode
-    // up-front on the background queue.
+    // Epoch-guarded load. Every call bumps loadEpoch and captures
+    // the value; the main-queue completion only applies its result
+    // if the epoch is still current. This prevents a slow earlier
+    // load from overwriting a fresher one (which in turn produced
+    // the "stuck Loading" symptom when users switched items
+    // mid-load).
     guard let resolver else { return }
     guard
       let payload = item.payloads.first(where: {
@@ -161,12 +159,14 @@ struct ClipPreviewView: View {
           .contains($0.pasteboardType)
       })
     else { return }
+    loadEpoch &+= 1
+    let epoch = loadEpoch
     let targetID = item.id
     DispatchQueue.global(qos: .userInitiated).async {
       guard let data = try? resolver.data(for: payload) else { return }
       guard let image = Self.preDecode(data: data) else { return }
       DispatchQueue.main.async {
-        guard loadedImageForID != targetID else { return }
+        guard epoch == loadEpoch else { return }
         previewImage = image
         loadedImageForID = targetID
       }
