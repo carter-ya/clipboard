@@ -3,12 +3,21 @@ import ClipboardCore
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+  static let reopenNotification = Notification.Name("com.clipboard.app.reopen")
+
   private var panel: HistoryPanel?
   private var wiring: AppWiring?
   private var preferencesController: PreferencesWindowController?
   private var onboarding: OnboardingController?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    DistributedNotificationCenter.default().addObserver(
+      self,
+      selector: #selector(handleReopenNotification(_:)),
+      name: Self.reopenNotification,
+      object: nil
+    )
+
     let wiring = AppWiring()
     wiring.onHotkey = { [weak self] in
       MainActor.assumeIsolated {
@@ -31,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationWillTerminate(_ notification: Notification) {
+    DistributedNotificationCenter.default().removeObserver(self)
     guard let wiring else { return }
     let semaphore = DispatchSemaphore(value: 0)
     Task {
@@ -38,6 +48,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       semaphore.signal()
     }
     _ = semaphore.wait(timeout: .now() + 2.0)
+  }
+
+  @objc private func handleReopenNotification(_ notification: Notification) {
+    DispatchQueue.main.async { [weak self] in
+      MainActor.assumeIsolated {
+        self?.openPreferences()
+      }
+    }
   }
 
   /// Relaunching the app (double-click Clipboard.app from Finder /

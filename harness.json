@@ -141,6 +141,7 @@
     "click_outside_closes": "面板可见期间通过 NSEvent.addGlobalMonitorForEvents(.leftMouseDown | .rightMouseDown) 监听鼠标点击。**关键坑**：`.nonactivatingPanel` 样式下本 App 从未 activate，AppKit 把我们自己面板上的标题栏/关闭按钮等 chrome 区域的点击也当作『发给其他 App 的事件』派发给 global monitor——会导致『点一下标题窗口自己关了』的 bug。因此回调里不能无条件 close：必须先拿 NSEvent.mouseLocation（屏幕坐标）与 self.frame 比较，**仅当点击在面板矩形之外才 close**。监听器生命周期依旧与面板可见性绑定：show 时装、close 时拆。",
     "preferences_activation_policy": "打开偏好设置窗口前把 NSApp.activationPolicy 切到 .regular（App 短暂获得 Dock 图标与完整键盘焦点），关闭偏好后切回 .accessory。原因：LSUIElement=true 的菜单栏 App 默认不接受标准键盘输入焦点，KeyboardShortcuts.Recorder 等需要录制键盘的控件在 .accessory 下会失灵。切换时机：PreferencesWindowController.show() 之前切 .regular；windowWillClose 通知到达时切回 .accessory。",
     "no_menu_bar_icon": "**不放菜单栏图标**——LSUIElement=true 的纯后台 App 依赖全局快捷键（⌥⌘V）作为唯一入口。首启引导窗口（OnboardingController.showIfFirstRun）承担『告知用户默认快捷键』的任务。次级操作（Preferences / Pause / Clear / About / Quit）全部从 HistoryPanel 内部的键盘路径或从 Preferences 窗口内部到达——见下。回退路径：`applicationShouldHandleReopen(_:hasVisibleWindows:)` 在用户再次从 Finder / Dock / Spotlight 启动已运行的 App 时打开 Preferences 窗口，避免『装完不见了』的困惑。",
+    "single_instance": "**同一时刻只允许一个 Clipboard 进程运行**——无菜单栏图标意味着用户不会发现已经有一份在跑，同时开两份会出现两个 Monitor 并发读 pasteboard / 两份 store 竞争同一份 history.json / blobs 目录的混乱。启动流程：main.swift 在创建 NSApplication 之前用 NSRunningApplication.runningApplications(withBundleIdentifier:) 过滤掉自身 pid，若仍有实例：(1) activate 那个既有实例；(2) 通过 DistributedNotificationCenter 广播 'com.clipboard.app.reopen' 通知；(3) exit(0) 终止当前进程。既有实例的 AppDelegate 在 applicationDidFinishLaunching 里订阅同名通知，收到时等价于执行 applicationShouldHandleReopen——打开 Preferences，给用户一个清晰的『你以为启动的那份其实是唤起旧的』反馈。开发时可通过环境变量 CLIPBOARD_ALLOW_MULTIPLE=1 跳过检查，避免 Xcode Run 与已运行实例冲突。",
     "panel_cmd_comma_opens_prefs": "HistoryPanel 可见时按 ⌘, 关闭面板并打开 Preferences 窗口。实现：panel 里一个隐藏的 .keyboardShortcut(',', modifiers: .command) 按钮触发 onShowPreferences 回调；回调先 panel.suppressNextCloseCommit=true（避免焦点切换误提交选中条目），再调 panel.close()，再让 AppDelegate 走它原有的 openPreferences 路径（会再次尊重 S4 的窗口互斥约束）。",
     "panel_hosts_arrow_keys": "HistoryPanel 可见时，**无论焦点在哪**（搜索框 / 列表 / 按钮），↑↓ 都只做条目选择——不做文本框光标移动。实现：panel 在 show 时装一个 NSEvent.addLocalMonitorForEvents(.keyDown) 的监听，keyCode 125（Down）/ 126（Up）时调 viewModel.selectNext/selectPrevious 并返回 nil 吞掉事件；其他键直接返回事件让它继续走正常响应链。监听器生命周期与 outsideClickMonitor 一致——show 装、close 拆。这是 macOS 13 的折中方案（macOS 14+ 有 .onKeyPress，但我们目标 13）。",
     "activate_bumps_to_top": "用户选中并激活（click / ↵ / close-commit）一条历史时，该条目应**立即**移到队首，不依赖 Monitor→Store 的 poll 循环。AppWiring.activate 除了 PasteboardWriter.write 还需调 ClipStore.bumpToTop(id:)——同步更新 createdAt、移到数组首、发出 .updated 事件、触发防抖写盘。（Monitor 随后对新的 pasteboard 状态也会触发一次 insert，但因 sha256 去重命中，会无副作用地再 bump 一次 createdAt。）",
@@ -599,6 +600,26 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S16: atomic togglePin, preview pane loads full image"
+    },
+    {
+      "id": "S17",
+      "title": "单实例强制",
+      "goal": "同一时刻只允许一个 Clipboard 进程——避免两份 Monitor 并发读 pasteboard、两份 store 竞争 history.json / blobs 目录的数据损坏风险。",
+      "deliverables": [
+        "main.swift 在 NSApplication.shared 被访问之前：用 NSRunningApplication.runningApplications(withBundleIdentifier:) 过滤 ProcessInfo.processInfo.processIdentifier 自身，若仍有实例，则调用其 activate(options: [.activateAllWindows])、经 DistributedNotificationCenter 广播 `com.clipboard.app.reopen`，然后 exit(0)。",
+        "环境变量 CLIPBOARD_ALLOW_MULTIPLE=1 下跳过检查——开发时 Xcode Run 不会被既有实例阻挡。",
+        "AppDelegate.applicationDidFinishLaunching 订阅 DistributedNotificationCenter 的 `com.clipboard.app.reopen` 通知，回调里打开 Preferences（与 applicationShouldHandleReopen 的行为一致）。",
+        "AppDelegate deinit 或 applicationWillTerminate 时调 DistributedNotificationCenter.default.removeObserver 清理。",
+        "Bundle Identifier 从 Info.plist 读取，避免硬编码漂移；缺省回退到 'com.clipboard.app'。"
+      ],
+      "acceptance": [
+        "App 已在运行 → 在 Finder 中双击 Clipboard.app → 不会启动新进程；既有实例的 Preferences 窗口打开。",
+        "App 已在运行 → 命令行 `open /path/to/Clipboard.app` → 同上，不会多出一个进程（用 `pgrep -x Clipboard` 验证只有一个 pid）。",
+        "命令行 `open -n /path/to/Clipboard.app`（强制新实例）→ 新启动的进程检测到既有实例后自动退出；原实例的 Preferences 打开。",
+        "设置 `CLIPBOARD_ALLOW_MULTIPLE=1 open /path/to/Clipboard.app` → 能启动第二个实例（开发调试用）。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S17: enforce single-instance via NSRunningApplication + distributed notification"
     }
   ],
   "slice_rhythm": [
@@ -708,7 +729,8 @@
       "S13",
       "S14",
       "S15",
-      "S16"
+      "S16",
+      "S17"
     ]
   },
   "open_questions": [
