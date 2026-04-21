@@ -69,13 +69,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   @MainActor
   private func showStatusMenu() {
-    guard let statusItem else { return }
-    statusItem.menu = buildMenu()
-    statusItem.button?.performClick(nil)
-    // Reset so left-click continues to toggle the panel next time.
-    DispatchQueue.main.async { [weak self] in
-      self?.statusItem?.menu = nil
-    }
+    guard let button = statusItem?.button else { return }
+    let menu = buildMenu()
+    // Pop up directly at the button — do NOT route through
+    // statusItem.menu= + performClick. Setting menu inside an action
+    // handler either drops the event or recurses into the same
+    // action; popUp(positioning:at:in:) is the supported path.
+    let origin = NSPoint(x: 0, y: button.bounds.height + 4)
+    menu.popUp(positioning: nil, at: origin, in: button)
   }
 
   @MainActor

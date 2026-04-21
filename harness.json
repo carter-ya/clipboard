@@ -135,11 +135,12 @@
     "import_semantics": "导入 JSON 采用合并语义——按 sha256 去重后与现有历史合并；缺失 blob 的条目整条跳过并在导入结果里计数；导入不会带入 sensitive 条目（导出时就已排除）。"
   },
   "ui_interactions": {
-    "panel_open_resets_selection": "每次 HistoryPanel 打开时（菜单栏点击 / ⌥⌘V / 菜单『Show History』），自动把 selectedID 重置为 filteredItems.first?.id——避免上次的陈旧选中状态影响这次操作，用户打开后可立即按 ↵ 或 ↑↓ 继续操作。",
+    "panel_open_resets_selection": "每次 HistoryPanel 打开时（菜单栏点击 / ⌥⌘V / 菜单『Show History』），自动把 selectedID 重置为 filteredItems.first?.id 并把列表滚动到首行——避免上次的陈旧选中状态 **和滚动位置** 影响这次操作。列表滚动通过 ScrollViewReader + ViewModel.scrollEpoch 计数器驱动：每次 resetSelection() 时 epoch +1，View 的 .onChange(scrollEpoch) 回调里调 proxy.scrollTo(firstID, anchor: .top)。",
+    "row_click_activates": "点击 HistoryPanel 中的任一行即视为激活——写回剪贴板 + 关闭面板。单击而非双击；双击不再需要。实现：ClipRowView.onTapGesture（count:1）→ onActivate；与 ↵ 共享同一路径（suppressNextCloseCommit 防双写）。",
     "panel_close_commits_selection": "HistoryPanel 的**任何**关闭路径（Esc / 面板外点击 / 再次按 ⌥⌘V / 菜单栏再点图标 / 窗口 X 按钮）都会把**当前选中项**写回系统剪贴板——等同于用户显式按 ↵。副作用：该条目经由 Monitor→Store 的去重链路自动移到队首（dedup first-write-wins 保留原 sourceBundleID）。如果关闭时无选中项（列表空），则普通关闭。显式的 ↵ 路径已提交过则不重复提交（用 suppress 标志避免双写）。",
     "click_outside_closes": "面板可见期间通过 NSEvent.addGlobalMonitorForEvents(.leftMouseDown | .rightMouseDown) 监听其他 App 的鼠标点击；任何外部点击立即 orderOut 面板。监听器的生命周期和面板可见性严格绑定——show 时添加、close 时移除，避免泄漏。",
     "preferences_activation_policy": "打开偏好设置窗口前把 NSApp.activationPolicy 切到 .regular（App 短暂获得 Dock 图标与完整键盘焦点），关闭偏好后切回 .accessory。原因：LSUIElement=true 的菜单栏 App 默认不接受标准键盘输入焦点，KeyboardShortcuts.Recorder 等需要录制键盘的控件在 .accessory 下会失灵。切换时机：PreferencesWindowController.show() 之前切 .regular；windowWillClose 通知到达时切回 .accessory。",
-    "menu_bar_click_behavior": "菜单栏图标左键 = 切换 HistoryPanel（open/close）；右键 = 弹出菜单（Show History / Preferences… / Pause Monitoring / Clear History… / About / Quit）。右键不触发左键的 toggle 行为。"
+    "menu_bar_click_behavior": "菜单栏图标左键 = 切换 HistoryPanel（open/close）；右键 = 弹出菜单（Show History / Preferences… / Pause Monitoring / Clear History… / About / Quit）。右键不触发左键的 toggle 行为。**实现要点**：button.sendAction(on: [.leftMouseDown, .rightMouseDown]) 捕获两种按键；统一 action 里读 NSApp.currentEvent.type 分流；右键用 NSMenu.popUp(positioning:at:in:) 直接弹出，**不要**通过 statusItem.menu= + performClick 的路径（那会导致 menu 不显示或递归进入同一 action）。"
   },
   "filtering": {
     "pipeline_order": [
@@ -477,6 +478,24 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S10: dedup canonicalization, hotkey editing, open-selects-first, close-commits, outside-click-closes"
+    },
+    {
+      "id": "S11",
+      "title": "交互回归修复（点击 / 菜单 / 滚动）",
+      "goal": "修复 S10 之后冒出的 3 个交互问题：(1) 点击历史条目没反应；(2) 菜单栏右键菜单不弹出；(3) 打开 HistoryPanel 时列表没自动滚回首行（若之前滚动过）。",
+      "deliverables": [
+        "ClipRowView 把 onTapGesture 从 count:2 改为 count:1，单击即激活（写回剪贴板 + 关闭面板）——与 Raycast/Alfred 风格对齐；用户仍可通过 ↑↓ 纯键盘导航。",
+        "AppDelegate.showStatusMenu 改为直接调用 NSMenu.popUp(positioning:at:in:)，丢弃原来的 statusItem.menu= + performClick 路径——后者在 action 内部设置 menu 后再发 click 既丢事件又会递归进同一 action。菜单每次构建一次性 popUp，结束后不挂在 statusItem 上。",
+        "HistoryPanelView 用 ScrollViewReader 包裹 List；HistoryPanelViewModel 新增 scrollEpoch: Int，resetSelection() 时 +1；View 的 .onChange(of: scrollEpoch) 回调里 proxy.scrollTo(firstID, anchor: .top)。保证每次面板打开都滚动到首行，无论面板之前被滚到哪里。",
+        "回归确认：S10 的 close-commits / outside-click / dedup / hotkey / open-selects-first 不受影响。"
+      ],
+      "acceptance": [
+        "⌥⌘V 打开面板 → 鼠标点击列表里任意一行 → 面板关闭，该行内容已写入剪贴板。",
+        "菜单栏图标右键 → 菜单正确弹出，包含 Show History / Preferences… / Pause Monitoring / Clear History… / About / Quit；左键仍然 toggle 面板。",
+        "⌥⌘V 打开面板 → ↑↓ 滚到中间某行 → Esc 关闭 → 复制新内容 → 再开面板 → 列表滚到顶端，首行高亮。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S11: row single-click activates, menu bar popUp, panel scrolls to top on open"
     }
   ],
   "slice_rhythm": [
@@ -580,7 +599,8 @@
       "S9"
     ],
     "v1_2_patch": [
-      "S10"
+      "S10",
+      "S11"
     ]
   },
   "open_questions": [

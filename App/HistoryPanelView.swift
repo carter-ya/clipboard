@@ -73,19 +73,26 @@ struct HistoryPanelView: View {
   }
 
   private var list: some View {
-    List(viewModel.filteredItems, selection: $viewModel.selectedID) { item in
-      ClipRowView(item: item, thumbnailLoader: thumbnailLoader)
-        .tag(item.id)
-        .contentShape(Rectangle())
-        .onTapGesture(count: 2) { onActivate(item) }
-        .contextMenu {
-          Button(item.pinned ? "Unpin" : "Pin") { onTogglePin(item) }
-          Divider()
-          Button("Delete", role: .destructive) { onDelete(item) }
+    ScrollViewReader { proxy in
+      List(viewModel.filteredItems, selection: $viewModel.selectedID) { item in
+        ClipRowView(item: item, thumbnailLoader: thumbnailLoader)
+          .tag(item.id)
+          .contentShape(Rectangle())
+          .onTapGesture { onActivate(item) }
+          .contextMenu {
+            Button(item.pinned ? "Unpin" : "Pin") { onTogglePin(item) }
+            Divider()
+            Button("Delete", role: .destructive) { onDelete(item) }
+          }
+          .accessibilityLabel(accessibilityLabel(for: item))
+      }
+      .listStyle(.plain)
+      .onChange(of: viewModel.scrollEpoch) { _ in
+        if let id = viewModel.filteredItems.first?.id {
+          proxy.scrollTo(id, anchor: .top)
         }
-        .accessibilityLabel(accessibilityLabel(for: item))
+      }
     }
-    .listStyle(.plain)
   }
 
   private var emptyState: some View {

@@ -13,6 +13,10 @@ final class HistoryPanelViewModel: ObservableObject {
   @Published var searchText: String = ""
   @Published var selectedID: UUID?
   @Published var currentTab: HistoryPanelTab = .all
+  /// Bumped every time the UI should force-scroll the list back to
+  /// its top (e.g., when the panel reopens). The view observes
+  /// changes to this value via .onChange.
+  @Published private(set) var scrollEpoch: Int = 0
 
   private let store: any ClipStore
   private var searchTask: Task<Void, Never>?
@@ -46,11 +50,13 @@ final class HistoryPanelViewModel: ObservableObject {
   }
 
   /// Move the selection to the first visible row (honouring the
-  /// current tab + search filter). Called by the delegate whenever
-  /// the panel is (re)opened so stale state from last session
-  /// doesn't stick around.
+  /// current tab + search filter) and ask the view to scroll the
+  /// list back to the top. Called by the delegate whenever the
+  /// panel is (re)opened so stale state from last session doesn't
+  /// stick around.
   func resetSelection() {
     selectedID = filteredItems.first?.id
+    scrollEpoch &+= 1
   }
 
   func setSearch(_ text: String) {
