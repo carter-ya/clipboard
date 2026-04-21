@@ -78,8 +78,16 @@ final class HistoryPanel: NSPanel {
       matching: [.leftMouseDown, .rightMouseDown]
     ) { [weak self] _ in
       guard let self else { return }
+      // `.nonactivatingPanel` never activates our app, so AppKit
+      // forwards even our own chrome clicks (title bar, close/resize
+      // widgets) to the global monitor as "other app" events.
+      // Gate on frame containment to keep self-clicks from closing us.
+      let location = NSEvent.mouseLocation
       MainActor.assumeIsolated {
-        if self.isVisible { self.close() }
+        guard self.isVisible else { return }
+        if !self.frame.contains(location) {
+          self.close()
+        }
       }
     }
   }
