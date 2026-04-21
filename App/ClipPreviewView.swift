@@ -1,4 +1,5 @@
 import ClipboardCore
+import ImageIO
 import SwiftUI
 
 struct ClipPreviewView: View {
@@ -144,11 +145,15 @@ struct ClipPreviewView: View {
   }
 
   private func loadImage(_ item: ClipItem) {
-    // Load the full-resolution image for the preview pane.
-    // Do NOT use ThumbnailLoader here — that cache is keyed on
-    // 64×64 versions for the list rows and would both stretch
-    // blurrily and potentially return the wrong payload's
-    // thumbnail if multiple images share cache keys.
+    // Load a full-resolution preview image in the background and
+    // pre-decode it via ImageIO so the main thread only has to paint
+    // — not decompress — when the View is re-rendered.
+    //
+    // NSImage(data:) is lazy; its first draw would happen on the
+    // main queue, which is exactly where SwiftUI is trying to render
+    // and where the user perceives "loading" delay even for tiny
+    // screenshots. CGImageSourceCreateThumbnailAtIndex forces decode
+    // up-front on the background queue.
     guard let resolver else { return }
     guard
       let payload = item.payloads.first(where: {
@@ -158,16 +163,40 @@ struct ClipPreviewView: View {
     else { return }
     let targetID = item.id
     DispatchQueue.global(qos: .userInitiated).async {
-      guard let data = try? resolver.data(for: payload),
-        let image = NSImage(data: data)
-      else { return }
+      guard let data = try? resolver.data(for: payload) else { return }
+      guard let image = Self.preDecode(data: data) else { return }
       DispatchQueue.main.async {
-        // Only apply if the user hasn't selected a different item in
-        // the meantime.
         guard loadedImageForID != targetID else { return }
         previewImage = image
         loadedImageForID = targetID
       }
     }
+  }
+
+  /// Decodes `data` into a bitmap NSImage off the main thread using
+  /// ImageIO. Scales the longer edge down to `maxPixel` points so
+  /// the preview pane is fast to render even when the clipboard
+  /// contains a 6K screenshot.
+  private static func preDecode(data: Data, maxPixel: Int = 1024) -> NSImage? {
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+      return nil
+    }
+    let options: [CFString: Any] = [
+      kCGImageSourceCreateThumbnailFromImageAlways: true,
+      kCGImageSourceCreateThumbnailWithTransform: true,
+      kCGImageSourceShouldCacheImmediately: true,
+      kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+    ]
+    guard
+      let cgImage = CGImageSourceCreateThumbnailAtIndex(
+        source,
+        0,
+        options as CFDictionary
+      )
+    else { return nil }
+    return NSImage(
+      cgImage: cgImage,
+      size: NSSize(width: cgImage.width, height: cgImage.height)
+    )
   }
 }

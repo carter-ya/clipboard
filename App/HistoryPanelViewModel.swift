@@ -100,6 +100,14 @@ final class HistoryPanelViewModel: ObservableObject {
   }
 
   func togglePin(_ item: ClipItem) async {
+    // Optimistic local flip: mutate items on the main actor before
+    // awaiting the store so the UI reacts in the very next frame.
+    // The store's .updated event will come back and overwrite this
+    // same index with the canonical value — content-identical, no
+    // flicker.
+    if let idx = items.firstIndex(where: { $0.id == item.id }) {
+      items[idx].pinned.toggle()
+    }
     await store.togglePin(id: item.id)
   }
 

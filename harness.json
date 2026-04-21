@@ -620,6 +620,25 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S17: enforce single-instance via NSRunningApplication + distributed notification"
+    },
+    {
+      "id": "S18",
+      "title": "乐观 pin 更新 + 预览图后台预解码",
+      "goal": "修两个感知延迟问题：(1) ⌘P 的图标反馈经由 store 往返，几十毫秒才可见，用户感到『按了没反应』；(2) 预览窗口显示图片前肉眼可感的 loading 态，哪怕源是小截图也会出现——因为 NSImage(data:) 是 lazy，真正的解码发生在主线程首次渲染时。",
+      "deliverables": [
+        "HistoryPanelViewModel.togglePin 先做乐观本地翻转：items[idx].pinned.toggle() 在主线程立即生效 → SwiftUI 立即重绘钉子图标；随后才 await store.togglePin(id:)——store 事件回来时会把真值再次写入 items[idx]，但因内容一致不会产生可见闪动。",
+        "ClipPreviewView.loadImage 用 CGImageSourceCreateThumbnailAtIndex（配合 kCGImageSourceShouldCacheImmediately=true、kCGImageSourceThumbnailMaxPixelSize=1024、kCGImageSourceCreateThumbnailFromImageAlways=true）在后台线程把原数据直接解码到 CGImage，再包成 NSImage(cgImage:size:)。这样返回到主线程时 SwiftUI 拿到的是预渲染的 bitmap，没有 lazy-decode 延迟。",
+        "maxPixelSize=1024 足以覆盖 260pt 预览栏 × 2x retina；更大的截图会被 ImageIO 按比例降采样，进一步缩短解码时间且不损害显示效果。",
+        "保留已有的 loadedImageForID 守护：若用户在后台解码期间切换选中，过期结果直接丢弃。",
+        "测试：新增 CGImage 缩略图辅助函数在 Core 层可选提供的对应测试；pin 的乐观更新语义由既有 TogglePinTests 回归兜底。"
+      ],
+      "acceptance": [
+        "⌥⌘V 打开面板 → 选中一条非 pinned 条目 → 按 ⌘P → **钉子图标在下一帧即可见**（肉眼无延迟），无需等待磁盘写盘。",
+        "连续快速按 ⌘P 若干次 → 最终状态与按压次数的奇偶一致，无中间闪动残留。",
+        "复制一张 macOS 截图（Cmd+Shift+4 框选）→ 打开面板选中它 → 预览窗口几乎瞬间显示清晰的原图，不见明显 ProgressView。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S18: optimistic togglePin, preview pane pre-decodes via ImageIO"
     }
   ],
   "slice_rhythm": [
@@ -730,7 +749,8 @@
       "S14",
       "S15",
       "S16",
-      "S17"
+      "S17",
+      "S18"
     ]
   },
   "open_questions": [
