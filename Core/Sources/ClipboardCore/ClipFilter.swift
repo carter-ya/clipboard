@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ClipContext: Sendable {
+public struct ClipContext: Sendable, Equatable {
   public let sourceBundleID: String?
   public let changeCount: Int
   public let timestamp: Date
@@ -18,6 +18,6 @@ public enum FilterDecision: Sendable, Equatable {
   case markSensitive(String)
 }
 
-public protocol ClipFilter {
+public protocol ClipFilter: Sendable {
   func evaluate(_ item: RawClipItem, context: ClipContext) -> FilterDecision
 }
