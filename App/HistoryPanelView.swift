@@ -41,6 +41,11 @@ struct HistoryPanelView: View {
       searchField
       tabBar
       KindChipBar(selection: $viewModel.kindFilter)
+      if let skip = viewModel.lastSkip, viewModel.shouldShowLastSkip() {
+        SkipBannerView(skip: skip) {
+          viewModel.clearLastSkip()
+        }
+      }
       Divider()
       if viewModel.filteredItems.isEmpty {
         emptyState

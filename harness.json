@@ -681,6 +681,26 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S20: kind filter chips in history panel"
+    },
+    {
+      "id": "S21",
+      "title": "SizeFilter 拒绝反馈（面板内提示条）",
+      "goal": "补上 S9 延后的『SizeFilter 拒绝反馈』。无菜单栏图标后，用户拷贝 >10 MiB 的文件/图片时不再有菜单栏角标可显示；改为在打开面板时把『最近一次被跳过的条目』显示在面板顶部的可关闭提示条中，告知原因 + 指向 Preferences 调大上限。",
+      "deliverables": [
+        "ClipboardCore 新增 SkipEvent 值类型：reason / bytes / types / bundleID / timestamp；ClipboardMonitoring 协议新增 `var skips: AsyncStream<SkipEvent> { get }`——与现有 changes 并列；FakeClipboardMonitor 增 `push(skip:)` 测试钩子。",
+        "NSPasteboardMonitor 在 `.reject` 分支里除了结构化日志 monitor.skipped 还 yield 一个 SkipEvent 到 skips 流；existing tests 不受影响。",
+        "AppWiring 增 skipTask：订阅 monitor.skips 并写到 HistoryPanelViewModel.lastSkip（@Published）。",
+        "HistoryPanelViewModel.lastSkip: SkipEvent? 暴露给 View；resetSelection 不清除（跨会话仍要提醒用户，直到用户显式 dismiss 或事件自然过期）；新增 clearLastSkip() 供 View 的 X 按钮调用；新增 shouldShowLastSkip 判定：非 nil 且 timestamp 距现在 < 60s。",
+        "HistoryPanelView 在 tabBar 与 list 之间插入 SkipBannerView（新文件）——黄色底、exclamationmark.triangle 图标、短句『已跳过 <N.N MB> 条目（源自 <bundleID>）。可在偏好设置里调大上限。』 + X 按钮。lastSkip nil 或过期则不渲染。",
+        "新增单元测试：SkipEvent 值语义、InMemoryClipStore 无关；NSPasteboardMonitor 在 SizeFilter.reject 情况下把 SkipEvent 推到 skips 流。"
+      ],
+      "acceptance": [
+        "在 Finder 右键选一个 >10 MiB 的文件→拷贝→按 ⌥⌘V 打开面板→顶部出现黄色提示条，写明跳过了多大的条目、来源 App 是哪个。",
+        "点击提示条的 X → 消失，下次打开面板不再显示该条事件（除非又有新 skip）。",
+        "61 秒内不做任何操作后再次打开面板→提示条自动不显示（超过窗口）。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S21: SizeFilter rejection banner in history panel"
     }
   ],
   "slice_rhythm": [
@@ -794,7 +814,8 @@
       "S17",
       "S18",
       "S19",
-      "S20"
+      "S20",
+      "S21"
     ]
   },
   "open_questions": [

@@ -3,8 +3,10 @@ import Foundation
 
 public final class NSPasteboardMonitor: ClipboardMonitoring, @unchecked Sendable {
   public let changes: AsyncStream<RawClipItem>
+  public let skips: AsyncStream<SkipEvent>
 
   private let continuation: AsyncStream<RawClipItem>.Continuation
+  private let skipsContinuation: AsyncStream<SkipEvent>.Continuation
   private let pasteboard: PasteboardProtocol
   private let filter: any ClipFilter
   private let workspace: WorkspaceProvider
@@ -40,6 +42,10 @@ public final class NSPasteboardMonitor: ClipboardMonitoring, @unchecked Sendable
     let (stream, continuation) = AsyncStream.makeStream(of: RawClipItem.self)
     self.changes = stream
     self.continuation = continuation
+
+    let (skipStream, skipContinuation) = AsyncStream.makeStream(of: SkipEvent.self)
+    self.skips = skipStream
+    self.skipsContinuation = skipContinuation
   }
 
   public func start() {
@@ -133,6 +139,15 @@ public final class NSPasteboardMonitor: ClipboardMonitoring, @unchecked Sendable
         bundleID:\(bundleID ?? "nil", privacy: .public)}
         """
       )
+      skipsContinuation.yield(
+        SkipEvent(
+          reason: reason,
+          bytes: totalBytes,
+          limit: maxClipSizeBytes,
+          types: typeStrings,
+          bundleID: bundleID
+        )
+      )
     case .markSensitive(let reason):
       Log.monitor.info(
         """
@@ -160,5 +175,6 @@ public final class NSPasteboardMonitor: ClipboardMonitoring, @unchecked Sendable
   deinit {
     timer?.cancel()
     continuation.finish()
+    skipsContinuation.finish()
   }
 }

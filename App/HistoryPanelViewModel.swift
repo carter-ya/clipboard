@@ -14,6 +14,7 @@ final class HistoryPanelViewModel: ObservableObject {
   @Published var selectedID: UUID?
   @Published var currentTab: HistoryPanelTab = .all
   @Published var kindFilter: ClipKind?
+  @Published var lastSkip: SkipEvent?
   /// Bumped every time the UI should force-scroll the list back to
   /// its top (e.g., when the panel reopens). The view observes
   /// changes to this value via .onChange.
@@ -113,6 +114,22 @@ final class HistoryPanelViewModel: ObservableObject {
       if Task.isCancelled { return }
       await self?.refresh()
     }
+  }
+
+  func recordSkip(_ skip: SkipEvent) {
+    lastSkip = skip
+  }
+
+  func clearLastSkip() {
+    lastSkip = nil
+  }
+
+  /// Whether `lastSkip` should be shown. We keep the banner visible
+  /// for 60 seconds by default so the user has time to go open the
+  /// panel after their big copy didn't land.
+  func shouldShowLastSkip(now: Date = Date(), window: TimeInterval = 60) -> Bool {
+    guard let skip = lastSkip else { return false }
+    return now.timeIntervalSince(skip.timestamp) < window
   }
 
   func togglePin(_ item: ClipItem) async {

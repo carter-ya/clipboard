@@ -14,6 +14,7 @@ final class AppWiring {
   private(set) var payloadResolver: PayloadResolver?
 
   private var consumerTask: Task<Void, Never>?
+  private var skipTask: Task<Void, Never>?
   private var hotkeyTask: Task<Void, Never>?
   private var storeEventsTask: Task<Void, Never>?
   private var blobRoot: URL?
@@ -62,6 +63,8 @@ final class AppWiring {
     monitor?.stop()
     consumerTask?.cancel()
     consumerTask = nil
+    skipTask?.cancel()
+    skipTask = nil
     hotkey.unbind()
     hotkeyTask?.cancel()
     hotkeyTask = nil
@@ -124,6 +127,13 @@ final class AppWiring {
       consumerTask = Task {
         for await raw in monitor.changes {
           await store.insert(raw)
+        }
+      }
+    }
+    skipTask = Task { [monitor] in
+      for await skip in monitor.skips {
+        await MainActor.run {
+          self.viewModel?.recordSkip(skip)
         }
       }
     }
