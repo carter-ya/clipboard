@@ -929,6 +929,24 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S33: fix SwiftUI LocalizedStringKey usage, unbounded size input, language picker"
+    },
+    {
+      "id": "S34",
+      "title": "语言切换不冻窗、不影响快捷键",
+      "goal": "S33 的语言 picker 在用户选择某项或取消时会冻住 Preferences 窗口，且会让自定义全局快捷键随后不响应。",
+      "deliverables": [
+        "PreferencesWindowController.applyLanguageOverride 去掉 NSAlert.runModal() —— 模态在 Picker 的 dismiss 动画期间弹出，会中断 SwiftUI 的响应链接续；用户只会在重启后看到新语言，所以模态并无必要，inline caption 『Language changes apply after the next launch.』 已经陈述过。",
+        "PreferencesView 的 Picker binding setter 里 onSave(prefs) 和 onApplyLanguage(newValue) 都 DispatchQueue.main.async 延后 —— 副作用在 Picker 完全关闭后才跑，避免在 Picker 消散过程中触发 @State 变更与 Monitor 重建 + UserDefaults 写入的级联，防止事件分发被暂时阻塞（后者是『快捷键随后无响应』的最可能成因）。",
+        "保留 applyLanguageOverride 对 UserDefaults.standard[\"AppleLanguages\"] 的写入 / 清除 —— 这是语言切换的唯一必要副作用。",
+        "现有的『语言变更将在下次启动时生效』inline 提示保持，用户知情不受影响。"
+      ],
+      "acceptance": [
+        "打开 Preferences → 点击 Language 下拉 → 选『日本語』→ 下拉自然关闭；Preferences 窗口依然可交互，能继续点其他控件、切 tab。",
+        "同一流程后立即按全局快捷键（默认 ⌥⌘V 或用户自设的）→ HistoryPanel 正常出现。",
+        "重启 App → UI 切到新语言。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S34: language switch no longer freezes Preferences or blocks hotkey"
     }
   ],
   "slice_rhythm": [
@@ -1055,7 +1073,8 @@
       "S30",
       "S31",
       "S32",
-      "S33"
+      "S33",
+      "S34"
     ]
   },
   "open_questions": [

@@ -68,8 +68,17 @@ struct PreferencesView: View {
             set: { code in
               let newValue = code == "system" ? nil : code
               prefs.languageOverride = newValue
-              onSave(prefs)
-              onApplyLanguage(newValue)
+              // Defer side effects until the Picker has fully dismissed.
+              // Running them synchronously inside the set closure blocks
+              // SwiftUI's response chain and cascades UserDefaults +
+              // Monitor rebuilds mid-animation, which can leave the
+              // Preferences window unresponsive and briefly starve the
+              // global hotkey's event tap.
+              let snapshot = prefs
+              DispatchQueue.main.async {
+                onSave(snapshot)
+                onApplyLanguage(newValue)
+              }
             }
           )
         ) {

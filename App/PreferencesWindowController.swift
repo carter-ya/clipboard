@@ -134,14 +134,6 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     } else {
       UserDefaults.standard.removeObject(forKey: "AppleLanguages")
     }
-    let alert = NSAlert()
-    alert.messageText = String(localized: "Language will apply after restart")
-    alert.informativeText = String(
-      localized: "Quit and reopen Clipboard for the new language to take effect."
-    )
-    alert.alertStyle = .informational
-    alert.addButton(withTitle: String(localized: "OK"))
-    alert.runModal()
   }
 
   private func showLaunchAtLoginFailure(error: Error) {
