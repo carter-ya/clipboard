@@ -1148,6 +1148,24 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S45: drop fullSizeContentView, replace cap slider with stepper"
+    },
+    {
+      "id": "S46",
+      "title": "Cap 走 TextField + 玻璃统一但 body 有界滚动",
+      "goal": "基于用户两点反馈：(a) Stepper 仍然不够干净，希望 Cap 用纯数字输入框（与 MiB 一致）；(b) S40 的『玻璃统一标题栏』观感更好，只是 S45 的退让让标题栏与 body 再次分层——但 fullSizeContentView 之前 body 内容会滚进标题栏下方。解法：回到 fullSizeContentView + titlebarAppearsTransparent，但用 SwiftUI 的 safe area 机制把 body 框在标题栏下，仅让 material 背景穿过 safe area。",
+      "deliverables": [
+        "PreferencesWindowController: contentRect 从 520x380 → 520x408（title bar 约 28pt，这样去掉 title bar 后可视 body 还是 380pt）；styleMask 重新加 `.fullSizeContentView`；重新打开 `titlebarAppearsTransparent = true`；保留 `isOpaque = false / backgroundColor = .clear / hasShadow = true`。",
+        "PreferencesView body: 把 `.frame(width: 520, height: 380)` 换成 `.frame(maxWidth: .infinity, maxHeight: .infinity)`，让 TabView 自然吃 safe area；背景改为 `.background(.regularMaterial, ignoresSafeAreaEdges: .all)` —— material 穿透 safe area 铺满整个窗口（含标题栏下方），但 TabView 内容被 safe area 约束；补回 `.safeAreaInset(edge: .top, spacing: 0) { Divider() }` 提供标题栏下缘的显式分隔线。",
+        "PreferencesView Retention 里 Cap 从 `Stepper` 改成纯 TextField（与 MiB 同款 pill 容器：圆角 6、primary 0.06 fill、primary 0.10 stroke、`.textFieldStyle(.plain)`、宽 80、右对齐）；用 `format: .number` 约束只接受数字，在 set 闭包里 clamp 到 20...2000 并立即 onSave。",
+        "capRange 保持 `ClosedRange<Int> = 20...2000`，在 TextField set 闭包里用做 clamp 区间。"
+      ],
+      "acceptance": [
+        "Preferences Retention：Cap 行只有 Text('Cap') + Spacer + 胶囊数字输入框，没有 Stepper 按钮、没有 Slider 轨。输入非数字被拒，<20 或 >2000 被 clamp。",
+        "打开 Preferences：标题栏透明、content 的 regularMaterial 向上穿到标题栏下方，整窗是一块玻璃；scroll 时 body 内容在 safe area 内滚动，不会越过标题栏下缘 Divider；该 Divider 全程可见。",
+        "traffic light / 拖动 / 关 / 最小化正常；切换 tab 正常。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S46: cap as number field; glass unified but body bounded by safe area"
     }
   ],
   "slice_rhythm": [
@@ -1286,7 +1304,8 @@
       "S42",
       "S43",
       "S44",
-      "S45"
+      "S45",
+      "S46"
     ]
   },
   "open_questions": [

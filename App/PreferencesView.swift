@@ -35,8 +35,9 @@ struct PreferencesView: View {
       data
         .tabItem { Label("Data", systemImage: "tray.and.arrow.up") }
     }
-    .frame(width: 520, height: 380)
-    .background(.regularMaterial)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(.regularMaterial, ignoresSafeAreaEdges: .all)
+    .safeAreaInset(edge: .top, spacing: 0) { Divider() }
   }
 
   private var general: some View {
@@ -120,20 +121,30 @@ struct PreferencesView: View {
           HStack {
             Text("Cap")
             Spacer()
-            Stepper(
+            TextField(
+              "",
               value: Binding(
                 get: { prefs.cap },
-                set: {
-                  prefs.cap = $0
+                set: { newValue in
+                  prefs.cap = min(capRange.upperBound, max(capRange.lowerBound, newValue))
                   onSave(prefs)
                 }
               ),
-              in: capRange,
-              step: 10
-            ) {
-              Text("\(prefs.cap)")
-                .monospacedDigit()
-            }
+              format: .number
+            )
+            .textFieldStyle(.plain)
+            .multilineTextAlignment(.trailing)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(width: 80)
+            .background(
+              RoundedRectangle(cornerRadius: 6)
+                .fill(Color.primary.opacity(0.06))
+            )
+            .overlay(
+              RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+            )
           }
           HStack {
             Text("Skip items larger than")

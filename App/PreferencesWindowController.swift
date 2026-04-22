@@ -25,20 +25,21 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     self.onImportHistory = onImportHistory
 
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 520, height: 380),
-      styleMask: [.titled, .closable, .miniaturizable],
+      contentRect: NSRect(x: 0, y: 0, width: 520, height: 408),
+      styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
       backing: .buffered,
       defer: false
     )
     window.title = String(localized: "Clipboard Preferences")
-    // Clear window background lets the SwiftUI content's regularMaterial
-    // render the body glass. The title bar remains a standard macOS
-    // translucent chrome layer above the content — same system glass
-    // family, and the natural bottom edge of the title bar keeps the
-    // body from scrolling up into it.
+    // fullSizeContentView + titlebarAppearsTransparent let the SwiftUI
+    // material extend under the title bar for unified glass. The body
+    // itself is bounded to the safe area (below the title bar) via
+    // .frame(maxWidth/maxHeight: .infinity), so scrolling content
+    // can't bleed up into the title bar.
     window.isOpaque = false
     window.backgroundColor = .clear
     window.hasShadow = true
+    window.titlebarAppearsTransparent = true
     super.init(window: window)
     window.delegate = self
     rebuildContent()
