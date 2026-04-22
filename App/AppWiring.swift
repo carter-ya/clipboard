@@ -12,6 +12,7 @@ final class AppWiring {
   private(set) var pasteboardWriter: (any PasteboardWriting)?
   private(set) var thumbnailLoader: ThumbnailLoader?
   private(set) var payloadResolver: PayloadResolver?
+  private(set) var summaryCoordinator: SummaryCoordinator?
 
   private var consumerTask: Task<Void, Never>?
   private var skipTask: Task<Void, Never>?
@@ -41,7 +42,8 @@ final class AppWiring {
 
       self.pasteboardWriter = NSPasteboardWriter(blobRoot: blobRoot)
       self.thumbnailLoader = ThumbnailLoader(blobRoot: blobRoot)
-      self.payloadResolver = PayloadResolver(blobRoot: blobRoot)
+      let payloadResolver = PayloadResolver(blobRoot: blobRoot)
+      self.payloadResolver = payloadResolver
 
       let vm = HistoryPanelViewModel(store: store)
       vm.start()
@@ -51,6 +53,14 @@ final class AppWiring {
       startHotkey()
       startStoreEventObserver()
       reconcileLoginItem(desired: prefs.launchAtLogin)
+
+      let summaryCoordinator = SummaryCoordinator(
+        store: store,
+        resolver: payloadResolver,
+        prefsStore: preferencesStore
+      )
+      summaryCoordinator.start()
+      self.summaryCoordinator = summaryCoordinator
 
       Log.ui.info("app.launched{root:\(root.path, privacy: .public)}")
     } catch {
@@ -71,6 +81,8 @@ final class AppWiring {
     hotkeyTask = nil
     storeEventsTask?.cancel()
     storeEventsTask = nil
+    summaryCoordinator?.stop()
+    summaryCoordinator = nil
     viewModel?.stop()
     await store?.flush()
   }

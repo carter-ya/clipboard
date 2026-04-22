@@ -24,6 +24,12 @@ public protocol ClipStore: Sendable {
   func delete(id: UUID) async
   func clearAll() async
 
+  /// Attach (or replace) an on-device AI-generated summary on the item
+  /// identified by `id`. Callers are responsible for gating this on
+  /// the user's preferences and the item's sensitivity flag. No-op
+  /// when the id is unknown.
+  func updateSummary(id: UUID, summary: String, source: SummarySource) async
+
   /// Move the item to the head of the list and refresh its createdAt.
   /// Used when the user activates an entry so the UI reflects the new
   /// order immediately, without waiting for the monitor's next poll

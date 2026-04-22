@@ -85,6 +85,13 @@ public actor InMemoryClipStore: ClipStore {
     eventsContinuation.yield(.updated(items[idx]))
   }
 
+  public func updateSummary(id: UUID, summary: String, source: SummarySource) async {
+    guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
+    items[idx].summary = summary
+    items[idx].summarySource = source
+    eventsContinuation.yield(.updated(items[idx]))
+  }
+
   public func delete(id: UUID) async {
     guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
     items.remove(at: idx)

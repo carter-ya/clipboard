@@ -1467,6 +1467,26 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S63: AI summary infrastructure (data model, capability detection, prefs, UI slot)"
+    },
+    {
+      "id": "S64",
+      "title": "Vision 图片摘要：OCR + Classify 自动生成 summary",
+      "goal": "S63 的地基上接第一条生成器路径。新图片 clip 入库后异步跑 `VNClassifyImageRequest`（top-N 类别）+ `VNRecognizeTextRequest`（嵌入文字 OCR），拼一句简短摘要回写到 `ClipItem.summary`，source 标 `.vision`。Vision 在 macOS 13+ 全设备可用，所以这是 baseline，后续 Writing Tools / Foundation Models 接进来时会在同一个 coordinator 里按能力择优。",
+      "deliverables": [
+        "Core: `ClipStore` 协议新增 `updateSummary(id: UUID, summary: String, source: SummarySource) async`；`InMemoryClipStore` 与 `JSONSnapshotClipStore` 同步实现——mutate 对应 item、yield `.updated(item)` 事件；非 sensitive 条目 scheduleWrite 持久化。协议语义与 togglePin 对齐。",
+        "App: 新文件 `App/VisionImageSummarizer.swift` —— 从 Data 读 CGImage、用一个 `VNImageRequestHandler` 同时 perform `[VNClassifyImageRequest, VNRecognizeTextRequest(.accurate)]`。过滤 classifier 置信度 ≥ 0.4 取前 3，OCR 结果拼成字符串截断到 160 字符。返回格式 `\"dog, mammal. Contains text: <ocr>\"` 或仅其中一部分；都为空时返回 nil。在 `DispatchQueue.global(qos: .utility)` 异步调度后通过 `withCheckedContinuation` 回到 async 调用方。",
+        "App: 新文件 `App/SummaryCoordinator.swift` —— @MainActor，监听 `store.events`，只在 `.inserted(item)` 分支触发；过滤 `prefs.summariesEnabled && !item.sensitive && item.summary == nil`；按 `item.kind` 分派：`.image` 再校验 `prefs.allowImageSummaries && AICapability.isVisionAvailable`，加载 image payload 数据（通过 `PayloadResolver.data(for:)`），喂给 VisionImageSummarizer，拿到 summary 后回调 `store.updateSummary(...)`。`.text/.rtf/.mixed/.file` 当前 no-op，留给 S65/S66。",
+        "App: `AppWiring` 新增 `summaryCoordinator: SummaryCoordinator?` 实例变量；`start()` 里构造并 `.start()`；`stop()` 里 `.stop()` 并置 nil。生命周期随 App 启停。",
+        "Core 测试：新增 `Core/Tests/ClipboardCoreTests/UpdateSummaryTests.swift` 验证 `updateSummary` 的三条性质——写入成功 / 替换成功 / 未知 id no-op；Vision 本身的端到端测试不在 CI 可稳定跑，留作手动验证。"
+      ],
+      "acceptance": [
+        "启动 App 后复制任何一张包含文字的截图（比如代码块截图）→ 数秒内 HistoryPanel 的预览区出现 sparkles icon + 一句『top-labels. Contains text: …』+ 右上 `Vision` 徽章。",
+        "复制一张不含可识别文字的图片（风景、人像）→ 预览区出现 sparkles + 分类标签（例如『outdoor, nature』）；若两者都空则不显示 summary section（不污染 UI）。",
+        "关闭 Preferences 里的 master 开关或『Summarize images』子开关后，新增 image clip 不再生成 summary（但已有 summary 保留）。",
+        "sensitive clip / 非 image kind clip 永远不跑 Vision（SummaryCoordinator 守卫逻辑）。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿，测试数从 82 升至 85。"
+      ],
+      "commit_message": "S64: vision image summarizer wired through ClipStore.updateSummary + SummaryCoordinator"
     }
   ],
   "slice_rhythm": [
@@ -1623,7 +1643,8 @@
       "S60",
       "S61",
       "S62",
-      "S63"
+      "S63",
+      "S64"
     ]
   },
   "open_questions": [
