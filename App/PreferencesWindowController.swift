@@ -138,13 +138,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
       },
       hotkeyMissing: hotkeyMissing
     )
-    let hosting = NSHostingController(rootView: view)
-    // Opt out of SwiftUI-driven sizing. macOS 14+ defaults to
-    // .standardBounds (which reads intrinsicContentSize from the
-    // SwiftUI root). If the root uses .frame(maxWidth/maxHeight:
-    // .infinity), intrinsic is zero and AppKit collapses the window.
-    hosting.sizingOptions = []
-    window?.contentViewController = hosting
+    window?.contentViewController = NSHostingController(rootView: view)
   }
 
   private func applyLanguageOverride(_ code: String?) {

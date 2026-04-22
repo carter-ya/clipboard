@@ -1183,6 +1183,21 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S47: fix preferences failing to open after S46 (NSHostingController sizing)"
+    },
+    {
+      "id": "S48",
+      "title": "修复 Preferences 打不开（sizingOptions = [] 反而截断了 preferredContentSize）",
+      "goal": "S47 把 `hosting.sizingOptions = []` 当『安全措施』，结果弄巧成拙：SwiftUI 本应把 `.frame(width: 520, height: 408)` 的 intrinsic 推到 NSViewController.preferredContentSize，然后 window 按此刷 frame；清空 sizingOptions 导致 preferredContentSize 停在 NSZeroSize，AppKit 把窗口折成 0，Preferences 依旧打不开。",
+      "deliverables": [
+        "PreferencesWindowController.rebuildContent() 移除 `hosting.sizingOptions = []` —— 恢复默认 `.standardBounds`，让 SwiftUI 的显式 frame 驱动 preferredContentSize 驱动 window frame。",
+        "PreferencesView 保持 `.frame(width: 520, height: 408)` —— SwiftUI intrinsic 明确 520x408，默认 sizingOptions 会安全地把它写到 preferredContentSize。",
+        "其它 S46 / S47 状态（fullSizeContentView / titlebarAppearsTransparent / 玻璃 ignoresSafeAreaEdges / safeAreaInset Divider / Cap TextField）不动。"
+      ],
+      "acceptance": [
+        "Preferences 能通过 `⌘,` 正常打开，尺寸 520x408，玻璃统一、body 有界。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S48: restore NSHostingController default sizingOptions so preferences window shows"
     }
   ],
   "slice_rhythm": [
@@ -1323,7 +1338,8 @@
       "S44",
       "S45",
       "S46",
-      "S47"
+      "S47",
+      "S48"
     ]
   },
   "open_questions": [
