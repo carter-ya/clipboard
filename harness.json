@@ -1408,6 +1408,24 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S60: replace programmatic icon with designed raster artwork"
+    },
+    {
+      "id": "S61",
+      "title": "小尺寸图标清晰化：Core Image Lanczos + UnsharpMask",
+      "goal": "S60 用 `sips -Z` 把 1024x1024 的复杂 3D 图标降到 16/32/64 这些小尺寸时失去锐度，在 Activity Monitor、Finder 列表视图里糊成一团紫色。改用 Core Image 的 CILanczosScaleTransform 做高质量重采样，并在 ≤128px 档追加 CIUnsharpMask 恢复边缘对比。",
+      "deliverables": [
+        "新增 `tools/resize-icon.swift`：读 `tools/icon-source.png`，按 10 档 AppIcon 尺寸逐张走 CILanczosScaleTransform → (小尺寸) CIUnsharpMask → 写入目标 PNG。intensity 分档：≤32px 用 0.85、≤128px 用 0.5、其它不锐化；radius 固定 0.6。",
+        "Justfile `icon` target 改为调用该 swift 脚本：`swift tools/resize-icon.swift tools/icon-source.png App/Assets.xcassets/AppIcon.appiconset`。",
+        "`AppIcon.appiconset` 的 10 个 PNG 全部重新生成。"
+      ],
+      "acceptance": [
+        "Activity Monitor 中 Clipboard 进程图标比之前清晰可辨，剪贴板的大致形状 / 紫色主色可见。",
+        "Finder 列表视图 / Get Info 窗口中的各尺寸图标都更锐。",
+        "大尺寸（256/512/1024）观感不变——大尺寸不进 UnsharpMask 分支。",
+        "`just icon` 幂等：多次跑输出一致。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S61: high-quality icon resampling via CILanczos + UnsharpMask at small sizes"
     }
   ],
   "slice_rhythm": [
@@ -1561,7 +1579,8 @@
       "S57",
       "S58",
       "S59",
-      "S60"
+      "S60",
+      "S61"
     ]
   },
   "open_questions": [
