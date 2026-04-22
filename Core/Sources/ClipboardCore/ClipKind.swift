@@ -24,9 +24,12 @@ public enum ClipKind: String, Sendable, Codable, CaseIterable, Equatable {
   /// the richest primary present, so a browser image copy (PNG + HTML
   /// wrapper) reads as `.image` and rich text (RTF + plain text) reads
   /// as `.rtf` rather than both collapsing into the old `.mixed`.
-  /// Priority: file > image > rtf > text (html counts as text).
-  /// `.mixed` is still a valid enum case for backward compatibility
-  /// with previously stored items, but this function never produces it.
+  /// Priority: image > file > rtf > text (html counts as text). Image
+  /// beats file because Telegram / Messages / screenshot tools copy
+  /// pictures with an accompanying temp `public.file-url`; users think
+  /// of those as images. Pure Finder file copies (file-url only, no
+  /// image payload) still resolve to `.file`. `.mixed` is retained as
+  /// an enum case for backward compatibility but never produced here.
   static func infer(from pasteboardTypes: [String]) -> ClipKind {
     var hasImage = false
     var hasFile = false
@@ -42,8 +45,8 @@ public enum ClipKind: String, Sendable, Codable, CaseIterable, Equatable {
       case .mixed: break
       }
     }
-    if hasFile { return .file }
     if hasImage { return .image }
+    if hasFile { return .file }
     if hasRtf { return .rtf }
     if hasText { return .text }
     return .text

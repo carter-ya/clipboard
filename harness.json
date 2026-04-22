@@ -1341,6 +1341,23 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S56: priority-based kind inference (file > image > rtf > text), stop producing .mixed"
+    },
+    {
+      "id": "S57",
+      "title": "ClipKind 优先级调整：image > file",
+      "goal": "S56 的优先级 `file > image` 让 Telegram / Messages / 某些截图工具的图片粘贴（同时有 `public.png` 和指向临时文件的 `public.file-url`）被归为 File——用户直觉是 Image。把优先级调成 `image > file > rtf > text`：只要 payload 里有真正的图像数据就归 Image；仅 file-url（无 image 数据，典型是 Finder 文件复制）才归 File。",
+      "deliverables": [
+        "Core/Sources/ClipboardCore/ClipKind.swift `infer(from:)` 的优先级分支顺序从 `file → image → rtf → text` 改为 `image → file → rtf → text`；更新函数内的文档注释说明原因（Telegram/Messages 这类 temp-file-url + image 的粘贴）。",
+        "Core/Tests/ClipboardCoreTests/ClipItemCodableTests.swift `testKindInferencePriority` 中原 `['public.file-url', 'public.png'] → .file` 的断言改为 `→ .image`，并加一条 `['public.file-url'] → .file` 明确 Finder 纯文件复制的场景。"
+      ],
+      "acceptance": [
+        "从 Telegram 复制一张图片 → HistoryPanel 显示 Image。",
+        "从 Messages 复制图片 → Image。",
+        "从 Finder Copy 一个图片/非图片文件（仅 file-url，无 image 数据）→ File。",
+        "从浏览器复制图片（png + html）→ Image（同 S56）。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S57: image beats file in kind priority (Telegram/Messages image pastes)"
     }
   ],
   "slice_rhythm": [
@@ -1490,7 +1507,8 @@
       "S53",
       "S54",
       "S55",
-      "S56"
+      "S56",
+      "S57"
     ]
   },
   "open_questions": [
