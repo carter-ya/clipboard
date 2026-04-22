@@ -25,21 +25,20 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     self.onImportHistory = onImportHistory
 
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 520, height: 408),
-      styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+      contentRect: NSRect(x: 0, y: 0, width: 520, height: 380),
+      styleMask: [.titled, .closable, .miniaturizable],
       backing: .buffered,
       defer: false
     )
     window.title = String(localized: "Clipboard Preferences")
-    // fullSizeContentView + titlebarAppearsTransparent let the SwiftUI
-    // material extend under the title bar for unified glass. The body
-    // itself is bounded to the safe area (below the title bar) via
-    // .frame(maxWidth/maxHeight: .infinity), so scrolling content
-    // can't bleed up into the title bar.
+    // Standard titled window: AppKit draws its own translucent title
+    // bar (system glass) above the content view. SwiftUI fills the
+    // content area with .regularMaterial — both are system glass
+    // layers, and the title bar's bottom edge is the natural top
+    // boundary of the body, so content can never scroll up into it.
     window.isOpaque = false
     window.backgroundColor = .clear
     window.hasShadow = true
-    window.titlebarAppearsTransparent = true
     super.init(window: window)
     window.delegate = self
     rebuildContent()
@@ -138,15 +137,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
       },
       hotkeyMissing: hotkeyMissing
     )
-    let hosting = NSHostingController(rootView: view)
-    // The SwiftUI root uses .frame(maxWidth/maxHeight: .infinity) so it
-    // can respect the window's safe area (title bar overlay). Zero
-    // intrinsic would otherwise collapse the window when propagated
-    // through .preferredContentSize — so opt out of SwiftUI-driven
-    // sizing and pin the window size manually.
-    hosting.sizingOptions = []
-    hosting.preferredContentSize = NSSize(width: 520, height: 408)
-    window?.contentViewController = hosting
+    window?.contentViewController = NSHostingController(rootView: view)
   }
 
   private func applyLanguageOverride(_ code: String?) {

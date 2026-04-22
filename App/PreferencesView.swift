@@ -35,9 +35,8 @@ struct PreferencesView: View {
       data
         .tabItem { Label("Data", systemImage: "tray.and.arrow.up") }
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(.regularMaterial, ignoresSafeAreaEdges: .all)
-    .safeAreaInset(edge: .top, spacing: 0) { Divider() }
+    .frame(width: 520, height: 380)
+    .background(.regularMaterial)
   }
 
   private var general: some View {

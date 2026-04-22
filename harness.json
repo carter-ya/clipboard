@@ -1216,6 +1216,24 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S49: flex frame + manual preferredContentSize so preferences body stays below title bar"
+    },
+    {
+      "id": "S50",
+      "title": "放弃 fullSizeContentView，稳定 Preferences",
+      "goal": "S40 / S46 / S49 多次尝试『fullSizeContentView + 透明标题栏』让玻璃贯通，但每次都有 regression——要么窗口塌陷（S46），要么 body 穿到标题栏下方（S49）。SwiftUI 在 fullSizeContentView + 显式 frame 下不会把 safe area inset 传给固定盒子，flex frame 又让 intrinsic 归零破坏窗口尺寸。放弃这条路，回到标准 titled window：标题栏由系统 macOS chrome 渲染（它本来就是系统玻璃）、body 在其下方独立铺 regularMaterial，两层都是系统玻璃，差异极小；body 从来不会穿到标题栏下方。",
+      "deliverables": [
+        "PreferencesWindowController: styleMask 去掉 `.fullSizeContentView`，保留 `[.titled, .closable, .miniaturizable]`；去掉 `titlebarAppearsTransparent = true`；保留 `isOpaque = false / backgroundColor = .clear / hasShadow = true`（让 SwiftUI 的 regularMaterial 仍能填充 content 区）；contentRect 从 520x408 回到 520x380（title bar 作为独立层不占 contentRect）。",
+        "PreferencesWindowController.rebuildContent: 去掉 S49 加的 `sizingOptions = []` 和 `preferredContentSize` 手动设置，恢复默认——explicit SwiftUI frame 自然驱动 preferredContentSize。",
+        "PreferencesView body: 从 `.frame(maxWidth: .infinity, maxHeight: .infinity) + .background(.regularMaterial, ignoresSafeAreaEdges: .all) + .safeAreaInset(edge: .top) { Divider() }` 简化回 `.frame(width: 520, height: 380) + .background(.regularMaterial)`——content 区就是 520x380，没有 safe area 困扰。",
+        "保留 S46 的 Cap TextField（pill 容器 / plain style / 仅接受数字 / clamp 到 20…2000）。"
+      ],
+      "acceptance": [
+        "⌘, 打开 Preferences 正常显示：标题栏是 macOS 默认 translucent chrome（上方 28pt），body 是 regularMaterial 玻璃（520x380），两层都是系统玻璃，观感一致。",
+        "Body 不再穿到标题栏下方——title bar 作为独立层本身就是天然边界。",
+        "Cap / MiB 数字输入框、Hotkey Recorder、Language Picker、其它控件全部正常工作。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S50: stabilize preferences by reverting fullSizeContentView attempts"
     }
   ],
   "slice_rhythm": [
@@ -1358,7 +1376,8 @@
       "S46",
       "S47",
       "S48",
-      "S49"
+      "S49",
+      "S50"
     ]
   },
   "open_questions": [
