@@ -52,15 +52,13 @@ final class SummaryCoordinator {
       guard prefs.allowImageSummaries, AICapability.isVisionAvailable else { return }
       await summarizeImage(item)
     case .text, .rtf, .mixed:
-      guard prefs.allowTextSummaries, AICapability.isNaturalLanguageAvailable else {
-        return
-      }
+      guard prefs.allowTextSummaries else { return }
       await summarizeText(item)
     case .file:
-      // File: deferred to Foundation Models (S66) — we'd need to read
-      // the referenced file and extract text, which is cheapest when
-      // we also have an LLM standing by.
-      return
+      guard prefs.allowFileSummaries, AICapability.isFoundationModelsAvailable else {
+        return
+      }
+      await summarizeFile(item)
     }
   }
 
@@ -80,10 +78,45 @@ final class SummaryCoordinator {
 
   private func summarizeText(_ item: ClipItem) async {
     guard let text = extractPlainText(from: item) else { return }
-    guard let summary = await textSummarizer.summarize(text: text),
+    // Prefer Foundation Models when available — the LLM produces a
+    // real sentence, while NaturalLanguage can only list entities.
+    if #available(macOS 26.0, *), AICapability.isFoundationModelsAvailable {
+      let fm = FoundationModelsSummarizer()
+      if let summary = await fm.summarize(text: text), !summary.isEmpty {
+        await store.updateSummary(
+          id: item.id, summary: summary, source: .foundationModels)
+        return
+      }
+    }
+    // Fallback: baseline NaturalLanguage — available on macOS 13+.
+    guard AICapability.isNaturalLanguageAvailable,
+      let summary = await textSummarizer.summarize(text: text),
       !summary.isEmpty
     else { return }
     await store.updateSummary(id: item.id, summary: summary, source: .naturalLanguage)
+  }
+
+  private func summarizeFile(_ item: ClipItem) async {
+    guard #available(macOS 26.0, *) else { return }
+    guard let url = extractFileURL(from: item) else { return }
+    let fm = FoundationModelsSummarizer()
+    guard let summary = await fm.summarizeFile(url: url), !summary.isEmpty else {
+      return
+    }
+    await store.updateSummary(
+      id: item.id, summary: summary, source: .foundationModels)
+  }
+
+  /// Pick the first `public.file-url` payload and decode it. Clips
+  /// can carry multiple URLs but we only summarise the first for S66.
+  private func extractFileURL(from item: ClipItem) -> URL? {
+    guard
+      let payload = item.payloads.first(where: { $0.pasteboardType == "public.file-url" }),
+      let data = try? resolver.data(for: payload),
+      let string = String(data: data, encoding: .utf8),
+      let url = URL(string: string)
+    else { return nil }
+    return url
   }
 
   /// Resolve a text payload to a usable String. Tries plain-text

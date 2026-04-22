@@ -1509,6 +1509,26 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests 保持）。"
       ],
       "commit_message": "S65: NaturalLanguage text summarizer (Writing Tools isn't viable for background summarization)"
+    },
+    {
+      "id": "S66",
+      "title": "Foundation Models 摘要（LLM，macOS 26+ Apple Silicon）",
+      "goal": "上层 tier：`FoundationModels` 框架的 on-device ~3B LLM。对文本 clip 产出一句真正的自然语言概括（取代 NL 的实体列表），对文件 clip（PDF / 文本）也能吃进去做摘要——这是 baseline 路径做不了的。图像 clip 暂时仍走 Vision（FM 的多模态 API 这一轮先不碰）。编译期 `#if canImport(FoundationModels)`，运行期 `@available(macOS 26.0, *)` + `SystemLanguageModel.default.availability` 双门，在老系统上 FM 相关符号永远不加载。",
+      "deliverables": [
+        "新文件 `App/FoundationModelsSummarizer.swift` —— `@available(macOS 26.0, *)` 的 struct。`summarize(text:)` 构造 `LanguageModelSession(instructions:)`（含『单句 / 无前言 / <160 字符』指令），调用 `session.respond(to:)`，失败或空返回 nil。`summarizeFile(url:)` 对 `.pdf` 走 PDFKit 抽文字、其它尝试 UTF-8 加载，再交给 `summarize(text:)`。最长截断 200 字符防御。",
+        "`AICapability.isFoundationModelsAvailable` 用真实可用性判断取代 S63 占位：走 `FoundationModelsAvailability.isActive`（`@available(macOS 26.0, *)` 私有 enum 里 switch `SystemLanguageModel.default.availability`）。`#if arch(arm64)` + `#available` 双层守卫。",
+        "`SummaryCoordinator.handle(_:)` 的 dispatch 调整：`.text/.rtf/.mixed` 不再直接走 NL，`summarizeText(_:)` 内部先试 FM（可用时）、失败或不可用 fallback 到 NL。`.file` 分支启用：`prefs.allowFileSummaries && isFoundationModelsAvailable` 时跑 `summarizeFile(_:)`。图像分支不变。",
+        "新 `extractFileURL(from:)` —— 找第一个 `public.file-url` payload、用 PayloadResolver 读 bytes、UTF-8 解成 URL。",
+        "`#if canImport(FoundationModels)` 保护 import（缺 SDK 的环境也能编译），FM 相关 struct / enum 整体被 `@available(macOS 26.0, *)` 隔离；macOS 13–25 上从 AICapability 的 `#available` 分支直接返回 false，永不触达 FM 符号。"
+      ],
+      "acceptance": [
+        "macOS 26+ Apple Silicon 机器 + Apple Intelligence 已启用：复制一段长文本（> 100 字符）→ 预览出现 sparkles + 一句真正的英文/中文摘要 + 右上 `FM` 徽章。",
+        "同一机器上复制一个 .pdf 文件（Finder 拖入）→ 预览出现 FM 生成的 PDF 内容摘要。",
+        "非 macOS 26 或非 Apple Silicon：FM 代码永不执行，文本仍走 NL（`NL` 徽章）、图像 Vision、文件无 summary。",
+        "关闭『Summarize files』子开关 → 文件 clip 不跑 FM。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 保持）。"
+      ],
+      "commit_message": "S66: Foundation Models summarizer for text + files (macOS 26+ Apple Silicon)"
     }
   ],
   "slice_rhythm": [
@@ -1667,7 +1687,8 @@
       "S62",
       "S63",
       "S64",
-      "S65"
+      "S65",
+      "S66"
     ]
   },
   "open_questions": [
