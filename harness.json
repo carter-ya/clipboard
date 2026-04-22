@@ -1375,6 +1375,22 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S58: preview uses <image> sentinel for image clips, parses html for text-only clips"
+    },
+    {
+      "id": "S59",
+      "title": "Image payload 无条件优先：图片 clip 的 preview 不再受 plain text 牵连",
+      "goal": "S58 把 image sentinel 放在 plain/rtf 之后，以为 plain text 是『有用的描述』；但浏览器实测在 `public.utf8-plain-text` 里也塞了 `<meta charset=...><img src=...>` 的 HTML 源码（为了兼容只读 plain text 的应用），于是图片 clip 的 preview 仍然显示 HTML 源码。只要 pasteboard 有 image payload，preview 就应该是 `<image>` sentinel，与任何文字包装无关。",
+      "deliverables": [
+        "`PreviewBuilder.build(for:limit:)` 把 `hasImageType` 检查移到最顶——有 image payload 就立刻返回 `<image>`，不再读 plain/rtf/html。现有优先级剩余链条变成：plain/rtf → html 纯文本 → file name → 空串。",
+        "注释更新说明原因：复制 image 时用户的意图是图片本身，剪贴板上其它附带的文字只是源 app 为兼容性塞的元数据。"
+      ],
+      "acceptance": [
+        "从任意网页复制图片 → HistoryPanel 行预览文字为 `<image>`，不再是 `<meta...` HTML。",
+        "从 Telegram/Messages 复制图片 → 同上。",
+        "纯文本 / RTF / 纯 HTML / 文件 clip 的预览行为不变（没有 image payload 时逻辑照旧）。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S59: image payload preempts any text preview"
     }
   ],
   "slice_rhythm": [
@@ -1526,7 +1542,8 @@
       "S55",
       "S56",
       "S57",
-      "S58"
+      "S58",
+      "S59"
     ]
   },
   "open_questions": [

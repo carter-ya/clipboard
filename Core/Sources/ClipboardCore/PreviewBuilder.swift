@@ -7,19 +7,20 @@ enum PreviewBuilder {
   /// Build a short, human-readable preview for a raw clip item.
   /// The result is always truncated to `limit` characters.
   ///
-  /// Priority: plain text or RTF → `<image>` sentinel (when the clip
-  /// carries image data) → HTML rendered as plain text → file name.
-  /// Image-bearing clips are intentionally kept away from the HTML
-  /// fallback because browsers attach `<meta charset><img src=...>`
-  /// wrappers for image copies, which would otherwise get surfaced
-  /// as the preview string.
+  /// Priority: `<image>` sentinel (when the clip carries image data)
+  /// → plain text or RTF → HTML rendered as plain text → file name.
+  /// The image check is unconditionally first: when users copy an
+  /// image the intent is the image, and browsers routinely dump an
+  /// HTML source wrapper into the plain-text slot too (for apps that
+  /// only read plain text), so trusting plain text first would leak
+  /// raw `<meta charset=...><img src=...>` strings into the preview.
   static func build(for payloads: [RawPayload], limit: Int = limit) -> String {
+    if hasImageType(payloads) {
+      return "<image>"
+    }
     let plain = extractPlainTextOrRtf(from: payloads)
     if !plain.isEmpty {
       return String(plain.prefix(limit))
-    }
-    if hasImageType(payloads) {
-      return "<image>"
     }
     let html = extractHtmlPlainText(from: payloads)
     if !html.isEmpty {
