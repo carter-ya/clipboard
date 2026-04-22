@@ -58,7 +58,12 @@ struct PreferencesView: View {
         }
       }
       Section("Hotkey") {
-        KeyboardShortcuts.Recorder("Toggle panel", name: .toggleHistoryPanel)
+        HStack {
+          Text("Toggle panel")
+          Spacer()
+          KeyboardShortcuts.Recorder("", name: .toggleHistoryPanel)
+            .labelsHidden()
+        }
       }
       Section("Language") {
         Picker(
@@ -144,9 +149,19 @@ struct PreferencesView: View {
             ),
             format: .number.precision(.fractionLength(0...1))
           )
-          .textFieldStyle(.roundedBorder)
+          .textFieldStyle(.plain)
           .multilineTextAlignment(.trailing)
+          .padding(.horizontal, 8)
+          .padding(.vertical, 4)
           .frame(width: 80)
+          .background(
+            RoundedRectangle(cornerRadius: 6)
+              .fill(Color.primary.opacity(0.06))
+          )
+          .overlay(
+            RoundedRectangle(cornerRadius: 6)
+              .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+          )
           Text("MiB")
             .foregroundStyle(.secondary)
         }
