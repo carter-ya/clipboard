@@ -1,0 +1,105 @@
+/* Simplified Chinese translations (zh-Hans). Reviewed by a
+   localization subagent; "偏好设置" kept as per Apple's legacy
+   terminology (macOS 13+ migrated some surfaces to "设置" but
+   third-party UIs commonly stay on "偏好设置"). */
+
+"Clipboard" = "剪贴板";
+"Welcome" = "欢迎";
+"Clipboard Preferences" = "剪贴板偏好设置";
+
+"Welcome to Clipboard" = "欢迎使用剪贴板";
+"Got it" = "知道了";
+"open the history panel from anywhere" = "在任意位置打开历史面板";
+"copy the selected item back to the clipboard" = "将选中条目写回系统剪贴板";
+"paste it manually into any app" = "在任意应用中手动粘贴";
+"sensitive content (password managers) stays in memory only" = "敏感内容（密码管理器）仅驻留在内存中";
+
+"Search" = "搜索";
+"Search history" = "搜索历史记录";
+"Tab" = "Tab 键";
+"All" = "全部";
+"Pinned" = "置顶";
+"No history yet" = "暂无历史";
+"No matches" = "无匹配结果";
+"No pinned items" = "暂无置顶内容";
+"(empty)" = "（空白）";
+
+"Pin" = "置顶";
+"Unpin" = "取消置顶";
+"Delete" = "删除";
+
+"Select" = "选中";
+"Copy" = "复制";
+"Close" = "关闭";
+"Preferences" = "偏好设置";
+
+"Text" = "文本";
+"Rich Text" = "富文本";
+"Image" = "图片";
+"File" = "文件";
+"Rich" = "富文本";
+"Mixed" = "混合";
+
+"Select an item to preview" = "选择一条以预览";
+"Sensitive content from %@" = "来自 %@ 的敏感内容";
+"Reveal for this session" = "本次会话内显示";
+
+"Skipped a %1$@ item from %2$@" = "已跳过来自 %2$@ 的 %1$@";
+"Skipped a %@ item" = "已跳过 %@ 条目";
+"Raise the limit in Preferences if you need larger items." = "如需保留更大的条目，请在偏好设置中调高上限。";
+"Dismiss" = "知道了";
+
+"General" = "通用";
+"Hotkey" = "快捷键";
+"Toggle panel" = "切换面板";
+"Startup" = "启动";
+"Start at Login" = "登录时启动";
+"Clipboard launches in the background when you log in." = "登录时自动在后台启动剪贴板。";
+"Retention" = "保留";
+"Cap" = "条数上限";
+"Skip items larger than" = "跳过超过";
+"Set to 0 to disable the size cap." = "设为 0 可关闭大小上限。";
+"off" = "关";
+"No shortcut is set" = "未设置快捷键";
+"Record a shortcut below — the panel can't be summoned without one." = "请在下方录制快捷键——否则无法通过键盘唤出面板。";
+
+"Privacy" = "隐私";
+"Sensitive content" = "敏感内容";
+"Skip items marked as concealed (password managers)" = "跳过标记为隐藏的条目（密码管理器）";
+"Blocked source apps (bundle IDs, one per line)" = "屏蔽的来源应用（Bundle ID，每行一个）";
+
+"Data" = "数据";
+"History data" = "历史数据";
+"Export history…" = "导出历史…";
+"Import history…" = "导入历史…";
+"Clear history…" = "清空历史…";
+"Sensitive items are never exported or written to disk." = "敏感条目不会被导出，也不会写入磁盘。";
+
+"Clear all clipboard history?" = "确定清空所有剪贴板历史？";
+"Pinned items will also be removed. This cannot be undone." = "置顶项也会一并删除。此操作无法撤销。";
+"Clear" = "清空";
+"Cancel" = "取消";
+"OK" = "好";
+"History was recovered from a backup" = "历史已从备份恢复";
+"The original file appeared corrupted and has been renamed to history.json.bak. Clipboard started with an empty history." = "原文件似乎已损坏，已重命名为 history.json.bak。剪贴板以空历史启动。";
+"Export failed" = "导出失败";
+"Import failed" = "导入失败";
+"Import complete" = "导入完成";
+"Added: %1$d\nSkipped (duplicates): %2$d\nSkipped (missing blobs): %3$d" = "已新增：%1$d 条\n已跳过（重复）：%2$d 条\n已跳过（缺失附件）：%3$d 条";
+"Could not update Start at Login" = "无法更新“登录时启动”设置";
+"Clipboard must live in /Applications and be code-signed before it can launch at login." = "“剪贴板”必须位于 /Applications 并已代码签名，才能在登录时启动。";
+
+"Hide Clipboard" = "隐藏剪贴板";
+"Hide Others" = "隐藏其他";
+"Show All" = "全部显示";
+"Quit Clipboard" = "退出剪贴板";
+"Undo" = "撤销";
+"Redo" = "重做";
+"Cut" = "剪切";
+"Paste" = "粘贴";
+"Select All" = "全选";
+
+"Pause Monitoring" = "暂停监测";
+"Resume Monitoring" = "恢复监测";
+"About Clipboard…" = "关于剪贴板…";
+"More actions" = "更多操作";

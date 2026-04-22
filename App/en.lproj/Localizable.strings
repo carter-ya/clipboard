@@ -1,0 +1,119 @@
+/* Base English strings for the Clipboard app. Keys mirror the
+   literal values so SwiftUI's Text(_:) / Button(_:) etc. can
+   look them up automatically via the system's LocalizedStringKey
+   machinery. */
+
+/* MARK: - Window titles */
+"Clipboard" = "Clipboard";
+"Welcome" = "Welcome";
+"Clipboard Preferences" = "Clipboard Preferences";
+
+/* MARK: - Onboarding */
+"Welcome to Clipboard" = "Welcome to Clipboard";
+"Got it" = "Got it";
+"open the history panel from anywhere" = "open the history panel from anywhere";
+"copy the selected item back to the clipboard" = "copy the selected item back to the clipboard";
+"paste it manually into any app" = "paste it manually into any app";
+"sensitive content (password managers) stays in memory only" = "sensitive content (password managers) stays in memory only";
+
+/* MARK: - History panel */
+"Search" = "Search";
+"Search history" = "Search history";
+"Tab" = "Tab";
+"All" = "All";
+"Pinned" = "Pinned";
+"No history yet" = "No history yet";
+"No matches" = "No matches";
+"No pinned items" = "No pinned items";
+"(empty)" = "(empty)";
+
+/* MARK: - Context menu */
+"Pin" = "Pin";
+"Unpin" = "Unpin";
+"Delete" = "Delete";
+
+/* MARK: - Footer / shortcut hints */
+"Select" = "Select";
+"Copy" = "Copy";
+"Close" = "Close";
+"Preferences" = "Preferences";
+
+/* MARK: - Kind labels */
+"Text" = "Text";
+"Rich Text" = "Rich Text";
+"Image" = "Image";
+"File" = "File";
+"Rich" = "Rich";
+"Mixed" = "Mixed";
+
+/* MARK: - Preview pane */
+"Select an item to preview" = "Select an item to preview";
+"Sensitive content from %@" = "Sensitive content from %@";
+"Reveal for this session" = "Reveal for this session";
+
+/* MARK: - Skip banner */
+"Skipped a %1$@ item from %2$@" = "Skipped a %1$@ item from %2$@";
+"Skipped a %@ item" = "Skipped a %@ item";
+"Raise the limit in Preferences if you need larger items." = "Raise the limit in Preferences if you need larger items.";
+"Dismiss" = "Dismiss";
+
+/* MARK: - Preferences: General */
+"General" = "General";
+"Hotkey" = "Hotkey";
+"Toggle panel" = "Toggle panel";
+"Startup" = "Startup";
+"Start at Login" = "Start at Login";
+"Clipboard launches in the background when you log in." = "Clipboard launches in the background when you log in.";
+"Retention" = "Retention";
+"Cap" = "Cap";
+"Skip items larger than" = "Skip items larger than";
+"Set to 0 to disable the size cap." = "Set to 0 to disable the size cap.";
+"off" = "off";
+"No shortcut is set" = "No shortcut is set";
+"Record a shortcut below — the panel can't be summoned without one." = "Record a shortcut below — the panel can't be summoned without one.";
+
+/* MARK: - Preferences: Privacy */
+"Privacy" = "Privacy";
+"Sensitive content" = "Sensitive content";
+"Skip items marked as concealed (password managers)" = "Skip items marked as concealed (password managers)";
+"Blocked source apps (bundle IDs, one per line)" = "Blocked source apps (bundle IDs, one per line)";
+
+/* MARK: - Preferences: Data */
+"Data" = "Data";
+"History data" = "History data";
+"Export history…" = "Export history…";
+"Import history…" = "Import history…";
+"Clear history…" = "Clear history…";
+"Sensitive items are never exported or written to disk." = "Sensitive items are never exported or written to disk.";
+
+/* MARK: - Alerts */
+"Clear all clipboard history?" = "Clear all clipboard history?";
+"Pinned items will also be removed. This cannot be undone." = "Pinned items will also be removed. This cannot be undone.";
+"Clear" = "Clear";
+"Cancel" = "Cancel";
+"OK" = "OK";
+"History was recovered from a backup" = "History was recovered from a backup";
+"The original file appeared corrupted and has been renamed to history.json.bak. Clipboard started with an empty history." = "The original file appeared corrupted and has been renamed to history.json.bak. Clipboard started with an empty history.";
+"Export failed" = "Export failed";
+"Import failed" = "Import failed";
+"Import complete" = "Import complete";
+"Added: %1$d\nSkipped (duplicates): %2$d\nSkipped (missing blobs): %3$d" = "Added: %1$d\nSkipped (duplicates): %2$d\nSkipped (missing blobs): %3$d";
+"Could not update Start at Login" = "Could not update Start at Login";
+"Clipboard must live in /Applications and be code-signed before it can launch at login." = "Clipboard must live in /Applications and be code-signed before it can launch at login.";
+
+/* MARK: - App menu + Edit menu */
+"Hide Clipboard" = "Hide Clipboard";
+"Hide Others" = "Hide Others";
+"Show All" = "Show All";
+"Quit Clipboard" = "Quit Clipboard";
+"Undo" = "Undo";
+"Redo" = "Redo";
+"Cut" = "Cut";
+"Paste" = "Paste";
+"Select All" = "Select All";
+
+/* MARK: - Status / misc */
+"Pause Monitoring" = "Pause Monitoring";
+"Resume Monitoring" = "Resume Monitoring";
+"About Clipboard…" = "About Clipboard…";
+"More actions" = "More actions";

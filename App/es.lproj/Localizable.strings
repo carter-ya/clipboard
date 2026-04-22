@@ -1,0 +1,104 @@
+/* Spanish translations (es, Spain). Reviewed by a localization
+   subagent — "Abrir al iniciar sesión" (Apple macOS term),
+   /Aplicaciones, kind placeholder order fix, "Atajo de teclado". */
+
+"Clipboard" = "Portapapeles";
+"Welcome" = "Bienvenida";
+"Clipboard Preferences" = "Preferencias de Portapapeles";
+
+"Welcome to Clipboard" = "Te damos la bienvenida a Portapapeles";
+"Got it" = "Entendido";
+"open the history panel from anywhere" = "Abrir el panel de historial desde cualquier lugar";
+"copy the selected item back to the clipboard" = "Copiar el elemento seleccionado de nuevo al portapapeles";
+"paste it manually into any app" = "Pegar manualmente en cualquier app";
+"sensitive content (password managers) stays in memory only" = "El contenido sensible (gestores de contraseñas) solo permanece en memoria";
+
+"Search" = "Buscar";
+"Search history" = "Buscar en el historial";
+"Tab" = "Tecla Tab";
+"All" = "Todos";
+"Pinned" = "Fijados";
+"No history yet" = "Todavía no hay historial";
+"No matches" = "Sin coincidencias";
+"No pinned items" = "No hay elementos fijados";
+"(empty)" = "(vacío)";
+
+"Pin" = "Fijar";
+"Unpin" = "Desfijar";
+"Delete" = "Eliminar";
+
+"Select" = "Seleccionar";
+"Copy" = "Copiar";
+"Close" = "Cerrar";
+"Preferences" = "Preferencias";
+
+"Text" = "Texto";
+"Rich Text" = "Texto enriquecido";
+"Image" = "Imagen";
+"File" = "Archivo";
+"Rich" = "Enriquecido";
+"Mixed" = "Mixto";
+
+"Select an item to preview" = "Selecciona un elemento para previsualizar";
+"Sensitive content from %@" = "Contenido sensible de %@";
+"Reveal for this session" = "Mostrar en esta sesión";
+
+"Skipped a %1$@ item from %2$@" = "Se omitió un elemento %1$@ de %2$@";
+"Skipped a %@ item" = "Se omitió un elemento %@";
+"Raise the limit in Preferences if you need larger items." = "Aumenta el límite en Preferencias si necesitas elementos más grandes.";
+"Dismiss" = "Cerrar";
+
+"General" = "General";
+"Hotkey" = "Atajo de teclado";
+"Toggle panel" = "Mostrar u ocultar panel";
+"Startup" = "Inicio";
+"Start at Login" = "Abrir al iniciar sesión";
+"Clipboard launches in the background when you log in." = "Portapapeles se abre en segundo plano al iniciar sesión.";
+"Retention" = "Conservación";
+"Cap" = "Tamaño máximo";
+"Skip items larger than" = "Omitir elementos mayores de";
+"Set to 0 to disable the size cap." = "Introduce 0 para desactivar el límite de tamaño.";
+"off" = "desactivado";
+"No shortcut is set" = "No hay ningún atajo definido";
+"Record a shortcut below — the panel can't be summoned without one." = "Define un atajo abajo: sin él no podrás abrir el panel con el teclado.";
+
+"Privacy" = "Privacidad";
+"Sensitive content" = "Contenido sensible";
+"Skip items marked as concealed (password managers)" = "Omitir elementos marcados como sensibles (gestores de contraseñas)";
+"Blocked source apps (bundle IDs, one per line)" = "Apps de origen bloqueadas (bundle IDs, uno por línea)";
+
+"Data" = "Datos";
+"History data" = "Datos del historial";
+"Export history…" = "Exportar historial…";
+"Import history…" = "Importar historial…";
+"Clear history…" = "Borrar historial…";
+"Sensitive items are never exported or written to disk." = "Los elementos sensibles nunca se exportan ni se guardan en disco.";
+
+"Clear all clipboard history?" = "¿Borrar todo el historial del portapapeles?";
+"Pinned items will also be removed. This cannot be undone." = "También se eliminarán los elementos fijados. Esta acción no se puede deshacer.";
+"Clear" = "Borrar";
+"Cancel" = "Cancelar";
+"OK" = "OK";
+"History was recovered from a backup" = "El historial se recuperó desde una copia de seguridad";
+"The original file appeared corrupted and has been renamed to history.json.bak. Clipboard started with an empty history." = "El archivo original parecía dañado y se renombró como history.json.bak. Portapapeles se inició con un historial vacío.";
+"Export failed" = "Error al exportar";
+"Import failed" = "Error al importar";
+"Import complete" = "Importación completada";
+"Added: %1$d\nSkipped (duplicates): %2$d\nSkipped (missing blobs): %3$d" = "Añadidos: %1$d\nOmitidos (duplicados): %2$d\nOmitidos (faltan datos binarios): %3$d";
+"Could not update Start at Login" = "No se pudo actualizar «Abrir al iniciar sesión»";
+"Clipboard must live in /Applications and be code-signed before it can launch at login." = "Portapapeles debe estar en /Aplicaciones y firmado digitalmente para abrirse al iniciar sesión.";
+
+"Hide Clipboard" = "Ocultar Portapapeles";
+"Hide Others" = "Ocultar los demás";
+"Show All" = "Mostrar todo";
+"Quit Clipboard" = "Salir de Portapapeles";
+"Undo" = "Deshacer";
+"Redo" = "Rehacer";
+"Cut" = "Cortar";
+"Paste" = "Pegar";
+"Select All" = "Seleccionar todo";
+
+"Pause Monitoring" = "Pausar monitor";
+"Resume Monitoring" = "Reanudar monitor";
+"About Clipboard…" = "Acerca de Portapapeles…";
+"More actions" = "Más acciones";

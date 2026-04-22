@@ -118,10 +118,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   @MainActor
   @objc private func clearHistory() {
     let alert = NSAlert()
-    alert.messageText = "Clear all clipboard history?"
-    alert.informativeText = "Pinned items will also be removed. This cannot be undone."
-    alert.addButton(withTitle: "Clear")
-    alert.addButton(withTitle: "Cancel")
+    alert.messageText = String(localized: "Clear all clipboard history?")
+    alert.informativeText = String(
+      localized: "Pinned items will also be removed. This cannot be undone."
+    )
+    alert.addButton(withTitle: String(localized: "Clear"))
+    alert.addButton(withTitle: String(localized: "Cancel"))
     alert.alertStyle = .warning
     guard alert.runModal() == .alertFirstButtonReturn else { return }
     guard let wiring else { return }
@@ -136,68 +138,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func installMainMenu() {
     let mainMenu = NSMenu()
 
-    // App menu
     let appItem = NSMenuItem()
     let appMenu = NSMenu()
     appMenu.addItem(
-      withTitle: "Hide Clipboard",
+      withTitle: String(localized: "Hide Clipboard"),
       action: #selector(NSApplication.hide(_:)),
       keyEquivalent: "h"
     )
     let hideOthers = appMenu.addItem(
-      withTitle: "Hide Others",
+      withTitle: String(localized: "Hide Others"),
       action: #selector(NSApplication.hideOtherApplications(_:)),
       keyEquivalent: "h"
     )
     hideOthers.keyEquivalentModifierMask = [.command, .option]
     appMenu.addItem(
-      withTitle: "Show All",
+      withTitle: String(localized: "Show All"),
       action: #selector(NSApplication.unhideAllApplications(_:)),
       keyEquivalent: ""
     )
     appMenu.addItem(NSMenuItem.separator())
     appMenu.addItem(
-      withTitle: "Quit Clipboard",
+      withTitle: String(localized: "Quit Clipboard"),
       action: #selector(NSApplication.terminate(_:)),
       keyEquivalent: "q"
     )
     appItem.submenu = appMenu
     mainMenu.addItem(appItem)
 
-    // Edit menu — the key fix: these key equivalents dispatch
-    // selectAll:, copy:, paste:, cut:, undo:, redo: down the
-    // responder chain so NSTextField/NSTextView behave normally.
     let editItem = NSMenuItem()
     let editMenu = NSMenu(title: "Edit")
     editMenu.addItem(
-      withTitle: "Undo",
+      withTitle: String(localized: "Undo"),
       action: Selector(("undo:")),
       keyEquivalent: "z"
     )
     let redo = editMenu.addItem(
-      withTitle: "Redo",
+      withTitle: String(localized: "Redo"),
       action: Selector(("redo:")),
       keyEquivalent: "z"
     )
     redo.keyEquivalentModifierMask = [.command, .shift]
     editMenu.addItem(NSMenuItem.separator())
     editMenu.addItem(
-      withTitle: "Cut",
+      withTitle: String(localized: "Cut"),
       action: #selector(NSText.cut(_:)),
       keyEquivalent: "x"
     )
     editMenu.addItem(
-      withTitle: "Copy",
+      withTitle: String(localized: "Copy"),
       action: #selector(NSText.copy(_:)),
       keyEquivalent: "c"
     )
     editMenu.addItem(
-      withTitle: "Paste",
+      withTitle: String(localized: "Paste"),
       action: #selector(NSText.paste(_:)),
       keyEquivalent: "v"
     )
     editMenu.addItem(
-      withTitle: "Select All",
+      withTitle: String(localized: "Select All"),
       action: #selector(NSText.selectAll(_:)),
       keyEquivalent: "a"
     )
@@ -210,12 +208,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   @MainActor
   private func notifyCorruptionRecovery(path: String) {
     let alert = NSAlert()
-    alert.messageText = "History was recovered from a backup"
-    alert.informativeText =
-      "The original file appeared corrupted and has been renamed to history.json.bak. "
-      + "Clipboard started with an empty history."
+    alert.messageText = String(localized: "History was recovered from a backup")
+    alert.informativeText = String(
+      localized:
+        "The original file appeared corrupted and has been renamed to history.json.bak. Clipboard started with an empty history."
+    )
     alert.alertStyle = .informational
-    alert.addButton(withTitle: "OK")
+    alert.addButton(withTitle: String(localized: "OK"))
     alert.runModal()
   }
 
@@ -287,7 +286,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       try zipDirectory(root, to: url)
     } catch {
       Log.ui.error("export.failed err=\(String(describing: error), privacy: .public)")
-      showAlert(title: "Export failed", message: String(describing: error))
+      showAlert(
+        title: String(localized: "Export failed"),
+        message: String(describing: error)
+      )
     }
   }
 
@@ -318,12 +320,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
           )
           self?.showImportSummary(result)
         } catch {
-          self?.showAlert(title: "Import failed", message: String(describing: error))
+          self?.showAlert(
+            title: String(localized: "Import failed"),
+            message: String(describing: error)
+          )
         }
       }
     } catch {
       try? FileManager.default.removeItem(at: tempDir)
-      showAlert(title: "Import failed", message: String(describing: error))
+      showAlert(
+        title: String(localized: "Import failed"),
+        message: String(describing: error)
+      )
     }
   }
 
@@ -350,12 +358,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func showImportSummary(_ result: ImportResult?) {
     guard let result else { return }
     let alert = NSAlert()
-    alert.messageText = "Import complete"
-    alert.informativeText =
-      "Added: \(result.added)\nSkipped (duplicates): \(result.skipped)\n"
-      + "Skipped (missing blobs): \(result.blobsMissing)"
+    alert.messageText = String(localized: "Import complete")
+    let template = String(
+      localized:
+        "Added: %1$d\nSkipped (duplicates): %2$d\nSkipped (missing blobs): %3$d"
+    )
+    alert.informativeText = String(
+      format: template, result.added, result.skipped, result.blobsMissing
+    )
     alert.alertStyle = .informational
-    alert.addButton(withTitle: "OK")
+    alert.addButton(withTitle: String(localized: "OK"))
     alert.runModal()
   }
 
@@ -365,7 +377,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     alert.messageText = title
     alert.informativeText = message
     alert.alertStyle = .warning
-    alert.addButton(withTitle: "OK")
+    alert.addButton(withTitle: String(localized: "OK"))
     alert.runModal()
   }
 

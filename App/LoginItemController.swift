@@ -13,8 +13,10 @@ enum LoginItemController {
     var errorDescription: String? {
       switch self {
       case .notAllowed:
-        return
-          "Clipboard must live in /Applications and be code-signed before it can launch at login."
+        return String(
+          localized:
+            "Clipboard must live in /Applications and be code-signed before it can launch at login."
+        )
       case .underlying(let err):
         return err.localizedDescription
       }

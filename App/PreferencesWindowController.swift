@@ -30,7 +30,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
       backing: .buffered,
       defer: false
     )
-    window.title = "Clipboard Preferences"
+    window.title = String(localized: "Clipboard Preferences")
     super.init(window: window)
     window.delegate = self
     rebuildContent()
@@ -127,12 +127,12 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
   private func showLaunchAtLoginFailure(error: Error) {
     let alert = NSAlert()
-    alert.messageText = "Could not update Start at Login"
+    alert.messageText = String(localized: "Could not update Start at Login")
     alert.informativeText =
       (error as? LocalizedError)?.errorDescription
       ?? String(describing: error)
     alert.alertStyle = .warning
-    alert.addButton(withTitle: "OK")
+    alert.addButton(withTitle: String(localized: "OK"))
     alert.runModal()
   }
 }

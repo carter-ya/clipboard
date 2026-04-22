@@ -1,0 +1,105 @@
+/* Korean translations (ko). Reviewed by a localization
+   subagent — content → 콘텐츠, password → 암호, Privacy →
+   개인정보 보호, concealed distinct from sensitive, "실행 취소"
+   standard undo phrasing. */
+
+"Clipboard" = "클립보드";
+"Welcome" = "환영합니다";
+"Clipboard Preferences" = "클립보드 환경설정";
+
+"Welcome to Clipboard" = "클립보드에 오신 것을 환영합니다";
+"Got it" = "확인";
+"open the history panel from anywhere" = "어디서나 기록 패널 열기";
+"copy the selected item back to the clipboard" = "선택한 항목을 클립보드에 다시 복사";
+"paste it manually into any app" = "원하는 앱에 수동으로 붙여넣기";
+"sensitive content (password managers) stays in memory only" = "민감한 콘텐츠(암호 관리자)는 메모리에만 유지됩니다";
+
+"Search" = "검색";
+"Search history" = "기록 검색";
+"Tab" = "Tab 키";
+"All" = "전체";
+"Pinned" = "고정";
+"No history yet" = "기록 없음";
+"No matches" = "일치하는 항목 없음";
+"No pinned items" = "고정된 항목 없음";
+"(empty)" = "(비어 있음)";
+
+"Pin" = "고정";
+"Unpin" = "고정 해제";
+"Delete" = "삭제";
+
+"Select" = "선택";
+"Copy" = "복사";
+"Close" = "닫기";
+"Preferences" = "환경설정";
+
+"Text" = "텍스트";
+"Rich Text" = "서식 있는 텍스트";
+"Image" = "이미지";
+"File" = "파일";
+"Rich" = "서식";
+"Mixed" = "혼합";
+
+"Select an item to preview" = "미리 볼 항목을 선택하세요";
+"Sensitive content from %@" = "%@의 민감한 콘텐츠";
+"Reveal for this session" = "이번 세션에서만 표시";
+
+"Skipped a %1$@ item from %2$@" = "%2$@에서 가져온 %1$@ 항목을 건너뛰었습니다";
+"Skipped a %@ item" = "%@ 항목을 건너뛰었습니다";
+"Raise the limit in Preferences if you need larger items." = "더 큰 항목이 필요하면 환경설정에서 제한을 늘리세요.";
+"Dismiss" = "닫기";
+
+"General" = "일반";
+"Hotkey" = "단축키";
+"Toggle panel" = "패널 전환";
+"Startup" = "시작";
+"Start at Login" = "로그인 시 시작";
+"Clipboard launches in the background when you log in." = "로그인 시 클립보드가 백그라운드에서 실행됩니다.";
+"Retention" = "보관";
+"Cap" = "용량 상한";
+"Skip items larger than" = "다음 크기보다 큰 항목 건너뛰기";
+"Set to 0 to disable the size cap." = "0으로 설정하면 크기 제한이 비활성화됩니다.";
+"off" = "꺼짐";
+"No shortcut is set" = "단축키가 설정되지 않았습니다";
+"Record a shortcut below — the panel can't be summoned without one." = "아래에서 단축키를 기록하세요. 단축키가 없으면 패널을 열 수 없습니다.";
+
+"Privacy" = "개인정보 보호";
+"Sensitive content" = "민감한 콘텐츠";
+"Skip items marked as concealed (password managers)" = "가려진 것으로 표시된 항목 건너뛰기(암호 관리자)";
+"Blocked source apps (bundle IDs, one per line)" = "차단된 소스 앱 (번들 ID, 한 줄에 하나씩)";
+
+"Data" = "데이터";
+"History data" = "기록 데이터";
+"Export history…" = "기록 내보내기…";
+"Import history…" = "기록 가져오기…";
+"Clear history…" = "기록 지우기…";
+"Sensitive items are never exported or written to disk." = "민감한 항목은 내보내지거나 디스크에 기록되지 않습니다.";
+
+"Clear all clipboard history?" = "모든 클립보드 기록을 지우시겠습니까?";
+"Pinned items will also be removed. This cannot be undone." = "고정된 항목도 삭제됩니다. 이 작업은 실행 취소할 수 없습니다.";
+"Clear" = "지우기";
+"Cancel" = "취소";
+"OK" = "확인";
+"History was recovered from a backup" = "기록이 백업에서 복구되었습니다";
+"The original file appeared corrupted and has been renamed to history.json.bak. Clipboard started with an empty history." = "원본 파일이 손상된 것으로 보여 이름을 history.json.bak으로 변경했습니다. 클립보드는 빈 기록 상태로 시작되었습니다.";
+"Export failed" = "내보내기 실패";
+"Import failed" = "가져오기 실패";
+"Import complete" = "가져오기 완료";
+"Added: %1$d\nSkipped (duplicates): %2$d\nSkipped (missing blobs): %3$d" = "추가됨: %1$d\n건너뜀 (중복): %2$d\n건너뜀 (데이터 누락): %3$d";
+"Could not update Start at Login" = "“로그인 시 시작” 설정을 업데이트할 수 없음";
+"Clipboard must live in /Applications and be code-signed before it can launch at login." = "로그인 시 실행하려면 클립보드가 /Applications 폴더에 있고 코드 서명되어 있어야 합니다.";
+
+"Hide Clipboard" = "클립보드 가리기";
+"Hide Others" = "나머지 가리기";
+"Show All" = "모두 표시";
+"Quit Clipboard" = "클립보드 종료";
+"Undo" = "실행 취소";
+"Redo" = "다시 실행";
+"Cut" = "잘라내기";
+"Paste" = "붙여넣기";
+"Select All" = "모두 선택";
+
+"Pause Monitoring" = "모니터링 일시 정지";
+"Resume Monitoring" = "모니터링 재개";
+"About Clipboard…" = "클립보드 정보…";
+"More actions" = "기타 작업";

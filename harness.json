@@ -890,6 +890,26 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S31: keyboard hint bar at the bottom of the history panel"
+    },
+    {
+      "id": "S32",
+      "title": "7 语言本地化（en + zh-Hans + zh-Hant + ja + ko + de + es）",
+      "goal": "S8 的 Localizable.strings 双语拆分一直延后；把延后的补上，顺便扩到 6 个目标语言：简体中文、繁体中文、日文、韩文、德文、西班牙文（加英文基线共 7 种）。每种翻译由独立 subagent 审阅后才合入。",
+      "deliverables": [
+        "App/<locale>.lproj/Localizable.strings × 7（en / zh-Hans / zh-Hant / ja / ko / de / es），key 用英文短语、值按目标语言翻译。",
+        "project.yml 的 info.properties 加 CFBundleLocalizations 列表 + CFBundleDevelopmentRegion=en；App target sources 里按需补 lproj 路径（XcodeGen 自动识别 .lproj 目录）。",
+        "AppKit 层的 NSAlert / NSMenuItem / NSWindow.title 等非 SwiftUI 文本全部改走 String(localized:)；SwiftUI 的 Text() / Button() / Toggle() 等字符串字面量依赖内置的 LocalizedStringKey 查找，保持字面量不变。",
+        "启动 6 个 subagent 并行审核 zh-Hans / zh-Hant / ja / ko / de / es 的翻译——每个 agent 读基线 en 文件和该语言文件，标出不自然 / 术语不一致 / 占位符语法不对等问题；按 agent 回执 apply。",
+        "字符串与 harness.language_locale 约定一致：代码、注释、commit 信息仍全英文；UI 文案按系统语言；未命中本地化的字符串 SwiftUI 会回落到 key 自身（英文）。"
+      ],
+      "acceptance": [
+        "系统语言设为简中 → 打开面板 → 搜索框占位『搜索』、底部提示条『选择 / 复制 / 置顶 / 删除 / 偏好设置 / 关闭』等全部本地化；Preferences 的 tab、标签、按钮全部本地化；NSAlert 标题和正文本地化；菜单栏（⌘A / ⌘C / ⌘V / ⌘X / ⌘Z / ⌘Q）等 key equivalent 继续工作（不受本地化影响）。",
+        "依次在系统语言里切 zh-Hant / ja / ko / de / es → 所有界面看到对应语言的翻译。",
+        "切到未提供的语言（例如法语）→ App 回落到 CFBundleDevelopmentRegion=en 的英文基线。",
+        "6 个审核 agent 给出的可操作修订建议全部落地到对应文件。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S32: localize to en/zh-Hans/zh-Hant/ja/ko/de/es with subagent-reviewed translations"
     }
   ],
   "slice_rhythm": [
@@ -1014,7 +1034,8 @@
       "S28",
       "S29",
       "S30",
-      "S31"
+      "S31",
+      "S32"
     ]
   },
   "open_questions": [

@@ -1,0 +1,104 @@
+/* Traditional Chinese translations (zh-Hant, Taiwan).
+   Reviewed by a localization subagent — 管理器 → 管理程式,
+   concealed kept distinct from sensitive, Rich shortened. */
+
+"Clipboard" = "剪貼簿";
+"Welcome" = "歡迎";
+"Clipboard Preferences" = "剪貼簿偏好設定";
+
+"Welcome to Clipboard" = "歡迎使用剪貼簿";
+"Got it" = "知道了";
+"open the history panel from anywhere" = "在任何位置開啟歷史面板";
+"copy the selected item back to the clipboard" = "將選取的項目寫回系統剪貼簿";
+"paste it manually into any app" = "在任何應用程式中手動貼上";
+"sensitive content (password managers) stays in memory only" = "敏感內容（來自密碼管理程式）僅保留於記憶體中";
+
+"Search" = "搜尋";
+"Search history" = "搜尋歷史記錄";
+"Tab" = "Tab 鍵";
+"All" = "全部";
+"Pinned" = "釘選";
+"No history yet" = "尚無歷史記錄";
+"No matches" = "找不到符合項目";
+"No pinned items" = "尚無已釘選的項目";
+"(empty)" = "（空白）";
+
+"Pin" = "釘選";
+"Unpin" = "取消釘選";
+"Delete" = "刪除";
+
+"Select" = "選取";
+"Copy" = "複製";
+"Close" = "關閉";
+"Preferences" = "偏好設定";
+
+"Text" = "文字";
+"Rich Text" = "格式文字";
+"Image" = "圖片";
+"File" = "檔案";
+"Rich" = "格式";
+"Mixed" = "混合";
+
+"Select an item to preview" = "選擇項目以預覽";
+"Sensitive content from %@" = "來自 %@ 的敏感內容";
+"Reveal for this session" = "僅本次顯示";
+
+"Skipped a %1$@ item from %2$@" = "已略過來自 %2$@ 的 %1$@";
+"Skipped a %@ item" = "已略過 %@ 項目";
+"Raise the limit in Preferences if you need larger items." = "如需保留較大的項目，請到「偏好設定」調高上限。";
+"Dismiss" = "知道了";
+
+"General" = "一般";
+"Hotkey" = "快速鍵";
+"Toggle panel" = "切換面板";
+"Startup" = "啟動";
+"Start at Login" = "登入時啟動";
+"Clipboard launches in the background when you log in." = "登入時「剪貼簿」會在背景啟動。";
+"Retention" = "保留";
+"Cap" = "項目上限";
+"Skip items larger than" = "略過大於";
+"Set to 0 to disable the size cap." = "設為 0 可停用大小上限。";
+"off" = "關";
+"No shortcut is set" = "尚未設定快速鍵";
+"Record a shortcut below — the panel can't be summoned without one." = "請在下方錄製快速鍵 —— 否則無法以鍵盤呼叫面板。";
+
+"Privacy" = "隱私";
+"Sensitive content" = "敏感內容";
+"Skip items marked as concealed (password managers)" = "略過標記為隱藏的項目（來自密碼管理程式）";
+"Blocked source apps (bundle IDs, one per line)" = "已封鎖的來源應用程式（Bundle ID，每行一個）";
+
+"Data" = "資料";
+"History data" = "歷史資料";
+"Export history…" = "匯出歷史…";
+"Import history…" = "匯入歷史…";
+"Clear history…" = "清除歷史…";
+"Sensitive items are never exported or written to disk." = "敏感項目不會被匯出，也不會寫入磁碟。";
+
+"Clear all clipboard history?" = "要清除所有剪貼簿記錄嗎？";
+"Pinned items will also be removed. This cannot be undone." = "已釘選的項目也會一併移除。此動作無法復原。";
+"Clear" = "清除";
+"Cancel" = "取消";
+"OK" = "好";
+"History was recovered from a backup" = "歷史已從備份還原";
+"The original file appeared corrupted and has been renamed to history.json.bak. Clipboard started with an empty history." = "原檔案疑似損毀，已重新命名為 history.json.bak。「剪貼簿」以空白歷史啟動。";
+"Export failed" = "匯出失敗";
+"Import failed" = "匯入失敗";
+"Import complete" = "匯入完成";
+"Added: %1$d\nSkipped (duplicates): %2$d\nSkipped (missing blobs): %3$d" = "已新增：%1$d 個\n已略過（重複）：%2$d 個\n已略過（缺少資料）：%3$d 個";
+"Could not update Start at Login" = "無法更新「登入時啟動」設定";
+"Clipboard must live in /Applications and be code-signed before it can launch at login." = "「剪貼簿」必須位於 /Applications 中並已程式碼簽署，才能於登入時啟動。";
+
+"Hide Clipboard" = "隱藏剪貼簿";
+"Hide Others" = "隱藏其他";
+"Show All" = "全部顯示";
+"Quit Clipboard" = "結束剪貼簿";
+"Undo" = "復原";
+"Redo" = "重做";
+"Cut" = "剪下";
+"Paste" = "貼上";
+"Select All" = "全選";
+
+"Pause Monitoring" = "暫停監看";
+"Resume Monitoring" = "繼續監看";
+"About Clipboard…" = "關於剪貼簿…";
+"More actions" = "更多動作";

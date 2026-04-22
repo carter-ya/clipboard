@@ -24,7 +24,7 @@ final class OnboardingController {
       backing: .buffered,
       defer: false
     )
-    window.title = "Welcome"
+    window.title = String(localized: "Welcome")
     window.contentViewController = hosting
     window.center()
     window.makeKeyAndOrderFront(nil)

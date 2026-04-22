@@ -1,0 +1,104 @@
+/* Japanese translations (ja). Reviewed by a localization
+   subagent — Apple macOS: 「〜の環境設定」, 「ほかを非表示」,
+   onboarding bullets unified to 説明体 (〜できます). */
+
+"Clipboard" = "クリップボード";
+"Welcome" = "ようこそ";
+"Clipboard Preferences" = "クリップボードの環境設定";
+
+"Welcome to Clipboard" = "クリップボードへようこそ";
+"Got it" = "OK";
+"open the history panel from anywhere" = "どこからでも履歴パネルを開けます";
+"copy the selected item back to the clipboard" = "選択した項目をクリップボードに戻します";
+"paste it manually into any app" = "任意のアプリに手動でペーストできます";
+"sensitive content (password managers) stays in memory only" = "機密情報（パスワードマネージャーなど）はメモリ上にのみ保持されます";
+
+"Search" = "検索";
+"Search history" = "履歴を検索";
+"Tab" = "Tab キー";
+"All" = "すべて";
+"Pinned" = "ピン留め";
+"No history yet" = "履歴はまだありません";
+"No matches" = "一致する項目がありません";
+"No pinned items" = "ピン留めされた項目はありません";
+"(empty)" = "（空）";
+
+"Pin" = "ピン留めする";
+"Unpin" = "ピン留めを解除";
+"Delete" = "削除";
+
+"Select" = "選択";
+"Copy" = "コピー";
+"Close" = "閉じる";
+"Preferences" = "環境設定";
+
+"Text" = "テキスト";
+"Rich Text" = "リッチテキスト";
+"Image" = "画像";
+"File" = "ファイル";
+"Rich" = "リッチ";
+"Mixed" = "混在";
+
+"Select an item to preview" = "プレビューする項目を選択してください";
+"Sensitive content from %@" = "%@ の機密情報";
+"Reveal for this session" = "このセッションのみ表示";
+
+"Skipped a %1$@ item from %2$@" = "%2$@ からの %1$@ 項目をスキップしました";
+"Skipped a %@ item" = "%@ 項目をスキップしました";
+"Raise the limit in Preferences if you need larger items." = "より大きな項目を保持するには、環境設定で上限を引き上げてください。";
+"Dismiss" = "閉じる";
+
+"General" = "一般";
+"Hotkey" = "ショートカット";
+"Toggle panel" = "パネルの表示／非表示";
+"Startup" = "起動";
+"Start at Login" = "ログイン時に起動";
+"Clipboard launches in the background when you log in." = "ログイン時にクリップボードがバックグラウンドで起動します。";
+"Retention" = "保存期間";
+"Cap" = "サイズ上限";
+"Skip items larger than" = "次のサイズを超える項目をスキップ";
+"Set to 0 to disable the size cap." = "0 に設定するとサイズ上限を無効にできます。";
+"off" = "オフ";
+"No shortcut is set" = "ショートカットが設定されていません";
+"Record a shortcut below — the panel can't be summoned without one." = "下のフィールドでショートカットを登録してください。設定しないとパネルを呼び出せません。";
+
+"Privacy" = "プライバシー";
+"Sensitive content" = "機密情報";
+"Skip items marked as concealed (password managers)" = "機密としてマークされた項目をスキップ（パスワードマネージャーなど）";
+"Blocked source apps (bundle IDs, one per line)" = "ブロックする送信元アプリ（バンドル ID、1 行に 1 つ）";
+
+"Data" = "データ";
+"History data" = "履歴データ";
+"Export history…" = "履歴を書き出す…";
+"Import history…" = "履歴を読み込む…";
+"Clear history…" = "履歴を消去…";
+"Sensitive items are never exported or written to disk." = "機密項目は書き出されず、ディスクにも保存されません。";
+
+"Clear all clipboard history?" = "すべてのクリップボード履歴を消去しますか？";
+"Pinned items will also be removed. This cannot be undone." = "ピン留めした項目も削除されます。この操作は取り消せません。";
+"Clear" = "消去";
+"Cancel" = "キャンセル";
+"OK" = "OK";
+"History was recovered from a backup" = "履歴をバックアップから復元しました";
+"The original file appeared corrupted and has been renamed to history.json.bak. Clipboard started with an empty history." = "元のファイルが破損していたため history.json.bak にリネームしました。クリップボードは空の履歴で起動しています。";
+"Export failed" = "書き出しに失敗しました";
+"Import failed" = "読み込みに失敗しました";
+"Import complete" = "読み込みが完了しました";
+"Added: %1$d\nSkipped (duplicates): %2$d\nSkipped (missing blobs): %3$d" = "追加: %1$d 件\nスキップ（重複）: %2$d 件\nスキップ（データ欠損）: %3$d 件";
+"Could not update Start at Login" = "「ログイン時に起動」設定を更新できませんでした";
+"Clipboard must live in /Applications and be code-signed before it can launch at login." = "ログイン時に起動するには、クリップボードを /Applications に配置し、コード署名されている必要があります。";
+
+"Hide Clipboard" = "クリップボードを非表示";
+"Hide Others" = "ほかを非表示";
+"Show All" = "すべてを表示";
+"Quit Clipboard" = "クリップボードを終了";
+"Undo" = "取り消す";
+"Redo" = "やり直す";
+"Cut" = "カット";
+"Paste" = "ペースト";
+"Select All" = "すべてを選択";
+
+"Pause Monitoring" = "監視を一時停止";
+"Resume Monitoring" = "監視を再開";
+"About Clipboard…" = "クリップボードについて…";
+"More actions" = "その他の操作";

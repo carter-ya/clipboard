@@ -23,7 +23,7 @@ final class HistoryPanel: NSPanel {
       backing: .buffered,
       defer: false
     )
-    title = "Clipboard"
+    title = String(localized: "Clipboard")
     isFloatingPanel = true
     isReleasedWhenClosed = false
     hidesOnDeactivate = false

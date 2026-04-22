@@ -1,0 +1,104 @@
+/* German translations (de). Reviewed by a localization subagent
+   — Tastaturkurzbefehl per Apple, proper closing German quote,
+   composite-form skip messages, Unpin → Nicht mehr anheften. */
+
+"Clipboard" = "Zwischenablage";
+"Welcome" = "Willkommen";
+"Clipboard Preferences" = "Einstellungen für Zwischenablage";
+
+"Welcome to Clipboard" = "Willkommen bei Zwischenablage";
+"Got it" = "Verstanden";
+"open the history panel from anywhere" = "Öffnet das Verlaufsfenster von überall";
+"copy the selected item back to the clipboard" = "Kopiert das ausgewählte Element zurück in die Zwischenablage";
+"paste it manually into any app" = "Manuell in eine beliebige App einfügen";
+"sensitive content (password managers) stays in memory only" = "Sensible Inhalte (Passwortmanager) verbleiben nur im Arbeitsspeicher";
+
+"Search" = "Suchen";
+"Search history" = "Verlauf durchsuchen";
+"Tab" = "Tab-Taste";
+"All" = "Alle";
+"Pinned" = "Angeheftet";
+"No history yet" = "Noch kein Verlauf";
+"No matches" = "Keine Treffer";
+"No pinned items" = "Keine angehefteten Elemente";
+"(empty)" = "(leer)";
+
+"Pin" = "Anheften";
+"Unpin" = "Nicht mehr anheften";
+"Delete" = "Löschen";
+
+"Select" = "Auswählen";
+"Copy" = "Kopieren";
+"Close" = "Schließen";
+"Preferences" = "Einstellungen";
+
+"Text" = "Text";
+"Rich Text" = "Formatierter Text";
+"Image" = "Bild";
+"File" = "Datei";
+"Rich" = "Formatiert";
+"Mixed" = "Gemischt";
+
+"Select an item to preview" = "Wähle ein Element für die Vorschau aus";
+"Sensitive content from %@" = "Sensibler Inhalt aus %@";
+"Reveal for this session" = "Für diese Sitzung anzeigen";
+
+"Skipped a %1$@ item from %2$@" = "Ein %1$@-Element aus %2$@ wurde übersprungen";
+"Skipped a %@ item" = "Ein %@-Element wurde übersprungen";
+"Raise the limit in Preferences if you need larger items." = "Erhöhe das Limit in den Einstellungen, wenn du größere Elemente benötigst.";
+"Dismiss" = "Ausblenden";
+
+"General" = "Allgemein";
+"Hotkey" = "Tastaturkurzbefehl";
+"Toggle panel" = "Verlauf ein-/ausblenden";
+"Startup" = "Beim Start";
+"Start at Login" = "Bei Anmeldung starten";
+"Clipboard launches in the background when you log in." = "Zwischenablage wird bei der Anmeldung im Hintergrund gestartet.";
+"Retention" = "Aufbewahrung";
+"Cap" = "Obergrenze";
+"Skip items larger than" = "Elemente überspringen, die größer sind als";
+"Set to 0 to disable the size cap." = "Auf 0 setzen, um das Größenlimit zu deaktivieren.";
+"off" = "aus";
+"No shortcut is set" = "Kein Tastaturkurzbefehl festgelegt";
+"Record a shortcut below — the panel can't be summoned without one." = "Zeichne unten einen Tastaturkurzbefehl auf – sonst lässt sich der Verlauf nicht aufrufen.";
+
+"Privacy" = "Datenschutz";
+"Sensitive content" = "Sensible Inhalte";
+"Skip items marked as concealed (password managers)" = "Als vertraulich markierte Elemente überspringen (Passwortmanager)";
+"Blocked source apps (bundle IDs, one per line)" = "Blockierte Quell-Apps (Bundle-IDs, eine pro Zeile)";
+
+"Data" = "Daten";
+"History data" = "Verlaufsdaten";
+"Export history…" = "Verlauf exportieren…";
+"Import history…" = "Verlauf importieren…";
+"Clear history…" = "Verlauf löschen…";
+"Sensitive items are never exported or written to disk." = "Sensible Elemente werden weder exportiert noch auf die Festplatte geschrieben.";
+
+"Clear all clipboard history?" = "Gesamten Verlauf der Zwischenablage löschen?";
+"Pinned items will also be removed. This cannot be undone." = "Auch angeheftete Elemente werden entfernt. Dieser Vorgang lässt sich nicht rückgängig machen.";
+"Clear" = "Löschen";
+"Cancel" = "Abbrechen";
+"OK" = "OK";
+"History was recovered from a backup" = "Verlauf wurde aus einer Sicherungskopie wiederhergestellt";
+"The original file appeared corrupted and has been renamed to history.json.bak. Clipboard started with an empty history." = "Die Originaldatei schien beschädigt und wurde in history.json.bak umbenannt. Zwischenablage wurde mit leerem Verlauf gestartet.";
+"Export failed" = "Export fehlgeschlagen";
+"Import failed" = "Import fehlgeschlagen";
+"Import complete" = "Import abgeschlossen";
+"Added: %1$d\nSkipped (duplicates): %2$d\nSkipped (missing blobs): %3$d" = "Hinzugefügt: %1$d\nÜbersprungen (Duplikate): %2$d\nÜbersprungen (fehlende Daten): %3$d";
+"Could not update Start at Login" = "„Bei Anmeldung starten“ konnte nicht aktualisiert werden";
+"Clipboard must live in /Applications and be code-signed before it can launch at login." = "Zwischenablage muss sich in /Applications befinden und signiert sein, bevor sie bei der Anmeldung starten kann.";
+
+"Hide Clipboard" = "Zwischenablage ausblenden";
+"Hide Others" = "Andere ausblenden";
+"Show All" = "Alle einblenden";
+"Quit Clipboard" = "Zwischenablage beenden";
+"Undo" = "Widerrufen";
+"Redo" = "Wiederholen";
+"Cut" = "Ausschneiden";
+"Paste" = "Einsetzen";
+"Select All" = "Alles auswählen";
+
+"Pause Monitoring" = "Überwachung anhalten";
+"Resume Monitoring" = "Überwachung fortsetzen";
+"About Clipboard…" = "Über Zwischenablage…";
+"More actions" = "Weitere Aktionen";
