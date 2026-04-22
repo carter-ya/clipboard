@@ -8,6 +8,8 @@ build: gen
     xcodebuild -scheme ClipboardApp -destination 'platform=macOS' -derivedDataPath build build
 
 run: build
+    -pkill -x Clipboard
+    sleep 0.3
     open build/Build/Products/Debug/Clipboard.app
 
 test:

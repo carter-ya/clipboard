@@ -1063,6 +1063,20 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S40: preferences glass polish — drop initial focus, unify title bar, bezel text field, themed text editor"
+    },
+    {
+      "id": "S41",
+      "title": "just run 自动关闭旧进程",
+      "goal": "改版后 `just run` 只 `open` .app，而 Clipboard 是菜单栏常驻单例，macOS 的 open 对已运行 App 只做激活——导致新构建看不到更新。每次手工 pkill 太啰嗦。",
+      "deliverables": [
+        "Justfile 的 run 目标追加 `-pkill -x Clipboard` 与 `sleep 0.3` 两行，置于 `open` 之前；前缀 `-` 允许 pkill 退出码非零（没有老进程也 OK），0.3s 睡眠留给应用优雅退出 + 释放菜单栏条。"
+      ],
+      "acceptance": [
+        "有老进程在跑时 `just run`：老进程先退出、新构建启动，菜单栏图标是新二进制。",
+        "没有老进程时 `just run`：pkill 报 no matches、Just 因前缀 `-` 继续执行、新构建启动。",
+        "`just build` / `just lint` / `just test` 未受影响。"
+      ],
+      "commit_message": "S41: just run auto-kills existing Clipboard before launching"
     }
   ],
   "slice_rhythm": [
@@ -1196,7 +1210,8 @@
       "S37",
       "S38",
       "S39",
-      "S40"
+      "S40",
+      "S41"
     ]
   },
   "open_questions": [
