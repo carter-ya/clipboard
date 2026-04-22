@@ -1026,6 +1026,24 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S38: brighter material, tabBar top margin, aligned row-2 dividers"
+    },
+    {
+      "id": "S39",
+      "title": "Preferences 玻璃化（保留标题栏）",
+      "goal": "把 S37-S38 在 HistoryPanel 上确立的 Alfred 式玻璃观感延伸到 Preferences；但 Preferences 保留 macOS 标题栏，供拖动/关闭/最小化使用。",
+      "deliverables": [
+        "PreferencesWindowController 的 window 设 `isOpaque = false`、`backgroundColor = .clear`、`hasShadow = true`；styleMask 不动，保留 `.titled / .closable / .miniaturizable` —— 标题栏仍由系统渲染，content 区变透明。",
+        "PreferencesView 根部 TabView 加 `.background(.regularMaterial)`，与 HistoryPanel 统一材质；Preferences 本身圆角由系统标题栏自带（titled window 自动圆角），不另加 clipShape。",
+        "three 个 Form（general / privacy / data）各追加 `.scrollContentBackground(.hidden)`，把 Form 自带的 ScrollView 不透明底色藏起来，让 grouped Section 卡片悬浮在 material 玻璃上。",
+        "标题栏由系统默认 titlebar 材质绘制，与下方 regularMaterial 不强求『合一』——只要两块都是系统玻璃，视觉连续性足够。"
+      ],
+      "acceptance": [
+        "从菜单栏或 ⌘, 打开 Preferences：窗口整体有 HistoryPanel 相同质感的玻璃（桌面背景轻度模糊透出），grouped Section 卡片浮在玻璃上；标题栏仍在、traffic light 仍可用、窗口可拖动。",
+        "切到三个 tab，任意一个 Form 都不再渲染不透明白底——背景透出玻璃；卡片本身保持 SwiftUI 默认 grouped 样式。",
+        "light / dark 两种系统外观下均自然——material 是 adaptive 的。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S39: apply Alfred-style glass to Preferences while keeping title bar"
     }
   ],
   "slice_rhythm": [
@@ -1157,7 +1175,8 @@
       "S35",
       "S36",
       "S37",
-      "S38"
+      "S38",
+      "S39"
     ]
   },
   "open_questions": [

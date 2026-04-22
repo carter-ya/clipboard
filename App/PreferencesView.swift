@@ -37,6 +37,7 @@ struct PreferencesView: View {
         .tabItem { Label("Data", systemImage: "tray.and.arrow.up") }
     }
     .frame(width: 520, height: 380)
+    .background(.regularMaterial)
   }
 
   private var general: some View {
@@ -154,6 +155,7 @@ struct PreferencesView: View {
       }
     }
     .formStyle(.grouped)
+    .scrollContentBackground(.hidden)
   }
 
   private var privacy: some View {
@@ -189,6 +191,7 @@ struct PreferencesView: View {
       }
     }
     .formStyle(.grouped)
+    .scrollContentBackground(.hidden)
   }
 
   private var data: some View {
@@ -209,6 +212,7 @@ struct PreferencesView: View {
         .foregroundStyle(.secondary)
     }
     .formStyle(.grouped)
+    .scrollContentBackground(.hidden)
   }
 
 }

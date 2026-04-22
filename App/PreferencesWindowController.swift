@@ -31,6 +31,12 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
       defer: false
     )
     window.title = String(localized: "Clipboard Preferences")
+    // Clear the window background so the SwiftUI root's .regularMaterial
+    // shows through, giving Preferences the same glass aesthetic as the
+    // HistoryPanel. The system-drawn title bar remains on top.
+    window.isOpaque = false
+    window.backgroundColor = .clear
+    window.hasShadow = true
     super.init(window: window)
     window.delegate = self
     rebuildContent()
