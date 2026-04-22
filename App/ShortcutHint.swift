@@ -5,7 +5,7 @@ import SwiftUI
 /// background; the label is plain secondary text next to it.
 struct ShortcutHint: View {
   let keys: String
-  let label: String
+  let label: LocalizedStringKey
 
   var body: some View {
     HStack(spacing: 4) {
@@ -23,6 +23,6 @@ struct ShortcutHint: View {
         .foregroundStyle(.secondary)
     }
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(keys) \(label)")
+    .accessibilityLabel(Text("\(keys) ") + Text(label))
   }
 }

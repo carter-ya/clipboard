@@ -120,9 +120,28 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
           return false
         }
       },
+      onApplyLanguage: { [weak self] code in
+        self?.applyLanguageOverride(code)
+      },
       hotkeyMissing: hotkeyMissing
     )
     window?.contentViewController = NSHostingController(rootView: view)
+  }
+
+  private func applyLanguageOverride(_ code: String?) {
+    if let code {
+      UserDefaults.standard.set([code], forKey: "AppleLanguages")
+    } else {
+      UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+    }
+    let alert = NSAlert()
+    alert.messageText = String(localized: "Language will apply after restart")
+    alert.informativeText = String(
+      localized: "Quit and reopen Clipboard for the new language to take effect."
+    )
+    alert.alertStyle = .informational
+    alert.addButton(withTitle: String(localized: "OK"))
+    alert.runModal()
   }
 
   private func showLaunchAtLoginFailure(error: Error) {

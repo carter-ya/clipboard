@@ -6,19 +6,24 @@ public struct Preferences: Sendable, Equatable {
   public var cap: Int
   public var blockedBundleIDs: [String]
   public var launchAtLogin: Bool
+  /// nil = follow system; otherwise an Apple-recognised language
+  /// code matching one of the shipped `.lproj` folders.
+  public var languageOverride: String?
 
   public init(
     maxClipSizeBytes: Int = 10 * 1024 * 1024,
     skipSensitive: Bool = true,
     cap: Int = 100,
     blockedBundleIDs: [String] = Array(BlocklistFilter.defaults).sorted(),
-    launchAtLogin: Bool = false
+    launchAtLogin: Bool = false,
+    languageOverride: String? = nil
   ) {
     self.maxClipSizeBytes = maxClipSizeBytes
     self.skipSensitive = skipSensitive
     self.cap = cap
     self.blockedBundleIDs = blockedBundleIDs
     self.launchAtLogin = launchAtLogin
+    self.languageOverride = languageOverride
   }
 }
 
@@ -32,6 +37,7 @@ public final class PreferencesStore: @unchecked Sendable {
     static let cap = "cap"
     static let blockedBundleIDs = "blockedBundleIDs"
     static let launchAtLogin = "launchAtLogin"
+    static let languageOverride = "languageOverride"
   }
 
   public init(defaults: UserDefaults = .standard) {
@@ -49,7 +55,8 @@ public final class PreferencesStore: @unchecked Sendable {
       blockedBundleIDs: defaults.stringArray(forKey: Keys.blockedBundleIDs)
         ?? defaultsValue.blockedBundleIDs,
       launchAtLogin: defaults.object(forKey: Keys.launchAtLogin) as? Bool
-        ?? defaultsValue.launchAtLogin
+        ?? defaultsValue.launchAtLogin,
+      languageOverride: defaults.string(forKey: Keys.languageOverride)
     )
   }
 
@@ -59,6 +66,11 @@ public final class PreferencesStore: @unchecked Sendable {
     defaults.set(prefs.cap, forKey: Keys.cap)
     defaults.set(prefs.blockedBundleIDs, forKey: Keys.blockedBundleIDs)
     defaults.set(prefs.launchAtLogin, forKey: Keys.launchAtLogin)
+    if let lang = prefs.languageOverride {
+      defaults.set(lang, forKey: Keys.languageOverride)
+    } else {
+      defaults.removeObject(forKey: Keys.languageOverride)
+    }
   }
 
   public func reset() {
@@ -67,5 +79,6 @@ public final class PreferencesStore: @unchecked Sendable {
     defaults.removeObject(forKey: Keys.cap)
     defaults.removeObject(forKey: Keys.blockedBundleIDs)
     defaults.removeObject(forKey: Keys.launchAtLogin)
+    defaults.removeObject(forKey: Keys.languageOverride)
   }
 }

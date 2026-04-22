@@ -93,7 +93,7 @@ struct ClipPreviewView: View {
     }
   }
 
-  private func kindLabel(for kind: ClipKind) -> String {
+  private func kindLabel(for kind: ClipKind) -> LocalizedStringKey {
     switch kind {
     case .text: return "Text"
     case .rtf: return "Rich Text"

@@ -102,3 +102,10 @@
 "Resume Monitoring" = "Reanudar monitor";
 "About Clipboard…" = "Acerca de Portapapeles…";
 "More actions" = "Más acciones";
+
+"Language" = "Idioma";
+"System" = "Sistema";
+"Language changes apply after the next launch." = "Los cambios de idioma se aplican en el próximo inicio.";
+"Language will apply after restart" = "El idioma se aplicará tras reiniciar";
+"Quit and reopen Clipboard for the new language to take effect." = "Sal y vuelve a abrir Portapapeles para aplicar el nuevo idioma.";
+"MiB" = "MiB";

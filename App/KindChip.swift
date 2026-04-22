@@ -2,7 +2,7 @@ import ClipboardCore
 import SwiftUI
 
 struct KindChip: View {
-  let label: String
+  let label: LocalizedStringKey
   let icon: String?
   let isSelected: Bool
   let action: () -> Void
@@ -50,7 +50,9 @@ struct KindChipBar: View {
   }
 
   @ViewBuilder
-  private func chip(label: String, icon: String?, value: ClipKind?) -> some View {
+  private func chip(label: LocalizedStringKey, icon: String?, value: ClipKind?)
+    -> some View
+  {
     KindChip(
       label: label,
       icon: icon,

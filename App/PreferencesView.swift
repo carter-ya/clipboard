@@ -11,10 +11,21 @@ struct PreferencesView: View {
   /// Returns true on success. Failure path tells the view to roll
   /// back the local `prefs.launchAtLogin` value.
   var onApplyLaunchAtLogin: (Bool) -> Bool = { _ in true }
+  var onApplyLanguage: (String?) -> Void = { _ in }
   var hotkeyMissing: Bool = false
 
+  private let languageOptions: [(tag: String, label: String)] = [
+    ("system", "System"),
+    ("en", "English"),
+    ("zh-Hans", "简体中文"),
+    ("zh-Hant", "繁體中文"),
+    ("ja", "日本語"),
+    ("ko", "한국어"),
+    ("de", "Deutsch"),
+    ("es", "Español"),
+  ]
+
   private let capRange: ClosedRange<Double> = 20...2000
-  private let sizeRange: ClosedRange<Double> = 0...(100 * 1024 * 1024)
 
   var body: some View {
     TabView {
@@ -48,6 +59,28 @@ struct PreferencesView: View {
       }
       Section("Hotkey") {
         KeyboardShortcuts.Recorder("Toggle panel", name: .toggleHistoryPanel)
+      }
+      Section("Language") {
+        Picker(
+          "Language",
+          selection: Binding(
+            get: { prefs.languageOverride ?? "system" },
+            set: { code in
+              let newValue = code == "system" ? nil : code
+              prefs.languageOverride = newValue
+              onSave(prefs)
+              onApplyLanguage(newValue)
+            }
+          )
+        ) {
+          ForEach(languageOptions, id: \.tag) { option in
+            Text(option.label).tag(option.tag)
+          }
+        }
+        .labelsHidden()
+        Text("Language changes apply after the next launch.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
       Section("Startup") {
         Toggle(
@@ -90,20 +123,22 @@ struct PreferencesView: View {
         }
         HStack {
           Text("Skip items larger than")
-          Slider(
+          TextField(
+            "",
             value: Binding(
-              get: { Double(prefs.maxClipSizeBytes) },
-              set: {
-                prefs.maxClipSizeBytes = Int($0)
+              get: { Double(prefs.maxClipSizeBytes) / (1024 * 1024) },
+              set: { newMiB in
+                let bounded = max(0, newMiB)
+                prefs.maxClipSizeBytes = Int(bounded * 1024 * 1024)
                 onSave(prefs)
               }
             ),
-            in: sizeRange,
-            step: 1024 * 1024
+            format: .number.precision(.fractionLength(0...1))
           )
-          Text(sizeLabel)
-            .monospacedDigit()
-            .frame(width: 80, alignment: .trailing)
+          .multilineTextAlignment(.trailing)
+          .frame(width: 80)
+          Text("MiB")
+            .foregroundStyle(.secondary)
         }
         Text("Set to 0 to disable the size cap.")
           .font(.caption)
@@ -165,9 +200,4 @@ struct PreferencesView: View {
     }
   }
 
-  private var sizeLabel: String {
-    if prefs.maxClipSizeBytes == 0 { return "off" }
-    let mb = Double(prefs.maxClipSizeBytes) / (1024 * 1024)
-    return String(format: "%.0f MiB", mb)
-  }
 }

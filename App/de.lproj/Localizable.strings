@@ -102,3 +102,10 @@
 "Resume Monitoring" = "Überwachung fortsetzen";
 "About Clipboard…" = "Über Zwischenablage…";
 "More actions" = "Weitere Aktionen";
+
+"Language" = "Sprache";
+"System" = "System";
+"Language changes apply after the next launch." = "Sprachänderungen werden beim nächsten Start wirksam.";
+"Language will apply after restart" = "Sprache wird nach Neustart übernommen";
+"Quit and reopen Clipboard for the new language to take effect." = "Beende Zwischenablage und öffne sie erneut, damit die neue Sprache wirksam wird.";
+"MiB" = "MiB";

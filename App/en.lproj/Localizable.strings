@@ -117,3 +117,11 @@
 "Resume Monitoring" = "Resume Monitoring";
 "About Clipboard…" = "About Clipboard…";
 "More actions" = "More actions";
+
+/* MARK: - Language + MiB unit (S33) */
+"Language" = "Language";
+"System" = "System";
+"Language changes apply after the next launch." = "Language changes apply after the next launch.";
+"Language will apply after restart" = "Language will apply after restart";
+"Quit and reopen Clipboard for the new language to take effect." = "Quit and reopen Clipboard for the new language to take effect.";
+"MiB" = "MiB";

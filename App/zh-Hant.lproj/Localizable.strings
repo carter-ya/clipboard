@@ -102,3 +102,10 @@
 "Resume Monitoring" = "繼續監看";
 "About Clipboard…" = "關於剪貼簿…";
 "More actions" = "更多動作";
+
+"Language" = "語言";
+"System" = "跟隨系統";
+"Language changes apply after the next launch." = "語言變更將於下次啟動時生效。";
+"Language will apply after restart" = "重新啟動後語言生效";
+"Quit and reopen Clipboard for the new language to take effect." = "請結束並重新開啟「剪貼簿」以套用新語言。";
+"MiB" = "MiB";

@@ -121,7 +121,9 @@ struct HistoryPanelView: View {
               onActivate(item)
             }
             .contextMenu {
-              Button(item.pinned ? "Unpin" : "Pin") { onTogglePin(item) }
+              Button(
+                LocalizedStringKey(item.pinned ? "Unpin" : "Pin")
+              ) { onTogglePin(item) }
               Divider()
               Button("Delete", role: .destructive) { onDelete(item) }
             }
@@ -156,7 +158,7 @@ struct HistoryPanelView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
-  private var emptyStateText: String {
+  private var emptyStateText: LocalizedStringKey {
     if viewModel.currentTab == .pinned { return "No pinned items" }
     if !viewModel.searchText.isEmpty { return "No matches" }
     return "No history yet"

@@ -25,7 +25,9 @@ struct OnboardingView: View {
     .frame(width: 420)
   }
 
-  private func bullet(_ symbol: String, _ description: String) -> some View {
+  private func bullet(_ symbol: String, _ description: LocalizedStringKey)
+    -> some View
+  {
     HStack(alignment: .top, spacing: 8) {
       Text(symbol)
         .frame(width: 52, alignment: .leading)

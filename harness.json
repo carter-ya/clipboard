@@ -910,6 +910,25 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S32: localize to en/zh-Hans/zh-Hant/ja/ko/de/es with subagent-reviewed translations"
+    },
+    {
+      "id": "S33",
+      "title": "本地化缺漏 + 尺寸上限改数字输入 + Preferences 加语言选择器",
+      "goal": "(1) S32 落地的翻译在面板底部快捷键条、KindChip、空状态、context menu、OnboardingView bullets 等处未生效——SwiftUI Text(_ content: String) 不会走 LocalizedStringKey 的查表路径，只有字面量才会。(2) 尺寸上限 Slider 硬编码 100 MiB 最大，用户想存更大就没办法。(3) Preferences 没有语言选择器，非系统默认语言的用户没法独立切换 App 语言。",
+      "deliverables": [
+        "LocalizedStringKey 修复 —— 把所有传 String 变量到 Text/Button/Label 的地方改为 LocalizedStringKey：ShortcutHint.label / KindChip.label / ClipPreviewView.kindLabel 返回类型 / HistoryPanelView.emptyStateText 返回类型 / Button(item.pinned ? \"Unpin\" : \"Pin\") 外包 LocalizedStringKey / OnboardingView.bullet 第二参类型改为 LocalizedStringKey。",
+        "PreferencesView 的尺寸上限从 Slider 改为 TextField（按 MiB 数值输入）——最大值由用户决定；0 = 无上限；下方提示文字『0 to disable...』保持；配合 .number format 自动做字符校验。",
+        "Preferences 结构新增 `languageOverride: String?`（nil = 跟随系统；其余为 7 种支持语言代码）；PreferencesStore 同步 UserDefaults 读写；测试覆盖 round-trip。",
+        "PreferencesView.General 区块新增 Language 选择器——System / English / 简体中文 / 繁體中文 / 日本語 / 한국어 / Deutsch / Español；变更时写入 UserDefaults.standard 的 `AppleLanguages` 键（system 选项清除该键），并弹出一条 NSAlert 提示重启才会生效。",
+        "应用启动时无额外工作——macOS 在 Bundle 解析时自动读 AppleLanguages 和 CFBundleLocalizations 的交集。"
+      ],
+      "acceptance": [
+        "系统语言设为英语，App Preferences 的 Language 选为『简体中文』→ 弹『重启生效』提示 → 重启 App → 面板底部条显示『选中 / 复制 / 置顶 / 删除』，KindChip 显示『全部 / 文本 / 图片 / 文件 / 富文本』，No history yet → 暂无历史，Unpin/Pin/Delete context menu 也都是中文。",
+        "Preferences → General → 『Skip items larger than』输入框能填任意数字（如 512 MiB、1024 MiB、0）；打开一张 600 MiB 的图片就不再被拒。",
+        "Language 选回『System』→ 清除 AppleLanguages → 下次启动跟随系统语言。",
+        "`just test` / `just lint` / `just build` 全绿。"
+      ],
+      "commit_message": "S33: fix SwiftUI LocalizedStringKey usage, unbounded size input, language picker"
     }
   ],
   "slice_rhythm": [
@@ -1035,7 +1054,8 @@
       "S29",
       "S30",
       "S31",
-      "S32"
+      "S32",
+      "S33"
     ]
   },
   "open_questions": [

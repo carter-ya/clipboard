@@ -102,3 +102,10 @@
 "Resume Monitoring" = "監視を再開";
 "About Clipboard…" = "クリップボードについて…";
 "More actions" = "その他の操作";
+
+"Language" = "言語";
+"System" = "システム";
+"Language changes apply after the next launch." = "言語の変更は次回起動時に反映されます。";
+"Language will apply after restart" = "再起動後に言語が適用されます";
+"Quit and reopen Clipboard for the new language to take effect." = "新しい言語を適用するには、クリップボードを終了して再度開いてください。";
+"MiB" = "MiB";

@@ -17,6 +17,18 @@ final class PreferencesStoreTests: XCTestCase {
     XCTAssertEqual(prefs.cap, 100)
     XCTAssertTrue(prefs.blockedBundleIDs.contains("com.1password.1password"))
     XCTAssertFalse(prefs.launchAtLogin)
+    XCTAssertNil(prefs.languageOverride)
+  }
+
+  func testLanguageOverrideRoundTrip() {
+    let (store, _) = makeIsolated()
+    var prefs = store.current
+    prefs.languageOverride = "ja"
+    store.save(prefs)
+    XCTAssertEqual(store.current.languageOverride, "ja")
+    prefs.languageOverride = nil
+    store.save(prefs)
+    XCTAssertNil(store.current.languageOverride)
   }
 
   func testRoundTripSaveLoad() {
