@@ -1130,6 +1130,24 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S44: collapse Retention rows into one + explicit divider under title bar"
+    },
+    {
+      "id": "S45",
+      "title": "回退 fullSizeContentView + 替换 Cap Slider",
+      "goal": "S40 引入的 `.fullSizeContentView + titlebarAppearsTransparent` 组合带来两个顽固问题：(a) Cap 行里 SwiftUI Slider 在 20–2000 范围下几乎全是暗灰 unfilled track，肉眼像『一条黑线』；(b) SwiftUI content 物理上延伸到 title bar 范围内，滚动时 body 会穿到标题栏下。最干净的解法：回归标准 titled window，让 title bar 天然落在 body 之上，同时把 Slider 换成 Stepper，彻底不产生暗色轨。",
+      "deliverables": [
+        "PreferencesWindowController 移除 `.fullSizeContentView` 从 styleMask、移除 `titlebarAppearsTransparent = true`、移除 `titlebarSeparatorStyle = .line`；保留 `isOpaque = false`、`backgroundColor = .clear`、`hasShadow = true`。结果：title bar 是 macOS 默认 translucent chrome、body 在其下方独立铺 regularMaterial；两层都是系统玻璃，观感继续统一，但 body 不再延伸到 title bar。",
+        "PreferencesView 移除 S44 添加的 `.safeAreaInset(edge: .top) { Divider() }` —— title bar 作为独立层本身就是 body 的天然上边界，不需要再塞 SwiftUI 分隔。",
+        "PreferencesView Retention 区 Cap 行从 `HStack { Text; Slider; Text }` 改为 `HStack { Text(\"Cap\"); Spacer(); Stepper(value:, in: capRange, step: 10) { Text(\"\\(prefs.cap)\").monospacedDigit() } }` —— Stepper 是 ± 按钮 + 数值，无轨、无暗色线；同时保留随时 onSave。",
+        "capRange 类型保持 ClosedRange<Int>（Stepper in: 用 Int 更自然）；若原来是 Double range，同步改成 `20...2000`（Int）。"
+      ],
+      "acceptance": [
+        "Preferences → General → Retention：Cap 行只有 Stepper（± 按钮 + 当前数值），不再有横向暗灰 Slider 轨。",
+        "Preferences 上下滚动时，body 内容不再穿到 title bar 下方；title bar 与 body 之间视觉分层清晰。",
+        "title bar 仍是系统 translucent chrome，与 body 的 regularMaterial 同为系统玻璃，观感继续融洽。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S45: drop fullSizeContentView, replace cap slider with stepper"
     }
   ],
   "slice_rhythm": [
@@ -1267,7 +1285,8 @@
       "S41",
       "S42",
       "S43",
-      "S44"
+      "S44",
+      "S45"
     ]
   },
   "open_questions": [

@@ -24,7 +24,7 @@ struct PreferencesView: View {
     ("es", "Español"),
   ]
 
-  private let capRange: ClosedRange<Double> = 20...2000
+  private let capRange: ClosedRange<Int> = 20...2000
 
   var body: some View {
     TabView {
@@ -37,7 +37,6 @@ struct PreferencesView: View {
     }
     .frame(width: 520, height: 380)
     .background(.regularMaterial)
-    .safeAreaInset(edge: .top, spacing: 0) { Divider() }
   }
 
   private var general: some View {
@@ -120,20 +119,21 @@ struct PreferencesView: View {
         VStack(alignment: .leading, spacing: 10) {
           HStack {
             Text("Cap")
-            Slider(
+            Spacer()
+            Stepper(
               value: Binding(
-                get: { Double(prefs.cap) },
+                get: { prefs.cap },
                 set: {
-                  prefs.cap = Int($0)
+                  prefs.cap = $0
                   onSave(prefs)
                 }
               ),
               in: capRange,
               step: 10
-            )
-            Text("\(prefs.cap)")
-              .monospacedDigit()
-              .frame(width: 50, alignment: .trailing)
+            ) {
+              Text("\(prefs.cap)")
+                .monospacedDigit()
+            }
           }
           HStack {
             Text("Skip items larger than")
