@@ -1529,6 +1529,22 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 保持）。"
       ],
       "commit_message": "S66: Foundation Models summarizer for text + files (macOS 26+ Apple Silicon)"
+    },
+    {
+      "id": "S67",
+      "title": "VisionImageSummarizer 保证有输出",
+      "goal": "用户反馈：新截图里有的显示 OCR 文字摘要、有的什么都没显示。根因是 VisionImageSummarizer 的分类器置信度阈值 0.4 对 UI / 代码类截图太严——VNClassifyImageRequest 对合成内容信心普遍偏低，常常一个 label 都不过阈；若 OCR 也没识别到任何文字，方法就返回 nil，UI 里整个 summary section 被隐藏。修法：降阈 + 最终兜底维度占位。",
+      "deliverables": [
+        "VisionImageSummarizer.minClassifierConfidence 从 0.4 降到 0.1——screenshots 类别更容易命中 top-3；仍只取前 3。",
+        "build() 的末尾分支：labels + OCR 都空时，不再返回 nil，改返回 `Image (width×height)` 占位，读取自 CGImage 尺寸——用户至少看到一条带 `Vision` 徽章的 summary，证明 pipeline 运行过；维度本身也是弱信息（1920×1080 暗示是标准屏截图）。",
+        "Vision.perform() 直接抛错的分支也补同样的 dimensions-only 占位，进一步保证 image clip 必有输出。"
+      ],
+      "acceptance": [
+        "复制任意新截图（UI / 代码 / 风景 / 纯色图案）→ HistoryPanel 预览一定有 sparkles + summary + Vision 徽章；弱信息场景至少看到 `Image (w×h)`。",
+        "有 OCR 文字或高信心分类时，行为不变（仍然返回原来的 labels + text）。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S67: vision summarizer always returns something (lower threshold + dimensions fallback)"
     }
   ],
   "slice_rhythm": [
@@ -1688,7 +1704,8 @@
       "S63",
       "S64",
       "S65",
-      "S66"
+      "S66",
+      "S67"
     ]
   },
   "open_questions": [

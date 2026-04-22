@@ -14,12 +14,19 @@ import Vision
 /// Writing Tools (S65) or Foundation Models (S66).
 struct VisionImageSummarizer: Sendable {
   private static let maxEmbeddedTextLength = 160
-  private static let minClassifierConfidence: VNConfidence = 0.4
+  /// Previously 0.4 — too strict for screenshots of app UI, code
+  /// editors, and other synthetic content where the classifier is
+  /// rarely confident. 0.1 lets the top labels through; we still
+  /// only surface the top 3.
+  private static let minClassifierConfidence: VNConfidence = 0.1
 
   func summarize(imageData: Data) async -> String? {
     guard let source = CGImageSourceCreateWithData(imageData as CFData, nil),
       let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil)
     else { return nil }
+
+    let width = cgImage.width
+    let height = cgImage.height
 
     return await withCheckedContinuation { continuation in
       DispatchQueue.global(qos: .utility).async {
@@ -32,7 +39,10 @@ struct VisionImageSummarizer: Sendable {
         do {
           try handler.perform([classifyRequest, textRequest])
         } catch {
-          continuation.resume(returning: nil)
+          // Even if Vision fails outright we can still return a
+          // dimensions-only placeholder so the preview pane shows
+          // *something* for every image clip.
+          continuation.resume(returning: "Image (\(width)×\(height))")
           return
         }
 
@@ -56,8 +66,12 @@ struct VisionImageSummarizer: Sendable {
           parts.append("Contains text: \(trimmed)")
         }
 
+        // Always return something — an image clip with neither
+        // meaningful labels nor legible text still deserves a marker
+        // so users see that summarization ran. Dimensions double as a
+        // tiny hint (e.g., "Image (1920×1080)" reads as a screenshot).
         if parts.isEmpty {
-          continuation.resume(returning: nil)
+          continuation.resume(returning: "Image (\(width)×\(height))")
         } else {
           continuation.resume(returning: parts.joined(separator: ". "))
         }
