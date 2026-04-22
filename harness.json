@@ -1358,6 +1358,23 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S57: image beats file in kind priority (Telegram/Messages image pastes)"
+    },
+    {
+      "id": "S58",
+      "title": "PreviewBuilder 不再把图片 clip 的 HTML wrapper 当 preview",
+      "goal": "浏览器复制图片时 `public.html` 是个 `<meta charset=...><img src=...>` 的包装，plain text / rtf 都是空的。当前 PreviewBuilder.extractText 在 plain/rtf 都缺时 fallback 到 HTML 原文，于是 preview 字段塞满了 HTML 源码——行视图显示 `<meta charset=...>` 而不是图像。修 build() 的优先级：plain/rtf → image sentinel → html；纯 HTML 粘贴的情况下再用 `NSAttributedString` 把 HTML 解析成纯文本。",
+      "deliverables": [
+        "把 `PreviewBuilder.extractText(from:)` 拆成两个辅助：`extractPlainTextOrRtf` 只看 utf8/plain/string/rtf；`extractHtmlPlainText` 通过 NSAttributedString(data:options:documentType:.html,.characterEncoding:utf8) 把 HTML 转成 plain text，失败时返回原文作兜底。",
+        "`PreviewBuilder.build(for:limit:)` 顺序调整为：plain/rtf → `<image>`（若有 image payload）→ HTML 纯文本 → file name → 空串。这样有图像数据的 clip 永远返回 `<image>` sentinel，绕过 HTML 包装；纯 HTML 粘贴才会走 HTML→plain text 路径。",
+        "行为不影响纯图像 clip（仍然 `<image>`）/ 纯文本 / RTF / 文件 / 空 clip；现有 PreviewBuilder 行为文档在注释里简要说明。"
+      ],
+      "acceptance": [
+        "从浏览器复制一张图片 → HistoryPanel 列表行的预览文字为 `<image>`，不再是 HTML 源码。预览区（ClipPreviewView.imageView）正常渲染图像。",
+        "从纯 HTML 源（无 plain/rtf/image）的场景 → preview 为 HTML 解析后的纯文本，不再是带标签的原文。",
+        "纯文本 / RTF / 文件 / 图片截图等场景 preview 行为不变。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S58: preview uses <image> sentinel for image clips, parses html for text-only clips"
     }
   ],
   "slice_rhythm": [
@@ -1508,7 +1525,8 @@
       "S54",
       "S55",
       "S56",
-      "S57"
+      "S57",
+      "S58"
     ]
   },
   "open_questions": [
