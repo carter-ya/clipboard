@@ -37,7 +37,6 @@ struct PreferencesView: View {
         .tabItem { Label("Data", systemImage: "tray.and.arrow.up") }
     }
     .frame(width: 520, height: 380)
-    .padding()
   }
 
   private var general: some View {
@@ -154,6 +153,7 @@ struct PreferencesView: View {
           .foregroundStyle(.secondary)
       }
     }
+    .formStyle(.grouped)
   }
 
   private var privacy: some View {
@@ -188,6 +188,7 @@ struct PreferencesView: View {
         .font(.system(.body, design: .monospaced))
       }
     }
+    .formStyle(.grouped)
   }
 
   private var data: some View {
@@ -207,6 +208,7 @@ struct PreferencesView: View {
         .font(.caption)
         .foregroundStyle(.secondary)
     }
+    .formStyle(.grouped)
   }
 
 }

@@ -968,6 +968,24 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S35: light-mode visual layering for panel, search, rows and chips"
+    },
+    {
+      "id": "S36",
+      "title": "设置页面卡片化",
+      "goal": "Preferences 在 light mode 下裸 Form + Section 太朴素——切到 macOS 13+ 的 grouped form style，各 Section 变成带浅色圆角背景的卡片。",
+      "deliverables": [
+        "PreferencesView 的 general / privacy / data 三个 Form 都加 `.formStyle(.grouped)` —— SwiftUI 自动把每个 Section 渲染成圆角卡片，背景色跟随系统 secondary surface，light mode 下形成柔和的分组感。",
+        "TabView 的外层 `.padding()` 去掉——grouped form 自己已经有外边距，再加 padding 会显得挤；保留 `.frame(width: 520, height: 380)`。",
+        "Privacy tab 的 TextEditor（blocked bundle IDs）在 grouped form 里仍可见、仍可编辑；如果默认背景被 grouped form 接管，确认 monospaced 字体依然生效。",
+        "Data tab 的三个按钮（Export/Import/Clear）在 grouped form 里呈现为分组内的条目，保留 destructive role 的红色 Clear。"
+      ],
+      "acceptance": [
+        "打开 Preferences（light mode）：General / Privacy / Data 三个 tab 的每个 Section 都是浅灰圆角卡片，视觉上与 panel 的白天分层一致。",
+        "dark mode 下 grouped form 使用系统预设的深色卡片背景，不会过白或过黑。",
+        "Privacy → Blocked bundle IDs 输入框仍能编辑，粘贴多行 bundle ID 正常；Data → Clear history 按钮仍是红色。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S36: grouped form style for Preferences tabs"
     }
   ],
   "slice_rhythm": [
@@ -1096,7 +1114,8 @@
       "S32",
       "S33",
       "S34",
-      "S35"
+      "S35",
+      "S36"
     ]
   },
   "open_questions": [
