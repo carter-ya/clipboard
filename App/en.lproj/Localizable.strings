@@ -133,5 +133,4 @@
 "Summarize text" = "Summarize text";
 "Summarize files" = "Summarize files";
 "Foundation Models available on this device." = "Foundation Models available on this device.";
-"Writing Tools available; Foundation Models requires macOS 26+ Apple Silicon." = "Writing Tools available; Foundation Models requires macOS 26+ Apple Silicon.";
-"Vision on-device only; upgrade macOS for richer summaries." = "Vision on-device only; upgrade macOS for richer summaries.";
+"Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon." = "Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon.";

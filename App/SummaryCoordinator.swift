@@ -1,3 +1,4 @@
+import AppKit
 import ClipboardCore
 import Foundation
 
@@ -13,6 +14,7 @@ final class SummaryCoordinator {
   private let resolver: PayloadResolver
   private let prefsStore: PreferencesStore
   private let imageSummarizer = VisionImageSummarizer()
+  private let textSummarizer = NaturalLanguageTextSummarizer()
   private var task: Task<Void, Never>?
 
   init(store: any ClipStore, resolver: PayloadResolver, prefsStore: PreferencesStore) {
@@ -49,9 +51,15 @@ final class SummaryCoordinator {
     case .image:
       guard prefs.allowImageSummaries, AICapability.isVisionAvailable else { return }
       await summarizeImage(item)
-    case .text, .rtf, .mixed, .file:
-      // Text / RTF / Mixed: reserved for Writing Tools (S65) and
-      // Foundation Models (S66). File: Foundation Models (S66).
+    case .text, .rtf, .mixed:
+      guard prefs.allowTextSummaries, AICapability.isNaturalLanguageAvailable else {
+        return
+      }
+      await summarizeText(item)
+    case .file:
+      // File: deferred to Foundation Models (S66) — we'd need to read
+      // the referenced file and extract text, which is cheapest when
+      // we also have an LLM standing by.
       return
     }
   }
@@ -68,5 +76,44 @@ final class SummaryCoordinator {
       !summary.isEmpty
     else { return }
     await store.updateSummary(id: item.id, summary: summary, source: .vision)
+  }
+
+  private func summarizeText(_ item: ClipItem) async {
+    guard let text = extractPlainText(from: item) else { return }
+    guard let summary = await textSummarizer.summarize(text: text),
+      !summary.isEmpty
+    else { return }
+    await store.updateSummary(id: item.id, summary: summary, source: .naturalLanguage)
+  }
+
+  /// Resolve a text payload to a usable String. Tries plain-text
+  /// slots first, then falls back to RTF's attributed-string plain
+  /// projection so rich text clips produce a meaningful summary.
+  private func extractPlainText(from item: ClipItem) -> String? {
+    let textTypes = [
+      "public.utf8-plain-text", "public.plain-text", "public.string",
+      "NSStringPboardType",
+    ]
+    for type in textTypes {
+      if let payload = item.payloads.first(where: { $0.pasteboardType == type }),
+        let data = try? resolver.data(for: payload),
+        let text = String(data: data, encoding: .utf8),
+        !text.isEmpty
+      {
+        return text
+      }
+    }
+    if let payload = item.payloads.first(where: { $0.pasteboardType == "public.rtf" }),
+      let data = try? resolver.data(for: payload),
+      let attrib = try? NSAttributedString(
+        data: data,
+        options: [.documentType: NSAttributedString.DocumentType.rtf],
+        documentAttributes: nil
+      )
+    {
+      let plain = attrib.string
+      return plain.isEmpty ? nil : plain
+    }
+    return nil
   }
 }

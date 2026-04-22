@@ -224,7 +224,7 @@ struct PreferencesView: View {
           )
           .disabled(
             !prefs.summariesEnabled
-              || !(AICapability.isWritingToolsAvailable
+              || !(AICapability.isNaturalLanguageAvailable
                 || AICapability.isFoundationModelsAvailable)
           )
           Toggle(
@@ -249,18 +249,11 @@ struct PreferencesView: View {
   }
 
   private var aiCapabilityCaption: LocalizedStringKey {
-    // Summarize what the current device supports in one line. The three
-    // backends map to separate future slices (S64/S65/S66) so this
-    // caption is the user-facing signal for why a toggle might be
-    // locked.
+    // Summarize what the current device supports in one line.
     if AICapability.isFoundationModelsAvailable {
       return "Foundation Models available on this device."
     }
-    if AICapability.isWritingToolsAvailable {
-      return
-        "Writing Tools available; Foundation Models requires macOS 26+ Apple Silicon."
-    }
-    return "Vision on-device only; upgrade macOS for richer summaries."
+    return "Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon."
   }
 
   private var privacy: some View {

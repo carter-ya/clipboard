@@ -5,7 +5,7 @@ import Foundation
 /// generated. See AICapability for how availability is detected.
 public enum SummarySource: String, Sendable, Codable, Equatable {
   case vision
-  case writingTools
+  case naturalLanguage
   case foundationModels
 }
 

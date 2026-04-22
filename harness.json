@@ -1487,6 +1487,28 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿，测试数从 82 升至 85。"
       ],
       "commit_message": "S64: vision image summarizer wired through ClipStore.updateSummary + SummaryCoordinator"
+    },
+    {
+      "id": "S65",
+      "title": "NaturalLanguage 文本摘要（替代原计划中的 Writing Tools 层）",
+      "goal": "原计划里 S65 用 Writing Tools 做文本摘要，但 macOS 15.1 的 `WritingToolsCoordinator` 只有 UI 集成路径（绑 NSTextView + 用户触发），没有 headless 文本 API，不适合后台自动摘要。改用 `NaturalLanguage` 框架——语言检测 + 命名实体抽取——作为文本侧 baseline；跟 Vision 同处 macOS 13+ 永远可用的 tier；S66 Foundation Models 上线后自动取代这两条 baseline。",
+      "deliverables": [
+        "Core: `SummarySource.writingTools` 重命名为 `.naturalLanguage`，反映实际使用的 framework。",
+        "App: `AICapability.isWritingToolsAvailable` 重命名为 `isNaturalLanguageAvailable`，都永为 true（macOS 13+ 一直可用）；顶部 doc 注释更新说明 Writing Tools 的 pivot 原因。",
+        "App: 新文件 `NaturalLanguageTextSummarizer.swift` —— `NLLanguageRecognizer` 检测主语言 + `NLTagger(tagSchemes: [.nameType])` 抽 personalName / placeName / organizationName；返回 `\"Language · E1, E2, E3\"` 或仅 `Language`；文本 < 100 字符或无任何产出返回 nil。本地化语言名用 `Locale.current.localizedString(forLanguageCode:)`，中文用户看到『英语 · Apple、Tim Cook』而不是『English · …』。",
+        "App: `SummaryCoordinator` 新增 `summarizeText(_:)` 路径——`.text/.rtf/.mixed` 分派到文本引擎；`extractPlainText(from:)` 先扫 utf8/plain/string/NSStringPboardType 四种 payload，找不到再解析 public.rtf（via `NSAttributedString(..., documentType: .rtf)`）。非 sensitive 才跑；加 `import AppKit` 以使用 NSAttributedString。",
+        "App: `PreferencesView` 的 `aiCapabilityCaption` 从 3 分支简化为 2 分支：Foundation Models 可用写 『FM available』；否则写 『Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon』。『Summarize text』toggle 的 disabled 条件改用 `isNaturalLanguageAvailable`。`ClipPreviewView.sourceBadge` 为 `.naturalLanguage` 返回 `NL`。",
+        "App/en.lproj: 撤掉过时的 Writing Tools caption，加新 Vision+NL caption。"
+      ],
+      "acceptance": [
+        "复制一段含人名 / 地名 / 组织名的文本（>= 100 字符）→ 数秒内 HistoryPanel 预览出现 sparkles + `语言 · 实体,实体` + 右上 `NL` 徽章。",
+        "复制一段短文本（< 100 字符）→ 不生成 summary，preview 区正常显示正文。",
+        "复制富文本（RTF）→ 同样能摘要，因为 extractPlainText 会 fallback 到 RTF 的 attributed string 平化。",
+        "关闭『Summarize text』→ 新文本 clip 不再生成；图片仍然走 Vision。",
+        "sensitive text clip 永远不跑 NL。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests 保持）。"
+      ],
+      "commit_message": "S65: NaturalLanguage text summarizer (Writing Tools isn't viable for background summarization)"
     }
   ],
   "slice_rhythm": [
@@ -1644,7 +1666,8 @@
       "S61",
       "S62",
       "S63",
-      "S64"
+      "S64",
+      "S65"
     ]
   },
   "open_questions": [

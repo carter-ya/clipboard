@@ -66,7 +66,7 @@ struct ClipPreviewView: View {
   private func sourceBadge(for source: SummarySource) -> String {
     switch source {
     case .vision: return "Vision"
-    case .writingTools: return "Writing Tools"
+    case .naturalLanguage: return "NL"
     case .foundationModels: return "FM"
     }
   }
