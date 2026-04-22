@@ -1166,6 +1166,23 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S46: cap as number field; glass unified but body bounded by safe area"
+    },
+    {
+      "id": "S47",
+      "title": "修复 S46 导致的 Preferences 无法打开",
+      "goal": "S46 把 PreferencesView 的 `.frame(width:520, height:380)` 换成 `.frame(maxWidth: .infinity, maxHeight: .infinity)`，在 macOS 14+ 上 NSHostingController 的默认 `sizingOptions = .standardBounds` 会读取 SwiftUI intrinsic size 回写到 window 的 preferredContentSize，导致窗口被缩到 0，Preferences 看起来『打不开』。",
+      "deliverables": [
+        "PreferencesWindowController.rebuildContent() 创建 NSHostingController 后显式 `hosting.sizingOptions = []`——关掉 SwiftUI intrinsic size → 窗口尺寸 的反向联动，窗口尺寸始终由 contentRect 控制。",
+        "PreferencesView body 的 frame 从 `.frame(maxWidth: .infinity, maxHeight: .infinity)` 改回显式 `.frame(width: 520, height: 408)`——和 contentRect 一致，TabView 按此尺寸布局，内部 SwiftUI 组件继承 window 的 safe area（标题栏 28pt），safeAreaInset Divider 仍在 safe area 顶端。",
+        "保留 S46 的 fullSizeContentView / titlebarAppearsTransparent / `.background(.regularMaterial, ignoresSafeAreaEdges: .all)` / `.safeAreaInset(edge: .top) { Divider() }` / Cap TextField ——本 slice 只解决窗口无法打开这个 regression。"
+      ],
+      "acceptance": [
+        "`⌘,` 或菜单栏 『偏好设置』能正常打开 Preferences 窗口，大小 520x408，标题栏透明、body 是玻璃、顶端有 Divider。",
+        "TabView / Form 内容在 safe area 内滚动，不穿越 Divider。",
+        "Cap TextField、其它 Preferences 控件照常工作。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S47: fix preferences failing to open after S46 (NSHostingController sizing)"
     }
   ],
   "slice_rhythm": [
@@ -1305,7 +1322,8 @@
       "S43",
       "S44",
       "S45",
-      "S46"
+      "S46",
+      "S47"
     ]
   },
   "open_questions": [
