@@ -4,6 +4,7 @@ import SwiftUI
 struct KindChip: View {
   let label: LocalizedStringKey
   let icon: String?
+  let count: Int
   let isSelected: Bool
   let action: () -> Void
 
@@ -14,6 +15,11 @@ struct KindChip: View {
           Image(systemName: icon)
         }
         Text(label)
+        Text("\(count)")
+          .monospacedDigit()
+          .foregroundStyle(
+            isSelected ? Color.white.opacity(0.7) : Color.secondary
+          )
       }
       .font(.caption)
       .padding(.horizontal, 10)
@@ -41,6 +47,7 @@ struct KindChip: View {
 
 struct KindChipBar: View {
   @Binding var selection: ClipKind?
+  let count: (ClipKind?) -> Int
 
   var body: some View {
     ScrollView(.horizontal, showsIndicators: false) {
@@ -63,6 +70,7 @@ struct KindChipBar: View {
     KindChip(
       label: label,
       icon: icon,
+      count: count(value),
       isSelected: selection == value
     ) {
       // Re-clicking a selected kind clears it; otherwise pick it.

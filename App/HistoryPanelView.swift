@@ -68,7 +68,10 @@ struct HistoryPanelView: View {
     VStack(spacing: 0) {
       VStack(spacing: 0) {
         tabBar
-        KindChipBar(selection: $viewModel.kindFilter)
+        KindChipBar(
+          selection: $viewModel.kindFilter,
+          count: { viewModel.kindChipCount(for: $0) }
+        )
       }
       .frame(height: 64)
       Divider()
@@ -116,8 +119,10 @@ struct HistoryPanelView: View {
 
   private var tabBar: some View {
     Picker("", selection: $viewModel.currentTab) {
-      Text("All").tag(HistoryPanelTab.all)
-      Text("Pinned").tag(HistoryPanelTab.pinned)
+      (Text("All") + Text(verbatim: " (\(viewModel.allTabCount))"))
+        .tag(HistoryPanelTab.all)
+      (Text("Pinned") + Text(verbatim: " (\(viewModel.pinnedTabCount))"))
+        .tag(HistoryPanelTab.pinned)
     }
     .pickerStyle(.segmented)
     .padding(.horizontal, 10)

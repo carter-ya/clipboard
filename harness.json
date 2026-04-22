@@ -1234,6 +1234,25 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S50: stabilize preferences by reverting fullSizeContentView attempts"
+    },
+    {
+      "id": "S51",
+      "title": "HistoryPanel 标题还原 + 各 tab/chip 展示条数",
+      "goal": "(a) S37 borderless 化时把 `NSPanel.title = \"Clipboard\"` 拿掉了——虽然无 title bar 展示，但 NSWindow.title 对 macOS Accessibility 与 `⌘\\`` 切换器可见，补回；(b) HistoryPanel 顶部 All/Pinned 双 tab 与 KindChipBar（全部/文本/图片/文件/富文本）在切换时不直观，用户需要提前知道各分类有多少条——在标签和 chip 上追加条数。",
+      "deliverables": [
+        "HistoryPanel.swift init 里恢复 `title = String(localized: \"Clipboard\")`——不影响视觉（panel 无 title bar），补回 accessibility/窗口管理的可识别名。",
+        "HistoryPanelViewModel 新增三个计算入口：`allTabCount`（当前 search + kindFilter 下的总数）、`pinnedTabCount`（当前 search + kindFilter 下的 pinned 数）、`kindChipCount(for: ClipKind?)`（当前 search + currentTab + 该 kind 下的条数）；nil kind = 不限类型。实现上以 `items`（store.search 结果）为输入做 in-memory 过滤；counts 在 items/search/currentTab/kindFilter 任一变化时自动随 @Published 触发 UI 刷新。",
+        "HistoryPanelView.tabBar 的两个 tag 文字分别从 `Text(\"All\")` / `Text(\"Pinned\")` 改为 `Text(\"All\") + Text(verbatim: \" (N)\")` 的 concat 形式——『All』『Pinned』继续走 LocalizedStringKey 本地化，括号+数字由 verbatim 拼接不参与翻译。",
+        "KindChip 加 `count: Int` 入参，HStack 末尾多一个 `Text(\"\\(count)\")`，`.monospacedDigit()`，未选中时 secondary 色、选中时白字 0.7 opacity；KindChipBar 从 `@Binding selection` 扩展到 `@Binding selection + count: (ClipKind?) -> Int` 闭包，HistoryPanelView 调用时传 `{ viewModel.kindChipCount(for: $0) }`。",
+        "条数语义：tab 的 count 反映『切到该 tab 后会看到的条数』（保留当前 kindFilter）；kind chip 的 count 反映『切到该 kind 后会看到的条数』（保留当前 tab）——切换交互可预测。"
+      ],
+      "acceptance": [
+        "打开 HistoryPanel：顶部 All 标签显示『全部 (N)』、Pinned 显示『已固定 (M)』；KindChipBar 每个 chip 展示各自条数，nil→All chip 显示当前 tab 全量。",
+        "输入搜索关键字或切换 kindFilter：tab 数字同步变化；切换 tab：kind chip 数字同步变化。",
+        "Accessibility Inspector 或 `⌘\\`` 切换器可以识别 HistoryPanel 的 window title 为『剪贴板』（或系统语言对应本地化）。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S51: restore history panel window title + show counts on tabs and kind chips"
     }
   ],
   "slice_rhythm": [
@@ -1377,7 +1396,8 @@
       "S47",
       "S48",
       "S49",
-      "S50"
+      "S50",
+      "S51"
     ]
   },
   "open_questions": [

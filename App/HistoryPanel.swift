@@ -23,6 +23,10 @@ final class HistoryPanel: NSPanel {
       backing: .buffered,
       defer: false
     )
+    // No visible title bar (borderless), but NSWindow.title is still
+    // surfaced to Accessibility and the ⌘` window switcher — keep it
+    // set for those consumers.
+    title = String(localized: "Clipboard")
     isFloatingPanel = true
     isReleasedWhenClosed = false
     hidesOnDeactivate = false
