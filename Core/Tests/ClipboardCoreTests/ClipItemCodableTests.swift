@@ -44,7 +44,25 @@ final class ClipItemCodableTests: XCTestCase {
     XCTAssertEqual(ClipKind.infer(from: ["public.rtf"]), .rtf)
     XCTAssertEqual(ClipKind.infer(from: ["public.png"]), .image)
     XCTAssertEqual(ClipKind.infer(from: ["public.file-url"]), .file)
-    XCTAssertEqual(ClipKind.infer(from: ["public.rtf", "public.png"]), .mixed)
     XCTAssertEqual(ClipKind.infer(from: []), .text)
+  }
+
+  /// Priority: file > image > rtf > text (html counts as text). Items
+  /// with several pasteboard representations resolve to their richest
+  /// type instead of the legacy `.mixed` catch-all.
+  func testKindInferencePriority() {
+    // Browser image copy: PNG + HTML wrapper → image, not mixed.
+    XCTAssertEqual(ClipKind.infer(from: ["public.png", "public.html"]), .image)
+    // Rich text from a word processor: RTF + plain text fallback → rtf.
+    XCTAssertEqual(
+      ClipKind.infer(from: ["public.rtf", "public.utf8-plain-text"]),
+      .rtf
+    )
+    // File drag from Finder that also carries a thumbnail → file.
+    XCTAssertEqual(ClipKind.infer(from: ["public.file-url", "public.png"]), .file)
+    // Image without any wrapper still resolves as image.
+    XCTAssertEqual(ClipKind.infer(from: ["public.rtf", "public.png"]), .image)
+    // HTML-only snippet collapses onto text family.
+    XCTAssertEqual(ClipKind.infer(from: ["public.html"]), .text)
   }
 }

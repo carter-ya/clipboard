@@ -1322,6 +1322,25 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S55: top All/Pinned counts no longer follow kind chip selection"
+    },
+    {
+      "id": "S56",
+      "title": "ClipKind 按优先级分类，不再生成 mixed",
+      "goal": "当前 `ClipKind.infer` 只要粘贴板上出现 2 种 primary（把 html 当 text）就判 `.mixed`：浏览器图片复制（PNG + HTML wrapper）被归为 Mixed，但用户认为应该是 Image；富文本（RTF + text）被归为 Mixed，视觉上和 Text 区分不开。用优先级策略替代：哪个最富内容就归哪类。",
+      "deliverables": [
+        "Core/Sources/ClipboardCore/ClipKind.swift 中 `infer(from:)` 改为按优先级选：依次检查 file / image / rtf / text（html 仍算 text），先命中的胜出。不再输出 `.mixed`。",
+        "`.mixed` enum case 保留，但仅为数据兼容——现存 JSON 里已有的 `.mixed` 条目仍可解码；新条目不会再被分到 mixed。",
+        "App/KindChip.swift 的 Mixed chip 保留（旧数据仍可通过它过滤）；随着历史轮转，Mixed 数字会自然归零。",
+        "Core/Tests/ClipboardCoreTests/ClipItemCodableTests.swift 的 `testKindInference` 更新：原先的 `.rtf + .png → .mixed` 断言改为 `→ .image`（image 优先级高于 rtf）；补几个优先级断言：file > image > rtf > text（html 等同 text）。"
+      ],
+      "acceptance": [
+        "从浏览器复制一张图片：HistoryPanel 中显示 kind = Image，不再是 Mixed。",
+        "从富文本编辑器复制一段带格式文字（RTF + text）：kind = Rich Text (rtf)，不再 Mixed。",
+        "从 Finder 复制一个文件（file-url）：kind = File。",
+        "现存 .mixed 条目仍可在 Mixed chip 筛出；UI 保持工作。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S56: priority-based kind inference (file > image > rtf > text), stop producing .mixed"
     }
   ],
   "slice_rhythm": [
@@ -1470,7 +1489,8 @@
       "S52",
       "S53",
       "S54",
-      "S55"
+      "S55",
+      "S56"
     ]
   },
   "open_questions": [

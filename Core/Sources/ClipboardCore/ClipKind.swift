@@ -20,17 +20,33 @@ public enum ClipKind: String, Sendable, Codable, CaseIterable, Equatable {
     }
   }
 
-  /// Determines the overall kind for a set of pasteboard types.
-  /// Returns `.mixed` when two or more distinct primary kinds are present.
+  /// Determines the overall kind for a set of pasteboard types. Picks
+  /// the richest primary present, so a browser image copy (PNG + HTML
+  /// wrapper) reads as `.image` and rich text (RTF + plain text) reads
+  /// as `.rtf` rather than both collapsing into the old `.mixed`.
+  /// Priority: file > image > rtf > text (html counts as text).
+  /// `.mixed` is still a valid enum case for backward compatibility
+  /// with previously stored items, but this function never produces it.
   static func infer(from pasteboardTypes: [String]) -> ClipKind {
-    var primaries = Set<ClipKind>()
+    var hasImage = false
+    var hasFile = false
+    var hasRtf = false
+    var hasText = false
     for type in pasteboardTypes {
-      if let primary = primary(for: type) {
-        primaries.insert(primary)
+      guard let primary = primary(for: type) else { continue }
+      switch primary {
+      case .image: hasImage = true
+      case .file: hasFile = true
+      case .rtf: hasRtf = true
+      case .text: hasText = true
+      case .mixed: break
       }
     }
-    if primaries.count >= 2 { return .mixed }
-    return primaries.first ?? .text
+    if hasFile { return .file }
+    if hasImage { return .image }
+    if hasRtf { return .rtf }
+    if hasText { return .text }
+    return .text
   }
 }
 
