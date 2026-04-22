@@ -15,21 +15,29 @@ struct HistoryPanelView: View {
 
   var body: some View {
     VStack(spacing: 0) {
+      searchField
+      Divider()
       HStack(spacing: 0) {
         listColumn
+          .frame(width: 480)
         Divider()
         ClipPreviewView(
           item: selectedItem,
           thumbnailLoader: thumbnailLoader,
           resolver: resolver
         )
-        .frame(width: 260)
+        .frame(width: 239)
       }
       Divider()
       footerBar
     }
-    .frame(width: 680, height: 520)
-    .background(.regularMaterial)
+    .frame(width: 720, height: 520)
+    .background(.ultraThinMaterial)
+    .clipShape(RoundedRectangle(cornerRadius: 12))
+    .overlay(
+      RoundedRectangle(cornerRadius: 12)
+        .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+    )
     .background(keyboardShortcutButtons)
     .onAppear { searchFocused = true }
     .onChange(of: viewModel.currentTab) { _ in
@@ -58,7 +66,6 @@ struct HistoryPanelView: View {
 
   private var listColumn: some View {
     VStack(spacing: 0) {
-      searchField
       tabBar
       KindChipBar(selection: $viewModel.kindFilter)
       if let skip = viewModel.lastSkip, viewModel.shouldShowLastSkip() {
@@ -73,8 +80,6 @@ struct HistoryPanelView: View {
         list
       }
     }
-    .frame(width: 420)
-    .background(Color.primary.opacity(0.04))
   }
 
   private var searchField: some View {

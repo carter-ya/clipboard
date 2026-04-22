@@ -986,6 +986,27 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S36: grouped form style for Preferences tabs"
+    },
+    {
+      "id": "S37",
+      "title": "HistoryPanel Alfred 化：去标题栏 + 全宽搜索 + 2:1 分栏 + 玻璃",
+      "goal": "把 HistoryPanel 从带标题栏的 .regularMaterial 面板改造为 Alfred 风格：borderless + 圆角 + ultraThinMaterial 玻璃；搜索栏占满 row1；row2 是列表 : 预览 = 2 : 1 的左右分栏；保留底部 ShortcutHint 栏。",
+      "deliverables": [
+        "HistoryPanel 的 styleMask 改为 `[.nonactivatingPanel]`（borderless），去掉 .titled / .closable / .resizable；窗口 `isOpaque = false`、`backgroundColor = .clear`、`hasShadow = true`；删除 `title =` 赋值——没有标题栏可显示。panel 宽度 720、高 520，`positionAtCursorScreen()` 逻辑保留。",
+        "HistoryPanelView 的 body 结构改为：row1 `searchField`（全宽 720）→ Divider → row2 `HStack { listColumn(480) | Divider | ClipPreviewView(239) }`（共 720，近似 2:1）→ Divider → row3 `footerBar`。总 `.frame(width: 720, height: 520)`。",
+        "HistoryPanelView 根部背景从 `.regularMaterial` 改为 `.ultraThinMaterial`；再 `.clipShape(RoundedRectangle(cornerRadius: 12))` 让四角与窗口透明背景吻合；外加 `RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)` overlay 做一道发丝级边框。",
+        "listColumn 去掉 S35 添加的 `Color.primary.opacity(0.04)` 背景——Alfred 风格下整面玻璃是统一色调，不再做列分色；footerBar 的 `primary.opacity(0.04)` 保留，作为底部状态栏的轻微区分。",
+        "searchField 仍是 S35 的胶囊容器（圆角 8 / primary 0.06 fill / 0.10 stroke），但从 listColumn 提到顶层 row1，水平 padding 适配 720 全宽。",
+        "其余逻辑不变——@FocusState 自动聚焦搜索框、keyboardShortcutButtons、onChange(tab/kindFilter)、outside-click-close、⬆⬇ 箭头本地监听、Esc cancel、ScrollViewReader 滚动一致性等行为全部保留。"
+      ],
+      "acceptance": [
+        "按全局快捷键打开 HistoryPanel → 没有 macOS 标题栏；四角是 12pt 圆角；整面是 ultraThinMaterial 玻璃，能看到底下桌面 / 其他窗口的模糊画面。",
+        "panel 顶部一整条横向搜索框；搜索框下是一条 hairline divider，紧接一个 HStack：左 480 是列表（Tab 切换 / KindChip / 列表）；右 239 是预览；比例明显接近 2:1。",
+        "panel 底部仍是 S31 的 ShortcutHint 栏，带 S35 的浅灰状态条底色。",
+        "点击 panel 外部会关闭；Esc 关闭；⬆⬇ 切行；Return 复制；⌘P / ⌘⌫ / ⌘, 分别是 pin / delete / 偏好设置——全部功能回归不破。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S37: Alfred-style borderless glass panel with full-width search and 2:1 split"
     }
   ],
   "slice_rhythm": [
@@ -1115,7 +1136,8 @@
       "S33",
       "S34",
       "S35",
-      "S36"
+      "S36",
+      "S37"
     ]
   },
   "open_questions": [

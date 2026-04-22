@@ -18,18 +18,23 @@ final class HistoryPanel: NSPanel {
 
   init(rootView: some View) {
     super.init(
-      contentRect: NSRect(x: 0, y: 0, width: 680, height: 520),
-      styleMask: [.titled, .closable, .resizable, .nonactivatingPanel],
+      contentRect: NSRect(x: 0, y: 0, width: 720, height: 520),
+      styleMask: [.nonactivatingPanel],
       backing: .buffered,
       defer: false
     )
-    title = String(localized: "Clipboard")
     isFloatingPanel = true
     isReleasedWhenClosed = false
     hidesOnDeactivate = false
     becomesKeyOnlyIfNeeded = true
     level = .floating
     collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+    // Borderless + transparent so the SwiftUI rounded glass layer
+    // defines the visible chrome; the window itself is just a carrier
+    // for shadow + shape.
+    isOpaque = false
+    backgroundColor = .clear
+    hasShadow = true
 
     let hosting = NSHostingController(rootView: rootView)
     contentViewController = hosting
