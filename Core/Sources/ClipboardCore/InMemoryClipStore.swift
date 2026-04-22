@@ -4,15 +4,12 @@ import Foundation
 public actor InMemoryClipStore: ClipStore {
   private var items: [ClipItem] = []
   private let cap: Int
-  private let eventsContinuation: AsyncStream<StoreEvent>.Continuation
+  private let broadcaster = StoreEventBroadcaster()
 
-  public nonisolated let events: AsyncStream<StoreEvent>
+  public nonisolated var events: AsyncStream<StoreEvent> { broadcaster.subscribe() }
 
   public init(cap: Int = 100) {
     self.cap = cap
-    let (stream, continuation) = AsyncStream.makeStream(of: StoreEvent.self)
-    self.events = stream
-    self.eventsContinuation = continuation
   }
 
   public func insert(_ raw: RawClipItem) async {
@@ -21,7 +18,7 @@ public actor InMemoryClipStore: ClipStore {
       var updated = items.remove(at: idx)
       updated.createdAt = Date()
       items.insert(updated, at: 0)
-      eventsContinuation.yield(.updated(updated))
+      broadcaster.yield(.updated(updated))
       return
     }
     let item = ClipItem(
@@ -40,13 +37,13 @@ public actor InMemoryClipStore: ClipStore {
     while items.filter({ !$0.pinned }).count > cap {
       if let victim = items.enumerated().reversed().first(where: { !$0.element.pinned }) {
         let removed = items.remove(at: victim.offset)
-        eventsContinuation.yield(
+        broadcaster.yield(
           .evicted(id: removed.id, sha256: removed.sha256, blobDeleted: false))
       } else {
         break
       }
     }
-    eventsContinuation.yield(.inserted(item))
+    broadcaster.yield(.inserted(item))
   }
 
   public func all() async -> [ClipItem] { items }
@@ -70,32 +67,32 @@ public actor InMemoryClipStore: ClipStore {
   public func pin(id: UUID) async {
     guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
     items[idx].pinned = true
-    eventsContinuation.yield(.updated(items[idx]))
+    broadcaster.yield(.updated(items[idx]))
   }
 
   public func unpin(id: UUID) async {
     guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
     items[idx].pinned = false
-    eventsContinuation.yield(.updated(items[idx]))
+    broadcaster.yield(.updated(items[idx]))
   }
 
   public func togglePin(id: UUID) async {
     guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
     items[idx].pinned.toggle()
-    eventsContinuation.yield(.updated(items[idx]))
+    broadcaster.yield(.updated(items[idx]))
   }
 
   public func updateSummary(id: UUID, summary: String, source: SummarySource) async {
     guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
     items[idx].summary = summary
     items[idx].summarySource = source
-    eventsContinuation.yield(.updated(items[idx]))
+    broadcaster.yield(.updated(items[idx]))
   }
 
   public func delete(id: UUID) async {
     guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
     items.remove(at: idx)
-    eventsContinuation.yield(.deleted(id))
+    broadcaster.yield(.deleted(id))
   }
 
   public func bumpToTop(id: UUID) async {
@@ -103,12 +100,12 @@ public actor InMemoryClipStore: ClipStore {
     var item = items.remove(at: idx)
     item.createdAt = Date()
     items.insert(item, at: 0)
-    eventsContinuation.yield(.updated(item))
+    broadcaster.yield(.updated(item))
   }
 
   public func clearAll() async {
     items.removeAll()
-    eventsContinuation.yield(.cleared)
+    broadcaster.yield(.cleared)
   }
 
   public func flush() async {}
@@ -129,7 +126,7 @@ public actor InMemoryClipStore: ClipStore {
       var reindexed = incoming
       reindexed.id = UUID()
       items.insert(reindexed, at: 0)
-      eventsContinuation.yield(.inserted(reindexed))
+      broadcaster.yield(.inserted(reindexed))
       added += 1
     }
     return ImportResult(added: added, skipped: skipped, blobsMissing: 0)

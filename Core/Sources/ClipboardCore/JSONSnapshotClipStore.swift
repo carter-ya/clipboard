@@ -24,9 +24,9 @@ public actor JSONSnapshotClipStore: ClipStore {
   private var items: [ClipItem] = []
   private var debounceTask: Task<Void, Never>?
   private var pendingFlushContinuations: [CheckedContinuation<Void, Never>] = []
-  private let eventsContinuation: AsyncStream<StoreEvent>.Continuation
+  private let broadcaster = StoreEventBroadcaster()
 
-  public nonisolated let events: AsyncStream<StoreEvent>
+  public nonisolated var events: AsyncStream<StoreEvent> { broadcaster.subscribe() }
 
   public init(
     root: URL,
@@ -47,10 +47,6 @@ public actor JSONSnapshotClipStore: ClipStore {
       root: root.appendingPathComponent("blobs"),
       fileManager: fileManager
     )
-
-    let (stream, continuation) = AsyncStream.makeStream(of: StoreEvent.self)
-    self.events = stream
-    self.eventsContinuation = continuation
 
     await self.bootstrap()
   }
@@ -92,7 +88,7 @@ public actor JSONSnapshotClipStore: ClipStore {
       sensitive:\(item.sensitive, privacy: .public)}
       """
     )
-    eventsContinuation.yield(.inserted(item))
+    broadcaster.yield(.inserted(item))
     if !item.sensitive {
       scheduleWrite()
     }
@@ -123,21 +119,21 @@ public actor JSONSnapshotClipStore: ClipStore {
   public func pin(id: UUID) async {
     guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
     items[idx].pinned = true
-    eventsContinuation.yield(.updated(items[idx]))
+    broadcaster.yield(.updated(items[idx]))
     if !items[idx].sensitive { scheduleWrite() }
   }
 
   public func unpin(id: UUID) async {
     guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
     items[idx].pinned = false
-    eventsContinuation.yield(.updated(items[idx]))
+    broadcaster.yield(.updated(items[idx]))
     if !items[idx].sensitive { scheduleWrite() }
   }
 
   public func togglePin(id: UUID) async {
     guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
     items[idx].pinned.toggle()
-    eventsContinuation.yield(.updated(items[idx]))
+    broadcaster.yield(.updated(items[idx]))
     if !items[idx].sensitive { scheduleWrite() }
   }
 
@@ -145,7 +141,7 @@ public actor JSONSnapshotClipStore: ClipStore {
     guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
     items[idx].summary = summary
     items[idx].summarySource = source
-    eventsContinuation.yield(.updated(items[idx]))
+    broadcaster.yield(.updated(items[idx]))
     if !items[idx].sensitive { scheduleWrite() }
   }
 
@@ -153,7 +149,7 @@ public actor JSONSnapshotClipStore: ClipStore {
     guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
     let removed = items.remove(at: idx)
     await releaseBlobs(for: removed)
-    eventsContinuation.yield(.deleted(id))
+    broadcaster.yield(.deleted(id))
     if !removed.sensitive { scheduleWrite() }
   }
 
@@ -162,7 +158,7 @@ public actor JSONSnapshotClipStore: ClipStore {
     var item = items.remove(at: idx)
     item.createdAt = Date()
     items.insert(item, at: 0)
-    eventsContinuation.yield(.updated(item))
+    broadcaster.yield(.updated(item))
     if !item.sensitive { scheduleWrite() }
   }
 
@@ -171,7 +167,7 @@ public actor JSONSnapshotClipStore: ClipStore {
       await releaseBlobs(for: item)
     }
     items.removeAll()
-    eventsContinuation.yield(.cleared)
+    broadcaster.yield(.cleared)
     scheduleWrite()
   }
 
@@ -228,7 +224,7 @@ public actor JSONSnapshotClipStore: ClipStore {
       var reindexed = incoming
       reindexed.id = UUID()
       items.insert(reindexed, at: 0)
-      eventsContinuation.yield(.inserted(reindexed))
+      broadcaster.yield(.inserted(reindexed))
       added += 1
     }
     await enforceCapacity()
@@ -251,7 +247,7 @@ public actor JSONSnapshotClipStore: ClipStore {
         try? fileManager.moveItem(at: historyURL, to: historyBackupURL)
         self.items = []
         Log.store.error("store.corrupted path=\(self.historyURL.path, privacy: .public)")
-        eventsContinuation.yield(
+        broadcaster.yield(
           .corrupted(path: historyURL.path, renamedTo: historyBackupURL.path)
         )
       }
@@ -263,7 +259,7 @@ public actor JSONSnapshotClipStore: ClipStore {
       Log.store.info(
         "store.reconcile{orphansDeleted:\(count, privacy: .public)}"
       )
-      eventsContinuation.yield(.reconciled(orphansDeleted: count))
+      broadcaster.yield(.reconciled(orphansDeleted: count))
     }
   }
 
@@ -309,7 +305,7 @@ public actor JSONSnapshotClipStore: ClipStore {
     var updated = items.remove(at: idx)
     updated.createdAt = Date()
     items.insert(updated, at: 0)
-    eventsContinuation.yield(.updated(updated))
+    broadcaster.yield(.updated(updated))
     if !updated.sensitive {
       scheduleWrite()
     }
@@ -326,7 +322,7 @@ public actor JSONSnapshotClipStore: ClipStore {
           sha:\(removed.sha256, privacy: .public)}
           """
         )
-        eventsContinuation.yield(
+        broadcaster.yield(
           .evicted(id: removed.id, sha256: removed.sha256, blobDeleted: true)
         )
       } else {

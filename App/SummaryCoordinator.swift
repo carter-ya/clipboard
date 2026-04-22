@@ -25,11 +25,15 @@ final class SummaryCoordinator {
 
   func start() {
     stop()
+    Log.ui.info("summary.coordinator.start")
     task = Task { [weak self] in
       guard let self else { return }
       for await event in self.store.events {
         if Task.isCancelled { break }
         if case .inserted(let item) = event {
+          Log.ui.info(
+            "summary.event.inserted id=\(item.id.uuidString, privacy: .public) kind=\(item.kind.rawValue, privacy: .public)"
+          )
           await self.handle(item)
         }
       }
@@ -44,18 +48,34 @@ final class SummaryCoordinator {
   private func handle(_ item: ClipItem) async {
     let prefs = prefsStore.current
     guard prefs.summariesEnabled, !item.sensitive, item.summary == nil else {
+      Log.ui.info(
+        "summary.skip id=\(item.id.uuidString, privacy: .public) reason=gated kind=\(item.kind.rawValue, privacy: .public) enabled=\(prefs.summariesEnabled) sensitive=\(item.sensitive) hasSummary=\(item.summary != nil)"
+      )
       return
     }
 
     switch item.kind {
     case .image:
-      guard prefs.allowImageSummaries, AICapability.isVisionAvailable else { return }
+      guard prefs.allowImageSummaries, AICapability.isVisionAvailable else {
+        Log.ui.info(
+          "summary.skip id=\(item.id.uuidString, privacy: .public) reason=image-disabled allow=\(prefs.allowImageSummaries) vision=\(AICapability.isVisionAvailable)"
+        )
+        return
+      }
       await summarizeImage(item)
     case .text, .rtf, .mixed:
-      guard prefs.allowTextSummaries else { return }
+      guard prefs.allowTextSummaries else {
+        Log.ui.info(
+          "summary.skip id=\(item.id.uuidString, privacy: .public) reason=text-disabled"
+        )
+        return
+      }
       await summarizeText(item)
     case .file:
       guard prefs.allowFileSummaries, AICapability.isFoundationModelsAvailable else {
+        Log.ui.info(
+          "summary.skip id=\(item.id.uuidString, privacy: .public) reason=file-disabled allow=\(prefs.allowFileSummaries) fm=\(AICapability.isFoundationModelsAvailable)"
+        )
         return
       }
       await summarizeFile(item)
@@ -68,21 +88,54 @@ final class SummaryCoordinator {
     ]
     guard
       let payload = item.payloads.first(where: { imageTypes.contains($0.pasteboardType) })
-    else { return }
-    guard let data = try? resolver.data(for: payload) else { return }
+    else {
+      let types = item.payloads.map(\.pasteboardType).joined(separator: ",")
+      Log.ui.info(
+        "summary.image.noPayload id=\(item.id.uuidString, privacy: .public) types=\(types, privacy: .public)"
+      )
+      return
+    }
+    guard let data = try? resolver.data(for: payload) else {
+      Log.ui.error(
+        "summary.image.loadFailed id=\(item.id.uuidString, privacy: .public) type=\(payload.pasteboardType, privacy: .public)"
+      )
+      return
+    }
+    Log.ui.info(
+      "summary.image.start id=\(item.id.uuidString, privacy: .public) bytes=\(data.count)"
+    )
     guard let summary = await imageSummarizer.summarize(imageData: data),
       !summary.isEmpty
-    else { return }
+    else {
+      Log.ui.info(
+        "summary.image.empty id=\(item.id.uuidString, privacy: .public)"
+      )
+      return
+    }
+    Log.ui.info(
+      "summary.image.done id=\(item.id.uuidString, privacy: .public) len=\(summary.count)"
+    )
     await store.updateSummary(id: item.id, summary: summary, source: .vision)
   }
 
   private func summarizeText(_ item: ClipItem) async {
-    guard let text = extractPlainText(from: item) else { return }
+    guard let text = extractPlainText(from: item) else {
+      Log.ui.info(
+        "summary.text.noPayload id=\(item.id.uuidString, privacy: .public)"
+      )
+      return
+    }
+    Log.ui.info(
+      "summary.text.start id=\(item.id.uuidString, privacy: .public) chars=\(text.count)"
+    )
     // Prefer Foundation Models when available — the LLM produces a
     // real sentence, while NaturalLanguage can only list entities.
     if #available(macOS 26.0, *), AICapability.isFoundationModelsAvailable {
       let fm = FoundationModelsSummarizer()
       if let summary = await fm.summarize(text: text), !summary.isEmpty {
+        Log.ui.info(
+          "summary.text.fm id=\(item.id.uuidString, privacy: .public) len=\(summary.count)"
+        )
         await store.updateSummary(
           id: item.id, summary: summary, source: .foundationModels)
         return
@@ -92,7 +145,13 @@ final class SummaryCoordinator {
     guard AICapability.isNaturalLanguageAvailable,
       let summary = await textSummarizer.summarize(text: text),
       !summary.isEmpty
-    else { return }
+    else {
+      Log.ui.info("summary.text.empty id=\(item.id.uuidString, privacy: .public)")
+      return
+    }
+    Log.ui.info(
+      "summary.text.nl id=\(item.id.uuidString, privacy: .public) len=\(summary.count)"
+    )
     await store.updateSummary(id: item.id, summary: summary, source: .naturalLanguage)
   }
 

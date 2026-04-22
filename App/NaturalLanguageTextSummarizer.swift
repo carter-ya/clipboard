@@ -26,19 +26,49 @@ struct NaturalLanguageTextSummarizer: Sendable {
         let language = Self.primaryLanguageName(for: trimmed)
         let entities = Self.namedEntities(in: trimmed)
 
-        var parts: [String] = []
-        if let language { parts.append(language) }
-        if !entities.isEmpty {
-          parts.append(entities.joined(separator: ", "))
+        // Best case: language + entities → "English · Apple, Tim Cook".
+        if let language, !entities.isEmpty {
+          continuation.resume(
+            returning: language + " · " + entities.joined(separator: ", "))
+          return
         }
-
-        if parts.isEmpty {
-          continuation.resume(returning: nil)
-        } else {
-          continuation.resume(returning: parts.joined(separator: " · "))
+        // Second-best: no recognized entities, but the text is long
+        // enough that the first sentence is a useful teaser.
+        if let lead = Self.leadSentence(of: trimmed) {
+          if let language {
+            continuation.resume(returning: "\(language) · \(lead)")
+          } else {
+            continuation.resume(returning: lead)
+          }
+          return
         }
+        // Fallback: nothing interesting found. Don't surface just the
+        // language code ("en") — the UI would rather hide the row
+        // than show something that adds no information.
+        continuation.resume(returning: nil)
       }
     }
+  }
+
+  /// Returns the first sentence (or the first chunk up to
+  /// `leadMaxLength` chars) of the text, trimmed. Nil when the input
+  /// has nothing beyond whitespace.
+  private static let leadMaxLength = 120
+  private static func leadSentence(of text: String) -> String? {
+    let tokenizer = NLTokenizer(unit: .sentence)
+    tokenizer.string = text
+    var first: String?
+    tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
+      let candidate = text[range].trimmingCharacters(in: .whitespacesAndNewlines)
+      if !candidate.isEmpty {
+        first = candidate
+        return false
+      }
+      return true
+    }
+    guard let lead = first else { return nil }
+    if lead.count <= leadMaxLength { return lead }
+    return String(lead.prefix(leadMaxLength)) + "…"
   }
 
   private static func primaryLanguageName(for text: String) -> String? {

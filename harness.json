@@ -1545,6 +1545,25 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S67: vision summarizer always returns something (lower threshold + dimensions fallback)"
+    },
+    {
+      "id": "S68",
+      "title": "事件流 fanout + NL fallback + pipeline 日志：修 summary 完全看不到",
+      "goal": "用户反馈：剪贴板有新条目但 AI summary 完全不显示。加日志后发现三个问题叠加：(1) `ClipStore.events` 是单一 AsyncStream，HistoryPanelViewModel / AppWiring.storeEventObserver / SummaryCoordinator 三个 consumer 抢同一个 buffer，每个事件只被一个收到——SummaryCoordinator 基本抢不到；(2) NaturalLanguage summarizer 对无命名实体的英文短文本只返回语言代码 `en`（2 字符），体验上等同没有 summary；(3) pipeline 任何环节静默失败时无法排查。",
+      "deliverables": [
+        "Core: 新增 `StoreEventBroadcaster`——内部管理 `[UUID: AsyncStream.Continuation]`，`subscribe()` 发新流、`yield(_:)` 对所有活跃 continuation 广播、`onTermination` 清理。`JSONSnapshotClipStore` / `InMemoryClipStore` 删掉单一 `eventsContinuation`，换成 `broadcaster = StoreEventBroadcaster()` + `events: AsyncStream<StoreEvent> { broadcaster.subscribe() }` 计算属性；所有 `.yield(...)` 改走 broadcaster；init 不再 makeStream。每个 consumer 现在拿到独立 stream、事件被完整广播。",
+        "App: `NaturalLanguageTextSummarizer.summarize(text:)` 语义调整——不再把『仅语言名』作为有效输出。新行为：①language + entities → `English · Apple, Tim Cook`；②entities 空 → 用 `NLTokenizer(unit: .sentence)` 抽首句、截到 120 字符加省略号、前缀加语言；③language 也无 → 只返回首句；④实在没东西 → nil。即永不返回 2 字符的语言代码占位。",
+        "App: `SummaryCoordinator` 加 `Log.ui.info` 诊断——`summary.coordinator.start` 启动信号；`summary.event.inserted` 每次收到 `.inserted`；`summary.skip` 记录 gate 原因（主开关 / sensitive / 已有 summary / 子开关 / 能力）；`summarizeImage` / `summarizeText` 记录 start / empty / done + 长度或字节数；`summary.image.noPayload` 列出可见 pasteboard types 便于诊断分类问题。",
+        "harness + commit 记录 pre-existing 多 consumer race 本存在（vm / storeEventObserver 并存），但直到 S64 的 SummaryCoordinator 才暴露——因为前两者的事件类型（.updated 全量刷新 / .corrupted 偶发）对丢失不敏感，而 .inserted 对 summarization 是关键。"
+      ],
+      "acceptance": [
+        "`just logs` 或 `log show --last 2m --predicate 'subsystem == \"com.clipboard.app\"'`：启动后能看到 `summary.coordinator.start`；每个新 clip 都能看到 `summary.event.inserted` + 后续 `summary.*.start` + `summary.*.nl/fm/done` 或 `summary.*.empty`。",
+        "复制一段含人名地名的英文长文本 → UI 看到 `English · Apple, John, NYC` 风格。",
+        "复制一段无实体的文本（例如纯叙述） → UI 看到 `English · First sentence here…` 而不是 `en`。",
+        "复制短文本（< 100 字符） → 不显示 summary row。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests 保持）。"
+      ],
+      "commit_message": "S68: broadcast store events + NL sentence fallback + pipeline logs (summaries now actually render)"
     }
   ],
   "slice_rhythm": [
@@ -1705,7 +1724,8 @@
       "S64",
       "S65",
       "S66",
-      "S67"
+      "S67",
+      "S68"
     ]
   },
   "open_questions": [
