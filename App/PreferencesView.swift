@@ -37,6 +37,7 @@ struct PreferencesView: View {
     }
     .frame(width: 520, height: 380)
     .background(.regularMaterial)
+    .safeAreaInset(edge: .top, spacing: 0) { Divider() }
   }
 
   private var general: some View {
@@ -116,56 +117,59 @@ struct PreferencesView: View {
           .foregroundStyle(.secondary)
       }
       Section("Retention") {
-        HStack {
-          Text("Cap")
-          Slider(
-            value: Binding(
-              get: { Double(prefs.cap) },
-              set: {
-                prefs.cap = Int($0)
-                onSave(prefs)
-              }
-            ),
-            in: capRange,
-            step: 10
-          )
-          Text("\(prefs.cap)")
-            .monospacedDigit()
-            .frame(width: 50, alignment: .trailing)
-        }
-        HStack {
-          Text("Skip items larger than")
-          TextField(
-            "",
-            value: Binding(
-              get: { Double(prefs.maxClipSizeBytes) / (1024 * 1024) },
-              set: { newMiB in
-                let bounded = max(0, newMiB)
-                prefs.maxClipSizeBytes = Int(bounded * 1024 * 1024)
-                onSave(prefs)
-              }
-            ),
-            format: .number.precision(.fractionLength(0...1))
-          )
-          .textFieldStyle(.plain)
-          .multilineTextAlignment(.trailing)
-          .padding(.horizontal, 8)
-          .padding(.vertical, 4)
-          .frame(width: 80)
-          .background(
-            RoundedRectangle(cornerRadius: 6)
-              .fill(Color.primary.opacity(0.06))
-          )
-          .overlay(
-            RoundedRectangle(cornerRadius: 6)
-              .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
-          )
-          Text("MiB")
+        VStack(alignment: .leading, spacing: 10) {
+          HStack {
+            Text("Cap")
+            Slider(
+              value: Binding(
+                get: { Double(prefs.cap) },
+                set: {
+                  prefs.cap = Int($0)
+                  onSave(prefs)
+                }
+              ),
+              in: capRange,
+              step: 10
+            )
+            Text("\(prefs.cap)")
+              .monospacedDigit()
+              .frame(width: 50, alignment: .trailing)
+          }
+          HStack {
+            Text("Skip items larger than")
+            Spacer()
+            TextField(
+              "",
+              value: Binding(
+                get: { Double(prefs.maxClipSizeBytes) / (1024 * 1024) },
+                set: { newMiB in
+                  let bounded = max(0, newMiB)
+                  prefs.maxClipSizeBytes = Int(bounded * 1024 * 1024)
+                  onSave(prefs)
+                }
+              ),
+              format: .number.precision(.fractionLength(0...1))
+            )
+            .textFieldStyle(.plain)
+            .multilineTextAlignment(.trailing)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(width: 80)
+            .background(
+              RoundedRectangle(cornerRadius: 6)
+                .fill(Color.primary.opacity(0.06))
+            )
+            .overlay(
+              RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+            )
+            Text("MiB")
+              .foregroundStyle(.secondary)
+          }
+          Text("Set to 0 to disable the size cap.")
+            .font(.caption)
             .foregroundStyle(.secondary)
         }
-        Text("Set to 0 to disable the size cap.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
       }
     }
     .formStyle(.grouped)

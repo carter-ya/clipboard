@@ -1113,6 +1113,23 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S43: custom HotkeyRecorder + titlebar separator line"
+    },
+    {
+      "id": "S44",
+      "title": "Retention 内分隔线去除 + 标题栏显式下缘线",
+      "goal": "两处未完成的视觉修整：(a) grouped Form 会在 Retention 分组的 Cap 行与 Skip 行之间画一条系统内分隔线——『Cap slider 下面的黑线』就是它；(b) S43 的 `titlebarSeparatorStyle = .line` 在 `titlebarAppearsTransparent=true` + 无 toolbar 的组合下并未实际绘出下缘分隔。",
+      "deliverables": [
+        "PreferencesView.Retention Section 内容从多个平铺行改为单个 VStack(alignment: .leading, spacing: 10)——grouped Form 把 VStack 当成一条 row，不再在 Cap 行与 MiB 行之间绘制内分隔线；caption 依然随 VStack 自然靠左。",
+        "MiB 行内加 Spacer() 把 TextField + MiB 标签推到右端，保持原来的视觉右对齐。",
+        "PreferencesView body 追加 `.safeAreaInset(edge: .top, spacing: 0) { Divider() }` —— SwiftUI 在安全区顶部（= 标题栏下缘）显式绘一条 1pt 分隔线，内容滑到标题栏下方时该线始终可见；`titlebarSeparatorStyle = .line` 在当前样式组合下不可靠，但保留不冲突。"
+      ],
+      "acceptance": [
+        "Preferences → General → Retention：Cap 滑块下方没有黑色横线；Cap 行与 MiB 行之间保持 10pt 空隙；MiB 输入框仍靠右、右侧紧跟 `MiB` 标签。",
+        "Preferences body 上下滑动时，标题栏下缘始终有一条清晰的 1pt 分隔线。",
+        "其余功能不受影响：Cap 滑块实时保存、MiB 输入保存、语言切换、快捷键录制等。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S44: collapse Retention rows into one + explicit divider under title bar"
     }
   ],
   "slice_rhythm": [
@@ -1249,7 +1266,8 @@
       "S40",
       "S41",
       "S42",
-      "S43"
+      "S43",
+      "S44"
     ]
   },
   "open_questions": [
