@@ -1198,6 +1198,24 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S48: restore NSHostingController default sizingOptions so preferences window shows"
+    },
+    {
+      "id": "S49",
+      "title": "Preferences body 真正留在 safe area 内",
+      "goal": "S48 后窗口能打开了，但 body 依然穿到标题栏下方——因为 `.frame(width: 520, height: 408)` 把 TabView 钉成固定尺寸盒子，SwiftUI 不再给它应用 safe area inset，TabView 从 y=0 开始铺，tab 条和 『快捷键』 section 标题刚好落在透明标题栏下。",
+      "deliverables": [
+        "PreferencesView body 的 `.frame(width: 520, height: 408)` 改为 `.frame(maxWidth: .infinity, maxHeight: .infinity)` —— TabView 走 flex 布局，继承 parent 的 safe area，内容自动落在标题栏下方。",
+        "PreferencesWindowController.rebuildContent() 设 `hosting.sizingOptions = []` 并显式 `hosting.preferredContentSize = NSSize(width: 520, height: 408)` —— 阻止 SwiftUI flex frame 的零 intrinsic 反向把窗口缩成 0，同时手动把窗口尺寸钉在 520x408。",
+        "background 继续 `.regularMaterial, ignoresSafeAreaEdges: .all)` —— material 跨过 safe area 铺到窗口满幅（含标题栏下方），玻璃仍统一。",
+        "`.safeAreaInset(edge: .top, spacing: 0) { Divider() }` 继续提供标题栏下缘的显式分隔线。"
+      ],
+      "acceptance": [
+        "⌘, 打开 Preferences：窗口显示 520x408。",
+        "tab 选择器（通用/隐私/数据）位于标题栏 *下方*，不再压在 traffic light 旁边。",
+        "`快捷键` 这样的 section 标题不再被标题栏遮挡；滚动时内容也被 safe area + Divider 限制在下方。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S49: flex frame + manual preferredContentSize so preferences body stays below title bar"
     }
   ],
   "slice_rhythm": [
@@ -1339,7 +1357,8 @@
       "S45",
       "S46",
       "S47",
-      "S48"
+      "S48",
+      "S49"
     ]
   },
   "open_questions": [

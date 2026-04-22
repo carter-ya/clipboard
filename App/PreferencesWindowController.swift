@@ -138,7 +138,15 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
       },
       hotkeyMissing: hotkeyMissing
     )
-    window?.contentViewController = NSHostingController(rootView: view)
+    let hosting = NSHostingController(rootView: view)
+    // The SwiftUI root uses .frame(maxWidth/maxHeight: .infinity) so it
+    // can respect the window's safe area (title bar overlay). Zero
+    // intrinsic would otherwise collapse the window when propagated
+    // through .preferredContentSize — so opt out of SwiftUI-driven
+    // sizing and pin the window size manually.
+    hosting.sizingOptions = []
+    hosting.preferredContentSize = NSSize(width: 520, height: 408)
+    window?.contentViewController = hosting
   }
 
   private func applyLanguageOverride(_ code: String?) {
