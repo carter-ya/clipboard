@@ -51,7 +51,14 @@ struct ClipRowView: View {
     .padding(.vertical, 6)
     .background(
       RoundedRectangle(cornerRadius: 6)
-        .fill(isSelected ? Color.accentColor.opacity(0.20) : Color.clear)
+        .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: 6)
+        .strokeBorder(
+          isSelected ? Color.accentColor.opacity(0.45) : Color.clear,
+          lineWidth: 0.5
+        )
     )
     .contentShape(RoundedRectangle(cornerRadius: 6))
     .onAppear { loadThumbnailIfNeeded() }

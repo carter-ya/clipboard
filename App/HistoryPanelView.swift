@@ -53,6 +53,7 @@ struct HistoryPanelView: View {
     .padding(.horizontal, 12)
     .padding(.vertical, 6)
     .frame(height: 28)
+    .background(Color.primary.opacity(0.04))
   }
 
   private var listColumn: some View {
@@ -73,6 +74,7 @@ struct HistoryPanelView: View {
       }
     }
     .frame(width: 420)
+    .background(Color.primary.opacity(0.04))
   }
 
   private var searchField: some View {
@@ -91,6 +93,16 @@ struct HistoryPanelView: View {
       .onSubmit { activateSelected() }
       .accessibilityLabel("Search history")
     }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 6)
+    .background(
+      RoundedRectangle(cornerRadius: 8)
+        .fill(Color.primary.opacity(0.06))
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+    )
     .padding(10)
   }
 

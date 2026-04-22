@@ -21,10 +21,17 @@ struct KindChip: View {
       .background(
         isSelected
           ? AnyShapeStyle(Color.accentColor)
-          : AnyShapeStyle(Color.secondary.opacity(0.18))
+          : AnyShapeStyle(Color.primary.opacity(0.06))
       )
       .foregroundStyle(isSelected ? Color.white : Color.primary)
       .clipShape(Capsule())
+      .overlay(
+        Capsule()
+          .strokeBorder(
+            isSelected ? Color.clear : Color.primary.opacity(0.10),
+            lineWidth: 0.5
+          )
+      )
     }
     .buttonStyle(.plain)
     .accessibilityLabel(label)

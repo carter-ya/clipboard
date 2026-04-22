@@ -947,6 +947,27 @@
         "`just test` / `just lint` / `just build` 全绿。"
       ],
       "commit_message": "S34: language switch no longer freezes Preferences or blocks hotkey"
+    },
+    {
+      "id": "S35",
+      "title": "白天模式视觉分层",
+      "goal": "light mode 下 .regularMaterial 铺满导致的白底白字、弱对比问题——给列表列 / 搜索框 / 底部条 / 选中态补足视觉分层。不动 dark mode 语义。",
+      "deliverables": [
+        "HistoryPanelView 的列表列叠加 `Color.primary.opacity(0.04)` 背景 tint（light mode 下形成浅灰侧栏；dark mode 下几乎不可见，因为 primary 在深色模式是接近白色，叠在深色 material 上仍然微弱）。preview 列保持纯 `.regularMaterial`，形成左浅右透的双层感。",
+        "HistoryPanelView.searchField 包一个胶囊容器——圆角 8，`Color.primary.opacity(0.06)` fill + `Color.primary.opacity(0.10)` 0.5pt stroke；放大镜图标和 TextField 内嵌在容器里，上下 6pt / 左右 10pt 内边距，容器外围再套 10pt 外边距维持原来的排版节奏。",
+        "footerBar 应用相同 `Color.primary.opacity(0.04)` 背景 tint（与列表列同色），保留现有的顶部 Divider；使底部条在白底上也能辨出一条状态栏。",
+        "ClipRowView 选中态从 `accentColor.opacity(0.20)` fill 升级为 `accentColor.opacity(0.18)` fill + `accentColor.opacity(0.45)` 0.5pt stroke；stroke 让选中框在白底上有清晰轮廓，fill 保持不过饱。",
+        "ShortcutHint 键帽背景从 `Color.secondary.opacity(0.18)` 改为 `Color.primary.opacity(0.08)` fill + `Color.primary.opacity(0.14)` 0.5pt stroke；在 light mode 下形成可辨认的按键轮廓。",
+        "KindChip 未选中态从 `Color.secondary.opacity(0.18)` 改为 `Color.primary.opacity(0.06)` fill + `Color.primary.opacity(0.10)` 0.5pt stroke；选中态仍是实心 accent + 白字，保证两态对比依然强。"
+      ],
+      "acceptance": [
+        "macOS System Settings → Appearance 切到 Light → ⌥⌘V 打开 HistoryPanel：左侧列表列明显比右侧预览列深一档；搜索框是可辨识的胶囊；底部条是一条浅灰状态带。",
+        "同样环境下，点击任一行：选中框是半透明 accent 填充 + accent 描边；在白底上一眼就能看到选中位置。",
+        "macOS 切回 Dark mode：整体观感与 S34 时基本一致——新增的 `primary.opacity(0.04)` 之类在深色材质上几乎不可见，不会让 dark 变糊。",
+        "ShortcutHint 和 KindChip 在两种模式下均可辨认、与背景有足够对比。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S35: light-mode visual layering for panel, search, rows and chips"
     }
   ],
   "slice_rhythm": [
@@ -1074,7 +1095,8 @@
       "S31",
       "S32",
       "S33",
-      "S34"
+      "S34",
+      "S35"
     ]
   },
   "open_questions": [

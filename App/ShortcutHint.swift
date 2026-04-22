@@ -16,7 +16,11 @@ struct ShortcutHint: View {
         .padding(.vertical, 1.5)
         .background(
           RoundedRectangle(cornerRadius: 4)
-            .fill(Color.secondary.opacity(0.18))
+            .fill(Color.primary.opacity(0.08))
+        )
+        .overlay(
+          RoundedRectangle(cornerRadius: 4)
+            .strokeBorder(Color.primary.opacity(0.14), lineWidth: 0.5)
         )
       Text(label)
         .font(.system(size: 10))
