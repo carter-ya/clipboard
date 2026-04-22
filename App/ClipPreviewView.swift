@@ -74,7 +74,7 @@ struct ClipPreviewView: View {
       .foregroundStyle(.secondary)
     }
     .padding(.horizontal, 12)
-    .padding(.vertical, 8)
+    .frame(height: 64)
   }
 
   private static let relativeFormatter: RelativeDateTimeFormatter = {

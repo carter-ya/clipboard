@@ -32,7 +32,7 @@ struct HistoryPanelView: View {
       footerBar
     }
     .frame(width: 720, height: 520)
-    .background(.ultraThinMaterial)
+    .background(.regularMaterial)
     .clipShape(RoundedRectangle(cornerRadius: 12))
     .overlay(
       RoundedRectangle(cornerRadius: 12)
@@ -66,14 +66,17 @@ struct HistoryPanelView: View {
 
   private var listColumn: some View {
     VStack(spacing: 0) {
-      tabBar
-      KindChipBar(selection: $viewModel.kindFilter)
+      VStack(spacing: 0) {
+        tabBar
+        KindChipBar(selection: $viewModel.kindFilter)
+      }
+      .frame(height: 64)
+      Divider()
       if let skip = viewModel.lastSkip, viewModel.shouldShowLastSkip() {
         SkipBannerView(skip: skip) {
           viewModel.clearLastSkip()
         }
       }
-      Divider()
       if viewModel.filteredItems.isEmpty {
         emptyState
       } else {
@@ -118,7 +121,8 @@ struct HistoryPanelView: View {
     }
     .pickerStyle(.segmented)
     .padding(.horizontal, 10)
-    .padding(.bottom, 6)
+    .padding(.top, 8)
+    .padding(.bottom, 4)
     .accessibilityLabel("Tab")
   }
 

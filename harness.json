@@ -1007,6 +1007,25 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S37: Alfred-style borderless glass panel with full-width search and 2:1 split"
+    },
+    {
+      "id": "S38",
+      "title": "HistoryPanel 三处视觉细节",
+      "goal": "S37 玻璃改造完成后三个遗留问题：ultraThinMaterial 太透偏暗、tabBar 紧贴顶部分割线没 margin、左右两列 header 下方的横向分割线高度不一致。",
+      "deliverables": [
+        "HistoryPanelView 根部背景从 `.ultraThinMaterial` 升到 `.regularMaterial`——在 light mode 下更白、更『明亮』，但仍保留玻璃模糊；dark mode 下也更稳不发灰。",
+        "tabBar 从 `.padding(.bottom, 6)` 改为 `.padding(.top, 8).padding(.bottom, 4)`——给 All/Pinned segmented picker 在顶部横向 Divider 下留一口气。",
+        "listColumn 的 header 区（tabBar + KindChipBar）和 ClipPreviewView 的 header 区都显式 `.frame(height: 64)`——两列的 in-column 横向 Divider 从而落在同一 y；SkipBanner 从 header 区迁到 Divider 之下，避免压缩 header 高度或破坏对齐。",
+        "ClipPreviewView.header 内容保持单行 HStack，但因 `.frame(height: 64)` 后会在 64pt 框内垂直居中，视觉上更像 preview pane 的 toolbar。"
+      ],
+      "acceptance": [
+        "打开 panel：背景明显比 S37 更亮、更接近 Raycast / Alfred 的 light-mode 玻璃；不再像贴在桌面上的透明膜。",
+        "All / Pinned segmented 控件上方与顶部横向 Divider 之间有 8pt 空隙。",
+        "row2 里 list 列的横 Divider（位于 tabBar + KindChipBar 之下）与 preview 列的横 Divider（位于 kind capsule header 之下）同 y 对齐，肉眼看就是一条连续线。",
+        "SkipBanner 触发时位于 Divider 下方（list 行之上），不会把 header 顶歪。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S38: brighter material, tabBar top margin, aligned row-2 dividers"
     }
   ],
   "slice_rhythm": [
@@ -1137,7 +1156,8 @@
       "S34",
       "S35",
       "S36",
-      "S37"
+      "S37",
+      "S38"
     ]
   },
   "open_questions": [
