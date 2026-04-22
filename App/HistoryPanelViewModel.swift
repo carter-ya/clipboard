@@ -39,28 +39,24 @@ final class HistoryPanelViewModel: ObservableObject {
     }
   }
 
-  /// Count for the "All" tab: total items under current search + kind
-  /// filter. The tab filter itself is not applied so the count reflects
-  /// what switching to All would show.
+  /// Count for the "All" tab: total items under the current search.
+  /// Intentionally ignores the kind chip selection so the top-level
+  /// tab reads as a stable "library total", not a filtered subset.
   var allTabCount: Int {
-    items.filter { kindMatches($0) }.count
+    items.count
   }
 
-  /// Count for the "Pinned" tab: pinned items under current search +
-  /// kind filter.
+  /// Count for the "Pinned" tab: pinned items under the current
+  /// search, ignoring kind chip selection for the same reason as
+  /// allTabCount.
   var pinnedTabCount: Int {
-    items.filter { kindMatches($0) && $0.pinned }.count
+    items.filter(\.pinned).count
   }
 
   /// Count for a kind chip (nil = All chip): items under current
   /// search + current tab filter, restricted to the given kind.
   func kindChipCount(for kind: ClipKind?) -> Int {
     items.filter { tabMatches($0) && (kind == nil || $0.kind == kind) }.count
-  }
-
-  private func kindMatches(_ item: ClipItem) -> Bool {
-    guard let kind = kindFilter else { return true }
-    return item.kind == kind
   }
 
   private func tabMatches(_ item: ClipItem) -> Bool {

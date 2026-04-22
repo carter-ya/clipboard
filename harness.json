@@ -1304,6 +1304,24 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S54: use padding + overlay divider so Language picker opens"
+    },
+    {
+      "id": "S55",
+      "title": "顶部 All/Pinned 条数不随 kindFilter 变化",
+      "goal": "S51 的 allTabCount / pinnedTabCount 会同时应用 kindFilter，导致切到 Image chip 时顶部 All 从 51 掉到 6，直觉不对——顶部 tab 应该是『库里一共多少条』的总览，只受搜索约束，不受当前类型选择约束。",
+      "deliverables": [
+        "HistoryPanelViewModel.allTabCount 简化为 `items.count`——直接反映当前 search 结果的总条数，与 kindFilter 无关；切换 kind chip 时数字保持。",
+        "HistoryPanelViewModel.pinnedTabCount 简化为 `items.filter { $0.pinned }.count`——pinned 条目的总数，忽略 kindFilter。",
+        "kindChipCount(for:) 保持 S51 行为（仍看 currentTab）——切 tab 时 chip 数字更新是合理的。",
+        "kindMatches 辅助方法若不再被其它 count 使用则删除；tabMatches 保留（kindChipCount 仍在用）。"
+      ],
+      "acceptance": [
+        "任意 search 下选中 kind chip：顶部『All (N)』『Pinned (M)』数字不变。",
+        "清空搜索：All 回到库总条数；Pinned 回到库内 pinned 条目数。",
+        "切换 tab：kind chip 数字仍然会随之变化（Pinned tab 下，Text chip 显示 pinned 的 text 条数）。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S55: top All/Pinned counts no longer follow kind chip selection"
     }
   ],
   "slice_rhythm": [
@@ -1451,7 +1469,8 @@
       "S51",
       "S52",
       "S53",
-      "S54"
+      "S54",
+      "S55"
     ]
   },
   "open_questions": [
