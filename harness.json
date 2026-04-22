@@ -1288,6 +1288,22 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S53: add Mixed chip so kind counts sum to All"
+    },
+    {
+      "id": "S54",
+      "title": "修复语言 Picker 点击不展开",
+      "goal": "S52 引入 `VStack { Color.clear.frame(height: 28); Divider(); TabView }` 后，语言 Picker 点击无反应——大概率是 Color.clear 或 VStack 结构干扰了 NSPopUpButton 的 popover hit-test/定位。换成 `.padding(.top, 28)` 直接给 TabView 留出标题栏空间，不再引入中间子视图；Divider 用 `.overlay(alignment: .top)` 单独绘制，不进入 VStack 链。",
+      "deliverables": [
+        "PreferencesView body 改为：`TabView { ... }.padding(.top, 28).frame(width: 520, height: 408).background(.regularMaterial).overlay(alignment: .top) { Divider().padding(.top, 28) }` —— 用 padding 代替 VStack 的 Color.clear spacer，TabView 是 body 唯一的交互容器；Divider 作为 overlay 绘在 y=28 不影响 hit-test。",
+        "不动 PreferencesWindowController 的 styleMask / titlebarAppearsTransparent / contentRect（S52 已就位）。"
+      ],
+      "acceptance": [
+        "打开 Preferences → General → Language：点击 Picker 能正常弹出下拉菜单，选项可选。",
+        "窗口观感仍是连续玻璃；Divider 可见于 y=28（标题栏下沿）。",
+        "Hotkey Recorder、Cap TextField 等其它交互控件正常。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S54: use padding + overlay divider so Language picker opens"
     }
   ],
   "slice_rhythm": [
@@ -1434,7 +1450,8 @@
       "S50",
       "S51",
       "S52",
-      "S53"
+      "S53",
+      "S54"
     ]
   },
   "open_questions": [

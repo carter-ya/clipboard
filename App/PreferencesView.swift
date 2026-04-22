@@ -27,24 +27,24 @@ struct PreferencesView: View {
   private let capRange: ClosedRange<Int> = 20...2000
 
   var body: some View {
-    VStack(spacing: 0) {
-      // Transparent top strip reserves the title bar region so TabView
-      // content never bleeds up behind it. The material behind us
-      // still flows through the transparent title bar for unified
-      // glass — this just keeps interactive content bounded below.
-      Color.clear.frame(height: 28)
-      Divider()
-      TabView {
-        general
-          .tabItem { Label("General", systemImage: "gear") }
-        privacy
-          .tabItem { Label("Privacy", systemImage: "lock") }
-        data
-          .tabItem { Label("Data", systemImage: "tray.and.arrow.up") }
-      }
+    TabView {
+      general
+        .tabItem { Label("General", systemImage: "gear") }
+      privacy
+        .tabItem { Label("Privacy", systemImage: "lock") }
+      data
+        .tabItem { Label("Data", systemImage: "tray.and.arrow.up") }
     }
+    // Reserve the 28pt title bar area with padding so interactive
+    // content stays below it. A Color.clear spacer (used previously)
+    // was suspected of interfering with the NSPopUpButton hit-test
+    // under SwiftUI Picker, which is why we use padding instead.
+    .padding(.top, 28)
     .frame(width: 520, height: 408)
     .background(.regularMaterial)
+    .overlay(alignment: .top) {
+      Divider().padding(.top, 28)
+    }
   }
 
   private var general: some View {
