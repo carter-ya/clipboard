@@ -1391,6 +1391,23 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S59: image payload preempts any text preview"
+    },
+    {
+      "id": "S60",
+      "title": "替换 App 图标（真正的光栅艺术）",
+      "goal": "S30 起用的 `tools/generate-icon.swift` 是 Core Graphics 程序化绘制的占位图标（蓝紫方块 + 白色剪贴板卡）。现在有正式设计稿——紫色 3D 剪贴板 + 内容条目（文本/图片/代码/链接）+ 右下粘贴版徽章——把它作为官方图标。",
+      "deliverables": [
+        "新增 `tools/icon-source.png` 作为 1024x1024 光栅源（单一真源）。",
+        "删除 `tools/generate-icon.swift`——程序化图标不再是真源。",
+        "Justfile `icon` target 改为 bash shebang 脚本：从 `tools/icon-source.png` 用 `sips -Z` 生成 10 个尺寸写入 `App/Assets.xcassets/AppIcon.appiconset/`。",
+        "`AppIcon.appiconset` 里的 10 个 PNG 更新为新图。`Contents.json` 不动（文件名/尺寸约定不变）。"
+      ],
+      "acceptance": [
+        "`just build && open build/Build/Products/Debug/Clipboard.app` → Dock/菜单栏/Preferences 窗口标题栏等处显示新紫色剪贴板图标。",
+        "`just icon` 可以从 `tools/icon-source.png` 再生 10 个 PNG；替换源图后重跑一次即可刷新全尺寸。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S60: replace programmatic icon with designed raster artwork"
     }
   ],
   "slice_rhythm": [
@@ -1543,7 +1560,8 @@
       "S56",
       "S57",
       "S58",
-      "S59"
+      "S59",
+      "S60"
     ]
   },
   "open_questions": [

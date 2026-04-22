@@ -34,4 +34,17 @@ clean:
     rm -rf build .build *.xcodeproj DerivedData
 
 icon:
-    swift tools/generate-icon.swift App/Assets.xcassets/AppIcon.appiconset
+    #!/usr/bin/env bash
+    set -euo pipefail
+    src=tools/icon-source.png
+    dst=App/Assets.xcassets/AppIcon.appiconset
+    for pair in \
+      "icon_16x16.png:16" "icon_16x16@2x.png:32" \
+      "icon_32x32.png:32" "icon_32x32@2x.png:64" \
+      "icon_128x128.png:128" "icon_128x128@2x.png:256" \
+      "icon_256x256.png:256" "icon_256x256@2x.png:512" \
+      "icon_512x512.png:512" "icon_512x512@2x.png:1024"; do
+      name="${pair%:*}"; size="${pair##*:}"
+      cp "$src" "$dst/$name"
+      sips -s format png -Z "$size" "$dst/$name" > /dev/null
+    done
