@@ -33,6 +33,36 @@ final class ClipItemCodableTests: XCTestCase {
     XCTAssertEqual(decoded, original)
   }
 
+  /// Round-trips an item that carries an AI-generated summary + the
+  /// engine that produced it (S63). Both fields default to nil but
+  /// must survive encode/decode when populated.
+  func testSummaryFieldsRoundTrip() throws {
+    let original = ClipItem(
+      id: UUID(),
+      createdAt: Date(timeIntervalSince1970: 1_700_000_100),
+      kind: .image,
+      preview: "<image>",
+      sha256: "abc123",
+      sizeBytes: 2048,
+      payloads: [
+        Payload(pasteboardType: "public.png", blobPath: "abc123.png")
+      ],
+      summary: "Screenshot of terminal with git output",
+      summarySource: .vision
+    )
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+
+    let encoded = try encoder.encode(original)
+    let decoded = try decoder.decode(ClipItem.self, from: encoded)
+
+    XCTAssertEqual(decoded, original)
+    XCTAssertEqual(decoded.summary, "Screenshot of terminal with git output")
+    XCTAssertEqual(decoded.summarySource, .vision)
+  }
+
   func testPayloadBlobShaExtraction() {
     XCTAssertEqual(Payload(pasteboardType: "x", blobPath: "abc.png").blobSHA256, "abc")
     XCTAssertEqual(Payload(pasteboardType: "x", blobPath: "nohash").blobSHA256, "nohash")

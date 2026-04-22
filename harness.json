@@ -1445,6 +1445,28 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S62: tight-crop icon source by alpha bbox so it fills the canvas at every size"
+    },
+    {
+      "id": "S63",
+      "title": "AI summary 基础设施（数据模型 + 能力检测 + 偏好开关 + UI 槽位）",
+      "goal": "系统性引入 AI summary：未来按设备能力分别用 Vision（macOS 13+ 全可）/ Writing Tools（macOS 15.1+）/ Foundation Models（macOS 26+ Apple Silicon）为图片/文本/文件生成摘要。本 slice 只建地基：数据模型能承载 summary、偏好能打开/关闭、ClipPreviewView 有展示槽位、能力检测能运行。不接任何实际的生成器——那是 S64/S65/S66 的工作。不保证与旧 history.json 向前兼容（用户接受 clear history）。",
+      "deliverables": [
+        "Core: 新 enum `SummarySource: String, Codable { case vision, writingTools, foundationModels }`（放在 ClipItem.swift 或新 file）。",
+        "Core: ClipItem 新增 `summary: String?` 与 `summarySource: SummarySource?` 字段，均默认 nil；`init(...)` 跟上，Codable 自动合成。Payload/其它字段不动。",
+        "Core: Preferences 新增 `summariesEnabled: Bool = true`（master）、`allowImageSummaries: Bool = true`、`allowTextSummaries: Bool = true`、`allowFileSummaries: Bool = true` 四个字段；PreferencesStore 的 Keys / current / save / reset 同步扩充，走 UserDefaults。",
+        "App: 新文件 `App/AICapability.swift`——静态 `isVisionAvailable`（true）/ `isWritingToolsAvailable`（`#available(macOS 15.1, *)` 判断）/ `isFoundationModelsAvailable`（macOS 26.0 + `arch(arm64)` 编译 guard + 运行时）。S63 不引入 FoundationModels framework 依赖，FM 判断返回 `false` 占位，等 S66 接真框架。",
+        "App: PreferencesView General tab 追加 Section『AI Summaries』：一个 master Toggle `summariesEnabled`，下面三个子 Toggle（图片/文本/文件）。子开关在 master 关闭或对应能力不可用时 disabled。Section 下方有一条 secondary caption 说明本机检测到的能力（例如『Vision on-device only』/ 『Writing Tools available』/ 『Foundation Models requires macOS 26+ Apple Silicon』）。",
+        "App: ClipPreviewView 在 header 与 content 之间插入 `summarySection(item:)`——当 `item.summary` 非空时显示：小 `sparkles` icon + `summary` 文本 + 右上角 `summarySource` 小徽章（vision / writing tools / FM），所有文字 secondary 色、caption 字号；为空则不绘制该 section。",
+        "Core 测试：ClipItemCodableTests 加一条 round trip 验证新 summary + summarySource 字段；PreferencesStoreTests 加一条验证四个新 pref 的默认值与 round trip。",
+        "en.lproj/Localizable.strings 补新 key：AI Summaries / Enable AI summaries / Summarize images / Summarize text / Summarize files / Vision on-device only / Writing Tools available / Requires macOS 26+ Apple Silicon。其它 6 种语言的翻译走 S64+ 的落地 slice。"
+      ],
+      "acceptance": [
+        "`just test` 新增 2 条测试绿；存量 80+ 测试不受影响。",
+        "Preferences 打开 → General → 能看到『AI Summaries』分区 + master + 3 子 toggle，依赖的能力未满足时子开关变灰。",
+        "ClipItem.summary 手动填值后，ClipPreviewView 里能看到新 summary section（icon + 文案 + source 徽章）；summary 为 nil 则该 section 隐藏。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S63: AI summary infrastructure (data model, capability detection, prefs, UI slot)"
     }
   ],
   "slice_rhythm": [
@@ -1600,7 +1622,8 @@
       "S59",
       "S60",
       "S61",
-      "S62"
+      "S62",
+      "S63"
     ]
   },
   "open_questions": [

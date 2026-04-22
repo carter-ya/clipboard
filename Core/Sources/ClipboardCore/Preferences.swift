@@ -9,6 +9,13 @@ public struct Preferences: Sendable, Equatable {
   /// nil = follow system; otherwise an Apple-recognised language
   /// code matching one of the shipped `.lproj` folders.
   public var languageOverride: String?
+  /// Master switch for the on-device AI summary pipeline. Individual
+  /// `allow…Summaries` toggles below act as sub-filters when this is
+  /// true; all summarization is off when this is false.
+  public var summariesEnabled: Bool
+  public var allowImageSummaries: Bool
+  public var allowTextSummaries: Bool
+  public var allowFileSummaries: Bool
 
   public init(
     maxClipSizeBytes: Int = 10 * 1024 * 1024,
@@ -16,7 +23,11 @@ public struct Preferences: Sendable, Equatable {
     cap: Int = 100,
     blockedBundleIDs: [String] = Array(BlocklistFilter.defaults).sorted(),
     launchAtLogin: Bool = false,
-    languageOverride: String? = nil
+    languageOverride: String? = nil,
+    summariesEnabled: Bool = true,
+    allowImageSummaries: Bool = true,
+    allowTextSummaries: Bool = true,
+    allowFileSummaries: Bool = true
   ) {
     self.maxClipSizeBytes = maxClipSizeBytes
     self.skipSensitive = skipSensitive
@@ -24,6 +35,10 @@ public struct Preferences: Sendable, Equatable {
     self.blockedBundleIDs = blockedBundleIDs
     self.launchAtLogin = launchAtLogin
     self.languageOverride = languageOverride
+    self.summariesEnabled = summariesEnabled
+    self.allowImageSummaries = allowImageSummaries
+    self.allowTextSummaries = allowTextSummaries
+    self.allowFileSummaries = allowFileSummaries
   }
 }
 
@@ -38,6 +53,10 @@ public final class PreferencesStore: @unchecked Sendable {
     static let blockedBundleIDs = "blockedBundleIDs"
     static let launchAtLogin = "launchAtLogin"
     static let languageOverride = "languageOverride"
+    static let summariesEnabled = "summariesEnabled"
+    static let allowImageSummaries = "allowImageSummaries"
+    static let allowTextSummaries = "allowTextSummaries"
+    static let allowFileSummaries = "allowFileSummaries"
   }
 
   public init(defaults: UserDefaults = .standard) {
@@ -56,7 +75,15 @@ public final class PreferencesStore: @unchecked Sendable {
         ?? defaultsValue.blockedBundleIDs,
       launchAtLogin: defaults.object(forKey: Keys.launchAtLogin) as? Bool
         ?? defaultsValue.launchAtLogin,
-      languageOverride: defaults.string(forKey: Keys.languageOverride)
+      languageOverride: defaults.string(forKey: Keys.languageOverride),
+      summariesEnabled: defaults.object(forKey: Keys.summariesEnabled) as? Bool
+        ?? defaultsValue.summariesEnabled,
+      allowImageSummaries: defaults.object(forKey: Keys.allowImageSummaries) as? Bool
+        ?? defaultsValue.allowImageSummaries,
+      allowTextSummaries: defaults.object(forKey: Keys.allowTextSummaries) as? Bool
+        ?? defaultsValue.allowTextSummaries,
+      allowFileSummaries: defaults.object(forKey: Keys.allowFileSummaries) as? Bool
+        ?? defaultsValue.allowFileSummaries
     )
   }
 
@@ -71,6 +98,10 @@ public final class PreferencesStore: @unchecked Sendable {
     } else {
       defaults.removeObject(forKey: Keys.languageOverride)
     }
+    defaults.set(prefs.summariesEnabled, forKey: Keys.summariesEnabled)
+    defaults.set(prefs.allowImageSummaries, forKey: Keys.allowImageSummaries)
+    defaults.set(prefs.allowTextSummaries, forKey: Keys.allowTextSummaries)
+    defaults.set(prefs.allowFileSummaries, forKey: Keys.allowFileSummaries)
   }
 
   public func reset() {
@@ -80,5 +111,9 @@ public final class PreferencesStore: @unchecked Sendable {
     defaults.removeObject(forKey: Keys.blockedBundleIDs)
     defaults.removeObject(forKey: Keys.launchAtLogin)
     defaults.removeObject(forKey: Keys.languageOverride)
+    defaults.removeObject(forKey: Keys.summariesEnabled)
+    defaults.removeObject(forKey: Keys.allowImageSummaries)
+    defaults.removeObject(forKey: Keys.allowTextSummaries)
+    defaults.removeObject(forKey: Keys.allowFileSummaries)
   }
 }

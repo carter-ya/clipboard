@@ -17,6 +17,10 @@ struct ClipPreviewView: View {
       if let item {
         header(for: item)
         Divider()
+        if let summary = item.summary, !summary.isEmpty, !item.sensitive {
+          summarySection(summary: summary, source: item.summarySource)
+          Divider()
+        }
       }
       Group {
         if let item {
@@ -30,6 +34,40 @@ struct ClipPreviewView: View {
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+  }
+
+  @ViewBuilder
+  private func summarySection(summary: String, source: SummarySource?) -> some View {
+    HStack(alignment: .top, spacing: 6) {
+      Image(systemName: "sparkles")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+      Text(summary)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      if let source {
+        Text(sourceBadge(for: source))
+          .font(.system(size: 9, weight: .semibold))
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, 5)
+          .padding(.vertical, 1.5)
+          .background(
+            RoundedRectangle(cornerRadius: 4)
+              .fill(Color.primary.opacity(0.08))
+          )
+      }
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 6)
+  }
+
+  private func sourceBadge(for source: SummarySource) -> String {
+    switch source {
+    case .vision: return "Vision"
+    case .writingTools: return "Writing Tools"
+    case .foundationModels: return "FM"
     }
   }
 

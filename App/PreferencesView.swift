@@ -189,9 +189,78 @@ struct PreferencesView: View {
             .foregroundStyle(.secondary)
         }
       }
+      Section("AI Summaries") {
+        VStack(alignment: .leading, spacing: 10) {
+          Toggle(
+            "Enable AI summaries",
+            isOn: Binding(
+              get: { prefs.summariesEnabled },
+              set: {
+                prefs.summariesEnabled = $0
+                onSave(prefs)
+              }
+            )
+          )
+          Toggle(
+            "Summarize images",
+            isOn: Binding(
+              get: { prefs.allowImageSummaries },
+              set: {
+                prefs.allowImageSummaries = $0
+                onSave(prefs)
+              }
+            )
+          )
+          .disabled(!prefs.summariesEnabled || !AICapability.isVisionAvailable)
+          Toggle(
+            "Summarize text",
+            isOn: Binding(
+              get: { prefs.allowTextSummaries },
+              set: {
+                prefs.allowTextSummaries = $0
+                onSave(prefs)
+              }
+            )
+          )
+          .disabled(
+            !prefs.summariesEnabled
+              || !(AICapability.isWritingToolsAvailable
+                || AICapability.isFoundationModelsAvailable)
+          )
+          Toggle(
+            "Summarize files",
+            isOn: Binding(
+              get: { prefs.allowFileSummaries },
+              set: {
+                prefs.allowFileSummaries = $0
+                onSave(prefs)
+              }
+            )
+          )
+          .disabled(!prefs.summariesEnabled || !AICapability.isFoundationModelsAvailable)
+          Text(aiCapabilityCaption)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
     }
     .formStyle(.grouped)
     .scrollContentBackground(.hidden)
+  }
+
+  private var aiCapabilityCaption: LocalizedStringKey {
+    // Summarize what the current device supports in one line. The three
+    // backends map to separate future slices (S64/S65/S66) so this
+    // caption is the user-facing signal for why a toggle might be
+    // locked.
+    if AICapability.isFoundationModelsAvailable {
+      return "Foundation Models available on this device."
+    }
+    if AICapability.isWritingToolsAvailable {
+      return
+        "Writing Tools available; Foundation Models requires macOS 26+ Apple Silicon."
+    }
+    return "Vision on-device only; upgrade macOS for richer summaries."
   }
 
   private var privacy: some View {

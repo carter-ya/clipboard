@@ -125,3 +125,13 @@
 "Language will apply after restart" = "Language will apply after restart";
 "Quit and reopen Clipboard for the new language to take effect." = "Quit and reopen Clipboard for the new language to take effect.";
 "MiB" = "MiB";
+
+/* MARK: - AI Summaries (S63) */
+"AI Summaries" = "AI Summaries";
+"Enable AI summaries" = "Enable AI summaries";
+"Summarize images" = "Summarize images";
+"Summarize text" = "Summarize text";
+"Summarize files" = "Summarize files";
+"Foundation Models available on this device." = "Foundation Models available on this device.";
+"Writing Tools available; Foundation Models requires macOS 26+ Apple Silicon." = "Writing Tools available; Foundation Models requires macOS 26+ Apple Silicon.";
+"Vision on-device only; upgrade macOS for richer summaries." = "Vision on-device only; upgrade macOS for richer summaries.";

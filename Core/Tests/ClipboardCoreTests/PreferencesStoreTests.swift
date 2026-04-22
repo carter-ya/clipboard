@@ -18,6 +18,35 @@ final class PreferencesStoreTests: XCTestCase {
     XCTAssertTrue(prefs.blockedBundleIDs.contains("com.1password.1password"))
     XCTAssertFalse(prefs.launchAtLogin)
     XCTAssertNil(prefs.languageOverride)
+    XCTAssertTrue(prefs.summariesEnabled)
+    XCTAssertTrue(prefs.allowImageSummaries)
+    XCTAssertTrue(prefs.allowTextSummaries)
+    XCTAssertTrue(prefs.allowFileSummaries)
+  }
+
+  /// S63: the four summary toggles should persist through a save/load
+  /// cycle and come back to their defaults after reset().
+  func testSummaryTogglesRoundTrip() {
+    let (store, _) = makeIsolated()
+    var prefs = store.current
+    prefs.summariesEnabled = false
+    prefs.allowImageSummaries = false
+    prefs.allowTextSummaries = false
+    prefs.allowFileSummaries = false
+    store.save(prefs)
+
+    let reloaded = store.current
+    XCTAssertFalse(reloaded.summariesEnabled)
+    XCTAssertFalse(reloaded.allowImageSummaries)
+    XCTAssertFalse(reloaded.allowTextSummaries)
+    XCTAssertFalse(reloaded.allowFileSummaries)
+
+    store.reset()
+    let afterReset = store.current
+    XCTAssertTrue(afterReset.summariesEnabled)
+    XCTAssertTrue(afterReset.allowImageSummaries)
+    XCTAssertTrue(afterReset.allowTextSummaries)
+    XCTAssertTrue(afterReset.allowFileSummaries)
   }
 
   func testLanguageOverrideRoundTrip() {

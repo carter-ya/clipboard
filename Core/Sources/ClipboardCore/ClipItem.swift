@@ -1,5 +1,14 @@
 import Foundation
 
+/// Which on-device engine produced a clip's `summary`. Used by the UI
+/// to label the summary with a small badge so users know how it was
+/// generated. See AICapability for how availability is detected.
+public enum SummarySource: String, Sendable, Codable, Equatable {
+  case vision
+  case writingTools
+  case foundationModels
+}
+
 public struct ClipItem: Sendable, Codable, Equatable, Identifiable {
   public var id: UUID
   public var createdAt: Date
@@ -12,6 +21,11 @@ public struct ClipItem: Sendable, Codable, Equatable, Identifiable {
   public var sensitivityReason: String?
   public var sourceBundleID: String?
   public var payloads: [Payload]
+  /// On-device generated description/summary of the clip. nil until a
+  /// summarizer has run; sensitive items are never summarized.
+  public var summary: String?
+  /// Which engine produced `summary`. nil iff `summary` is nil.
+  public var summarySource: SummarySource?
 
   public init(
     id: UUID = UUID(),
@@ -24,7 +38,9 @@ public struct ClipItem: Sendable, Codable, Equatable, Identifiable {
     sensitive: Bool = false,
     sensitivityReason: String? = nil,
     sourceBundleID: String? = nil,
-    payloads: [Payload] = []
+    payloads: [Payload] = [],
+    summary: String? = nil,
+    summarySource: SummarySource? = nil
   ) {
     self.id = id
     self.createdAt = createdAt
@@ -37,5 +53,7 @@ public struct ClipItem: Sendable, Codable, Equatable, Identifiable {
     self.sensitivityReason = sensitivityReason
     self.sourceBundleID = sourceBundleID
     self.payloads = payloads
+    self.summary = summary
+    self.summarySource = summarySource
   }
 }
