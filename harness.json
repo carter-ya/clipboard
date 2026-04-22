@@ -1253,6 +1253,41 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S51: restore history panel window title + show counts on tabs and kind chips"
+    },
+    {
+      "id": "S52",
+      "title": "Preferences 标题栏真正变玻璃",
+      "goal": "S50 回到标准 titled window 后，标题栏是 macOS 默认 chrome（也是系统玻璃，但和 regularMaterial body 观感有细微差别）。本 slice 用 `fullSizeContentView + titlebarAppearsTransparent` 让 body 的 regularMaterial 真正流过标题栏；避开 S49 的 safe area 陷阱——改用 VStack 手动为标题栏腾 28pt 空间，不再依赖 SwiftUI safe area inset。",
+      "deliverables": [
+        "PreferencesWindowController: styleMask 加回 `.fullSizeContentView`；重新打开 `titlebarAppearsTransparent = true`；contentRect 从 520x380 bump 回 520x408；保留 `isOpaque = false / backgroundColor = .clear / hasShadow = true`。",
+        "PreferencesView body 重构为 VStack(spacing: 0) { Color.clear.frame(height: 28); Divider(); TabView { ... } }，总 `.frame(width: 520, height: 408) + .background(.regularMaterial)` —— 标题栏 28pt 靠显式 Color.clear 占位（标题栏作为透明 overlay 穿透 regularMaterial），Divider 在 y=28 标记分界，TabView 填剩余 520x379。",
+        "不使用 safe area / ignoresSafeAreaEdges / safeAreaInset —— 布局完全由 VStack + 明确常量控制，避免 S49 的 SwiftUI 视 `.frame(width:height:)` 为固定盒子后忽略 safe area 的问题。",
+        "NSHostingController 保持默认 sizingOptions —— 显式 .frame(520, 408) 的 intrinsic 自然推送 preferredContentSize=520x408，窗口不塌陷。"
+      ],
+      "acceptance": [
+        "⌘, 打开 Preferences：整窗背景是连续的 regularMaterial 玻璃，标题栏与 body 观感一致；traffic light / 窗口标题文字都在 title bar 正确位置。",
+        "TabView tab 栏位于 y=28 分隔线下方，『快捷键』等 section 标题不再被标题栏遮挡。",
+        "Cap TextField、Hotkey Recorder、Language Picker 等控件均正常工作。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S52: unified glass title bar via fullSizeContentView + manual 28pt VStack spacer"
+    },
+    {
+      "id": "S53",
+      "title": "KindChipBar 补上 Mixed chip 消除 All 数量差",
+      "goal": "S51 开始显示各类型条数后，用户发现 All=51 但 Text+Image+File+Rich=38，差 13。原因是 ClipKind 里还有 `.mixed` 类型（含多种 pasteboard type 的条目，如 RTF+image 同时出现），但 KindChipBar 没对应 chip，13 条 `.mixed` 被漏掉。",
+      "deliverables": [
+        "KindChipBar 新增第 6 个 chip：『Mixed』，icon `square.stack`，value `.mixed`——保持与 ClipRowView / ClipPreviewView 的 kindIcon / kindLabel 一致。",
+        "『Mixed』的本地化字符串 (`\"Mixed\"` key) 已经存在于所有 7 个语言包（S32 引入），无需新增；直接 `Text(LocalizedStringKey(\"Mixed\"))`。",
+        "验证 `allTabCount` 与各 chip count 之和一致：Text + Image + File + Rich + Mixed = All。"
+      ],
+      "acceptance": [
+        "打开 HistoryPanel：All chip 数字 = Text + Image + File + Rich + Mixed 之和；全部分类皆可见。",
+        "点击 Mixed chip：仅显示 `.mixed` 类型条目。",
+        "其它语言（zh-Hans 显示『混合』、日文『複合』等）label 正确。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S53: add Mixed chip so kind counts sum to All"
     }
   ],
   "slice_rhythm": [
@@ -1397,7 +1432,9 @@
       "S48",
       "S49",
       "S50",
-      "S51"
+      "S51",
+      "S52",
+      "S53"
     ]
   },
   "open_questions": [

@@ -25,20 +25,22 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     self.onImportHistory = onImportHistory
 
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 520, height: 380),
-      styleMask: [.titled, .closable, .miniaturizable],
+      contentRect: NSRect(x: 0, y: 0, width: 520, height: 408),
+      styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
       backing: .buffered,
       defer: false
     )
     window.title = String(localized: "Clipboard Preferences")
-    // Standard titled window: AppKit draws its own translucent title
-    // bar (system glass) above the content view. SwiftUI fills the
-    // content area with .regularMaterial — both are system glass
-    // layers, and the title bar's bottom edge is the natural top
-    // boundary of the body, so content can never scroll up into it.
+    // fullSizeContentView + titlebarAppearsTransparent let the
+    // SwiftUI body's regularMaterial flow under the title bar, so the
+    // whole window reads as one continuous glass pane. The title bar
+    // still carries traffic lights and the window title on top. The
+    // SwiftUI view reserves the top 28pt manually via a VStack spacer
+    // so body content can't scroll up into the title bar region.
     window.isOpaque = false
     window.backgroundColor = .clear
     window.hasShadow = true
+    window.titlebarAppearsTransparent = true
     super.init(window: window)
     window.delegate = self
     rebuildContent()

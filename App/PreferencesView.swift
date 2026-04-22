@@ -27,15 +27,23 @@ struct PreferencesView: View {
   private let capRange: ClosedRange<Int> = 20...2000
 
   var body: some View {
-    TabView {
-      general
-        .tabItem { Label("General", systemImage: "gear") }
-      privacy
-        .tabItem { Label("Privacy", systemImage: "lock") }
-      data
-        .tabItem { Label("Data", systemImage: "tray.and.arrow.up") }
+    VStack(spacing: 0) {
+      // Transparent top strip reserves the title bar region so TabView
+      // content never bleeds up behind it. The material behind us
+      // still flows through the transparent title bar for unified
+      // glass — this just keeps interactive content bounded below.
+      Color.clear.frame(height: 28)
+      Divider()
+      TabView {
+        general
+          .tabItem { Label("General", systemImage: "gear") }
+        privacy
+          .tabItem { Label("Privacy", systemImage: "lock") }
+        data
+          .tabItem { Label("Data", systemImage: "tray.and.arrow.up") }
+      }
     }
-    .frame(width: 520, height: 380)
+    .frame(width: 520, height: 408)
     .background(.regularMaterial)
   }
 

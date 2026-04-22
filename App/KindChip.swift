@@ -57,6 +57,7 @@ struct KindChipBar: View {
         chip(label: "Image", icon: "photo", value: .image)
         chip(label: "File", icon: "doc", value: .file)
         chip(label: "Rich", icon: "doc.richtext", value: .rtf)
+        chip(label: "Mixed", icon: "square.stack", value: .mixed)
       }
       .padding(.horizontal, 10)
       .padding(.vertical, 4)
