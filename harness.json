@@ -1044,6 +1044,25 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S39: apply Alfred-style glass to Preferences while keeping title bar"
+    },
+    {
+      "id": "S40",
+      "title": "Preferences 玻璃化四处收尾",
+      "goal": "S39 把 Preferences 切到玻璃 + grouped form 之后剩下的四处视觉 / 交互瑕疵：首开 Picker 拿到初始焦点、标题栏与 body 断层、Retention TextField 的方形 bezel 像一条黑线、Privacy TextEditor 默认白底与玻璃不搭。",
+      "deliverables": [
+        "PreferencesWindowController show() 里 `window?.makeKeyAndOrderFront(nil)` 之后补一句 `window?.makeFirstResponder(nil)` —— 让窗口自己做第一响应者，Language Picker 首开不再显示蓝色焦点环。",
+        "PreferencesWindowController 的 styleMask 追加 `.fullSizeContentView`、`window.titlebarAppearsTransparent = true` —— content 延展到 title bar 下方，SwiftUI 根部的 regularMaterial 铺满整面，标题栏与 body 合一；traffic light 由系统绘制，依然在 content 之上。",
+        "PreferencesView Retention 下的『Skip items larger than』TextField 加 `.textFieldStyle(.roundedBorder)` —— 避免 default squareBezel 在透明 Form 底上画出一条类似黑线的外框。",
+        "PreferencesView Privacy 的 TextEditor（blocked bundle IDs）加 `.scrollContentBackground(.hidden)` 后，自己套一层 `RoundedRectangle(cornerRadius: 8)` 背景 + stroke（和 HistoryPanel 搜索框风格一致：primary 0.06 fill / 0.10 stroke），让它融入 grouped card / 玻璃观感。"
+      ],
+      "acceptance": [
+        "⌘, 首次打开 Preferences：Language Picker 没有蓝色焦点环；点击后能正常弹出。",
+        "标题栏与 body 之间没有材质断层，整面是一块玻璃；窗口仍能拖动、最小化、关闭。",
+        "Retention 分组下的 MiB 输入框是系统 rounded bezel，不再像一条贴底黑线；能输入数字、能聚焦。",
+        "Privacy 分组下的 bundle ID TextEditor 底色与 Section card 一致，圆角 + hairline stroke；文字 monospaced。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S40: preferences glass polish — drop initial focus, unify title bar, bezel text field, themed text editor"
     }
   ],
   "slice_rhythm": [
@@ -1176,7 +1195,8 @@
       "S36",
       "S37",
       "S38",
-      "S39"
+      "S39",
+      "S40"
     ]
   },
   "open_questions": [

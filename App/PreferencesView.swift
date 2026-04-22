@@ -144,6 +144,7 @@ struct PreferencesView: View {
             ),
             format: .number.precision(.fractionLength(0...1))
           )
+          .textFieldStyle(.roundedBorder)
           .multilineTextAlignment(.trailing)
           .frame(width: 80)
           Text("MiB")
@@ -186,8 +187,18 @@ struct PreferencesView: View {
             }
           )
         )
-        .frame(height: 140)
         .font(.system(.body, design: .monospaced))
+        .scrollContentBackground(.hidden)
+        .padding(6)
+        .frame(height: 140)
+        .background(
+          RoundedRectangle(cornerRadius: 8)
+            .fill(Color.primary.opacity(0.06))
+        )
+        .overlay(
+          RoundedRectangle(cornerRadius: 8)
+            .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+        )
       }
     }
     .formStyle(.grouped)

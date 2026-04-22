@@ -26,17 +26,18 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 520, height: 380),
-      styleMask: [.titled, .closable, .miniaturizable],
+      styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
       backing: .buffered,
       defer: false
     )
     window.title = String(localized: "Clipboard Preferences")
-    // Clear the window background so the SwiftUI root's .regularMaterial
-    // shows through, giving Preferences the same glass aesthetic as the
-    // HistoryPanel. The system-drawn title bar remains on top.
+    // Let the SwiftUI root's .regularMaterial fill the whole window,
+    // including under the title bar, so the glass looks continuous.
+    // Traffic lights are still drawn by AppKit on top.
     window.isOpaque = false
     window.backgroundColor = .clear
     window.hasShadow = true
+    window.titlebarAppearsTransparent = true
     super.init(window: window)
     window.delegate = self
     rebuildContent()
@@ -62,6 +63,10 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     }
     window?.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
+    // Drop the auto-picked first responder so the Language Picker (or
+    // any other control in tab order) doesn't show a focus ring on
+    // first open. The user can still click or tab into any control.
+    window?.makeFirstResponder(nil)
   }
 
   /// Place `window` so its center matches the center of `anchor`,
