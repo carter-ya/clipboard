@@ -38,6 +38,9 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     window.backgroundColor = .clear
     window.hasShadow = true
     window.titlebarAppearsTransparent = true
+    // Force a visible separator between title bar and content — with
+    // .fullSizeContentView + transparent title bar the default is .none.
+    window.titlebarSeparatorStyle = .line
     super.init(window: window)
     window.delegate = self
     rebuildContent()

@@ -1,5 +1,4 @@
 import ClipboardCore
-import KeyboardShortcuts
 import SwiftUI
 
 struct PreferencesView: View {
@@ -61,8 +60,7 @@ struct PreferencesView: View {
         HStack {
           Text("Toggle panel")
           Spacer()
-          KeyboardShortcuts.Recorder("", name: .toggleHistoryPanel)
-            .labelsHidden()
+          HotkeyRecorder(name: .toggleHistoryPanel)
         }
       }
       Section("Language") {

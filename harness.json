@@ -1093,6 +1093,26 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
       ],
       "commit_message": "S42: hotkey recorder + MiB field adopt the glass container style"
+    },
+    {
+      "id": "S43",
+      "title": "自建 HotkeyRecorder + 标题栏分隔线",
+      "goal": "S42 的 KeyboardShortcuts 库自带 Recorder 外观 AppKit 第三方控死，在玻璃 Preferences 里视觉仍然突兀；另 `.fullSizeContentView` 让 Form 内容可以滑到标题栏之下，但没有视觉分隔线。",
+      "deliverables": [
+        "新增 App/HotkeyRecorder.swift —— SwiftUI 自建 shortcut recorder：仅用库的 `KeyboardShortcuts.getShortcut(for:)` / `setShortcut(_:for:)` 存取快捷键，不再引用库的 Recorder UI。状态机：idle（显示 Shortcut.description 或『None』）→ recording（点击进入，边框高亮 accent + 文案『Recording…』）→ 捕获到带修饰键的 keyDown 后写入并回到 idle；Esc 中止；idle 下右侧有 `xmark.circle.fill` 按钮清除快捷键。",
+        "HotkeyRecorder 的容器与 HistoryPanel 搜索框 / Privacy TextEditor / MiB 输入框同风格：圆角 6、primary 0.06 fill、primary 0.10 stroke；录制状态 fill 升到 0.10、stroke 切为 accent。",
+        "使用 `NSEvent.addLocalMonitorForEvents(matching: .keyDown)` 在 start 时订阅、在 stop / onDisappear 时释放；未带任何修饰键的 keyDown 会 `NSSound.beep()` 并忽略，防止误录裸字母。",
+        "PreferencesView General Hotkey Section 改为 `HStack { Text(\"Toggle panel\"); Spacer(); HotkeyRecorder(name: .toggleHistoryPanel) }`——彻底不再使用 `KeyboardShortcuts.Recorder`。",
+        "PreferencesWindowController init 里 `window.titlebarSeparatorStyle = .line`——让内容滑到 title bar 下方时有一条系统绘制的分隔线。`titlebarAppearsTransparent = true` 默认下该 style 会是 `.none`，需要显式指定。"
+      ],
+      "acceptance": [
+        "打开 Preferences → General → Hotkey：Toggle panel 行左侧文字、右侧是圆角胶囊 recorder，视觉与 MiB 输入框、Privacy TextEditor、HistoryPanel 搜索框同家族。",
+        "点击 recorder → 边框变 accent、文字显示『Recording…』；按 ⌥⌘V → 自动保存、展示 ⌥⌘V；按 Esc → 取消保持原值；已有快捷键时右侧 × 可清除。",
+        "记录完成后立即按该快捷键 → HistoryPanel 弹出。",
+        "Preferences 内容能向上滑到标题栏下方时，标题栏与 body 之间有一条系统分隔线（.line 风格）。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S43: custom HotkeyRecorder + titlebar separator line"
     }
   ],
   "slice_rhythm": [
@@ -1228,7 +1248,8 @@
       "S39",
       "S40",
       "S41",
-      "S42"
+      "S42",
+      "S43"
     ]
   },
   "open_questions": [
