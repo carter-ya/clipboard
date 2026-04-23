@@ -1655,6 +1655,51 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests）。"
       ],
       "commit_message": "S73: delete keeps selection adjacent to the deleted row (no more jumping to top)"
+    },
+    {
+      "id": "S74",
+      "title": "Vision OCR 识别中文（zh-Hans / zh-Hant）",
+      "goal": "中文 UI 截图的 OCR 为空并降级到 classifier 的泛化 label。根因是 `VNRecognizeTextRequest` 默认只认英文；显式声明 `recognitionLanguages = [\"zh-Hans\", \"zh-Hant\", \"en-US\"]`，脚本歧义时偏向 CJK，英文仍然识别。",
+      "deliverables": [
+        "`App/VisionImageSummarizer.swift` 的 `VNRecognizeTextRequest` 设置 `recognitionLanguages = [\"zh-Hans\", \"zh-Hant\", \"en-US\"]`；中文排在前以便脚本歧义时偏向 CJK。",
+        "保留现有 `.accurate` / `usesLanguageCorrection = false` 等既有参数，不改 classifier 分支。"
+      ],
+      "acceptance": [
+        "截图一段全中文 UI 并拷入剪贴板 → 条目的 summary 出现识别到的中文正文，而非分类器的泛化 label。",
+        "英文截图的 summary 仍能正常识别。",
+        "`just build` / `just test` 全绿。"
+      ],
+      "commit_message": "vision OCR recognizes Chinese (add zh-Hans/zh-Hant to recognitionLanguages)"
+    },
+    {
+      "id": "S75",
+      "title": "搜索匹配 summary 字段（OCR 文本可检索）",
+      "goal": "搜索过滤器只比对 `item.preview`，Vision OCR 从图片中提取的 `summary` 文本对搜索框不可见。把 `summary` 折入匹配：preview 或 summary 任一命中即算命中。",
+      "deliverables": [
+        "`Core/Sources/ClipboardCore/InMemoryClipStore.swift` 的 `search(query:filters:)` 在 `query` 非空时同时对 `item.preview` 与 `item.summary` 做 case-insensitive 子串匹配，任一命中即保留；其它 filter 语义不变。",
+        "`Core/Sources/ClipboardCore/JSONSnapshotClipStore.swift` 的 `search(query:filters:)` 应用同样的改动，两处行为保持一致。"
+      ],
+      "acceptance": [
+        "拷入一张带中文文字的截图、等 Vision OCR 产出 summary → 在搜索框输入该中文关键词，该条目进入结果；同关键词不在任何 preview/summary 中的条目不出现。",
+        "`just test` 全绿；既有 preview-only 查询行为不回归。"
+      ],
+      "commit_message": "search matches on summary field too (OCR'd image text is findable)"
+    },
+    {
+      "id": "S76",
+      "title": "AI Summaries 区块 + Copy summary 的 7 语言本地化",
+      "goal": "S63 引入的 AI Summaries 偏好文案只入了 `en.lproj`，其余 6 语言显示生英文；S70 的 Copy summary 按钮 tooltip / a11y label 从未进任何 `.strings`。补齐 8 个 key 在 en / zh-Hans / zh-Hant / ja / ko / de / es 的翻译。",
+      "deliverables": [
+        "在 zh-Hans / zh-Hant / ja / ko / de / es 的 `Localizable.strings` 中补齐 8 个 key：`AI Summaries`、`Enable AI summaries`、`Summarize images`、`Summarize text`、`Summarize files`、`Foundation Models available on this device.`、`Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon.`、`Copy summary`。",
+        "在 `en.lproj/Localizable.strings` 补上缺失的 `Copy summary`。",
+        "不改动现有译文排序/其它 key。"
+      ],
+      "acceptance": [
+        "切换到 7 种语言后打开 Preferences → AI Summaries 区块所有文案按语言正确显示，无生英文残留。",
+        "hover 预览条目的 Copy summary 按钮 → tooltip 本地化。",
+        "`just build` 全绿。"
+      ],
+      "commit_message": "localize AI Summaries section + Copy summary across 7 locales"
     }
   ],
   "slice_rhythm": [
@@ -1821,7 +1866,10 @@
       "S70",
       "S71",
       "S72",
-      "S73"
+      "S73",
+      "S74",
+      "S75",
+      "S76"
     ]
   },
   "open_questions": [
