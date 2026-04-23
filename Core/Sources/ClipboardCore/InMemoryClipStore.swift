@@ -51,7 +51,11 @@ public actor InMemoryClipStore: ClipStore {
   public func search(query: String, filters: SearchFilters) async -> [ClipItem] {
     let lower = query.lowercased()
     return items.filter { item in
-      if !query.isEmpty, !item.preview.lowercased().contains(lower) { return false }
+      if !query.isEmpty {
+        let previewHit = item.preview.lowercased().contains(lower)
+        let summaryHit = item.summary?.lowercased().contains(lower) ?? false
+        if !previewHit, !summaryHit { return false }
+      }
       if filters.pinnedOnly, !item.pinned { return false }
       if !filters.includeSensitive, item.sensitive { return false }
       if let kinds = filters.kinds, !kinds.contains(item.kind) { return false }
