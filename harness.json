@@ -1639,6 +1639,22 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests）。"
       ],
       "commit_message": "S72: disable Preferences state restoration + center after orderFront + log origin"
+    },
+    {
+      "id": "S73",
+      "title": "删除当前条目后选中相邻行而不是跳回首条",
+      "goal": "用户反馈：删除中间的某条条目后，selection 跳回了首条。根因是 `HistoryPanelViewModel.refresh()` 发现旧 selectedID 不在新 items 里时 fallback 到 `filteredItems.first?.id`——对删除场景来说不是好行为，常见期待是光标停在紧邻的下一行（或上一行，如果删的是末行）。",
+      "deliverables": [
+        "`HistoryPanelViewModel.delete(_ item:)` 在调用 `store.delete` 之前：若 `item.id == selectedID`，就在当前 `filteredItems` 里找到它的 idx，把 `selectedID` 切到 `idx+1`（下一行），若 `idx` 是最后一行则切到 `idx-1`（上一行），只剩这一行时置 nil。pre-compute 后再 await store.delete——refresh 回来时看到 selectedID 已经在新列表里，不会再 fallback。",
+        "非当前选中条目被删（例如 context menu 对其他行点 Delete）时 selectedID 保持不动——refresh 自然不会覆盖已有的有效 selection。"
+      ],
+      "acceptance": [
+        "选中第 5 条，按 ⌘⌫ 删除 → 第 5 行消失，原第 6 条（现在是第 5 条）被选中。",
+        "选中末条删除 → 倒数第二条被选中；删到只剩一条时再删 → 列表空，selectedID = nil。",
+        "右键非选中条目删除 → 当前选中行保持不变。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests）。"
+      ],
+      "commit_message": "S73: delete keeps selection adjacent to the deleted row (no more jumping to top)"
     }
   ],
   "slice_rhythm": [
@@ -1804,7 +1820,8 @@
       "S69",
       "S70",
       "S71",
-      "S72"
+      "S72",
+      "S73"
     ]
   },
   "open_questions": [

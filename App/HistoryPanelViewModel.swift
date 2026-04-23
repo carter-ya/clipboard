@@ -172,6 +172,23 @@ final class HistoryPanelViewModel: ObservableObject {
   }
 
   func delete(_ item: ClipItem) async {
+    // When the deleted row was the current selection, pre-pick a
+    // neighbour so refresh()'s "selected vanished" fallback doesn't
+    // snap back to the top of the list. Prefer the next row (the one
+    // that slides up into the deleted slot); if we're deleting the
+    // last visible row, keep the previous.
+    if item.id == selectedID {
+      let visible = filteredItems
+      if let idx = visible.firstIndex(where: { $0.id == item.id }) {
+        if idx + 1 < visible.count {
+          selectedID = visible[idx + 1].id
+        } else if idx > 0 {
+          selectedID = visible[idx - 1].id
+        } else {
+          selectedID = nil
+        }
+      }
+    }
     await store.delete(id: item.id)
   }
 
