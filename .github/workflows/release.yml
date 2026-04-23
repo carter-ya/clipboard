@@ -1,0 +1,135 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tooling
+        run: |
+          brew install just xcodegen
+
+      - name: Resolve version from tag
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Sanity check project.yml version matches tag
+        run: |
+          # Match only the settings-level assignment (indented, followed by ":"),
+          # not the Info.plist interpolation `$(MARKETING_VERSION)`.
+          FILE_VER=$(awk '/^[[:space:]]+MARKETING_VERSION:[[:space:]]/ {gsub(/[" ]/, "", $2); print $2; exit}' project.yml)
+          if [[ "$FILE_VER" != "${{ steps.ver.outputs.version }}" ]]; then
+            echo "::error::project.yml MARKETING_VERSION ($FILE_VER) != tag (${{ steps.ver.outputs.version }})"
+            exit 1
+          fi
+
+      - name: Run tests
+        run: just test
+
+      - name: Lint
+        run: just lint
+
+      - name: Package DMG
+        run: just package
+
+      - name: Sign update with Sparkle
+        id: sign
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SPARKLE_PRIVATE_KEY:-}" ]]; then
+            echo "::error::SPARKLE_PRIVATE_KEY secret is not configured. Generate with 'just sparkle-keys', store the private key, add it to repo Secrets, and put the matching public key into project.yml/SUPublicEDKey."
+            exit 1
+          fi
+          VERSION="${{ steps.ver.outputs.version }}"
+          DMG="dist/Clipboard-${VERSION}.dmg"
+          # sign_update ships inside Sparkle's SPM binary artifact; 'just package'
+          # already ran xcodebuild which populated build/SourcePackages.
+          SIGN_UPDATE=$(find build/SourcePackages -name sign_update -type f -not -path "*old_dsa_scripts*" 2>/dev/null | head -1)
+          if [[ -z "$SIGN_UPDATE" ]]; then
+            echo "::error::sign_update not found under build/SourcePackages. Did 'just package' run?"
+            exit 1
+          fi
+          KEY_FILE="$(mktemp)"
+          trap 'rm -f "$KEY_FILE"' EXIT
+          printf '%s' "$SPARKLE_PRIVATE_KEY" > "$KEY_FILE"
+          SIG_LINE=$("$SIGN_UPDATE" -f "$KEY_FILE" "$DMG")
+          # sign_update prints e.g. `sparkle:edSignature="..." length="..."`
+          echo "$SIG_LINE" > dist/sparkle-attrs.txt
+          echo "sig_line=$SIG_LINE" >> "$GITHUB_OUTPUT"
+
+      - name: Emit appcast snippet
+        id: snippet
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.ver.outputs.version }}"
+          DMG="dist/Clipboard-${VERSION}.dmg"
+          SIZE=$(stat -f%z "$DMG")
+          SIG_LINE=$(cat dist/sparkle-attrs.txt)
+          DMG_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/Clipboard-${VERSION}.dmg"
+          PUBDATE=$(date -u '+%a, %d %b %Y %H:%M:%S +0000')
+          # sign_update already emits both sparkle:edSignature="..." and
+          # length="..." attributes, so we must NOT append our own length=.
+          cat > dist/appcast-item.xml <<ITEM
+              <item>
+                <title>Version ${VERSION}</title>
+                <pubDate>${PUBDATE}</pubDate>
+                <sparkle:version>${VERSION}</sparkle:version>
+                <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+                <enclosure url="${DMG_URL}" ${SIG_LINE} type="application/octet-stream" />
+              </item>
+          ITEM
+          echo "## Appcast snippet" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```xml' >> "$GITHUB_STEP_SUMMARY"
+          cat dist/appcast-item.xml >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Paste the snippet above into \`docs/appcast.xml\` before \`</channel>\`, then commit to \`main\`." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Extract release notes
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.ver.outputs.version }}"
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" {flag=1; next}
+            flag && /^## \[/ {exit}
+            flag && /^\[[^]]+\]:/ {exit}
+            flag {print}
+          ' CHANGELOG.md > dist/release-notes.md
+          cat .github/RELEASE_TEMPLATE.md dist/release-notes.md > dist/final-notes.md
+          # Replace X.Y.Z placeholders in the template body
+          sed -i '' "s/X\\.Y\\.Z/${VERSION}/g" dist/final-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.ver.outputs.version }}"
+          DMG="dist/Clipboard-${VERSION}.dmg"
+          gh release create "v${VERSION}" \
+            "${DMG}" "${DMG}.sha256" "dist/appcast-item.xml" \
+            --title "Clipboard v${VERSION}" \
+            --notes-file dist/final-notes.md
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Clipboard-${{ steps.ver.outputs.version }}
+          path: |
+            dist/Clipboard-*.dmg
+            dist/Clipboard-*.dmg.sha256
+            dist/appcast-item.xml

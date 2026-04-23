@@ -83,7 +83,7 @@ struct ClipRowView: View {
       ZStack {
         RoundedRectangle(cornerRadius: 4)
           .fill(kindBackground.opacity(0.15))
-        Image(systemName: kindIcon)
+        Image(systemName: ClipKindFormatting.icon(for: item.kind))
           .font(.system(size: 14, weight: .medium))
           .foregroundStyle(kindBackground)
       }
@@ -99,24 +99,8 @@ struct ClipRowView: View {
     }
   }
 
-  private var kindIcon: String {
-    switch item.kind {
-    case .text: return "text.alignleft"
-    case .rtf: return "doc.richtext"
-    case .image: return "photo"
-    case .file: return "doc"
-    case .mixed: return "square.stack"
-    }
-  }
-
   private var kindBackground: Color {
-    switch item.kind {
-    case .text: return .blue
-    case .rtf: return .purple
-    case .image: return .green
-    case .file: return .orange
-    case .mixed: return .gray
-    }
+    ClipKindFormatting.tint(for: item.kind)
   }
 
   private var displayPreview: String {

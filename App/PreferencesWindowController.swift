@@ -10,19 +10,25 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
   private let onClearHistory: () -> Void
   private let onExportHistory: () -> Void
   private let onImportHistory: () -> Void
+  private let onCheckForUpdates: () -> Void
+  private let canCheckForUpdates: () -> Bool
 
   init(
     store: PreferencesStore,
     onChange: @escaping (Preferences) -> Void,
     onClearHistory: @escaping () -> Void,
     onExportHistory: @escaping () -> Void,
-    onImportHistory: @escaping () -> Void
+    onImportHistory: @escaping () -> Void,
+    onCheckForUpdates: @escaping () -> Void,
+    canCheckForUpdates: @escaping () -> Bool
   ) {
     self.store = store
     self.onChange = onChange
     self.onClearHistory = onClearHistory
     self.onExportHistory = onExportHistory
     self.onImportHistory = onImportHistory
+    self.onCheckForUpdates = onCheckForUpdates
+    self.canCheckForUpdates = canCheckForUpdates
 
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 520, height: 408),
@@ -137,6 +143,8 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
       onApplyLanguage: { [weak self] code in
         self?.applyLanguageOverride(code)
       },
+      onCheckForUpdates: { [weak self] in self?.onCheckForUpdates() },
+      canCheckForUpdates: canCheckForUpdates(),
       hotkeyMissing: hotkeyMissing
     )
     window?.contentViewController = NSHostingController(rootView: view)

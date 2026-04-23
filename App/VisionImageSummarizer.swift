@@ -12,7 +12,7 @@ import Vision
 /// baseline engine used by the S64 summarizer pipeline. Richer
 /// narratives will replace the output on devices that also have
 /// Writing Tools (S65) or Foundation Models (S66).
-struct VisionImageSummarizer: Sendable {
+struct VisionImageSummarizer: Sendable, ImageSummarizer {
   private static let maxEmbeddedTextLength = 160
   /// Previously 0.4 — too strict for screenshots of app UI, code
   /// editors, and other synthetic content where the classifier is

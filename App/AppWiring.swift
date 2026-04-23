@@ -41,9 +41,9 @@ final class AppWiring {
       self.store = store
 
       self.pasteboardWriter = NSPasteboardWriter(blobRoot: blobRoot)
-      self.thumbnailLoader = ThumbnailLoader(blobRoot: blobRoot)
       let payloadResolver = PayloadResolver(blobRoot: blobRoot)
       self.payloadResolver = payloadResolver
+      self.thumbnailLoader = ThumbnailLoader(resolver: payloadResolver)
 
       let vm = HistoryPanelViewModel(store: store)
       vm.start()

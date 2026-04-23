@@ -13,14 +13,22 @@ final class SummaryCoordinator {
   private let store: any ClipStore
   private let resolver: PayloadResolver
   private let prefsStore: PreferencesStore
-  private let imageSummarizer = VisionImageSummarizer()
-  private let textSummarizer = NaturalLanguageTextSummarizer()
+  private let imageSummarizer: any ImageSummarizer
+  private let textSummarizer: any TextSummarizer
   private var task: Task<Void, Never>?
 
-  init(store: any ClipStore, resolver: PayloadResolver, prefsStore: PreferencesStore) {
+  init(
+    store: any ClipStore,
+    resolver: PayloadResolver,
+    prefsStore: PreferencesStore,
+    imageSummarizer: any ImageSummarizer = VisionImageSummarizer(),
+    textSummarizer: any TextSummarizer = NaturalLanguageTextSummarizer()
+  ) {
     self.store = store
     self.resolver = resolver
     self.prefsStore = prefsStore
+    self.imageSummarizer = imageSummarizer
+    self.textSummarizer = textSummarizer
   }
 
   func start() {
@@ -83,11 +91,10 @@ final class SummaryCoordinator {
   }
 
   private func summarizeImage(_ item: ClipItem) async {
-    let imageTypes: Set<String> = [
-      "public.png", "public.tiff", "public.jpeg", "public.image",
-    ]
     guard
-      let payload = item.payloads.first(where: { imageTypes.contains($0.pasteboardType) })
+      let payload = item.payloads.first(where: {
+        ClipKind.imagePayloadTypes.contains($0.pasteboardType)
+      })
     else {
       let types = item.payloads.map(\.pasteboardType).joined(separator: ",")
       Log.ui.info(

@@ -7,6 +7,14 @@ public enum ClipKind: String, Sendable, Codable, CaseIterable, Equatable {
   case file
   case mixed
 
+  /// Pasteboard UTTypes that carry image bytes we know how to decode /
+  /// thumbnail / summarise. Kept here so App-layer call sites (row
+  /// thumbnails, preview pane, image summarizer) share one definition
+  /// instead of copy-pasting the literal set.
+  public static let imagePayloadTypes: Set<String> = [
+    "public.png", "public.tiff", "public.jpeg", "public.image",
+  ]
+
   /// Maps a raw pasteboard type identifier to its primary kind, if any.
   static func primary(for pasteboardType: String) -> ClipKind? {
     switch pasteboardType {

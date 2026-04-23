@@ -14,7 +14,7 @@ import PDFKit
 /// to gate before constructing this type. When unavailable, callers
 /// should fall back to VisionImageSummarizer / NaturalLanguageTextSummarizer.
 @available(macOS 26.0, *)
-struct FoundationModelsSummarizer: Sendable {
+struct FoundationModelsSummarizer: Sendable, TextSummarizer {
   private static let maxSummaryLength = 200
 
   /// Returns nil if the prompt is effectively empty or the model

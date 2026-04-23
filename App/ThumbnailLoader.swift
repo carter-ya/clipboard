@@ -12,8 +12,8 @@ final class ThumbnailLoader {
   private let queue = DispatchQueue(label: "com.clipboard.thumbnail.loader")
   private let thumbnailSize = NSSize(width: 64, height: 64)
 
-  init(blobRoot: URL?) {
-    self.resolver = PayloadResolver(blobRoot: blobRoot)
+  init(resolver: PayloadResolver) {
+    self.resolver = resolver
   }
 
   /// Returns a cached thumbnail synchronously if present; otherwise
@@ -43,7 +43,7 @@ final class ThumbnailLoader {
   }
 
   private func isImageType(_ type: String) -> Bool {
-    ["public.png", "public.tiff", "public.jpeg", "public.image"].contains(type)
+    ClipKind.imagePayloadTypes.contains(type)
   }
 
   private func cacheKey(for payload: Payload, item: ClipItem) -> String {

@@ -91,17 +91,18 @@ struct ClipPreviewView: View {
 
   @ViewBuilder
   private func header(for item: ClipItem) -> some View {
+    let tint = ClipKindFormatting.tint(for: item.kind)
     HStack(spacing: 8) {
       HStack(spacing: 4) {
-        Image(systemName: kindIcon(for: item.kind))
+        Image(systemName: ClipKindFormatting.icon(for: item.kind))
           .font(.system(size: 10, weight: .semibold))
-        Text(kindLabel(for: item.kind))
+        Text(ClipKindFormatting.label(for: item.kind))
           .font(.system(size: 10, weight: .semibold))
       }
-      .foregroundStyle(kindTint(for: item.kind))
+      .foregroundStyle(tint)
       .padding(.horizontal, 7)
       .padding(.vertical, 3)
-      .background(Capsule().fill(kindTint(for: item.kind).opacity(0.15)))
+      .background(Capsule().fill(tint.opacity(0.15)))
 
       if let bundle = item.sourceBundleID {
         Text(BundleNameResolver.shared.displayName(for: bundle))
@@ -121,52 +122,15 @@ struct ClipPreviewView: View {
           .font(.caption2)
           .foregroundStyle(.secondary)
       }
-      Text(
-        Self.relativeFormatter.localizedString(
-          for: item.createdAt, relativeTo: Date()
-        )
-      )
-      .font(.caption)
-      .foregroundStyle(.secondary)
+      // SwiftUI's native `.relative` style mirrors what `ClipRowView`
+      // already uses; it keeps the string fresh without us owning a
+      // RelativeDateTimeFormatter instance.
+      Text(item.createdAt, style: .relative)
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
     .padding(.horizontal, 12)
     .frame(height: 64)
-  }
-
-  private static let relativeFormatter: RelativeDateTimeFormatter = {
-    let f = RelativeDateTimeFormatter()
-    f.unitsStyle = .short
-    return f
-  }()
-
-  private func kindIcon(for kind: ClipKind) -> String {
-    switch kind {
-    case .text: return "text.alignleft"
-    case .rtf: return "doc.richtext"
-    case .image: return "photo"
-    case .file: return "doc"
-    case .mixed: return "square.stack"
-    }
-  }
-
-  private func kindLabel(for kind: ClipKind) -> LocalizedStringKey {
-    switch kind {
-    case .text: return "Text"
-    case .rtf: return "Rich Text"
-    case .image: return "Image"
-    case .file: return "File"
-    case .mixed: return "Mixed"
-    }
-  }
-
-  private func kindTint(for kind: ClipKind) -> Color {
-    switch kind {
-    case .text: return .blue
-    case .rtf: return .purple
-    case .image: return .green
-    case .file: return .orange
-    case .mixed: return .gray
-    }
   }
 
   private var empty: some View {
@@ -186,8 +150,8 @@ struct ClipPreviewView: View {
       Text(
         "Sensitive content from \(item.sourceBundleID.map { BundleNameResolver.shared.displayName(for: $0) } ?? "unknown")"
       )
-        .font(.caption)
-        .foregroundStyle(.secondary)
+      .font(.caption)
+      .foregroundStyle(.secondary)
       Button("Reveal for this session") { revealed = true }
     }
     .padding()
@@ -339,8 +303,7 @@ struct ClipPreviewView: View {
     guard let resolver else { return }
     guard
       let payload = item.payloads.first(where: {
-        ["public.png", "public.tiff", "public.jpeg", "public.image"]
-          .contains($0.pasteboardType)
+        ClipKind.imagePayloadTypes.contains($0.pasteboardType)
       })
     else { return }
     loadEpoch &+= 1

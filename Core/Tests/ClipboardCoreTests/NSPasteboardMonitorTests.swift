@@ -131,8 +131,8 @@ final class NSPasteboardMonitorTests: XCTestCase {
   ) -> NSPasteboardMonitor {
     var filters: [any ClipFilter] = [SizeFilter(maxClipSizeBytes: maxClipSizeBytes)]
     filters.append(contentsOf: extraFilters)
-    filters.append(NoOpSensitivityFilter())
-    filters.append(NoOpBlocklistFilter())
+    filters.append(AlwaysAcceptFilter())
+    filters.append(AlwaysAcceptFilter())
     return NSPasteboardMonitor(
       pasteboard: pasteboard,
       filter: FilterChain(filters: filters),

@@ -82,9 +82,6 @@ enum PreviewBuilder {
   }
 
   private static func hasImageType(_ payloads: [RawPayload]) -> Bool {
-    let imageTypes: Set<String> = [
-      "public.png", "public.tiff", "public.jpeg", "public.image",
-    ]
-    return payloads.contains { imageTypes.contains($0.pasteboardType) }
+    payloads.contains { ClipKind.imagePayloadTypes.contains($0.pasteboardType) }
   }
 }

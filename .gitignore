@@ -5,6 +5,7 @@
 build/
 DerivedData/
 .build/
+dist
 
 # Swift Package Manager local state
 .swiftpm/

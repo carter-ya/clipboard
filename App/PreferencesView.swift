@@ -11,6 +11,8 @@ struct PreferencesView: View {
   /// back the local `prefs.launchAtLogin` value.
   var onApplyLaunchAtLogin: (Bool) -> Bool = { _ in true }
   var onApplyLanguage: (String?) -> Void = { _ in }
+  var onCheckForUpdates: () -> Void = {}
+  var canCheckForUpdates: Bool = false
   var hotkeyMissing: Bool = false
 
   private let languageOptions: [(tag: String, label: String)] = [
@@ -243,9 +245,31 @@ struct PreferencesView: View {
             .foregroundStyle(.secondary)
         }
       }
+      Section("Updates") {
+        HStack {
+          Button(action: onCheckForUpdates) {
+            Label("Check for Updates…", systemImage: "arrow.down.circle")
+          }
+          .disabled(!canCheckForUpdates)
+          Spacer()
+          Text("v\(appVersion)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        if !canCheckForUpdates {
+          Text("Automatic updates are not configured in this build.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
     }
     .formStyle(.grouped)
     .scrollContentBackground(.hidden)
+  }
+
+  private var appVersion: String {
+    (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
+      ?? "?"
   }
 
   private var aiCapabilityCaption: LocalizedStringKey {

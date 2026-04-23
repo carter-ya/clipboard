@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var wiring: AppWiring?
   private var preferencesController: PreferencesWindowController?
   private var onboarding: OnboardingController?
+  private var sparkleUpdater: SparkleUpdater?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     installMainMenu()
@@ -37,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       }
     }
     self.wiring = wiring
+    self.sparkleUpdater = SparkleUpdater()
     Task { @MainActor in
       await wiring.start()
       self.installPanelIfReady()
@@ -250,7 +252,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       onChange: { prefs in wiring.applyPreferences(prefs) },
       onClearHistory: { [weak self] in self?.clearHistory() },
       onExportHistory: { [weak self] in self?.exportHistory() },
-      onImportHistory: { [weak self] in self?.importHistory() }
+      onImportHistory: { [weak self] in self?.importHistory() },
+      onCheckForUpdates: { [weak self] in self?.sparkleUpdater?.checkForUpdates() },
+      canCheckForUpdates: { [weak self] in
+        self?.sparkleUpdater?.canCheckForUpdates ?? false
+      }
     )
   }
 

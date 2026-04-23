@@ -13,7 +13,7 @@ import NaturalLanguage
 ///   "日本語 · Sony, 東京"
 ///   "English"                            (no entities found)
 ///   nil                                  (text too short to bother)
-struct NaturalLanguageTextSummarizer: Sendable {
+struct NaturalLanguageTextSummarizer: Sendable, TextSummarizer {
   private static let minTextLength = 100
   private static let maxEntities = 5
 
