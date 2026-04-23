@@ -110,3 +110,12 @@
 "Language will apply after restart" = "재시작 후 언어가 적용됩니다";
 "Quit and reopen Clipboard for the new language to take effect." = "새 언어를 적용하려면 클립보드를 종료하고 다시 여세요.";
 "MiB" = "MiB";
+
+"AI Summaries" = "AI 요약";
+"Enable AI summaries" = "AI 요약 사용";
+"Summarize images" = "이미지 요약";
+"Summarize text" = "텍스트 요약";
+"Summarize files" = "파일 요약";
+"Foundation Models available on this device." = "이 기기에서 Foundation Models를 사용할 수 있습니다.";
+"Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon." = "온디바이스 Vision + NaturalLanguage 사용. 더 풍부한 요약은 macOS 26+ Apple Silicon이 필요합니다.";
+"Copy summary" = "요약 복사";

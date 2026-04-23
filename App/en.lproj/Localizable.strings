@@ -134,3 +134,4 @@
 "Summarize files" = "Summarize files";
 "Foundation Models available on this device." = "Foundation Models available on this device.";
 "Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon." = "Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon.";
+"Copy summary" = "Copy summary";

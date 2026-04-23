@@ -110,3 +110,12 @@
 "Language will apply after restart" = "重启后语言生效";
 "Quit and reopen Clipboard for the new language to take effect." = "请退出并重新打开“剪贴板”以应用新语言。";
 "MiB" = "MiB";
+
+"AI Summaries" = "AI 摘要";
+"Enable AI summaries" = "启用 AI 摘要";
+"Summarize images" = "为图片生成摘要";
+"Summarize text" = "为文本生成摘要";
+"Summarize files" = "为文件生成摘要";
+"Foundation Models available on this device." = "本设备支持 Foundation Models。";
+"Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon." = "本地运行 Vision + NaturalLanguage；更丰富的摘要需 macOS 26+ 的 Apple 芯片。";
+"Copy summary" = "复制摘要";

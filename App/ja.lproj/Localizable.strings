@@ -109,3 +109,12 @@
 "Language will apply after restart" = "再起動後に言語が適用されます";
 "Quit and reopen Clipboard for the new language to take effect." = "新しい言語を適用するには、クリップボードを終了して再度開いてください。";
 "MiB" = "MiB";
+
+"AI Summaries" = "AI 要約";
+"Enable AI summaries" = "AI 要約を有効にする";
+"Summarize images" = "画像を要約する";
+"Summarize text" = "テキストを要約する";
+"Summarize files" = "ファイルを要約する";
+"Foundation Models available on this device." = "このデバイスで Foundation Models を利用できます。";
+"Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon." = "オンデバイスで Vision + NaturalLanguage を使用。より詳細な要約には macOS 26+ の Apple シリコンが必要です。";
+"Copy summary" = "要約をコピー";

@@ -109,3 +109,12 @@
 "Language will apply after restart" = "El idioma se aplicará tras reiniciar";
 "Quit and reopen Clipboard for the new language to take effect." = "Sal y vuelve a abrir Portapapeles para aplicar el nuevo idioma.";
 "MiB" = "MiB";
+
+"AI Summaries" = "Resúmenes con IA";
+"Enable AI summaries" = "Activar resúmenes con IA";
+"Summarize images" = "Resumir imágenes";
+"Summarize text" = "Resumir texto";
+"Summarize files" = "Resumir archivos";
+"Foundation Models available on this device." = "Foundation Models disponible en este dispositivo.";
+"Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon." = "Vision + NaturalLanguage en el dispositivo; los resúmenes más detallados requieren macOS 26+ con Apple Silicon.";
+"Copy summary" = "Copiar resumen";
