@@ -15,6 +15,7 @@ final class PreferencesStoreTests: XCTestCase {
     XCTAssertEqual(prefs.maxClipSizeBytes, 10 * 1024 * 1024)
     XCTAssertTrue(prefs.skipSensitive)
     XCTAssertEqual(prefs.cap, 100)
+    XCTAssertTrue(prefs.blocklistEnabled)
     XCTAssertTrue(prefs.blockedBundleIDs.contains("com.1password.1password"))
     XCTAssertFalse(prefs.launchAtLogin)
     XCTAssertNil(prefs.languageOverride)
@@ -66,6 +67,7 @@ final class PreferencesStoreTests: XCTestCase {
     prefs.maxClipSizeBytes = 5 * 1024 * 1024
     prefs.skipSensitive = false
     prefs.cap = 42
+    prefs.blocklistEnabled = false
     prefs.blockedBundleIDs = ["com.test.app"]
     prefs.launchAtLogin = true
     store.save(prefs)
@@ -74,8 +76,12 @@ final class PreferencesStoreTests: XCTestCase {
     XCTAssertEqual(reloaded.maxClipSizeBytes, 5 * 1024 * 1024)
     XCTAssertEqual(reloaded.skipSensitive, false)
     XCTAssertEqual(reloaded.cap, 42)
+    XCTAssertFalse(reloaded.blocklistEnabled)
     XCTAssertEqual(reloaded.blockedBundleIDs, ["com.test.app"])
     XCTAssertTrue(reloaded.launchAtLogin)
+
+    store.reset()
+    XCTAssertTrue(store.current.blocklistEnabled)
   }
 
   func testResetFallsBackToDefaults() {

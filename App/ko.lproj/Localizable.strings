@@ -65,8 +65,9 @@
 
 "Privacy" = "개인정보 보호";
 "Sensitive content" = "민감한 콘텐츠";
-"Skip items marked as concealed (password managers)" = "가려진 것으로 표시된 항목 건너뛰기(암호 관리자)";
+"Mask sensitive items" = "민감한 항목 마스킹";
 "Blocked source apps (bundle IDs, one per line)" = "차단된 소스 앱 (번들 ID, 한 줄에 하나씩)";
+"Enable blocklist" = "차단 목록 사용";
 
 "Data" = "데이터";
 "History data" = "기록 데이터";

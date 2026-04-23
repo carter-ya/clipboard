@@ -104,7 +104,7 @@ struct ClipPreviewView: View {
       .background(Capsule().fill(kindTint(for: item.kind).opacity(0.15)))
 
       if let bundle = item.sourceBundleID {
-        Text(bundle)
+        Text(BundleNameResolver.shared.displayName(for: bundle))
           .font(.caption)
           .foregroundStyle(.secondary)
           .lineLimit(1)
@@ -183,7 +183,9 @@ struct ClipPreviewView: View {
   private func masked(_ item: ClipItem) -> some View {
     VStack(spacing: 12) {
       Image(systemName: "lock.fill").font(.system(size: 32))
-      Text("Sensitive content from \(item.sourceBundleID ?? "unknown")")
+      Text(
+        "Sensitive content from \(item.sourceBundleID.map { BundleNameResolver.shared.displayName(for: $0) } ?? "unknown")"
+      )
         .font(.caption)
         .foregroundStyle(.secondary)
       Button("Reveal for this session") { revealed = true }

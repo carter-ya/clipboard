@@ -4,6 +4,7 @@ public struct Preferences: Sendable, Equatable {
   public var maxClipSizeBytes: Int
   public var skipSensitive: Bool
   public var cap: Int
+  public var blocklistEnabled: Bool
   public var blockedBundleIDs: [String]
   public var launchAtLogin: Bool
   /// nil = follow system; otherwise an Apple-recognised language
@@ -21,6 +22,7 @@ public struct Preferences: Sendable, Equatable {
     maxClipSizeBytes: Int = 10 * 1024 * 1024,
     skipSensitive: Bool = true,
     cap: Int = 100,
+    blocklistEnabled: Bool = true,
     blockedBundleIDs: [String] = Array(BlocklistFilter.defaults).sorted(),
     launchAtLogin: Bool = false,
     languageOverride: String? = nil,
@@ -32,6 +34,7 @@ public struct Preferences: Sendable, Equatable {
     self.maxClipSizeBytes = maxClipSizeBytes
     self.skipSensitive = skipSensitive
     self.cap = cap
+    self.blocklistEnabled = blocklistEnabled
     self.blockedBundleIDs = blockedBundleIDs
     self.launchAtLogin = launchAtLogin
     self.languageOverride = languageOverride
@@ -50,6 +53,7 @@ public final class PreferencesStore: @unchecked Sendable {
     static let maxClipSizeBytes = "maxClipSizeBytes"
     static let skipSensitive = "skipSensitive"
     static let cap = "cap"
+    static let blocklistEnabled = "blocklistEnabled"
     static let blockedBundleIDs = "blockedBundleIDs"
     static let launchAtLogin = "launchAtLogin"
     static let languageOverride = "languageOverride"
@@ -71,6 +75,8 @@ public final class PreferencesStore: @unchecked Sendable {
       skipSensitive: defaults.object(forKey: Keys.skipSensitive) as? Bool
         ?? defaultsValue.skipSensitive,
       cap: defaults.object(forKey: Keys.cap) as? Int ?? defaultsValue.cap,
+      blocklistEnabled: defaults.object(forKey: Keys.blocklistEnabled) as? Bool
+        ?? defaultsValue.blocklistEnabled,
       blockedBundleIDs: defaults.stringArray(forKey: Keys.blockedBundleIDs)
         ?? defaultsValue.blockedBundleIDs,
       launchAtLogin: defaults.object(forKey: Keys.launchAtLogin) as? Bool
@@ -91,6 +97,7 @@ public final class PreferencesStore: @unchecked Sendable {
     defaults.set(prefs.maxClipSizeBytes, forKey: Keys.maxClipSizeBytes)
     defaults.set(prefs.skipSensitive, forKey: Keys.skipSensitive)
     defaults.set(prefs.cap, forKey: Keys.cap)
+    defaults.set(prefs.blocklistEnabled, forKey: Keys.blocklistEnabled)
     defaults.set(prefs.blockedBundleIDs, forKey: Keys.blockedBundleIDs)
     defaults.set(prefs.launchAtLogin, forKey: Keys.launchAtLogin)
     if let lang = prefs.languageOverride {
@@ -108,6 +115,7 @@ public final class PreferencesStore: @unchecked Sendable {
     defaults.removeObject(forKey: Keys.maxClipSizeBytes)
     defaults.removeObject(forKey: Keys.skipSensitive)
     defaults.removeObject(forKey: Keys.cap)
+    defaults.removeObject(forKey: Keys.blocklistEnabled)
     defaults.removeObject(forKey: Keys.blockedBundleIDs)
     defaults.removeObject(forKey: Keys.launchAtLogin)
     defaults.removeObject(forKey: Keys.languageOverride)

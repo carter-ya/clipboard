@@ -64,8 +64,9 @@
 
 "Privacy" = "隱私";
 "Sensitive content" = "敏感內容";
-"Skip items marked as concealed (password managers)" = "略過標記為隱藏的項目（來自密碼管理程式）";
+"Mask sensitive items" = "遮罩敏感項目";
 "Blocked source apps (bundle IDs, one per line)" = "已封鎖的來源應用程式（Bundle ID，每行一個）";
+"Enable blocklist" = "啟用來源封鎖";
 
 "Data" = "資料";
 "History data" = "歷史資料";

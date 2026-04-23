@@ -108,7 +108,7 @@
         "history.json — 有序历史，仅含非敏感条目，原子写入（tmp + rename）",
         "history.json.bak — 启动时解码失败会自动生成",
         "blobs/<sha256>.<ext> — 不适合内联的非敏感二进制 payload（图片、rtf、file-url 列表）；敏感条目的大 payload 不落盘",
-        "preferences.json — 用户设置（快捷键绑定、保留策略、maxClipSizeBytes、skipSensitive、blockedBundleIDs、外观、语言覆盖等）"
+        "preferences.json — 用户设置（快捷键绑定、保留策略、maxClipSizeBytes、skipSensitive、blocklistEnabled、blockedBundleIDs、外观、语言覆盖等）"
       ]
     },
     "clip_item_schema": {
@@ -173,6 +173,8 @@
       },
       "BlocklistFilter": {
         "config_key": "blockedBundleIDs",
+        "toggle_key": "blocklistEnabled",
+        "toggle_default": true,
         "default": [
           "com.1password.1password",
           "com.1password.1password7",
@@ -180,7 +182,7 @@
           "com.bitwarden.desktop",
           "com.apple.keychainaccess"
         ],
-        "semantics": "若 ClipContext.sourceBundleID 命中黑名单，返回 .markSensitive('blockedSource:<bundleID>')——条目进入 store 但仅驻留内存、UI 遮罩、不落盘。",
+        "semantics": "若 blocklistEnabled 为 false，视为空集直接 .accept（用户显式关闭了来源屏蔽，允许从这些应用拷贝的内容以普通条目进历史并落盘）。否则：若 ClipContext.sourceBundleID 命中黑名单，返回 .markSensitive('blockedSource:<bundleID>')——条目进入 store 但仅驻留内存、UI 遮罩、不落盘。UI 上 blocklistEnabled=false 时屏蔽列表编辑框只读、内容仍展示以便用户随时重新启用。",
         "owner_slice": "S7"
       }
     },
@@ -404,7 +406,7 @@
         "ClipStore 的敏感写盘排除逻辑接入（S2 已预埋，此处验证行为）",
         "UI 遮罩：sensitive 行显示『●●●●（来自 <App>）』+ 锁图标；预览面板遮罩；提供『临时显示敏感内容』按钮（仅当次会话有效）",
         "行右键菜单的置顶开关 + 专属的『已置顶』标签页",
-        "隐私设置 UI（skipSensitive 开关、blockedBundleIDs 列表编辑）"
+        "隐私设置 UI（skipSensitive 开关、blocklistEnabled 开关 + blockedBundleIDs 列表编辑——开关关闭时列表只读显示）"
       ],
       "acceptance": [
         "从 1Password 拷贝密码 → HistoryPanel 中出现一行『●●●●（来自 1Password）』，选中后可正常粘贴密码到目标 App。",
@@ -419,7 +421,7 @@
       "title": "偏好设置",
       "goal": "暴露面向用户的设置界面。",
       "deliverables": [
-        "偏好设置窗口：快捷键、保留策略（cap 滑块）、maxClipSizeBytes、skipSensitive、blockedBundleIDs、开机启动（ServiceManagement）、外观（跟随系统/浅色/深色）、语言覆盖",
+        "偏好设置窗口：快捷键、保留策略（cap 滑块）、maxClipSizeBytes、skipSensitive、blocklistEnabled + blockedBundleIDs、开机启动（ServiceManagement）、外观（跟随系统/浅色/深色）、语言覆盖",
         "打开偏好设置前先 dismiss HistoryPanel（遵守 S4 的窗口互斥约束）",
         "带确认的『清空历史』操作",
         "JSON 导出 / 导入：导出把 history.json（已排除 sensitive）+ blobs/ 打包为 .zip；导入按 sha256 合并去重，缺失 blob 的条目跳过并在导入结果里计数",
@@ -1781,7 +1783,7 @@
     },
     {
       "risk": "敏感条目在 App 重启后丢失，对期望持久保留的用户可能反直觉。",
-      "mitigation": "这是『不明文落盘』安全目标的有意权衡，不是缺陷。UI 中对 sensitive 条目明示『关闭 App 后将丢失』；v1 不提供加密持久化（若未来需要再评估 Keychain 方案）。",
+      "mitigation": "这是『不明文落盘』安全目标的有意权衡，不是缺陷。UI 中对 sensitive 条目明示『关闭 App 后将丢失』；敏感条目不做加密持久化——永久决策，不再评估。",
       "owner": "S7"
     },
     {
@@ -1890,7 +1892,6 @@
   },
   "open_questions": [
     "macOS 最低版本：保持 13.0 底线——已决，不用数据库，没理由再抬高",
-    "未来是否对 sensitive 条目提供 Keychain 加密持久化（而非仅内存）——v1 不做，需积累用户反馈后再评估",
     "默认 cap=100 是否仍需调整——v1 定为 100（同类产品多为 200+，此值偏保守），S8 偏好中滑块量程给足，必要时按用户反馈再改默认"
   ]
 }

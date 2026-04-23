@@ -75,8 +75,9 @@
 /* MARK: - Preferences: Privacy */
 "Privacy" = "Privacy";
 "Sensitive content" = "Sensitive content";
-"Skip items marked as concealed (password managers)" = "Skip items marked as concealed (password managers)";
+"Mask sensitive items" = "Mask sensitive items";
 "Blocked source apps (bundle IDs, one per line)" = "Blocked source apps (bundle IDs, one per line)";
+"Enable blocklist" = "Enable blocklist";
 
 /* MARK: - Preferences: Data */
 "Data" = "Data";

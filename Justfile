@@ -12,6 +12,14 @@ run: build
     sleep 0.3
     open build/Build/Products/Debug/Clipboard.app
 
+build-release: gen
+    xcodebuild -scheme ClipboardApp -destination 'platform=macOS' -configuration Release -derivedDataPath build build
+
+run-release: build-release
+    -pkill -x Clipboard
+    sleep 0.3
+    open build/Build/Products/Release/Clipboard.app
+
 test:
     swift test --package-path Core
 

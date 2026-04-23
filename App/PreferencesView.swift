@@ -260,7 +260,7 @@ struct PreferencesView: View {
     Form {
       Section("Sensitive content") {
         Toggle(
-          "Skip items marked as concealed (password managers)",
+          "Mask sensitive items",
           isOn: Binding(
             get: { prefs.skipSensitive },
             set: {
@@ -271,31 +271,45 @@ struct PreferencesView: View {
         )
       }
       Section("Blocked source apps (bundle IDs, one per line)") {
-        TextEditor(
-          text: Binding(
-            get: { prefs.blockedBundleIDs.joined(separator: "\n") },
-            set: { text in
-              prefs.blockedBundleIDs =
-                text
-                .split(separator: "\n")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-              onSave(prefs)
-            }
+        VStack(alignment: .leading, spacing: 10) {
+          Toggle(
+            "Enable blocklist",
+            isOn: Binding(
+              get: { prefs.blocklistEnabled },
+              set: {
+                prefs.blocklistEnabled = $0
+                onSave(prefs)
+              }
+            )
           )
-        )
-        .font(.system(.body, design: .monospaced))
-        .scrollContentBackground(.hidden)
-        .padding(6)
-        .frame(height: 140)
-        .background(
-          RoundedRectangle(cornerRadius: 8)
-            .fill(Color.primary.opacity(0.06))
-        )
-        .overlay(
-          RoundedRectangle(cornerRadius: 8)
-            .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
-        )
+          TextEditor(
+            text: Binding(
+              get: { prefs.blockedBundleIDs.joined(separator: "\n") },
+              set: { text in
+                prefs.blockedBundleIDs =
+                  text
+                  .split(separator: "\n")
+                  .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                  .filter { !$0.isEmpty }
+                onSave(prefs)
+              }
+            )
+          )
+          .font(.system(.body, design: .monospaced))
+          .scrollContentBackground(.hidden)
+          .padding(6)
+          .frame(height: 140)
+          .background(
+            RoundedRectangle(cornerRadius: 8)
+              .fill(Color.primary.opacity(0.06))
+          )
+          .overlay(
+            RoundedRectangle(cornerRadius: 8)
+              .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+          )
+          .disabled(!prefs.blocklistEnabled)
+          .opacity(prefs.blocklistEnabled ? 1.0 : 0.55)
+        }
       }
     }
     .formStyle(.grouped)

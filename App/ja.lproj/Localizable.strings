@@ -64,8 +64,9 @@
 
 "Privacy" = "プライバシー";
 "Sensitive content" = "機密情報";
-"Skip items marked as concealed (password managers)" = "機密としてマークされた項目をスキップ（パスワードマネージャーなど）";
+"Mask sensitive items" = "機密項目をマスク";
 "Blocked source apps (bundle IDs, one per line)" = "ブロックする送信元アプリ（バンドル ID、1 行に 1 つ）";
+"Enable blocklist" = "ブロックリストを有効化";
 
 "Data" = "データ";
 "History data" = "履歴データ";

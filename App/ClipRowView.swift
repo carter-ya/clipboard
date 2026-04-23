@@ -23,7 +23,7 @@ struct ClipRowView: View {
           Text(item.createdAt, style: .relative)
           if let bundle = item.sourceBundleID {
             Text("·")
-            Text(bundle)
+            Text(BundleNameResolver.shared.displayName(for: bundle))
               .lineLimit(1)
               .truncationMode(.middle)
           }
@@ -121,8 +121,7 @@ struct ClipRowView: View {
 
   private var displayPreview: String {
     if item.sensitive {
-      let bundle = item.sourceBundleID ?? "unknown"
-      return "●●●● (from \(bundle))"
+      return "●●●●"
     }
     // For image clips the stored preview is a bare sentinel like
     // "<image>" — which isn't useful in the row. If a summary has

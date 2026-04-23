@@ -64,8 +64,9 @@
 
 "Privacy" = "Datenschutz";
 "Sensitive content" = "Sensible Inhalte";
-"Skip items marked as concealed (password managers)" = "Als vertraulich markierte Elemente überspringen (Passwortmanager)";
+"Mask sensitive items" = "Sensible Elemente maskieren";
 "Blocked source apps (bundle IDs, one per line)" = "Blockierte Quell-Apps (Bundle-IDs, eine pro Zeile)";
+"Enable blocklist" = "Sperrliste aktivieren";
 
 "Data" = "Daten";
 "History data" = "Verlaufsdaten";

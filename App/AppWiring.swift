@@ -129,7 +129,10 @@ final class AppWiring {
     let chain = FilterChain(filters: [
       SizeFilter(maxClipSizeBytes: prefs.maxClipSizeBytes),
       SensitivityFilter(skipSensitive: prefs.skipSensitive),
-      BlocklistFilter(blockedBundleIDs: Set(prefs.blockedBundleIDs)),
+      BlocklistFilter(
+        blockedBundleIDs: prefs.blocklistEnabled
+          ? Set(prefs.blockedBundleIDs) : []
+      ),
     ])
     let monitor = NSPasteboardMonitor(
       filter: chain,
