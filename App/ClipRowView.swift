@@ -8,12 +8,6 @@ struct ClipRowView: View {
 
   @State private var thumbnail: NSImage?
 
-  private static let relativeFormatter: RelativeDateTimeFormatter = {
-    let f = RelativeDateTimeFormatter()
-    f.unitsStyle = .short
-    return f
-  }()
-
   var body: some View {
     HStack(alignment: .center, spacing: 10) {
       leading
@@ -23,12 +17,10 @@ struct ClipRowView: View {
           .lineLimit(2)
           .foregroundStyle(item.sensitive ? .secondary : .primary)
         HStack(spacing: 6) {
-          Text(
-            Self.relativeFormatter.localizedString(
-              for: item.createdAt,
-              relativeTo: Date()
-            )
-          )
+          // SwiftUI owns the refresh cadence for .relative — the row's
+          // body no longer re-runs RelativeDateTimeFormatter every
+          // publish, which was a per-row hotspot during scroll.
+          Text(item.createdAt, style: .relative)
           if let bundle = item.sourceBundleID {
             Text("·")
             Text(bundle)

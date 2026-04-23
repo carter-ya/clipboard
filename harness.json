@@ -1700,6 +1700,21 @@
         "`just build` 全绿。"
       ],
       "commit_message": "localize AI Summaries section + Copy summary across 7 locales"
+    },
+    {
+      "id": "S77",
+      "title": "滚动卡顿修复：Row 用 SwiftUI 原生相对时间 + refresh 幂等短路",
+      "goal": "用户反馈在高性能机上 HistoryPanel 滚动仍偶发卡顿。代码审阅发现两处主要元凶：(1) `ClipRowView` 的 body 里每帧调一次 `RelativeDateTimeFormatter.localizedString(for: item.createdAt, relativeTo: Date())`，每次 ViewModel publish 都让所有可见行重新生成本地化字符串；(2) `HistoryPanelViewModel.refresh()` 无差别 `self.items = results`，即便内容一致也会触发 `@Published` —— 滚动期间 SummaryCoordinator 回写 summary / togglePin 的 `.updated` 事件都会撞上手势。",
+      "deliverables": [
+        "`App/ClipRowView.swift`：删除 `Self.relativeFormatter` static，时间行改用 `Text(item.createdAt, style: .relative)` —— 由 SwiftUI 自己管理刷新，body 里不再每帧生成字符串。",
+        "`App/HistoryPanelViewModel.swift` 的 `refresh()`：在赋值前比较 `results == self.items`，相等则直接 return，避免 `@Published` 无差别触发；不变的 selectedID 回退逻辑也不必跑。依赖 `ClipItem: Equatable`（已合成，不用额外工作）。"
+      ],
+      "acceptance": [
+        "肉眼：面板里滚动 ~100 条历史时不再感到间歇性卡顿；尤其在后台 Vision OCR 完成、或 pin/unpin 非可见行时。",
+        "行视图的 createdAt 文本仍会随时间自动刷新（SwiftUI 负责），语言切换后相对时间格式正确本地化。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿，测试数不回归。"
+      ],
+      "commit_message": "S77: fix list scroll stutter (SwiftUI relative-date text + idempotent refresh short-circuit)"
     }
   ],
   "slice_rhythm": [
@@ -1869,7 +1884,8 @@
       "S73",
       "S74",
       "S75",
-      "S76"
+      "S76",
+      "S77"
     ]
   },
   "open_questions": [

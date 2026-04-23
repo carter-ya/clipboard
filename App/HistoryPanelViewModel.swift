@@ -195,6 +195,14 @@ final class HistoryPanelViewModel: ObservableObject {
   private func refresh() async {
     let results = await store.search(query: searchText, filters: .all)
     await MainActor.run {
+      // Short-circuit when the store's snapshot is content-identical
+      // to what we already publish. Without this, any .updated event
+      // (pin toggle on an offscreen row, SummaryCoordinator writing
+      // OCR text back, etc.) retriggers @Published and forces every
+      // visible ClipRowView to recompute its body — the source of
+      // the scroll stutter users see when a background summarizer
+      // lands mid-gesture.
+      if self.items == results { return }
       self.items = results
       if let selected = self.selectedID,
         !results.contains(where: { $0.id == selected })
