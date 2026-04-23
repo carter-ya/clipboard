@@ -9,6 +9,9 @@ options:
 packages:
   ClipboardCore:
     path: Core
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
 
 targets:
   ClipboardApp:
@@ -21,6 +24,8 @@ targets:
     dependencies:
       - package: ClipboardCore
         product: ClipboardCore
+      - package: Sparkle
+        product: Sparkle
     info:
       path: App/Info.plist
       properties:
@@ -30,7 +35,7 @@ targets:
         CFBundleDisplayName: Clipboard
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        NSHumanReadableCopyright: ""
+        NSHumanReadableCopyright: "© 2026 Clipboard"
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations:
           - en
@@ -40,11 +45,15 @@ targets:
           - ko
           - de
           - es
+        SUFeedURL: https://carter-ya.github.io/clipboard/appcast.xml
+        SUPublicEDKey: U4bGyKmbqkzf83bO2gau/85yVHIf1l+JNB4nK9ntUB8=
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
     settings:
       base:
         PRODUCT_NAME: Clipboard
         PRODUCT_BUNDLE_IDENTIFIER: com.clipboard.app
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         SWIFT_VERSION: "5.9"
