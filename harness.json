@@ -1585,6 +1585,25 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests 保持）。"
       ],
       "commit_message": "S69: auto-select first row on panel open + hover peek popover for preview image"
+    },
+    {
+      "id": "S70",
+      "title": "去噪 Vision 输出 + 复制按钮 + 行内 summary fallback",
+      "goal": "用户三处不满：(1) Vision summary 里 `document, screenshot. Contains text: ...` 冗余（『Contains text:』是 English-only prefix、label 跟 OCR 同时出现形成噪音）；(2) summary 无法复制出来单独使用；(3) 图片 clip 在历史列表里显示的是 `<image>` 占位符、毫无信息。",
+      "deliverables": [
+        "VisionImageSummarizer 输出优先级调整：OCR 文本非空 → 直接返回 trimmed OCR（去掉『Contains text:』前缀）；OCR 空而 labels 非空 → 返回 `label1, label2, label3`；都空 → `Image (width×height)`。OCR 和 labels 不再同一 summary 里并列，避免重复/噪音。",
+        "ClipPreviewView.summarySection 新增复制按钮：`doc.on.doc` icon + 直接 `NSPasteboard.general.setString(summary, forType: .string)`；按钮 tooltip / accessibility label 均为 `Copy summary`；summary 文本加 `.textSelection(.enabled)` 允许拖选。复制后新字符串会被 app 自己的 monitor 捕获为新 clip——符合 clipboard manager 语义。",
+        "ClipRowView.displayPreview：当 `item.kind == .image && item.summary != nil && !summary.isEmpty` 时返回 summary，代替原 preview 里的 `<image>` 占位；这样图片行在列表里展示实际识别到的 OCR/label 内容。非图像 kind 行为不变（preview 已是有效文本）。",
+        "PreviewBuilder 不动——`<image>` 仍作为 preview 字段默认值，只是 UI 层在显示时优先展示 summary；保持 preview 作为 search 索引的基础兼容性。"
+      ],
+      "acceptance": [
+        "复制一张带文字的截图 → 预览区 summary 只显示 OCR 文本（例如 `hello world 123`），不再有 `document, screenshot. Contains text:` 前缀。",
+        "复制一张纯图片（无 OCR）→ summary 显示逗号分隔的 label（如 `nature, outdoor, mountain`）。",
+        "summary 行右侧有复制图标；点击后 summary 文本进到剪贴板（会作为新 text clip 出现在历史顶部）。",
+        "历史列表中图片 clip 行：已有 summary 时显示 summary 文本，无 summary 时仍显示 `<image>`。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests）。"
+      ],
+      "commit_message": "S70: vision summary drops noise prefix; summary gains copy button; image rows show summary instead of <image>"
     }
   ],
   "slice_rhythm": [
@@ -1747,7 +1766,8 @@
       "S66",
       "S67",
       "S68",
-      "S69"
+      "S69",
+      "S70"
     ]
   },
   "open_questions": [

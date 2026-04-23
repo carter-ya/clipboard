@@ -55,26 +55,25 @@ struct VisionImageSummarizer: Sendable {
         let recognizedText =
           (textRequest.results as? [VNRecognizedTextObservation])?
           .compactMap { $0.topCandidates(1).first?.string }
-          .joined(separator: " ") ?? ""
+          .joined(separator: " ")
+          .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
-        var parts: [String] = []
-        if !labels.isEmpty {
-          parts.append(labels.joined(separator: ", "))
-        }
+        // Priority: OCR text wins when present — it's the most
+        // informative signal and stands on its own. Labels are
+        // secondary; they're jargon like "document, screenshot" that
+        // isn't useful when real text was already extracted. If
+        // neither panned out, fall back to "Image (w×h)" so the UI
+        // still displays *something*.
         if !recognizedText.isEmpty {
-          let trimmed = recognizedText.prefix(Self.maxEmbeddedTextLength)
-          parts.append("Contains text: \(trimmed)")
+          continuation.resume(
+            returning: String(recognizedText.prefix(Self.maxEmbeddedTextLength)))
+          return
         }
-
-        // Always return something — an image clip with neither
-        // meaningful labels nor legible text still deserves a marker
-        // so users see that summarization ran. Dimensions double as a
-        // tiny hint (e.g., "Image (1920×1080)" reads as a screenshot).
-        if parts.isEmpty {
-          continuation.resume(returning: "Image (\(width)×\(height))")
-        } else {
-          continuation.resume(returning: parts.joined(separator: ". "))
+        if !labels.isEmpty {
+          continuation.resume(returning: labels.joined(separator: ", "))
+          return
         }
+        continuation.resume(returning: "Image (\(width)×\(height))")
       }
     }
   }

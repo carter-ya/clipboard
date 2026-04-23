@@ -132,6 +132,13 @@ struct ClipRowView: View {
       let bundle = item.sourceBundleID ?? "unknown"
       return "●●●● (from \(bundle))"
     }
+    // For image clips the stored preview is a bare sentinel like
+    // "<image>" — which isn't useful in the row. If a summary has
+    // been generated (OCR text, classification labels, or an LLM
+    // description), show that instead so the row is informative.
+    if item.kind == .image, let summary = item.summary, !summary.isEmpty {
+      return summary
+    }
     if item.preview.isEmpty {
       return "(empty)"
     }

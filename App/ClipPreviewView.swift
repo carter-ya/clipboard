@@ -49,7 +49,16 @@ struct ClipPreviewView: View {
       Text(summary)
         .font(.caption)
         .foregroundStyle(.secondary)
+        .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: .leading)
+      Button(action: { copySummary(summary) }) {
+        Image(systemName: "doc.on.doc")
+          .font(.caption2)
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(.secondary)
+      .help("Copy summary")
+      .accessibilityLabel("Copy summary")
       if let source {
         Text(sourceBadge(for: source))
           .font(.system(size: 9, weight: .semibold))
@@ -64,6 +73,12 @@ struct ClipPreviewView: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 6)
+  }
+
+  private func copySummary(_ text: String) {
+    let pasteboard = NSPasteboard.general
+    pasteboard.clearContents()
+    pasteboard.setString(text, forType: .string)
   }
 
   private func sourceBadge(for source: SummarySource) -> String {
