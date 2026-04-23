@@ -1564,6 +1564,27 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests 保持）。"
       ],
       "commit_message": "S68: broadcast store events + NL sentence fallback + pipeline logs (summaries now actually render)"
+    },
+    {
+      "id": "S69",
+      "title": "打开即选中首条 + 预览图 hover peek 弹窗",
+      "goal": "两个易用性改进：(1) 面板开启时应默认选中最新（第一条）clip，用户不需要再按 ↓；resetSelection() 之前只在 tab 切换 / kindFilter 变更时触发，面板首开时未调用。(2) 预览区图片只 240pt 宽，看不清细节；鼠标悬浮时需要弹一个更大的 peek 预览。",
+      "deliverables": [
+        "HistoryPanel 新增 `var onDidOpen: (() -> Void)?` 回调；`toggle()` 在 `makeKeyAndOrderFront` / 监视器启动之后调用 `onDidOpen?()`。AppDelegate 创建面板时 `panel.onDidOpen = { [weak vm] in vm?.resetSelection() }`——每次开面板都回到首条 + 清空 kindFilter + 重置 scrollEpoch。",
+        "ClipPreviewView.imageView 的 `Image(nsImage:)` 加 `.onHover { ... }` + `.popover(isPresented: $showPeek, arrowEdge: .leading)`；popover 内是一个更大的 `Image(nsImage:)`，`frame(maxWidth: min(naturalWidth, 600), maxHeight: min(naturalHeight, 600))`——不超出原图原尺寸也不超 600pt。",
+        "`updatePeek(hovering:)`：hover-in 立即显示；hover-out 启动 250ms 延时再关，期间若 `isHoveringImage` 再次为 true 就保持打开，避免 popover 弹出瞬间因 pointer 路径轻微偏移被取消造成闪烁。",
+        "ClipPreviewView 在 `item.id` 变更时额外 reset peek 状态（`showPeek=false`、取消 hideTask）——换条目时老 peek 立刻关。",
+        "@State 新增三个字段：`isHoveringImage` / `showPeek` / `peekHideTask: Task<Void, Never>?`。"
+      ],
+      "acceptance": [
+        "按全局快捷键打开剪贴板历史 → 列表第一条默认高亮，↓ 键从第二条开始移动。",
+        "鼠标悬停在预览区的缩略图上约 100ms → 右/左侧弹出一个箭头指向图片的 popover，内嵌原尺寸图（上限 600x600）。",
+        "鼠标离开缩略图 250ms 内不再悬停 → popover 关闭；若在延时内重新悬停回来，popover 保持开启。",
+        "切换列表选中条目 → peek 立即消失；新条目 hover 重新触发。",
+        "非图像 kind（text / file）不受影响。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests 保持）。"
+      ],
+      "commit_message": "S69: auto-select first row on panel open + hover peek popover for preview image"
     }
   ],
   "slice_rhythm": [
@@ -1725,7 +1746,8 @@
       "S65",
       "S66",
       "S67",
-      "S68"
+      "S68",
+      "S69"
     ]
   },
   "open_questions": [

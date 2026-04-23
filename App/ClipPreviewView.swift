@@ -11,6 +11,9 @@ struct ClipPreviewView: View {
   @State private var loadedImageForID: UUID?
   @State private var loadEpoch: Int = 0
   @State private var revealed: Bool = false
+  @State private var isHoveringImage = false
+  @State private var showPeek = false
+  @State private var peekHideTask: Task<Void, Never>?
 
   var body: some View {
     VStack(spacing: 0) {
@@ -202,6 +205,21 @@ struct ClipPreviewView: View {
           .resizable()
           .interpolation(.high)
           .aspectRatio(contentMode: .fit)
+          .onHover { hovering in
+            isHoveringImage = hovering
+            updatePeek(hovering: hovering)
+          }
+          .popover(isPresented: $showPeek, arrowEdge: .leading) {
+            Image(nsImage: previewImage)
+              .resizable()
+              .interpolation(.high)
+              .aspectRatio(contentMode: .fit)
+              .frame(
+                maxWidth: min(previewImage.size.width, 600),
+                maxHeight: min(previewImage.size.height, 600)
+              )
+              .padding(8)
+          }
       } else {
         ProgressView()
           .onAppear { loadImage(item) }
@@ -216,6 +234,31 @@ struct ClipPreviewView: View {
       previewImage = nil
       loadedImageForID = nil
       loadImage(item)
+      // Any active peek refers to the previous item; close it.
+      showPeek = false
+      isHoveringImage = false
+      peekHideTask?.cancel()
+    }
+  }
+
+  /// Open the peek popover on hover-in; close with a short delay on
+  /// hover-out so the popover's own appearance animation doesn't
+  /// momentarily pull the cursor off the anchor and flicker the
+  /// whole thing closed.
+  private func updatePeek(hovering: Bool) {
+    peekHideTask?.cancel()
+    if hovering {
+      showPeek = true
+    } else {
+      peekHideTask = Task {
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        if Task.isCancelled { return }
+        await MainActor.run {
+          if !self.isHoveringImage {
+            self.showPeek = false
+          }
+        }
+      }
     }
   }
 

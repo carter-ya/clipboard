@@ -7,6 +7,11 @@ final class HistoryPanel: NSPanel {
   var onWillCloseCommit: (() -> Void)?
   var onArrowDown: (() -> Void)?
   var onArrowUp: (() -> Void)?
+  /// Fired each time the panel transitions from hidden to visible.
+  /// The delegate uses this to reset selection + scroll to the top
+  /// so "every open is a fresh session" — the most recent clip is
+  /// always selected when you summon the panel.
+  var onDidOpen: (() -> Void)?
   /// Fired just before the panel is hidden, carrying the panel's
   /// last frame (in screen coordinates) so callers can remember it
   /// as the anchor for auxiliary windows like Preferences.
@@ -60,6 +65,7 @@ final class HistoryPanel: NSPanel {
     makeKeyAndOrderFront(nil)
     startOutsideClickMonitor()
     startKeyMonitor()
+    onDidOpen?()
   }
 
   override func close() {

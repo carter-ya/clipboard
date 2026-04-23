@@ -257,6 +257,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     panel.onArrowDown = { [weak vm] in vm?.selectNext() }
     panel.onArrowUp = { [weak vm] in vm?.selectPrevious() }
+    panel.onDidOpen = { [weak vm] in vm?.resetSelection() }
     panel.onBeforeClose = { [weak self] rect in
       self?.lastPanelFrame = rect
     }
