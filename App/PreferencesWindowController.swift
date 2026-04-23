@@ -41,6 +41,11 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     window.backgroundColor = .clear
     window.hasShadow = true
     window.titlebarAppearsTransparent = true
+    // Don't let macOS auto-restore last-known frame — the state
+    // machine otherwise wrestles with our setFrameOrigin in show()
+    // and the window drifts (it ends up parked in the upper-right
+    // corner every second open).
+    window.isRestorable = false
     super.init(window: window)
     window.delegate = self
     rebuildContent()
@@ -59,11 +64,14 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     // LSUIElement apps can't normally get keyboard focus; temporarily
     // promote activation so KeyboardShortcuts.Recorder etc. work.
     NSApp.setActivationPolicy(.regular)
+    window?.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
+    // Position AFTER orderFront so AppKit's own cascading / state
+    // restoration has already run; our setFrameOrigin is the last
+    // word on placement.
     if let window {
       centerOnCursorScreen(window)
     }
-    window?.makeKeyAndOrderFront(nil)
-    NSApp.activate(ignoringOtherApps: true)
     // Drop the auto-picked first responder so the Language Picker (or
     // any other control in tab order) doesn't show a focus ring on
     // first open. The user can still click or tab into any control.
@@ -87,6 +95,9 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
       y: visible.midY - size.height / 2
     )
     window.setFrameOrigin(origin)
+    Log.ui.info(
+      "prefs.center screen=\(visible.debugDescription, privacy: .public) mouse=(\(mouse.x),\(mouse.y)) size=(\(size.width),\(size.height)) origin=(\(origin.x),\(origin.y))"
+    )
   }
 
   private func reconcileLaunchAtLogin() {

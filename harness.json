@@ -1623,6 +1623,22 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests）。"
       ],
       "commit_message": "S71: center preferences on the cursor screen's visibleFrame (drop panel-anchor tracking)"
+    },
+    {
+      "id": "S72",
+      "title": "强制 Preferences 居中（禁 state restoration + orderFront 后再定位）",
+      "goal": "S71 改为光标所在屏幕居中后，用户反馈仍然偏右上。大概率 AppKit 的 state restoration 或 contentViewController 赋值触发的 resize 在我的 setFrameOrigin 之后再次挪动了 window，使我们的定位被覆盖。",
+      "deliverables": [
+        "`PreferencesWindowController.init`: `window.isRestorable = false`——关闭 AppKit 的 window frame 状态恢复，避免它在 orderFront 时把窗口拉回上次位置。",
+        "`show()`: centerOnCursorScreen 从 orderFront 之前挪到之后——保证我们的 `setFrameOrigin` 是这一次 show 的最后一步、不会被 AppKit cascading/state restore 覆盖。顺序改为 reconcile → rebuildContent → setActivationPolicy → makeKeyAndOrderFront → activate → centerOnCursorScreen → makeFirstResponder(nil)。",
+        "`centerOnCursorScreen` 末尾加 `Log.ui.info(\"prefs.center ...\")` 记录 screen.visibleFrame / mouse / size / 计算得到的 origin——`just logs` 能看到实际坐标便于继续排查。"
+      ],
+      "acceptance": [
+        "⌘, 打开 Preferences → 窗口居中于光标所在屏幕可视区；反复开关多次都稳定居中。",
+        "`just logs` 过滤 `prefs.center`：输出的 origin 大致等于 `(visible.midX - 260, visible.midY - 204)`。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests）。"
+      ],
+      "commit_message": "S72: disable Preferences state restoration + center after orderFront + log origin"
     }
   ],
   "slice_rhythm": [
@@ -1787,7 +1803,8 @@
       "S68",
       "S69",
       "S70",
-      "S71"
+      "S71",
+      "S72"
     ]
   },
   "open_questions": [
