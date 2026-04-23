@@ -35,6 +35,12 @@ struct VisionImageSummarizer: Sendable {
         let textRequest = VNRecognizeTextRequest()
         textRequest.recognitionLevel = .accurate
         textRequest.usesLanguageCorrection = false
+        // Vision defaults to English-only. Screenshots of Chinese UI /
+        // docs come back empty unless we ask for zh-Hans/zh-Hant
+        // explicitly. Listing Chinese first biases the recognizer
+        // toward CJK when a glyph is ambiguous between scripts; English
+        // still works because it remains in the list.
+        textRequest.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
 
         do {
           try handler.perform([classifyRequest, textRequest])
