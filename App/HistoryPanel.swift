@@ -12,10 +12,6 @@ final class HistoryPanel: NSPanel {
   /// so "every open is a fresh session" — the most recent clip is
   /// always selected when you summon the panel.
   var onDidOpen: (() -> Void)?
-  /// Fired just before the panel is hidden, carrying the panel's
-  /// last frame (in screen coordinates) so callers can remember it
-  /// as the anchor for auxiliary windows like Preferences.
-  var onBeforeClose: ((NSRect) -> Void)?
   var suppressNextCloseCommit = false
 
   private var outsideClickMonitor: Any?
@@ -69,7 +65,6 @@ final class HistoryPanel: NSPanel {
   }
 
   override func close() {
-    notifyBeforeCloseIfVisible()
     commitBeforeCloseIfNeeded()
     stopOutsideClickMonitor()
     stopKeyMonitor()
@@ -77,16 +72,10 @@ final class HistoryPanel: NSPanel {
   }
 
   override func orderOut(_ sender: Any?) {
-    notifyBeforeCloseIfVisible()
     commitBeforeCloseIfNeeded()
     stopOutsideClickMonitor()
     stopKeyMonitor()
     super.orderOut(sender)
-  }
-
-  private func notifyBeforeCloseIfVisible() {
-    guard isVisible else { return }
-    onBeforeClose?(frame)
   }
 
   private func commitBeforeCloseIfNeeded() {

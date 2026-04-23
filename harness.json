@@ -1604,6 +1604,25 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests）。"
       ],
       "commit_message": "S70: vision summary drops noise prefix; summary gains copy button; image rows show summary instead of <image>"
+    },
+    {
+      "id": "S71",
+      "title": "Preferences 固定居中光标所在屏幕，不再跟随 panel",
+      "goal": "用户反馈 Preferences 每次弹出都偏在右上方、很奇怪。S26/S27 引入的『以 panel 的 frame 为中心放置 Prefs』算法在某些 y-up 坐标组合下会叠出偏移，而用户对『跟随』并没有期待——固定居中光标所在屏幕的 visibleFrame 更简单也更符合预期。",
+      "deliverables": [
+        "`PreferencesWindowController.show(anchorRect:)` 改签为 `show()`；新私有方法 `centerOnCursorScreen(_ window:)` 基于 `NSEvent.mouseLocation` 找到当前光标所在 screen，在其 `visibleFrame.midX/midY` 上用 `setFrameOrigin` 放置 window —— 与 `HistoryPanel.positionAtCursorScreen` 一致。",
+        "删除旧的 `positionWindow(_:centeredOn:)` 方法（无人再调用）。",
+        "`AppDelegate.openPreferences` 去掉 `anchor = panel?.frame ?? ...` 三级 fallback；直接 `panel?.close()` + `installPreferencesIfReady()` + `preferencesController?.show()`。",
+        "顺带删除 `AppDelegate.lastPanelFrame` 属性、`panel.onBeforeClose` 绑定、`fallbackAnchorRect()` 辅助方法——全部随 anchor 机制一并清空。",
+        "`HistoryPanel.onBeforeClose` 回调、`notifyBeforeCloseIfVisible` 方法、close/orderOut 里对它的调用一并删除（只剩 `commitBeforeCloseIfNeeded`）。"
+      ],
+      "acceptance": [
+        "在任意位置打开 Preferences（⌘, 从 panel / 菜单 / 重新打开 app）→ 窗口居中于光标所在 screen 的可视区。不再右上方偏移。",
+        "多显示器场景：光标在副屏 → Prefs 出现在副屏正中；切到主屏 → 下次打开在主屏正中。",
+        "HistoryPanel 仍然 centers 在光标 screen 的 visibleFrame（S2 以来行为不变）。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿（85 tests）。"
+      ],
+      "commit_message": "S71: center preferences on the cursor screen's visibleFrame (drop panel-anchor tracking)"
     }
   ],
   "slice_rhythm": [
@@ -1767,7 +1786,8 @@
       "S67",
       "S68",
       "S69",
-      "S70"
+      "S70",
+      "S71"
     ]
   },
   "open_questions": [
