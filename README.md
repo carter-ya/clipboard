@@ -1,105 +1,107 @@
 # Clipboard
 
-一款 macOS 菜单栏剪贴板历史工具。所有数据保存在本地，不联网、不同步、不追踪；敏感条目只驻留内存，绝不落盘。
+**English** · [简体中文](README.zh-Hans.md) · [繁體中文](README.zh-Hant.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Español](README.es.md)
 
-## 功能
+A macOS menu-bar clipboard history utility. All data stays on your machine — no network, no sync, no tracking. Sensitive items live in memory only and are never written to disk.
 
-- 全局快捷键召唤历史面板（默认未绑定，首次启动会提示设置）
-- 文本 / 富文本 / 图片 / 文件四种条目类型，带缩略图预览
-- 按 kind 过滤 + 全文搜索（图片 OCR 结果也可搜）
-- 敏感内容识别（密码、金融卡号等）：仅缓存、不写盘、不导出
-- 按源应用屏蔽（bundle ID 黑名单）
-- AI 摘要：Vision OCR + NaturalLanguage 实体识别，macOS 26+ 可选用 Apple Foundation Models
-- 多语言界面：English / 简体中文 / 繁體中文 / 日本語 / 한국어 / Deutsch / Español
-- Sparkle 自动更新（零 Apple 签名，通过 EdDSA 校验）
+## Features
 
-## 系统要求
+- Global hotkey summons the history panel (unbound by default; first launch prompts you to set one)
+- Four item kinds — text / rich text / image / file — with thumbnail previews
+- Filter by kind + full-text search (OCR results on images are searchable too)
+- Sensitive-content detection (passwords, card numbers, etc.): cached only, never persisted or exported
+- Per-source blocklist (bundle ID blacklist)
+- AI summaries: Vision OCR + NaturalLanguage entities; macOS 26+ can opt into Apple Foundation Models
+- Localized UI: English / 简体中文 / 繁體中文 / 日本語 / 한국어 / Deutsch / Español
+- Sparkle auto-update (no Apple signing required; EdDSA-verified)
 
-macOS 13 Ventura 或更高。Apple Silicon 与 Intel 均支持；Foundation Models 摘要需要 macOS 26+ 且设备开启 Apple Intelligence。
+## System requirements
 
-## 安装
+macOS 13 Ventura or later. Both Apple Silicon and Intel are supported; Foundation Models summaries require macOS 26+ with Apple Intelligence enabled on the device.
 
-### 一键脚本（推荐）
+## Installation
+
+### One-liner script (recommended)
 
 ```bash
 curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash
 ```
 
-脚本会：拉最新 DMG → 校验 SHA-256 → 如 Clipboard 正在运行先让它退出 → 拷到 `/Applications/` → `xattr -cr` 清掉 Gatekeeper 隔离标记。完成后从 Launchpad / Spotlight 启动即可。
+The script fetches the latest DMG → verifies SHA-256 → quits a running Clipboard if any → copies to `/Applications/` → runs `xattr -cr` to strip the Gatekeeper quarantine attribute. Launch from Launchpad or Spotlight afterwards.
 
-### 手动从 GitHub Release 下载
+### Manual install from GitHub Release
 
-1. 到 [Releases 页面](https://github.com/carter-ya/clipboard/releases/latest) 下载 `Clipboard-<version>.dmg`
-2. 双击挂载，把 `Clipboard.app` 拖进 `Applications/`
-3. **去掉 Gatekeeper 隔离标记**（本项目未走 Apple Developer ID 签名与公证）：
+1. Download `Clipboard-<version>.dmg` from the [Releases page](https://github.com/carter-ya/clipboard/releases/latest)
+2. Double-click to mount, drag `Clipboard.app` into `Applications/`
+3. **Strip the Gatekeeper quarantine attribute** (this project does not use Apple Developer ID signing / notarization):
 
     ```bash
     xattr -cr /Applications/Clipboard.app
     ```
 
-4. 双击启动。首次启动会弹引导窗口要你设置全局快捷键（推荐 `⌃⌥⌘V` 或 `⌘⇧V`）。
+4. Launch. The first-run wizard asks you to set a global hotkey (`⌃⌥⌘V` or `⌘⇧V` recommended).
 
-> 如果跳过步骤 3，macOS 会弹"无法验证开发者"并拒绝打开。在 **系统设置 → 隐私与安全性** 里可以手动点"仍要打开"，但 `xattr -cr` 更快。
+> If you skip step 3, macOS will refuse to open the app with "developer cannot be verified". You can still allow it via **System Settings → Privacy & Security → Open Anyway**, but `xattr -cr` is faster.
 
-### 校验下载
+### Verify the download
 
-每个 DMG 都带同名 `.sha256` 文件。把 DMG 和 `.sha256` 下到同目录后比对哈希：
+Every DMG ships with a matching `.sha256` file. Download both to the same directory and compare hashes:
 
 ```bash
 shasum -a 256 Clipboard-<version>.dmg
 cat Clipboard-<version>.dmg.sha256
-# 两行首段哈希应一致
+# The first field of each line should match
 ```
 
-（`.sha256` 的第二列是打包时的仓库相对路径 `dist/...`，所以不能直接 `shasum -c`。）
+(The second column of the `.sha256` file is the packaging-time repo-relative path `dist/...`, so `shasum -c` won't work directly.)
 
-## 使用
+## Usage
 
-- **⌃⌥⌘V**（或你设置的快捷键）：打开 / 关闭历史面板
-- **↑ / ↓**：在条目间移动
-- **⏎**：选中条目写回剪贴板，关闭面板；接着你自己按 `⌘V` 粘贴（Clipboard 不合成键盘事件）
-- **⌘F**：跳到搜索框
-- **⌘,**：打开 Preferences
-- **面板内右键条目**：Pin / Delete
-- **Pin 的条目**永远不会被容量上限淘汰
+- **⌃⌥⌘V** (or your chosen shortcut): open / close the history panel
+- **↑ / ↓**: move between items
+- **⏎**: write the selected item back to the clipboard and close the panel; you then press `⌘V` yourself (Clipboard never synthesizes keystrokes)
+- **⌘F**: jump to the search field
+- **⌘,**: open Preferences
+- **Right-click an item in the panel**: Pin / Delete
+- **Pinned items** are never evicted by the capacity cap
 
-## 隐私
+## Privacy
 
-- 所有历史数据保存在 `~/Library/Application Support/Clipboard/`
-- **敏感条目**（被 macOS 标记为 `NSPasteboardTypeConcealed`，如密码管理器里的密码）只在内存中缓存，退出即清空；不会出现在 `history.json`、`blobs/`、导出包或日志正文里
-- 不联网、不发送遥测、不分析
-- 可按源应用 bundle ID 屏蔽（例如永远不记录密码管理器的内容）
+- All history data is stored under `~/Library/Application Support/Clipboard/`
+- **Sensitive items** (anything macOS marks as `NSPasteboardTypeConcealed`, such as passwords from a password manager) are only cached in memory and cleared on quit; they never appear in `history.json`, `blobs/`, export archives, or log bodies
+- No network, telemetry, or analytics
+- You can block items by source app bundle ID (e.g. never record anything copied from your password manager)
 
-## 自动更新
+## Auto-update
 
-内置 Sparkle（独立于 Apple 签名体系，通过 EdDSA 校验更新包）。Preferences → General → Updates 里可以手动触发检查，或在 Scheduled Check Interval（默认 24 小时）触发时自动检查。
+Ships with Sparkle (independent of Apple's signing chain; update packages are EdDSA-verified). Preferences → General → Updates lets you check manually, or the Scheduled Check Interval (default 24 hours) runs automatically.
 
-## 开发
+## Development
 
-### 前置依赖
+### Prerequisites
 
 ```bash
 brew install just xcodegen swift-format
 ```
 
-Xcode 15+（建议 16）。
+Xcode 15+ (16 recommended).
 
-### 常用命令
+### Common commands
 
 ```bash
-just gen       # 从 project.yml 生成 .xcodeproj（未提交）
-just build     # 冷编译 Debug
-just run       # 启动（菜单栏不显示图标，LSUIElement=true）
-just test      # 运行 Core 的 85 条单测
-just lint      # swift-format 检查
-just fmt       # swift-format 格式化
-just logs      # 流式查看 os.Logger 输出（subsystem com.clipboard.app）
-just reset     # 清除本地历史数据
-just package   # 打 Release DMG + SHA256 到 dist/
-just clean     # 清理 build 与生成物
+just gen       # Generate .xcodeproj from project.yml (not committed)
+just build     # Cold Debug build
+just run       # Launch (menu-bar shell; no Dock icon because LSUIElement=true)
+just test      # Run Core's 85 unit tests
+just lint      # swift-format lint
+just fmt       # swift-format in place
+just logs      # Stream os.Logger output (subsystem com.clipboard.app)
+just reset     # Clear local history data
+just package   # Build a Release DMG + SHA256 into dist/
+just clean     # Remove build artifacts and the generated project
 ```
 
-### 打包流程
+### Packaging
 
 ```bash
 just package
@@ -107,44 +109,44 @@ just package
 # → dist/Clipboard-<version>.dmg.sha256
 ```
 
-### 项目结构
+### Project layout
 
-- `Core/` —— `ClipboardCore` Swift Package：所有业务逻辑，可独立测试
-- `App/` —— macOS App target：菜单栏外壳 + 装配层，不含业务逻辑
-- `project.yml` —— XcodeGen 源；`.xcodeproj` 每次 `just gen` 生成，**不提交**
-- `harness.json` —— 项目单一事实源，任何偏离都要在同一次提交中同步更新
+- `Core/` — `ClipboardCore` Swift Package: all business logic, independently testable
+- `App/` — macOS App target: menu-bar shell and composition root, no business logic
+- `project.yml` — XcodeGen source; `.xcodeproj` is regenerated by `just gen` and **not committed**
+- `harness.json` — the project's single source of truth; any divergence must be synced in the same commit
 
-### 发布流程（维护者）
+### Release process (maintainers)
 
-1. 在 `CHANGELOG.md` 顶部新增 `## [x.y.z] - YYYY-MM-DD` 条目
-2. 把 `project.yml` 的 `MARKETING_VERSION` 改成 `x.y.z`，`CURRENT_PROJECT_VERSION` 自增
+1. Prepend a `## [x.y.z] - YYYY-MM-DD` entry to `CHANGELOG.md`
+2. Bump `MARKETING_VERSION` in `project.yml` to `x.y.z`; increment `CURRENT_PROJECT_VERSION`
 3. `git commit -am "release: x.y.z"`
 4. `git tag -a vx.y.z -m "x.y.z"`
-5. `git push && git push --tags` —— GitHub Actions 跑 `release.yml`：打 DMG、用 Sparkle 私钥签名、创建 Release 挂 DMG + `.sha256` + `appcast-item.xml`，并把 appcast 片段打进 workflow 的 Step Summary
-6. **手动把 Step Summary 里的 `<item>…</item>` 片段粘进 `docs/appcast.xml` 的 `</channel>` 前**，`git commit -am "appcast: vx.y.z" && git push`（GitHub Pages 发布后 Sparkle 才能看到新版）
+5. `git push && git push --tags` — GitHub Actions runs `release.yml`: builds the DMG, signs with the Sparkle private key, creates a Release with DMG + `.sha256` + `appcast-item.xml`, and prints the appcast snippet to the workflow Step Summary
+6. **Paste the `<item>…</item>` snippet from the Step Summary into `docs/appcast.xml` before `</channel>`**, then `git commit -am "appcast: vx.y.z" && git push` (Sparkle won't see the new version until GitHub Pages publishes)
 
-**首次发布前**必须做的一次性配置：
+**One-time setup before the first release**:
 
-1. `just build` 一次（触发 SPM 首次拉取 Sparkle）
-2. `just sparkle-keys` 生成 EdDSA 密钥对 —— 默认把私钥写进本机 Keychain，公钥打印到 stdout
-3. 把输出的公钥（一串 base64）填进 `project.yml` 与 `App/Info.plist` **两处**的 `SUPublicEDKey` 字段（替换占位符 `REPLACE_WITH_BASE64_EDKEY`）。XcodeGen 每次 `just gen` 会用 `project.yml` 覆盖 `Info.plist` 同名键，漏改 `project.yml` 那一侧 `just gen` 后会被打回占位
-4. 导出私钥以便放进 CI secret：`just sparkle-keys -x sparkle_ed_priv.key`（`-x` 透传给 `generate_keys`），`cat sparkle_ed_priv.key` 拷内容到密码管理器，**立即 `rm sparkle_ed_priv.key`**
-5. 在 GitHub 仓库 Settings → Secrets → Actions 新增 `SPARKLE_PRIVATE_KEY`，粘贴刚导出的私钥 base64 内容
-6. 当前 owner 为 `carter-ya`；fork 后需全局替换为你自己的 GitHub 用户名 / 组织名：`project.yml` 的 `SUFeedURL`、`App/Info.plist` 的 `SUFeedURL`、`docs/appcast.xml`、`docs/install.sh` 的 `REPO` 与 header 注释里的 URL、`CHANGELOG.md` 链接定义、`README.md` 安装段落里的 install.sh URL、`harness.json` 的 `project.distribution`
-7. 启用 GitHub Pages：Settings → Pages → Source `Deploy from a branch` → Branch `main` → `/docs` → Save；appcast 会挂在 `https://carter-ya.github.io/clipboard/appcast.xml`
-8. `just clean && just package` **重新打包** —— 之前 `dist/` 里的 DMG 带的是占位值，绝不能上传
+1. Run `just build` once (fetches Sparkle via SPM)
+2. `just sparkle-keys` generates an EdDSA keypair — the private key goes to the local Keychain by default; the public key is printed to stdout
+3. Paste the public key (a base64 string) into both `project.yml` and `App/Info.plist` under `SUPublicEDKey`, replacing the `REPLACE_WITH_BASE64_EDKEY` placeholder. XcodeGen overwrites `Info.plist` from `project.yml` on each `just gen`, so missing the `project.yml` side silently reverts to the placeholder
+4. Export the private key for CI: `just sparkle-keys -x sparkle_ed_priv.key` (`-x` is forwarded to `generate_keys`); `cat sparkle_ed_priv.key` and copy into a password manager, then **immediately `rm sparkle_ed_priv.key`**
+5. Add `SPARKLE_PRIVATE_KEY` under Settings → Secrets → Actions, pasting the exported base64 key
+6. Current owner is `carter-ya`; forkers must replace it with their GitHub username / org in: `project.yml`'s `SUFeedURL`, `App/Info.plist`'s `SUFeedURL`, `docs/appcast.xml`, `docs/install.sh` (`REPO` constant and header-comment URL), `CHANGELOG.md` link definitions, every `README*.md` file's install section (the install.sh URL), and `harness.json`'s `project.distribution`
+7. Enable GitHub Pages: Settings → Pages → Source `Deploy from a branch` → Branch `main` → `/docs` → Save; the appcast will live at `https://carter-ya.github.io/clipboard/appcast.xml`
+8. `just clean && just package` to **rebuild** — any DMG already in `dist/` was built against placeholder values and must not be uploaded
 
-### 硬约束（给贡献者）
+### Hard constraints (for contributors)
 
-- 业务逻辑留在 `ClipboardCore`；UI 层通过协议依赖 Core
-- 日志统一走 `os.Logger`（subsystem `com.clipboard.app`）；禁止 `print()`
-- 不合成键盘事件（不用 CGEvent / AppleScript / Accessibility）——选中条目只写剪贴板，用户自行 `⌘V`
-- 不启用 App Sandbox；不上 Mac App Store
-- 敏感条目仅驻留内存、绝不落盘
-- 三队列分工：`monitor_queue`（轮询与过滤）/ `store_queue`（哈希与持久化）/ `main_queue`（UI）
+- Business logic stays in `ClipboardCore`; the UI layer depends on Core through protocols
+- All logging goes through `os.Logger` (subsystem `com.clipboard.app`); no `print()`
+- Never synthesize keyboard events (no CGEvent / AppleScript / Accessibility) — selecting an item writes to the clipboard only; the user presses `⌘V` themselves
+- App Sandbox is not enabled; Mac App Store is not a distribution target
+- Sensitive items stay in memory only, never on disk
+- Three-queue discipline: `monitor_queue` (polling and filtering) / `store_queue` (hashing and persistence) / `main_queue` (UI)
 
-完整约定见 `harness.json`。
+See `harness.json` for the full set of conventions.
 
-## 许可
+## License
 
-TBD（首发前确定）。
+TBD (to be decided before the first public release).

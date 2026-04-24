@@ -8,6 +8,10 @@
 
 - 新增一键安装脚本 `docs/install.sh`（`curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash`）：拉最新 DMG、校验 SHA-256、退出正在运行的 Clipboard、安装到 `/Applications/`、清 Gatekeeper 隔离标记
 
+### 文档
+
+- `README.md` 默认语言改为英文（沿 GitHub 惯例）；中文版迁到 `README.zh-Hans.md`，并新增 `README.zh-Hant.md` / `README.ja.md` / `README.ko.md` / `README.de.md` / `README.es.md`，覆盖 App 已支持的全部 7 种 locale；每份 README 顶部加语言切换行
+
 ## [1.0.1] - 2026-04-24
 
 ### 分发
