@@ -10,7 +10,10 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15
+    # macos-26 ships Xcode 26 / macOS 26 SDK which is required to resolve
+    # FoundationModels symbols at compile time. Runtime gating stays in
+    # @available(macOS 26.0, *) so a single DMG runs on macOS 13+.
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v4

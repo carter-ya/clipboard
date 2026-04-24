@@ -28,7 +28,7 @@ enum AICapability {
   /// availability check lives inside a @available-gated helper so the
   /// FoundationModels symbols never load on older systems.
   static var isFoundationModelsAvailable: Bool {
-    #if canImport(FoundationModels) && arch(arm64)
+    #if arch(arm64)
       if #available(macOS 26.0, *) {
         return FoundationModelsAvailability.isActive
       }
@@ -37,16 +37,14 @@ enum AICapability {
   }
 }
 
-#if canImport(FoundationModels)
-  @available(macOS 26.0, *)
-  private enum FoundationModelsAvailability {
-    static var isActive: Bool {
-      switch SystemLanguageModel.default.availability {
-      case .available:
-        return true
-      case .unavailable:
-        return false
-      }
+@available(macOS 26.0, *)
+private enum FoundationModelsAvailability {
+  static var isActive: Bool {
+    switch SystemLanguageModel.default.availability {
+    case .available:
+      return true
+    case .unavailable:
+      return false
     }
   }
-#endif
+}
