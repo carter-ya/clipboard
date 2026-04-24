@@ -135,6 +135,11 @@
 "Next tab" = "Next tab";
 "In-panel shortcuts only work while the history panel is focused." = "In-panel shortcuts only work while the history panel is focused.";
 
+/* MARK: - Preferences: Updates (S79) */
+"Updates" = "Updates";
+"Check for Updates…" = "Check for Updates…";
+"Automatic updates are not configured in this build." = "Automatic updates are not configured in this build.";
+
 /* MARK: - AI Summaries (S63) */
 "AI Summaries" = "AI Summaries";
 "Enable AI summaries" = "Enable AI summaries";

@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 新增
+
+- Sparkle 弹窗有了多语言 release notes：`docs/release-notes/<version>/<lang>.html` 为每个版本维护 7 份轻量 HTML（en / zh-Hans / zh-Hant / ja / ko / de / es），`docs/appcast.xml` 通过 `<sparkle:releaseNotesLink xml:lang="…">` 让 Sparkle 按系统语言自动挑对
+
+### 修复
+
+- 偏好设置 → Updates 区块的标题、『检查更新…』按钮、未配置提示现在会跟随语言；7 份 `Localizable.strings` 都补上了 `Updates` / `Check for Updates…` / `Automatic updates are not configured in this build.` 三个 key
+
 ### 分发
 
 - 新增一键安装脚本 `docs/install.sh`（`curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash`）：拉最新 DMG、校验 SHA-256、退出正在运行的 Clipboard、安装到 `/Applications/`、清 Gatekeeper 隔离标记

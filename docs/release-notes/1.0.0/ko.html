@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>Clipboard 1.0.0</title>
+  <style>
+    body { font: 13px -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Helvetica Neue", sans-serif; color: #1c1c1e; margin: 16px; line-height: 1.6; }
+    h1 { font-size: 16px; margin: 0 0 4px; }
+    p.lede { margin: 0 0 10px; color: #6e6e73; }
+    h2 { font-size: 11px; margin: 12px 0 4px; color: #6e6e73; letter-spacing: 0.4px; }
+    ul { margin: 4px 0 0; padding-left: 20px; }
+    li { margin: 2px 0; }
+    code { font-size: 12px; background: rgba(127,127,127,0.18); padding: 0 4px; border-radius: 3px; }
+    @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: transparent; } h2, p.lede { color: #98989d; } }
+  </style>
+</head>
+<body>
+  <h1>Clipboard 1.0.0</h1>
+  <p class="lede">최초 공개 릴리스.</p>
+  <h2>추가</h2>
+  <ul>
+    <li>메뉴 막대 상주형 클립보드 기록 패널 — 전역 단축키로 호출합니다.</li>
+    <li>텍스트 / 서식 있는 텍스트 / 이미지 / 파일 네 가지 항목 유형과 썸네일 미리보기.</li>
+    <li>유형별 필터 + 전문 검색(이미지 OCR 결과도 검색 가능).</li>
+    <li>민감 정보 감지: 비밀번호, 카드 번호 등은 메모리에만 남고 디스크·내보내기·로그에 노출되지 않습니다.</li>
+    <li>소스 앱 기반 차단 목록(Bundle ID).</li>
+    <li>AI 요약: Vision OCR + NaturalLanguage 개체 인식. macOS 26+ 에서는 Foundation Models 도 활용.</li>
+    <li>다국어 UI: English / 简体中文 / 繁體中文 / 日本語 / 한국어 / Deutsch / Español.</li>
+    <li>고정한 항목은 보관 용량 제한에서 제외됩니다.</li>
+    <li>기록을 zip 으로 가져오기 / 내보내기.</li>
+    <li>Sparkle 자동 업데이트(EdDSA 서명, Apple 코드 서명과 독립).</li>
+    <li>패널 단축키: <code>⌘⇧[</code> / <code>⌘⇧]</code> 로 유형 탭 순환, <code>⌘1</code>–<code>⌘6</code> 으로 특정 유형 바로 이동.</li>
+    <li>환경설정에 <strong>Shortcuts</strong> 탭 추가 — 전역 및 패널 단축키를 한곳에서 확인.</li>
+  </ul>
+  <h2>개선</h2>
+  <ul>
+    <li>클립보드 폴링 주기를 약 80ms 로 단축하여 누락 구간을 약 4 배 축소.</li>
+  </ul>
+  <h2>배포</h2>
+  <ul>
+    <li>서명 없는 DMG 로 배포합니다. 최초 실행 시 <code>xattr -cr</code> 로 Gatekeeper 격리 속성을 제거해야 합니다.</li>
+    <li>Mac App Store 에는 배포하지 않으며 App Sandbox 도 사용하지 않습니다.</li>
+  </ul>
+</body>
+</html>

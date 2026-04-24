@@ -36,6 +36,9 @@ jobs:
             exit 1
           fi
 
+      - name: Verify localized release notes
+        run: just release-notes-check "${{ steps.ver.outputs.version }}"
+
       - name: Run tests
         run: just test
 
@@ -89,6 +92,10 @@ jobs:
           BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP/Contents/Info.plist")
           # sign_update already emits both sparkle:edSignature="..." and
           # length="..." attributes, so we must NOT append our own length=.
+          # Release-notes URLs point at GitHub Pages (docs/release-notes/
+          # <version>/<lang>.html). Sparkle picks by system language; the
+          # just release-notes-check step above guarantees all 7 exist.
+          NOTES_BASE="https://carter-ya.github.io/clipboard/release-notes/${VERSION}"
           cat > dist/appcast-item.xml <<ITEM
               <item>
                 <title>Version ${VERSION}</title>
@@ -96,6 +103,13 @@ jobs:
                 <sparkle:version>${BUILD_NUMBER}</sparkle:version>
                 <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
                 <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+                <sparkle:releaseNotesLink xml:lang="en">${NOTES_BASE}/en.html</sparkle:releaseNotesLink>
+                <sparkle:releaseNotesLink xml:lang="zh-Hans">${NOTES_BASE}/zh-Hans.html</sparkle:releaseNotesLink>
+                <sparkle:releaseNotesLink xml:lang="zh-Hant">${NOTES_BASE}/zh-Hant.html</sparkle:releaseNotesLink>
+                <sparkle:releaseNotesLink xml:lang="ja">${NOTES_BASE}/ja.html</sparkle:releaseNotesLink>
+                <sparkle:releaseNotesLink xml:lang="ko">${NOTES_BASE}/ko.html</sparkle:releaseNotesLink>
+                <sparkle:releaseNotesLink xml:lang="de">${NOTES_BASE}/de.html</sparkle:releaseNotesLink>
+                <sparkle:releaseNotesLink xml:lang="es">${NOTES_BASE}/es.html</sparkle:releaseNotesLink>
                 <enclosure url="${DMG_URL}" ${SIG_LINE} type="application/octet-stream" />
               </item>
           ITEM

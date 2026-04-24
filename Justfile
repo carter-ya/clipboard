@@ -72,6 +72,28 @@ clean:
 icon:
     swift tools/resize-icon.swift tools/icon-source.png App/Assets.xcassets/AppIcon.appiconset
 
+release-notes-check VERSION:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Sparkle picks a <sparkle:releaseNotesLink xml:lang=...> URL by system
+    # language, so every supported locale must ship an HTML before we tag.
+    # Keep this list in sync with App/<locale>.lproj/ directories.
+    LANGS=(en zh-Hans zh-Hant ja ko de es)
+    MISSING=()
+    for LANG in "${LANGS[@]}"; do
+      F="docs/release-notes/{{VERSION}}/${LANG}.html"
+      [[ -f "$F" ]] || MISSING+=("$F")
+    done
+    if (( ${#MISSING[@]} > 0 )); then
+      echo "Missing release notes for v{{VERSION}}:"
+      for F in "${MISSING[@]}"; do echo "  - $F"; done
+      echo
+      echo "Copy docs/release-notes/1.0.1/<lang>.html as a starting point,"
+      echo "then translate per locale. Tagging is blocked until all 7 exist."
+      exit 1
+    fi
+    echo "release notes for v{{VERSION}}: ${#LANGS[@]}/${#LANGS[@]} present"
+
 sparkle-keys *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail

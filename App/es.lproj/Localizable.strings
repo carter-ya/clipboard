@@ -118,6 +118,10 @@
 "Next tab" = "Pestaña siguiente";
 "In-panel shortcuts only work while the history panel is focused." = "Los atajos en el panel solo funcionan cuando el panel de historial tiene el foco.";
 
+"Updates" = "Actualizaciones";
+"Check for Updates…" = "Buscar actualizaciones…";
+"Automatic updates are not configured in this build." = "Las actualizaciones automáticas no están configuradas en esta compilación.";
+
 "AI Summaries" = "Resúmenes con IA";
 "Enable AI summaries" = "Activar resúmenes con IA";
 "Summarize images" = "Resumir imágenes";

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <title>Clipboard 1.0.0</title>
+  <style>
+    body { font: 13px -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; color: #1c1c1e; margin: 16px; line-height: 1.6; }
+    h1 { font-size: 16px; margin: 0 0 4px; }
+    p.lede { margin: 0 0 10px; color: #6e6e73; }
+    h2 { font-size: 11px; margin: 12px 0 4px; color: #6e6e73; letter-spacing: 0.4px; }
+    ul { margin: 4px 0 0; padding-left: 20px; }
+    li { margin: 2px 0; }
+    code { font-size: 12px; background: rgba(127,127,127,0.18); padding: 0 4px; border-radius: 3px; }
+    @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: transparent; } h2, p.lede { color: #98989d; } }
+  </style>
+</head>
+<body>
+  <h1>Clipboard 1.0.0</h1>
+  <p class="lede">首次公开发布。</p>
+  <h2>新增</h2>
+  <ul>
+    <li>菜单栏常驻的剪贴板历史面板，全局快捷键召唤。</li>
+    <li>文本 / 富文本 / 图片 / 文件四种条目类型，带缩略图预览。</li>
+    <li>按 kind 过滤 + 全文搜索（图片 OCR 结果也可搜）。</li>
+    <li>敏感内容识别：密码、金融卡号等条目仅驻留内存，不落盘 / 导出 / 日志。</li>
+    <li>按源应用屏蔽（Bundle ID 黑名单）。</li>
+    <li>AI 摘要：Vision OCR + NaturalLanguage 实体识别；macOS 26+ 可选用 Foundation Models。</li>
+    <li>多语言界面：English / 简体中文 / 繁體中文 / 日本語 / 한국어 / Deutsch / Español。</li>
+    <li>Pin 条目不被容量上限淘汰。</li>
+    <li>历史数据导入 / 导出为 zip。</li>
+    <li>Sparkle 自动更新（EdDSA 校验，独立于 Apple 签名）。</li>
+    <li>面板键盘快捷键：<code>⌘⇧[</code> / <code>⌘⇧]</code> 循环切换 kind 标签，<code>⌘1</code>–<code>⌘6</code> 直接选中 kind。</li>
+    <li>偏好设置新增 <strong>Shortcuts</strong> 分页：集中展示全局与面板内快捷键。</li>
+  </ul>
+  <h2>优化</h2>
+  <ul>
+    <li>剪贴板轮询间隔收紧至约 80ms，遗漏窗口缩小约 4×。</li>
+  </ul>
+  <h2>分发</h2>
+  <ul>
+    <li>直接分发未签名 DMG；首次安装需用户 <code>xattr -cr</code> 解除 Gatekeeper 隔离标记。</li>
+    <li>不上 Mac App Store、不启用 App Sandbox。</li>
+  </ul>
+</body>
+</html>

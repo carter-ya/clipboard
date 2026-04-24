@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Clipboard 1.0.0</title>
+  <style>
+    body { font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; color: #1c1c1e; margin: 16px; line-height: 1.5; }
+    h1 { font-size: 16px; margin: 0 0 4px; }
+    p.lede { margin: 0 0 10px; color: #6e6e73; }
+    h2 { font-size: 11px; margin: 12px 0 4px; color: #6e6e73; text-transform: uppercase; letter-spacing: 0.4px; }
+    ul { margin: 4px 0 0; padding-left: 20px; }
+    li { margin: 2px 0; }
+    code { font-size: 12px; background: rgba(127,127,127,0.18); padding: 0 4px; border-radius: 3px; }
+    @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: transparent; } h2, p.lede { color: #98989d; } }
+  </style>
+</head>
+<body>
+  <h1>Clipboard 1.0.0</h1>
+  <p class="lede">Primera publicación pública.</p>
+  <h2>Novedades</h2>
+  <ul>
+    <li>Panel de historial del portapapeles residente en la barra de menús, invocable con una tecla global.</li>
+    <li>Cuatro tipos de entrada — texto / texto enriquecido / imagen / archivo — con vista previa en miniatura.</li>
+    <li>Filtro por tipo y búsqueda de texto completo (también se buscan los resultados de OCR de imágenes).</li>
+    <li>Detección de contenido sensible: las contraseñas, números de tarjeta y similares permanecen solo en memoria — nunca se escriben en disco, ni se exportan ni aparecen en los registros.</li>
+    <li>Lista de bloqueo por app de origen (bundle IDs).</li>
+    <li>Resúmenes con IA: Vision OCR + reconocimiento de entidades de NaturalLanguage; Foundation Models cuando están disponibles en macOS 26+.</li>
+    <li>Interfaz multilingüe: English / 简体中文 / 繁體中文 / 日本語 / 한국어 / Deutsch / Español.</li>
+    <li>Los elementos fijados no cuentan para el límite de retención.</li>
+    <li>Importar / exportar el historial como archivo zip.</li>
+    <li>Actualizaciones automáticas con Sparkle (firmadas con EdDSA, independientes de la firma de Apple).</li>
+    <li>Atajos del panel: <code>⌘⇧[</code> / <code>⌘⇧]</code> cambian entre pestañas de tipo; <code>⌘1</code>–<code>⌘6</code> van a un tipo concreto.</li>
+    <li>Nueva pestaña <strong>Shortcuts</strong> en Preferencias — todos los atajos globales y del panel en un solo lugar.</li>
+  </ul>
+  <h2>Mejoras</h2>
+  <ul>
+    <li>Intervalo de sondeo del portapapeles reducido a unos 80 ms — la ventana de pérdidas se encoge aproximadamente 4×.</li>
+  </ul>
+  <h2>Distribución</h2>
+  <ul>
+    <li>Se distribuye como DMG sin firmar; en el primer uso hay que ejecutar <code>xattr -cr</code> para quitar la cuarentena de Gatekeeper.</li>
+    <li>No está en la Mac App Store; App Sandbox no está habilitado.</li>
+  </ul>
+</body>
+</html>

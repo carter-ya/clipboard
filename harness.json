@@ -1737,6 +1737,28 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿，测试数不回归。"
       ],
       "commit_message": "S78: preferences shortcuts tab (move global hotkey + read-only in-panel listing)"
+    },
+    {
+      "id": "S79",
+      "title": "Check for Updates 本地化 + Sparkle 多语言 release notes",
+      "goal": "S54 的 Sparkle 更新通道引入了『Updates』/『Check for Updates…』/『Automatic updates are not configured in this build.』三行英文文案，但未进入 7 份 `.strings`，非英文用户直接看到英文；同时 `docs/appcast.xml` 的两个 `<item>` 都没有 release notes 字段，有新版本时 Sparkle 弹窗显示空白。本 slice 一并修掉：补齐三行文案的 7 种翻译，并为每个历史版本写 7 份极简 HTML release notes，通过 `<sparkle:releaseNotesLink xml:lang=\"…\">` 接入 appcast，由 Sparkle 根据用户系统语言自动挑对。",
+      "deliverables": [
+        "7 份 `App/<locale>.lproj/Localizable.strings` 各新增 3 个 key —— `Updates` / `Check for Updates…` / `Automatic updates are not configured in this build.` —— 译文按各 locale 已审定的术语风格补齐（en / zh-Hans / zh-Hant / ja / ko / de / es）。",
+        "`docs/release-notes/<version>/<lang>.html` × 14：为 1.0.0 与 1.0.1 各写 7 份轻量 HTML（section 复用 CHANGELOG.md 的结构：新增 / 优化 / 分发；内联 CSS 支持浅/深色，字体跟随系统）。这些文件通过 GitHub Pages 暴露为 `https://carter-ya.github.io/clipboard/release-notes/<version>/<lang>.html`。",
+        "`docs/appcast.xml` 为两个 `<item>` 各追加 7 条 `<sparkle:releaseNotesLink xml:lang=\"…\">`，指向上述 HTML。Sparkle 会按系统 `AppleLanguages` 自动挑对，无匹配时回退到首个 link（en）。",
+        "`Justfile` 新增 `release-notes-check VERSION` recipe：遍历 7 种 locale 确认 HTML 都在；缺失则打印列表并以非零退出。开发者在 `git tag` 前可先本地跑一把预演。",
+        "`.github/workflows/release.yml` 新增『Verify localized release notes』step（位于 tag↔project.yml 版本核对之后、tests 之前），直接调用上面的 just recipe——任何一种语言缺 HTML 就让 CI 停在 package 之前，避免推出缺 notes 的 appcast。",
+        "同一个 workflow 的『Emit appcast snippet』step 改写模板，生成的 `<item>` 里自动带上 7 条 `<sparkle:releaseNotesLink xml:lang=\"…\">`，URL 指向 `https://carter-ya.github.io/clipboard/release-notes/${VERSION}/<lang>.html`，无需再手工改 appcast。",
+        "`.github/RELEASE_TEMPLATE.md` 末尾增加发版前 checklist（HTML 注释形式，不进 GitHub Release 正文）：提醒 project.yml 版本、CHANGELOG、7 份 release notes、tag 四步。"
+      ],
+      "acceptance": [
+        "切换到 7 种语言后打开 Preferences → Updates 区块标题、按钮、未配置提示均按语言显示，无英文残留。",
+        "从 1.0.0 构建手动触发 Check for Updates → Sparkle 弹窗展示 1.0.1 的 release notes（中文系统显示 zh-Hans 版本，日文系统显示 ja 版本，以此类推）。",
+        "`just release-notes-check 1.0.1` 打印 `7/7 present` 并退出 0；`just release-notes-check 99.0.0` 列出 7 份缺失文件并以非零退出。",
+        "假定故意删掉 `docs/release-notes/1.0.2/ja.html` 后打 tag `v1.0.2` → CI 在 `Verify localized release notes` step 红掉，error 消息指明缺哪份文件。",
+        "`just build` 全绿；`docs/appcast.xml` 经 `xmllint --noout` 校验通过。"
+      ],
+      "commit_message": "S79: localize Updates section + multilingual Sparkle release notes (with release-pipeline gate)"
     }
   ],
   "slice_rhythm": [

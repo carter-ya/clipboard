@@ -118,6 +118,10 @@
 "Next tab" = "下一個標籤";
 "In-panel shortcuts only work while the history panel is focused." = "面板內的快速鍵僅在歷史面板取得焦點時生效。";
 
+"Updates" = "更新";
+"Check for Updates…" = "檢查更新…";
+"Automatic updates are not configured in this build." = "此版本未啟用自動更新。";
+
 "AI Summaries" = "AI 摘要";
 "Enable AI summaries" = "啟用 AI 摘要";
 "Summarize images" = "為圖片生成摘要";

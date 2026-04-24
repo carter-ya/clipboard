@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Clipboard 1.0.0</title>
+  <style>
+    body { font: 13px -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue", sans-serif; color: #1c1c1e; margin: 16px; line-height: 1.6; }
+    h1 { font-size: 16px; margin: 0 0 4px; }
+    p.lede { margin: 0 0 10px; color: #6e6e73; }
+    h2 { font-size: 11px; margin: 12px 0 4px; color: #6e6e73; letter-spacing: 0.4px; }
+    ul { margin: 4px 0 0; padding-left: 20px; }
+    li { margin: 2px 0; }
+    code { font-size: 12px; background: rgba(127,127,127,0.18); padding: 0 4px; border-radius: 3px; }
+    @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: transparent; } h2, p.lede { color: #98989d; } }
+  </style>
+</head>
+<body>
+  <h1>Clipboard 1.0.0</h1>
+  <p class="lede">初の一般公開リリース。</p>
+  <h2>新機能</h2>
+  <ul>
+    <li>メニューバー常駐のクリップボード履歴パネル。グローバルホットキーで呼び出せます。</li>
+    <li>テキスト / リッチテキスト / 画像 / ファイルの 4 種類に対応、サムネイルプレビュー付き。</li>
+    <li>種類でのフィルタと全文検索（画像の OCR 結果も検索可能）。</li>
+    <li>機微情報の検出:パスワードやカード番号などはメモリ内にのみ保持し、ディスク保存・書き出し・ログには一切出力しません。</li>
+    <li>ソース App 単位のブロックリスト（Bundle ID）。</li>
+    <li>AI 要約:Vision OCR + NaturalLanguage による固有表現抽出。macOS 26+ では Foundation Models も活用します。</li>
+    <li>多言語 UI:English / 简体中文 / 繁體中文 / 日本語 / 한국어 / Deutsch / Español。</li>
+    <li>ピン留めした項目は保持数の上限を超えても削除されません。</li>
+    <li>履歴を zip でインポート / エクスポート。</li>
+    <li>Sparkle による自動アップデート（EdDSA 署名、Apple コード署名とは独立）。</li>
+    <li>パネルのキーボードショートカット:<code>⌘⇧[</code> / <code>⌘⇧]</code> でタブを循環、<code>⌘1</code>–<code>⌘6</code> で特定の種類へ直接移動。</li>
+    <li>環境設定に新しい <strong>Shortcuts</strong> タブ:グローバルとパネル内のショートカットを一覧できます。</li>
+  </ul>
+  <h2>改善</h2>
+  <ul>
+    <li>クリップボードのポーリング間隔を約 80ms に短縮、取りこぼし窓を約 4 分の 1 に縮小。</li>
+  </ul>
+  <h2>配布</h2>
+  <ul>
+    <li>未署名 DMG として配布。初回起動時は Gatekeeper の隔離属性を <code>xattr -cr</code> で解除する必要があります。</li>
+    <li>Mac App Store では配布しません。App Sandbox も有効にしません。</li>
+  </ul>
+</body>
+</html>

@@ -27,3 +27,13 @@ shasum -a 256 -c Clipboard-X.Y.Z.dmg.sha256
 ## System requirements
 
 macOS 13 Ventura 或更高。
+
+<!--
+发版前检查清单（人工过一遍，CI 会在少东西时失败）：
+1. project.yml 的 MARKETING_VERSION / CURRENT_PROJECT_VERSION 已更新
+2. CHANGELOG.md 在 [X.Y.Z] 下面写好了本版本变更
+3. docs/release-notes/X.Y.Z/{en,zh-Hans,zh-Hant,ja,ko,de,es}.html 七份齐全
+   —— `just release-notes-check X.Y.Z` 验证
+4. git tag vX.Y.Z && git push origin vX.Y.Z 触发 CI
+-->
+

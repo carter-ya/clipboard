@@ -119,6 +119,10 @@
 "Next tab" = "다음 탭";
 "In-panel shortcuts only work while the history panel is focused." = "패널 내 단축키는 기록 패널에 포커스가 있을 때만 작동합니다.";
 
+"Updates" = "업데이트";
+"Check for Updates…" = "업데이트 확인…";
+"Automatic updates are not configured in this build." = "이 빌드에서는 자동 업데이트가 설정되어 있지 않습니다.";
+
 "AI Summaries" = "AI 요약";
 "Enable AI summaries" = "AI 요약 사용";
 "Summarize images" = "이미지 요약";

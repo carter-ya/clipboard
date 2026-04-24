@@ -21,6 +21,7 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - `App/` —— macOS App target：菜单栏外壳 + 装配层，不含业务逻辑
 - `project.yml` —— XcodeGen 源；`.xcodeproj` 每次 `just gen` 生成，**不提交**
 - `harness.json` —— 项目单一事实源，任何偏离都要在同一次提交中更新
+- `docs/release-notes/<ver>/<lang>.html` —— Sparkle 弹窗里的多语言 release notes，发版前 7 份（en / zh-Hans / zh-Hant / ja / ko / de / es）必须齐全；`just release-notes-check VERSION` 本地预演，CI 也会卡
 
 ## 约定摘要
 
