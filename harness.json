@@ -58,10 +58,10 @@
     }
   ],
   "concurrency_model": {
-    "monitor_queue": "专用 serial DispatchQueue（标签 com.clipboard.monitor）：承载 300ms 轮询定时器 + pasteboard 读取 + 廉价尺寸探测 + sourceBundleID 抓取 + ClipFilter 链执行。只做轻量工作，绝不算 sha256、绝不做磁盘 I/O。",
+    "monitor_queue": "专用 serial DispatchQueue（标签 com.clipboard.monitor）：承载 ~80ms 轮询定时器 + pasteboard 读取 + 廉价尺寸探测 + sourceBundleID 抓取 + ClipFilter 链执行。tick 默认只做一次 changeCount IPC 读；唯有 changeCount 推进时才继续拿 types/data 并跑 ClipFilter 链。只做轻量工作，绝不算 sha256、绝不做磁盘 I/O。",
     "store_queue": "专用 serial DispatchQueue（标签 com.clipboard.store）：承载 sha256 计算、去重、容量驱逐、blob 写入、JSON 原子写入。ClipStore 对外的 async API 内部都调度到此队列。",
     "main_queue": "SwiftUI / AppKit / HotkeyService 事件处理在主线程；ViewModel 通过 Combine / AsyncStream 订阅 ClipStore 的变更并在主线程刷新 UI。",
-    "timer_leeway": "DispatchSourceTimer 给 50–100ms leeway，让调度器合并唤醒、降低功耗。",
+    "timer_leeway": "DispatchSourceTimer 给 ~20ms leeway，让调度器合并唤醒、降低功耗。",
     "rationale": "三队列分工杜绝『轮询线程因为 sha256 或磁盘写入阻塞而漏拷贝』以及『主线程被同步 I/O 卡住』。"
   },
   "module_protocols": [
@@ -272,7 +272,7 @@
       "title": "剪贴板监听 → 日志",
       "goal": "系统中的每一次拷贝事件都产生一条结构化日志，过滤链骨架就位。",
       "deliverables": [
-        "ClipboardMonitoring 协议 + NSPasteboardMonitor 实现（monitor_queue 上 300ms DispatchSourceTimer，leeway 50–100ms）",
+        "ClipboardMonitoring 协议 + NSPasteboardMonitor 实现（monitor_queue 上 ~80ms DispatchSourceTimer，leeway ~20ms；tick 每次先读 changeCount，命中才进一步读内容）",
         "RawClipItem 值类型，覆盖所有可用的 NSPasteboard.PasteboardType",
         "ClipContext 结构 + FilterDecision 枚举（.accept | .reject(String) | .markSensitive(String)）+ ClipFilter 协议",
         "ClipFilter 链路装配（在 Monitor 内部、发出条目之前），首遇 .reject / .markSensitive 即短路",
@@ -1758,8 +1758,8 @@
   },
   "risks": [
     {
-      "risk": "轮询可能漏掉 <300ms 内的连续拷贝。",
-      "mitigation": "v1 可接受；若有用户反馈再考虑更短间隔或 NSPasteboardObserver 私有 API。",
+      "risk": "轮询可能漏掉 <80ms 内的连续拷贝；即便命中，同一 changeCount 只看得到最新一次内容（NSPasteboard 语义决定，与间隔无关）。",
+      "mitigation": "默认 80ms 轮询 + tick 内 changeCount 短路，使单次 tick 开销≈一次 IPC；人类双手连击 Cmd+C 几乎不可能触发 <80ms 间隔。若仍有用户反馈，再考虑更短间隔或 NSPasteboardObserver 私有 API。",
       "owner": "S1"
     },
     {

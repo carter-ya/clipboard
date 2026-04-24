@@ -23,8 +23,8 @@ public final class NSPasteboardMonitor: ClipboardMonitoring, @unchecked Sendable
     pasteboard: PasteboardProtocol = NSPasteboard.general,
     filter: any ClipFilter,
     maxClipSizeBytes: Int,
-    pollInterval: TimeInterval = 0.3,
-    leeway: DispatchTimeInterval = .milliseconds(80),
+    pollInterval: TimeInterval = 0.08,
+    leeway: DispatchTimeInterval = .milliseconds(20),
     workspace: WorkspaceProvider = SystemWorkspaceProvider(),
     queue: DispatchQueue = DispatchQueue(label: "com.clipboard.monitor"),
     fileManager: FileManager = .default
