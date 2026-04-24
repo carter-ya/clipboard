@@ -209,32 +209,29 @@ struct HistoryPanelView: View {
       Button("") { onShowPreferences() }
         .keyboardShortcut(",", modifiers: .command)
         .hidden()
-      Button("") { selectQuick(index: 0) }
+      Button("") { viewModel.currentTab = .all }
+        .keyboardShortcut("[", modifiers: [.command, .shift])
+        .hidden()
+      Button("") { viewModel.currentTab = .pinned }
+        .keyboardShortcut("]", modifiers: [.command, .shift])
+        .hidden()
+      Button("") { viewModel.kindFilter = nil }
         .keyboardShortcut("1", modifiers: .command)
         .hidden()
-      Button("") { selectQuick(index: 1) }
+      Button("") { viewModel.kindFilter = .text }
         .keyboardShortcut("2", modifiers: .command)
         .hidden()
-      Button("") { selectQuick(index: 2) }
+      Button("") { viewModel.kindFilter = .image }
         .keyboardShortcut("3", modifiers: .command)
         .hidden()
-      Button("") { selectQuick(index: 3) }
+      Button("") { viewModel.kindFilter = .file }
         .keyboardShortcut("4", modifiers: .command)
         .hidden()
-      Button("") { selectQuick(index: 4) }
+      Button("") { viewModel.kindFilter = .rtf }
         .keyboardShortcut("5", modifiers: .command)
         .hidden()
-      Button("") { selectQuick(index: 5) }
+      Button("") { viewModel.kindFilter = .mixed }
         .keyboardShortcut("6", modifiers: .command)
-        .hidden()
-      Button("") { selectQuick(index: 6) }
-        .keyboardShortcut("7", modifiers: .command)
-        .hidden()
-      Button("") { selectQuick(index: 7) }
-        .keyboardShortcut("8", modifiers: .command)
-        .hidden()
-      Button("") { selectQuick(index: 8) }
-        .keyboardShortcut("9", modifiers: .command)
         .hidden()
     }
   }
@@ -255,12 +252,6 @@ struct HistoryPanelView: View {
     if let item = selectedItem {
       onDelete(item)
     }
-  }
-
-  private func selectQuick(index: Int) {
-    let items = viewModel.filteredItems
-    guard index < items.count else { return }
-    onActivate(items[index])
   }
 
   private func accessibilityLabel(for item: ClipItem) -> String {
