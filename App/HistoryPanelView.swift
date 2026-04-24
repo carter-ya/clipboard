@@ -28,10 +28,8 @@ struct HistoryPanelView: View {
         )
         .frame(width: 239)
       }
-      Divider()
-      footerBar
     }
-    .frame(width: 720, height: 520)
+    .frame(width: 720, height: 491)
     .background(.regularMaterial)
     .clipShape(RoundedRectangle(cornerRadius: 12))
     .overlay(
@@ -46,22 +44,6 @@ struct HistoryPanelView: View {
     .onChange(of: viewModel.kindFilter) { _ in
       viewModel.realignAfterFilterChange()
     }
-  }
-
-  private var footerBar: some View {
-    HStack(spacing: 14) {
-      ShortcutHint(keys: "↑↓", label: "Select")
-      ShortcutHint(keys: "↵", label: "Copy")
-      ShortcutHint(keys: "⌘P", label: "Pin")
-      ShortcutHint(keys: "⌘⌫", label: "Delete")
-      Spacer(minLength: 0)
-      ShortcutHint(keys: "⌘,", label: "Preferences")
-      ShortcutHint(keys: "Esc", label: "Close")
-    }
-    .padding(.horizontal, 12)
-    .padding(.vertical, 6)
-    .frame(height: 28)
-    .background(Color.primary.opacity(0.04))
   }
 
   private var listColumn: some View {

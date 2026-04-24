@@ -1759,6 +1759,22 @@
         "`just build` 全绿；`docs/appcast.xml` 经 `xmllint --noout` 校验通过。"
       ],
       "commit_message": "S79: localize Updates section + multilingual Sparkle release notes (with release-pipeline gate)"
+    },
+    {
+      "id": "S80",
+      "title": "移除历史面板底部的快捷键 footer",
+      "goal": "S78 把所有快捷键收进 Preferences → Shortcuts 之后，历史面板底部的 6 格 `ShortcutHint` footer 就成了冗余曝光：同一份信息在用户常驻视线内多占一条，还挡掉了 1~2 行列表内容。本 slice 直接删 footer，让面板更紧凑。",
+      "deliverables": [
+        "`App/HistoryPanelView.swift` 删掉 body 里紧贴 footer 的 `Divider()` 和 `footerBar`，以及 `footerBar` computed property；面板 frame 高度从 520 收到 491（少掉的 29pt = footer 28pt + Divider 1pt）。",
+        "`App/ShortcutHint.swift` 整个文件删除：footer 移除后无人引用（grep 确认无剩余调用点）。",
+        "`App/<locale>.lproj/Localizable.strings` 中 `Select` / `Copy` / `Pin` / `Delete` / `Preferences` / `Close` 这 6 个 key 一律**保留** —— 右键菜单 / `AppDelegate.swift` / `PreferencesView.swift` 的 Shortcuts tab 仍在用。"
+      ],
+      "acceptance": [
+        "`just run` 召唤历史面板 → 底部 footer 消失，面板整体降低约 29pt，列表区域自然多显示 1~2 条。",
+        "Preferences → Shortcuts tab 仍完整列出所有快捷键；右键菜单的 `Copy / Pin / Delete` label 未变。",
+        "`grep -R ShortcutHint App/` 无输出；`just build` / `just lint` / `just test` 全绿。"
+      ],
+      "commit_message": "S80: drop history panel footer hints (Shortcuts tab already covers them)"
     }
   ],
   "slice_rhythm": [

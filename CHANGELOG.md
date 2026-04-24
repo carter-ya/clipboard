@@ -12,6 +12,10 @@
 
 - 偏好设置 → Updates 区块的标题、『检查更新…』按钮、未配置提示现在会跟随语言；7 份 `Localizable.strings` 都补上了 `Updates` / `Check for Updates…` / `Automatic updates are not configured in this build.` 三个 key
 
+### 优化
+
+- 历史面板底部的快捷键 footer 移除：同一份信息已经在 Preferences → Shortcuts 分页里完整列出，面板整体高度从 520pt 收到 491pt，列表区域自然多显示 1~2 条
+
 ### 分发
 
 - 新增一键安装脚本 `docs/install.sh`（`curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash`）：拉最新 DMG、校验 SHA-256、退出正在运行的 Clipboard、安装到 `/Applications/`、清 Gatekeeper 隔离标记
