@@ -17,7 +17,7 @@ jobs:
 
       - name: Install tooling
         run: |
-          brew install just xcodegen
+          brew install just xcodegen swift-format
 
       - name: Resolve version from tag
         id: ver
@@ -96,8 +96,6 @@ jobs:
           echo '```xml' >> "$GITHUB_STEP_SUMMARY"
           cat dist/appcast-item.xml >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Paste the snippet above into \`docs/appcast.xml\` before \`</channel>\`, then commit to \`main\`." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Extract release notes
         run: |
@@ -124,6 +122,41 @@ jobs:
             "${DMG}" "${DMG}.sha256" "dist/appcast-item.xml" \
             --title "Clipboard v${VERSION}" \
             --notes-file dist/final-notes.md
+
+      - name: Publish appcast to main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.ver.outputs.version }}"
+          # Stash the generated item; switching branches would lose dist/.
+          ITEM_TMP="$(mktemp)"
+          cp dist/appcast-item.xml "$ITEM_TMP"
+
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+
+          if grep -q "<sparkle:version>${VERSION}</sparkle:version>" docs/appcast.xml; then
+            echo "docs/appcast.xml already advertises v${VERSION}, skipping."
+            exit 0
+          fi
+
+          # Insert the item immediately before </channel>.
+          awk -v item_file="$ITEM_TMP" '
+            /<\/channel>/ {
+              while ((getline line < item_file) > 0) print line
+              close(item_file)
+            }
+            { print }
+          ' docs/appcast.xml > docs/appcast.xml.new
+          mv docs/appcast.xml.new docs/appcast.xml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/appcast.xml
+          git commit -m "appcast: publish v${VERSION}"
+          git push origin main
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
