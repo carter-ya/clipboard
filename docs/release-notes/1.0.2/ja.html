@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Clipboard 1.0.2</title>
+  <style>
+    body { font: 13px -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue", sans-serif; color: #1c1c1e; margin: 16px; line-height: 1.6; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    h2 { font-size: 11px; margin: 12px 0 4px; color: #6e6e73; letter-spacing: 0.4px; }
+    ul { margin: 4px 0 0; padding-left: 20px; }
+    li { margin: 2px 0; }
+    @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: transparent; } h2 { color: #98989d; } }
+  </style>
+</head>
+<body>
+  <h1>Clipboard 1.0.2</h1>
+  <h2>改善</h2>
+  <ul>
+    <li>環境設定に専用の <strong>AI</strong> タブを追加：これまで General タブの末尾にあった「AI 要約」のスイッチ群（画像 / テキスト / ファイル + デバイスの対応状況）を最上位の Tab に昇格し、AI の設定に直接アクセスできるようになりました。</li>
+    <li>履歴パネル下部のショートカット footer を削除：同じ情報は Preferences → Shortcuts に揃っているため、パネルの高さが約 29pt 縮まり、リスト領域で自然に 1〜2 件多く表示されます。</li>
+  </ul>
+  <h2>修正</h2>
+  <ul>
+    <li>環境設定 → Updates セクションの見出し、「アップデートを確認…」ボタン、未設定時のメッセージがシステム言語に追従するようになりました（以前は英語のまま）。</li>
+    <li>Sparkle のアップデート通知がシステム言語のリリースノート（en / zh-Hans / zh-Hant / ja / ko / de / es）を表示するようになりました。従来は空白でした。</li>
+  </ul>
+  <h2>配布</h2>
+  <ul>
+    <li>ワンライナーインストーラー：<code>curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash</code> — 最新の DMG を取得し、SHA-256 を検証、実行中の Clipboard を終了、<code>/Applications/</code> にインストール、Gatekeeper の検疫属性をクリアします。</li>
+  </ul>
+</body>
+</html>

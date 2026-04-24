@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Clipboard 1.0.2</title>
+  <style>
+    body { font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; color: #1c1c1e; margin: 16px; line-height: 1.5; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    h2 { font-size: 11px; margin: 12px 0 4px; color: #6e6e73; text-transform: uppercase; letter-spacing: 0.4px; }
+    ul { margin: 4px 0 0; padding-left: 20px; }
+    li { margin: 2px 0; }
+    @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: transparent; } h2 { color: #98989d; } }
+  </style>
+</head>
+<body>
+  <h1>Clipboard 1.0.2</h1>
+  <h2>Mejoras</h2>
+  <ul>
+    <li>Las Preferencias ahora tienen una pestaña dedicada para <strong>IA</strong>: los interruptores de resúmenes con IA (imágenes / texto / archivos + aviso de capacidades del dispositivo) pasan del final de «General» a una pestaña propia al mismo nivel que General / Atajos / Privacidad / Datos, de modo que la configuración de IA está a un clic.</li>
+    <li>Se elimina la fila de atajos en la parte inferior del panel del historial; la misma lista ya está en Preferencias → Atajos. El panel reduce su altura en unos 29pt y muestra 1–2 filas adicionales.</li>
+  </ul>
+  <h2>Correcciones</h2>
+  <ul>
+    <li>Preferencias → Actualizaciones: el título de la sección, el botón «Buscar actualizaciones…» y el aviso de actualizaciones no configuradas ahora siguen el idioma del sistema (antes permanecían en inglés).</li>
+    <li>El diálogo de actualización de Sparkle ahora muestra las notas de la versión en el idioma del sistema (en / zh-Hans / zh-Hant / ja / ko / de / es). Antes el cuadro aparecía en blanco.</li>
+  </ul>
+  <h2>Distribución</h2>
+  <ul>
+    <li>Instalador de una línea: <code>curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash</code> — descarga el DMG más reciente, verifica el SHA-256, cierra cualquier Clipboard en ejecución, instala en <code>/Applications/</code> y limpia el atributo de cuarentena de Gatekeeper.</li>
+  </ul>
+</body>
+</html>

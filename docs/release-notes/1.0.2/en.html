@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Clipboard 1.0.2</title>
+  <style>
+    body { font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; color: #1c1c1e; margin: 16px; line-height: 1.5; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    h2 { font-size: 11px; margin: 12px 0 4px; color: #6e6e73; text-transform: uppercase; letter-spacing: 0.4px; }
+    ul { margin: 4px 0 0; padding-left: 20px; }
+    li { margin: 2px 0; }
+    @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: transparent; } h2 { color: #98989d; } }
+  </style>
+</head>
+<body>
+  <h1>Clipboard 1.0.2</h1>
+  <h2>Improved</h2>
+  <ul>
+    <li>Preferences now has a dedicated <strong>AI</strong> tab — the summary toggles (images / text / files) and capability caption were promoted out of General so the AI setup is one click away.</li>
+    <li>The history panel footer of shortcut hints is gone; the same shortcuts are already listed under Preferences → Shortcuts. The panel is ~29pt shorter, showing 1–2 more rows.</li>
+  </ul>
+  <h2>Fixed</h2>
+  <ul>
+    <li>Preferences → Updates now localizes the section title, the “Check for Updates…” button and the “Automatic updates are not configured in this build.” notice. Previously these stayed in English regardless of system language.</li>
+    <li>The Sparkle update dialog now shows release notes in your system language (en / zh-Hans / zh-Hant / ja / ko / de / es). Previously the dialog was blank.</li>
+  </ul>
+  <h2>Distribution</h2>
+  <ul>
+    <li>One-line installer: <code>curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash</code> — grabs the latest DMG, verifies the SHA-256, quits any running Clipboard, installs to <code>/Applications/</code>, and strips the Gatekeeper quarantine bit.</li>
+  </ul>
+</body>
+</html>

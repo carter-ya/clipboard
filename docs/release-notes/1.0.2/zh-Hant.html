@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <title>Clipboard 1.0.2</title>
+  <style>
+    body { font: 13px -apple-system, BlinkMacSystemFont, "PingFang TC", "Helvetica Neue", sans-serif; color: #1c1c1e; margin: 16px; line-height: 1.6; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    h2 { font-size: 11px; margin: 12px 0 4px; color: #6e6e73; letter-spacing: 0.4px; }
+    ul { margin: 4px 0 0; padding-left: 20px; }
+    li { margin: 2px 0; }
+    @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: transparent; } h2 { color: #98989d; } }
+  </style>
+</head>
+<body>
+  <h1>Clipboard 1.0.2</h1>
+  <h2>優化</h2>
+  <ul>
+    <li>偏好設定新增獨立的 <strong>AI</strong> 分頁：原 General 底部的『AI Summaries』開關組（圖片 / 文字 / 檔案 + 本機能力說明）整體上移為頂層 Tab，AI 設定一步直達。</li>
+    <li>歷史面板底部的快速鍵 footer 移除：同一份資訊已經在 Preferences → Shortcuts 分頁裡完整列出，面板整體高度收緊約 29pt，列表區域自然多顯示 1~2 條。</li>
+  </ul>
+  <h2>修復</h2>
+  <ul>
+    <li>偏好設定 → Updates 區塊的標題、『檢查更新…』按鈕、未配置提示現在會跟隨語言，不再硬編碼英文。</li>
+    <li>Sparkle 升級彈窗現在依系統語言顯示 release notes（en / zh-Hans / zh-Hant / ja / ko / de / es），此前彈窗為空白。</li>
+  </ul>
+  <h2>分發</h2>
+  <ul>
+    <li>一鍵安裝腳本：<code>curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash</code> —— 抓取最新 DMG、校驗 SHA-256、退出執行中的 Clipboard、安裝到 <code>/Applications/</code>、清除 Gatekeeper 隔離標記。</li>
+  </ul>
+</body>
+</html>

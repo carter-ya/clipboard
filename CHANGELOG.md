@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-04-24
+
 ### 新增
 
 - Sparkle 弹窗有了多语言 release notes：`docs/release-notes/<version>/<lang>.html` 为每个版本维护 7 份轻量 HTML（en / zh-Hans / zh-Hant / ja / ko / de / es），`docs/appcast.xml` 通过 `<sparkle:releaseNotesLink xml:lang="…">` 让 Sparkle 按系统语言自动挑对
@@ -15,6 +17,7 @@
 ### 优化
 
 - 历史面板底部的快捷键 footer 移除：同一份信息已经在 Preferences → Shortcuts 分页里完整列出，面板整体高度从 520pt 收到 491pt，列表区域自然多显示 1~2 条
+- 偏好设置新增独立的 **AI** 分页：原 General 底部的『AI Summaries』开关组（master + 图片 / 文本 / 文件 三个子开关 + 本机能力说明）整体上移为顶层 Tab，与 General / Shortcuts / Privacy / Data 同级，AI 配置一步直达
 
 ### 分发
 
@@ -58,7 +61,8 @@
 - 直接分发未签名 DMG；首次安装需用户 `xattr -cr` 解除 Gatekeeper 隔离标记
 - 不上 Mac App Store、不启用 App Sandbox
 
-[Unreleased]: https://github.com/carter-ya/clipboard/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/carter-ya/clipboard/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.2
 [1.0.1]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.1
 [1.0.0]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.0
 
