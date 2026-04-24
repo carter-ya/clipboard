@@ -137,17 +137,21 @@ final class SummaryCoordinator {
     )
     // Prefer Foundation Models when available — the LLM produces a
     // real sentence, while NaturalLanguage can only list entities.
-    if #available(macOS 26.0, *), AICapability.isFoundationModelsAvailable {
-      let fm = FoundationModelsSummarizer()
-      if let summary = await fm.summarize(text: text), !summary.isEmpty {
-        Log.ui.info(
-          "summary.text.fm id=\(item.id.uuidString, privacy: .public) len=\(summary.count)"
-        )
-        await store.updateSummary(
-          id: item.id, summary: summary, source: .foundationModels)
-        return
+    // The FM symbol only exists on SDKs that ship FoundationModels
+    // (Xcode 26+); older SDKs fall straight through to NaturalLanguage.
+    #if canImport(FoundationModels)
+      if #available(macOS 26.0, *), AICapability.isFoundationModelsAvailable {
+        let fm = FoundationModelsSummarizer()
+        if let summary = await fm.summarize(text: text), !summary.isEmpty {
+          Log.ui.info(
+            "summary.text.fm id=\(item.id.uuidString, privacy: .public) len=\(summary.count)"
+          )
+          await store.updateSummary(
+            id: item.id, summary: summary, source: .foundationModels)
+          return
+        }
       }
-    }
+    #endif
     // Fallback: baseline NaturalLanguage — available on macOS 13+.
     guard AICapability.isNaturalLanguageAvailable,
       let summary = await textSummarizer.summarize(text: text),
@@ -163,14 +167,16 @@ final class SummaryCoordinator {
   }
 
   private func summarizeFile(_ item: ClipItem) async {
-    guard #available(macOS 26.0, *) else { return }
-    guard let url = extractFileURL(from: item) else { return }
-    let fm = FoundationModelsSummarizer()
-    guard let summary = await fm.summarizeFile(url: url), !summary.isEmpty else {
-      return
-    }
-    await store.updateSummary(
-      id: item.id, summary: summary, source: .foundationModels)
+    #if canImport(FoundationModels)
+      guard #available(macOS 26.0, *) else { return }
+      guard let url = extractFileURL(from: item) else { return }
+      let fm = FoundationModelsSummarizer()
+      guard let summary = await fm.summarizeFile(url: url), !summary.isEmpty else {
+        return
+      }
+      await store.updateSummary(
+        id: item.id, summary: summary, source: .foundationModels)
+    #endif
   }
 
   /// Pick the first `public.file-url` payload and decode it. Clips
