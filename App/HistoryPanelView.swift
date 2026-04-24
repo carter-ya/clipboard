@@ -209,10 +209,10 @@ struct HistoryPanelView: View {
       Button("") { onShowPreferences() }
         .keyboardShortcut(",", modifiers: .command)
         .hidden()
-      Button("") { viewModel.currentTab = .all }
+      Button("") { viewModel.cycleTab(forward: false) }
         .keyboardShortcut("[", modifiers: [.command, .shift])
         .hidden()
-      Button("") { viewModel.currentTab = .pinned }
+      Button("") { viewModel.cycleTab(forward: true) }
         .keyboardShortcut("]", modifiers: [.command, .shift])
         .hidden()
       Button("") { viewModel.kindFilter = nil }

@@ -2,7 +2,7 @@ import ClipboardCore
 import Combine
 import Foundation
 
-enum HistoryPanelTab: Equatable, Hashable {
+enum HistoryPanelTab: Equatable, Hashable, CaseIterable {
   case all
   case pinned
 }
@@ -101,6 +101,17 @@ final class HistoryPanelViewModel: ObservableObject {
   func realignAfterFilterChange() {
     selectedID = filteredItems.first?.id
     scrollEpoch &+= 1
+  }
+
+  /// Move to the next / previous tab in HistoryPanelTab.allCases order,
+  /// wrapping around both ends. With two cases this is effectively a
+  /// toggle; the cyclic shape keeps the call sites stable if a third
+  /// tab gets added later.
+  func cycleTab(forward: Bool) {
+    let tabs = HistoryPanelTab.allCases
+    guard let idx = tabs.firstIndex(of: currentTab), !tabs.isEmpty else { return }
+    let delta = forward ? 1 : tabs.count - 1
+    currentTab = tabs[(idx + delta) % tabs.count]
   }
 
   /// Move selection one row down. Clamps at the last row (no wrap).
