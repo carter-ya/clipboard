@@ -28,9 +28,25 @@ package: build-release
     mkdir -p dist
     DMG="dist/Clipboard-${VERSION}.dmg"
     rm -f "$DMG"
-    hdiutil create -volname Clipboard -srcfolder "$APP" -ov -format UDZO "$DMG" >/dev/null
+    # Icon coordinates (140,200) / (400,200) must match the slot centers
+    # baked into tools/dmg-background.png (see tools/dmg-background.swift).
+    create-dmg \
+      --volname "Clipboard ${VERSION}" \
+      --background tools/dmg-background.png \
+      --window-pos 200 120 \
+      --window-size 540 380 \
+      --icon-size 128 \
+      --icon "Clipboard.app" 140 200 \
+      --hide-extension "Clipboard.app" \
+      --app-drop-link 400 200 \
+      --no-internet-enable \
+      "$DMG" \
+      "$APP"
     shasum -a 256 "$DMG" | tee "$DMG.sha256"
     echo "Packaged: $DMG"
+
+dmg-background:
+    swift tools/dmg-background.swift tools/dmg-background.png
 
 test:
     swift test --package-path Core

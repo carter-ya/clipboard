@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-04-24
+
+### 分发
+
+- DMG 改版：安装窗口带背景图和 `/Applications` 快捷方式，打开后直接拖入即可；无功能变更
+
 ## [1.0.0] - 2026-04-24
 
 首次公开发布。
@@ -32,6 +38,7 @@
 - 直接分发未签名 DMG；首次安装需用户 `xattr -cr` 解除 Gatekeeper 隔离标记
 - 不上 Mac App Store、不启用 App Sandbox
 
-[Unreleased]: https://github.com/carter-ya/clipboard/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/carter-ya/clipboard/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.1
 [1.0.0]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.0
 

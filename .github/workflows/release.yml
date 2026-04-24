@@ -20,7 +20,7 @@ jobs:
 
       - name: Install tooling
         run: |
-          brew install just xcodegen swift-format
+          brew install just xcodegen swift-format create-dmg
 
       - name: Resolve version from tag
         id: ver
