@@ -127,6 +127,14 @@
 "Quit and reopen Clipboard for the new language to take effect." = "Quit and reopen Clipboard for the new language to take effect.";
 "MiB" = "MiB";
 
+/* MARK: - Preferences: Shortcuts tab (S78) */
+"Shortcuts" = "Shortcuts";
+"Global" = "Global";
+"In panel" = "In panel";
+"Previous tab" = "Previous tab";
+"Next tab" = "Next tab";
+"In-panel shortcuts only work while the history panel is focused." = "In-panel shortcuts only work while the history panel is focused.";
+
 /* MARK: - AI Summaries (S63) */
 "AI Summaries" = "AI Summaries";
 "Enable AI summaries" = "Enable AI summaries";

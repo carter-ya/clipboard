@@ -15,6 +15,12 @@ struct PreferencesView: View {
   var canCheckForUpdates: Bool = false
   var hotkeyMissing: Bool = false
 
+  @State private var selectedTab: PreferencesTab = .general
+
+  private enum PreferencesTab: Hashable {
+    case general, shortcuts, privacy, data
+  }
+
   private let languageOptions: [(tag: String, label: String)] = [
     ("system", "System"),
     ("en", "English"),
@@ -28,14 +34,41 @@ struct PreferencesView: View {
 
   private let capRange: ClosedRange<Int> = 20...2000
 
+  /// Read-only mirror of the panel-internal shortcuts wired in
+  /// HistoryPanelView.keyboardShortcutButtons. Kept hand-curated
+  /// because those bindings are SwiftUI literals; if you add or
+  /// rebind one there, mirror it here.
+  private let inPanelShortcuts: [(keys: String, label: LocalizedStringKey)] = [
+    ("↵", "Copy"),
+    ("↑↓", "Select"),
+    ("Esc", "Close"),
+    ("⌘P", "Pin"),
+    ("⌘⌫", "Delete"),
+    ("⌘,", "Preferences"),
+    ("⌘⇧[", "Previous tab"),
+    ("⌘⇧]", "Next tab"),
+    ("⌘1", "All"),
+    ("⌘2", "Text"),
+    ("⌘3", "Image"),
+    ("⌘4", "File"),
+    ("⌘5", "Rich Text"),
+    ("⌘6", "Mixed"),
+  ]
+
   var body: some View {
-    TabView {
+    TabView(selection: $selectedTab) {
       general
         .tabItem { Label("General", systemImage: "gear") }
+        .tag(PreferencesTab.general)
+      shortcuts
+        .tabItem { Label("Shortcuts", systemImage: "keyboard") }
+        .tag(PreferencesTab.shortcuts)
       privacy
         .tabItem { Label("Privacy", systemImage: "lock") }
+        .tag(PreferencesTab.privacy)
       data
         .tabItem { Label("Data", systemImage: "tray.and.arrow.up") }
+        .tag(PreferencesTab.data)
     }
     // Reserve the 28pt title bar area with padding so interactive
     // content stays below it. A Color.clear spacer (used previously)
@@ -47,32 +80,15 @@ struct PreferencesView: View {
     .overlay(alignment: .top) {
       Divider().padding(.top, 28)
     }
+    .onAppear {
+      // Land users on Shortcuts tab when no global hotkey is bound,
+      // so the recorder + warning are visible without an extra click.
+      if hotkeyMissing { selectedTab = .shortcuts }
+    }
   }
 
   private var general: some View {
     Form {
-      if hotkeyMissing {
-        Section {
-          HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-              .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 2) {
-              Text("No shortcut is set")
-                .font(.caption)
-              Text("Record a shortcut below — the panel can't be summoned without one.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            }
-          }
-        }
-      }
-      Section("Hotkey") {
-        HStack {
-          Text("Toggle panel")
-          Spacer()
-          HotkeyRecorder(name: .toggleHistoryPanel)
-        }
-      }
       Section("Language") {
         Picker(
           "Language",
@@ -280,6 +296,49 @@ struct PreferencesView: View {
     return "Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon."
   }
 
+  private var shortcuts: some View {
+    Form {
+      if hotkeyMissing {
+        Section {
+          HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+              .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+              Text("No shortcut is set")
+                .font(.caption)
+              Text("Record a shortcut below — the panel can't be summoned without one.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+      }
+      Section("Global") {
+        HStack {
+          Text("Toggle panel")
+          Spacer()
+          HotkeyRecorder(name: .toggleHistoryPanel)
+        }
+      }
+      Section("In panel") {
+        ForEach(inPanelShortcuts, id: \.keys) { row in
+          HStack {
+            Text(row.label)
+            Spacer()
+            ReadOnlyShortcutChip(keys: row.keys)
+          }
+        }
+      }
+      Section {
+        Text("In-panel shortcuts only work while the history panel is focused.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .formStyle(.grouped)
+    .scrollContentBackground(.hidden)
+  }
+
   private var privacy: some View {
     Form {
       Section("Sensitive content") {
@@ -338,6 +397,31 @@ struct PreferencesView: View {
     }
     .formStyle(.grouped)
     .scrollContentBackground(.hidden)
+  }
+
+  /// Read-only key combo chip used by the Shortcuts tab. Visually
+  /// matches HotkeyRecorder's idle (non-recording) state so the
+  /// editable global recorder and the static in-panel rows read as
+  /// one family.
+  private struct ReadOnlyShortcutChip: View {
+    let keys: String
+
+    var body: some View {
+      Text(keys)
+        .font(.system(size: 12, design: .monospaced))
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .frame(minWidth: 110)
+        .background(
+          RoundedRectangle(cornerRadius: 6)
+            .fill(Color.primary.opacity(0.06))
+        )
+        .overlay(
+          RoundedRectangle(cornerRadius: 6)
+            .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
+        )
+    }
   }
 
   private var data: some View {

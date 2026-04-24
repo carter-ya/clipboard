@@ -111,6 +111,13 @@
 "Quit and reopen Clipboard for the new language to take effect." = "Beende Zwischenablage und öffne sie erneut, damit die neue Sprache wirksam wird.";
 "MiB" = "MiB";
 
+"Shortcuts" = "Tastenkürzel";
+"Global" = "Global";
+"In panel" = "Im Panel";
+"Previous tab" = "Vorheriger Tab";
+"Next tab" = "Nächster Tab";
+"In-panel shortcuts only work while the history panel is focused." = "Tastenkürzel im Panel funktionieren nur, wenn das Verlaufspanel den Fokus hat.";
+
 "AI Summaries" = "KI-Zusammenfassungen";
 "Enable AI summaries" = "KI-Zusammenfassungen aktivieren";
 "Summarize images" = "Bilder zusammenfassen";

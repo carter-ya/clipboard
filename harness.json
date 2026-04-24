@@ -1718,6 +1718,25 @@
         "`just fmt` / `just build` / `just lint` / `just test` 全绿，测试数不回归。"
       ],
       "commit_message": "S77: fix list scroll stutter (SwiftUI relative-date text + idempotent refresh short-circuit)"
+    },
+    {
+      "id": "S78",
+      "title": "Preferences 新增 Shortcuts Tab：集中展示快捷键",
+      "goal": "用户反馈在 Preferences 里看不到完整的快捷键清单。新增独立的 Shortcuts Tab：把原 General 里的『Hotkey』段（含 HotkeyRecorder 与未绑定 banner）整体迁移过去；下方追加只读的『In panel』段，列出 HistoryPanel 内全部 12 个面板内快捷键（↵ Copy / ↑↓ Select / Esc Close / ⌘P Pin / ⌘⌫ Delete / ⌘, Preferences / ⌘⇧[ Previous tab / ⌘⇧] Next tab / ⌘1–6 Filter）。Cocoa 系统级菜单项（⌘Q / ⌘W / ⌘M / ⌘H）按 macOS 惯例不展示也不允许改。面板内快捷键当前是 SwiftUI .keyboardShortcut 字面量，做成可改需要单独的 ShortcutBinding 抽象 + 冲突检测，超出本 slice 范围。",
+      "deliverables": [
+        "App/PreferencesView.swift：TabView 增加 .shortcuts case + selection binding；新增 `shortcuts` computed view，结构为『hotkeyMissing 警告 banner（条件渲染）→ Section(\"Global\") 内 HotkeyRecorder → Section(\"In panel\") 内 12 行只读 chip → footer caption』；从 `general` 移除原 Hotkey Section 与同名 banner；新增私有 `ReadOnlyShortcutChip` View（与 HotkeyRecorder idle 态同视觉：圆角 6、primary 0.06 fill、primary 0.10 stroke、12pt monospaced、minWidth 110）；面板内快捷键以 `[(keys: String, label: LocalizedStringKey)]` 字面量数组维护，源真相来自 HistoryPanelView.keyboardShortcutButtons，注释提醒同步更新。",
+        "App/PreferencesView.swift：body 加 .onAppear 在 hotkeyMissing 时把 selectedTab 切到 .shortcuts —— 用户被 S23 escape 路径或手动开偏好时直接落到 Shortcuts tab，看到 banner 与 recorder 不需要二次点击。",
+        "7 份 Localizable.strings：新增 6 个 key —— Shortcuts / Global / In panel / Previous tab / Next tab / In-panel shortcuts only work while the history panel is focused. 译文按各 locale 已审定的术语风格补齐（en/zh-Hans/zh-Hant/ja/ko/de/es）。原 \"Hotkey\" key 暂留各 locale 文件作为 orphan，无副作用。"
+      ],
+      "acceptance": [
+        "打开 Preferences → 顶部 TabView 出现 4 个 tab：General / Shortcuts / Privacy / Data；点 Shortcuts → 上方为 Global 段含 HotkeyRecorder（与 S43 视觉一致），下方 In panel 段以只读 chip 列出 12 条快捷键。",
+        "在 Shortcuts tab 用 HotkeyRecorder 录入新快捷键（如 ⌃⌥⌘C）→ 关闭 Preferences → ⌥⌘V 无反应、新组合可召唤面板（与 S10 行为一致，未回归）。",
+        "在 Shortcuts tab 清空快捷键 → 立即出现『No shortcut is set』banner；切换到 General tab → 不再有重复的 Hotkey 段；再次打开 Preferences → 自动落在 Shortcuts tab（hotkeyMissing 时）。",
+        "切换 7 种语言后 Shortcuts tab 标题、Global / In panel section 标题、12 行 label、底部 caption 均按对应语言显示，无英文残留。",
+        "Cocoa 菜单项（⌘Q / ⌘W / ⌘M / ⌘H）不出现在 Shortcuts tab。",
+        "`just fmt` / `just build` / `just lint` / `just test` 全绿，测试数不回归。"
+      ],
+      "commit_message": "S78: preferences shortcuts tab (move global hotkey + read-only in-panel listing)"
     }
   ],
   "slice_rhythm": [
@@ -1888,7 +1907,8 @@
       "S74",
       "S75",
       "S76",
-      "S77"
+      "S77",
+      "S78"
     ]
   },
   "open_questions": [

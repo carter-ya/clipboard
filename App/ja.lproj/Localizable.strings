@@ -111,6 +111,13 @@
 "Quit and reopen Clipboard for the new language to take effect." = "新しい言語を適用するには、クリップボードを終了して再度開いてください。";
 "MiB" = "MiB";
 
+"Shortcuts" = "ショートカット";
+"Global" = "グローバル";
+"In panel" = "パネル内";
+"Previous tab" = "前のタブ";
+"Next tab" = "次のタブ";
+"In-panel shortcuts only work while the history panel is focused." = "パネル内のショートカットは履歴パネルがフォーカスされているときのみ動作します。";
+
 "AI Summaries" = "AI 要約";
 "Enable AI summaries" = "AI 要約を有効にする";
 "Summarize images" = "画像を要約する";

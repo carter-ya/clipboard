@@ -112,6 +112,13 @@
 "Quit and reopen Clipboard for the new language to take effect." = "请退出并重新打开“剪贴板”以应用新语言。";
 "MiB" = "MiB";
 
+"Shortcuts" = "快捷键";
+"Global" = "全局";
+"In panel" = "面板内";
+"Previous tab" = "上一个标签";
+"Next tab" = "下一个标签";
+"In-panel shortcuts only work while the history panel is focused." = "面板内的快捷键仅在历史面板获得焦点时生效。";
+
 "AI Summaries" = "AI 摘要";
 "Enable AI summaries" = "启用 AI 摘要";
 "Summarize images" = "为图片生成摘要";
