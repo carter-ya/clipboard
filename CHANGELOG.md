@@ -4,7 +4,7 @@
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-04-23
+## [1.0.0] - 2026-04-24
 
 首次公开发布。
 
@@ -20,6 +20,12 @@
 - Pin 条目不被容量上限淘汰
 - 历史数据导入 / 导出为 zip
 - Sparkle 自动更新（EdDSA 校验，独立于 Apple 签名）
+- 面板键盘快捷键：`⌘⇧[` / `⌘⇧]` 循环切换 kind tab，`⌘1`–`⌘6` 直接选中 kind
+- 偏好设置新增 **Shortcuts** 分页：集中展示全局快捷键与面板内快捷键
+
+### 优化
+
+- 剪贴板轮询间隔收紧至约 80ms，遗漏窗口缩小约 4×
 
 ### 分发
 
@@ -28,3 +34,4 @@
 
 [Unreleased]: https://github.com/carter-ya/clipboard/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.0
+
