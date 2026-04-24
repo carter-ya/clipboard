@@ -121,6 +121,13 @@ jobs:
           set -euo pipefail
           VERSION="${{ steps.ver.outputs.version }}"
           DMG="dist/Clipboard-${VERSION}.dmg"
+          # Idempotent: if a release already exists at this tag (e.g. a
+          # previous run succeeded partway), delete it first so we can
+          # publish fresh artifacts. Keep the tag itself — it's what
+          # triggered this run.
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            gh release delete "v${VERSION}" --yes --cleanup-tag=false
+          fi
           gh release create "v${VERSION}" \
             "${DMG}" "${DMG}.sha256" "dist/appcast-item.xml" \
             --title "Clipboard v${VERSION}" \
@@ -140,12 +147,27 @@ jobs:
           git checkout main
           git pull --ff-only origin main
 
-          if grep -q "<sparkle:version>${VERSION}</sparkle:version>" docs/appcast.xml; then
-            echo "docs/appcast.xml already advertises v${VERSION}, skipping."
-            exit 0
-          fi
+          # Strip any existing <item> for this version so re-runs replace
+          # (not duplicate / stale-sig) the entry. Sparkle's edSignature
+          # is tied to the DMG bytes, so a rebuilt DMG needs a fresh item.
+          awk -v ver="${VERSION}" '
+            BEGIN { in_item = 0; buf = "" }
+            /<item>/ { in_item = 1; buf = $0 ORS; next }
+            in_item {
+              buf = buf $0 ORS
+              if ($0 ~ /<\/item>/) {
+                if (buf !~ "<sparkle:version>" ver "</sparkle:version>") {
+                  printf "%s", buf
+                }
+                in_item = 0; buf = ""
+              }
+              next
+            }
+            { print }
+          ' docs/appcast.xml > docs/appcast.xml.stripped
+          mv docs/appcast.xml.stripped docs/appcast.xml
 
-          # Insert the item immediately before </channel>.
+          # Insert the fresh item immediately before </channel>.
           awk -v item_file="$ITEM_TMP" '
             /<\/channel>/ {
               while ((getline line < item_file) > 0) print line
@@ -155,6 +177,10 @@ jobs:
           ' docs/appcast.xml > docs/appcast.xml.new
           mv docs/appcast.xml.new docs/appcast.xml
 
+          if git diff --quiet docs/appcast.xml; then
+            echo "docs/appcast.xml unchanged, nothing to commit."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/appcast.xml
