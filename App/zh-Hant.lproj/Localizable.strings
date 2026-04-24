@@ -122,6 +122,7 @@
 "Check for Updates…" = "檢查更新…";
 "Automatic updates are not configured in this build." = "此版本未啟用自動更新。";
 
+"AI" = "AI";
 "AI Summaries" = "AI 摘要";
 "Enable AI summaries" = "啟用 AI 摘要";
 "Summarize images" = "為圖片生成摘要";

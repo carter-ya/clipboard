@@ -122,6 +122,7 @@
 "Check for Updates…" = "Nach Updates suchen…";
 "Automatic updates are not configured in this build." = "Automatische Updates sind in diesem Build nicht konfiguriert.";
 
+"AI" = "KI";
 "AI Summaries" = "KI-Zusammenfassungen";
 "Enable AI summaries" = "KI-Zusammenfassungen aktivieren";
 "Summarize images" = "Bilder zusammenfassen";

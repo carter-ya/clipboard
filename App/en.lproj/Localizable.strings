@@ -141,6 +141,7 @@
 "Automatic updates are not configured in this build." = "Automatic updates are not configured in this build.";
 
 /* MARK: - AI Summaries (S63) */
+"AI" = "AI";
 "AI Summaries" = "AI Summaries";
 "Enable AI summaries" = "Enable AI summaries";
 "Summarize images" = "Summarize images";

@@ -122,6 +122,7 @@
 "Check for Updates…" = "Buscar actualizaciones…";
 "Automatic updates are not configured in this build." = "Las actualizaciones automáticas no están configuradas en esta compilación.";
 
+"AI" = "IA";
 "AI Summaries" = "Resúmenes con IA";
 "Enable AI summaries" = "Activar resúmenes con IA";
 "Summarize images" = "Resumir imágenes";

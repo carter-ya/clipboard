@@ -122,6 +122,7 @@
 "Check for Updates…" = "アップデートを確認…";
 "Automatic updates are not configured in this build." = "このビルドでは自動アップデートが設定されていません。";
 
+"AI" = "AI";
 "AI Summaries" = "AI 要約";
 "Enable AI summaries" = "AI 要約を有効にする";
 "Summarize images" = "画像を要約する";

@@ -123,6 +123,7 @@
 "Check for Updates…" = "检查更新…";
 "Automatic updates are not configured in this build." = "此版本未启用自动更新。";
 
+"AI" = "AI";
 "AI Summaries" = "AI 摘要";
 "Enable AI summaries" = "启用 AI 摘要";
 "Summarize images" = "为图片生成摘要";

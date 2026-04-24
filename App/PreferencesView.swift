@@ -18,7 +18,7 @@ struct PreferencesView: View {
   @State private var selectedTab: PreferencesTab = .general
 
   private enum PreferencesTab: Hashable {
-    case general, shortcuts, privacy, data
+    case general, shortcuts, ai, privacy, data
   }
 
   private let languageOptions: [(tag: String, label: String)] = [
@@ -63,6 +63,9 @@ struct PreferencesView: View {
       shortcuts
         .tabItem { Label("Shortcuts", systemImage: "keyboard") }
         .tag(PreferencesTab.shortcuts)
+      ai
+        .tabItem { Label("AI", systemImage: "sparkles") }
+        .tag(PreferencesTab.ai)
       privacy
         .tabItem { Label("Privacy", systemImage: "lock") }
         .tag(PreferencesTab.privacy)
@@ -207,6 +210,30 @@ struct PreferencesView: View {
             .foregroundStyle(.secondary)
         }
       }
+      Section("Updates") {
+        HStack {
+          Button(action: onCheckForUpdates) {
+            Label("Check for Updates…", systemImage: "arrow.down.circle")
+          }
+          .disabled(!canCheckForUpdates)
+          Spacer()
+          Text("v\(appVersion)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        if !canCheckForUpdates {
+          Text("Automatic updates are not configured in this build.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+    }
+    .formStyle(.grouped)
+    .scrollContentBackground(.hidden)
+  }
+
+  private var ai: some View {
+    Form {
       Section("AI Summaries") {
         VStack(alignment: .leading, spacing: 10) {
           Toggle(
@@ -257,23 +284,6 @@ struct PreferencesView: View {
           )
           .disabled(!prefs.summariesEnabled || !AICapability.isFoundationModelsAvailable)
           Text(aiCapabilityCaption)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-      }
-      Section("Updates") {
-        HStack {
-          Button(action: onCheckForUpdates) {
-            Label("Check for Updates…", systemImage: "arrow.down.circle")
-          }
-          .disabled(!canCheckForUpdates)
-          Spacer()
-          Text("v\(appVersion)")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        if !canCheckForUpdates {
-          Text("Automatic updates are not configured in this build.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
