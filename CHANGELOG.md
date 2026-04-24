@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 分发
+
+- 新增一键安装脚本 `docs/install.sh`（`curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash`）：拉最新 DMG、校验 SHA-256、退出正在运行的 Clipboard、安装到 `/Applications/`、清 Gatekeeper 隔离标记
+
 ## [1.0.1] - 2026-04-24
 
 ### 分发

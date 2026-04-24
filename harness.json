@@ -1,12 +1,12 @@
 {
   "$schema_version": "1.0",
   "document_purpose": "Clipboard 项目的唯一权威文档。任何代理或开发者在提议改动前都必须先读这份文件。若代码与本文档不一致，必须在同一次提交中一并更新本文档——不得让两者静默分叉。",
-  "last_updated": "2026-04-23",
+  "last_updated": "2026-04-24",
   "project": {
     "name": "Clipboard",
     "one_liner": "macOS 的 Alfred 风格剪贴板历史——常驻菜单栏，支持全局快捷键、快速搜索；选中条目会写回系统剪贴板（由用户手动 Cmd+V 粘贴）。",
     "platform": "macOS 13.0+（部署目标）",
-    "distribution": "直接分发未签名 .dmg（ad-hoc 签名 CODE_SIGN_IDENTITY=\"-\"）。用户首次安装需 xattr -cr 解除 Gatekeeper 隔离标记；Sparkle 通过 EdDSA 校验后续自动更新。暂不上 Mac App Store，暂不走 Apple Developer ID + 公证（$99/年预算未动）；如果用户量起来或收到 Gatekeeper 投诉再重新评估。",
+    "distribution": "直接分发未签名 .dmg（ad-hoc 签名 CODE_SIGN_IDENTITY=\"-\"）。用户首次安装需 xattr -cr 解除 Gatekeeper 隔离标记；docs/install.sh 提供一键脚本（curl | bash：拉最新 DMG → 校验 SHA-256 → 退出正在运行的 Clipboard → 拷到 /Applications → xattr -cr），随 docs/ 走 GitHub Pages 暴露为 https://carter-ya.github.io/clipboard/install.sh。Sparkle 通过 EdDSA 校验后续自动更新。暂不上 Mac App Store，暂不走 Apple Developer ID + 公证（$99/年预算未动）；如果用户量起来或收到 Gatekeeper 投诉再重新评估。",
     "language_locale": "UI 文案双语 zh-Hans + en（跟随系统语言，可在偏好设置中显式覆盖）；代码、注释、commit 信息一律使用英文。"
   },
   "non_goals": [

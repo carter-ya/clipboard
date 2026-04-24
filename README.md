@@ -19,7 +19,15 @@ macOS 13 Ventura 或更高。Apple Silicon 与 Intel 均支持；Foundation Mode
 
 ## 安装
 
-### 从 GitHub Release 下载（推荐）
+### 一键脚本（推荐）
+
+```bash
+curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash
+```
+
+脚本会：拉最新 DMG → 校验 SHA-256 → 如 Clipboard 正在运行先让它退出 → 拷到 `/Applications/` → `xattr -cr` 清掉 Gatekeeper 隔离标记。完成后从 Launchpad / Spotlight 启动即可。
+
+### 手动从 GitHub Release 下载
 
 1. 到 [Releases 页面](https://github.com/carter-ya/clipboard/releases/latest) 下载 `Clipboard-<version>.dmg`
 2. 双击挂载，把 `Clipboard.app` 拖进 `Applications/`
@@ -35,11 +43,15 @@ macOS 13 Ventura 或更高。Apple Silicon 与 Intel 均支持；Foundation Mode
 
 ### 校验下载
 
-每个 DMG 都带同名 `.sha256` 文件：
+每个 DMG 都带同名 `.sha256` 文件。把 DMG 和 `.sha256` 下到同目录后比对哈希：
 
 ```bash
-shasum -a 256 -c Clipboard-1.0.0.dmg.sha256
+shasum -a 256 Clipboard-<version>.dmg
+cat Clipboard-<version>.dmg.sha256
+# 两行首段哈希应一致
 ```
+
+（`.sha256` 的第二列是打包时的仓库相对路径 `dist/...`，所以不能直接 `shasum -c`。）
 
 ## 使用
 
@@ -118,7 +130,7 @@ just package
 3. 把输出的公钥（一串 base64）填进 `project.yml` 与 `App/Info.plist` **两处**的 `SUPublicEDKey` 字段（替换占位符 `REPLACE_WITH_BASE64_EDKEY`）。XcodeGen 每次 `just gen` 会用 `project.yml` 覆盖 `Info.plist` 同名键，漏改 `project.yml` 那一侧 `just gen` 后会被打回占位
 4. 导出私钥以便放进 CI secret：`just sparkle-keys -x sparkle_ed_priv.key`（`-x` 透传给 `generate_keys`），`cat sparkle_ed_priv.key` 拷内容到密码管理器，**立即 `rm sparkle_ed_priv.key`**
 5. 在 GitHub 仓库 Settings → Secrets → Actions 新增 `SPARKLE_PRIVATE_KEY`，粘贴刚导出的私钥 base64 内容
-6. 当前 owner 为 `carter-ya`；fork 后需全局替换为你自己的 GitHub 用户名 / 组织名：`project.yml` 的 `SUFeedURL`、`App/Info.plist` 的 `SUFeedURL`、`docs/appcast.xml`、`CHANGELOG.md` 链接定义
+6. 当前 owner 为 `carter-ya`；fork 后需全局替换为你自己的 GitHub 用户名 / 组织名：`project.yml` 的 `SUFeedURL`、`App/Info.plist` 的 `SUFeedURL`、`docs/appcast.xml`、`docs/install.sh` 的 `REPO` 与 header 注释里的 URL、`CHANGELOG.md` 链接定义、`README.md` 安装段落里的 install.sh URL、`harness.json` 的 `project.distribution`
 7. 启用 GitHub Pages：Settings → Pages → Source `Deploy from a branch` → Branch `main` → `/docs` → Save；appcast 会挂在 `https://carter-ya.github.io/clipboard/appcast.xml`
 8. `just clean && just package` **重新打包** —— 之前 `dist/` 里的 DMG 带的是占位值，绝不能上传
 
