@@ -163,12 +163,32 @@ final class SummaryCoordinator {
   }
 
   private func summarizeFile(_ item: ClipItem) async {
-    guard #available(macOS 26.0, *) else { return }
-    guard let url = extractFileURL(from: item) else { return }
-    let fm = FoundationModelsSummarizer()
-    guard let summary = await fm.summarizeFile(url: url), !summary.isEmpty else {
+    guard #available(macOS 26.0, *) else {
+      Log.ui.info(
+        "summary.file.skip id=\(item.id.uuidString, privacy: .public) reason=os-below-26"
+      )
       return
     }
+    guard let url = extractFileURL(from: item) else {
+      let types = item.payloads.map(\.pasteboardType).joined(separator: ",")
+      Log.ui.info(
+        "summary.file.noURL id=\(item.id.uuidString, privacy: .public) types=\(types, privacy: .public)"
+      )
+      return
+    }
+    Log.ui.info(
+      "summary.file.start id=\(item.id.uuidString, privacy: .public) ext=\(url.pathExtension.lowercased(), privacy: .public) path=\(url.path, privacy: .public)"
+    )
+    let fm = FoundationModelsSummarizer()
+    guard let summary = await fm.summarizeFile(url: url), !summary.isEmpty else {
+      Log.ui.info(
+        "summary.file.empty id=\(item.id.uuidString, privacy: .public)"
+      )
+      return
+    }
+    Log.ui.info(
+      "summary.file.done id=\(item.id.uuidString, privacy: .public) len=\(summary.count)"
+    )
     await store.updateSummary(
       id: item.id, summary: summary, source: .foundationModels)
   }

@@ -1,3 +1,4 @@
+import ClipboardCore
 import Foundation
 import PDFKit
 
@@ -37,9 +38,15 @@ struct FoundationModelsSummarizer: Sendable, TextSummarizer {
         to: "Summarise the following:\n\n\(trimmed)"
       )
       let output = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !output.isEmpty else { return nil }
+      guard !output.isEmpty else {
+        Log.ui.info("summary.fm.emptyResponse chars=\(trimmed.count)")
+        return nil
+      }
       return String(output.prefix(Self.maxSummaryLength))
     } catch {
+      Log.ui.error(
+        "summary.fm.error chars=\(trimmed.count) err=\(String(describing: error), privacy: .public)"
+      )
       return nil
     }
   }
@@ -54,12 +61,32 @@ struct FoundationModelsSummarizer: Sendable, TextSummarizer {
     let body: String?
     if ext == "pdf" {
       body = PDFDocument(url: url)?.string
+      if body == nil {
+        Log.ui.info(
+          "summary.fm.file.pdfDecodeFailed path=\(url.path, privacy: .public)"
+        )
+      }
     } else {
-      body = try? String(contentsOf: url, encoding: .utf8)
+      do {
+        body = try String(contentsOf: url, encoding: .utf8)
+      } catch {
+        body = nil
+        Log.ui.info(
+          "summary.fm.file.utf8DecodeFailed ext=\(ext, privacy: .public) err=\(String(describing: error), privacy: .public)"
+        )
+      }
     }
     guard let text = body?.trimmingCharacters(in: .whitespacesAndNewlines),
       !text.isEmpty
-    else { return nil }
+    else {
+      Log.ui.info(
+        "summary.fm.file.noText ext=\(ext, privacy: .public) path=\(url.path, privacy: .public)"
+      )
+      return nil
+    }
+    Log.ui.info(
+      "summary.fm.file.extracted ext=\(ext, privacy: .public) chars=\(text.count)"
+    )
     return await summarize(text: text)
   }
 }

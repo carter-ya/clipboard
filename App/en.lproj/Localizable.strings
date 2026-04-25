@@ -147,6 +147,13 @@
 "Summarize images" = "Summarize images";
 "Summarize text" = "Summarize text";
 "Summarize files" = "Summarize files";
-"Foundation Models available on this device." = "Foundation Models available on this device.";
-"Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon." = "Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon.";
+"Text and file summaries run on the on-device LLM." = "Text and file summaries run on the on-device LLM.";
+"File summaries are disabled; text summaries fall back to a keyword list." = "File summaries are disabled; text summaries fall back to a keyword list.";
+"Foundation Models unavailable — " = "Foundation Models unavailable — ";
+"Requires macOS 26+." = "Requires macOS 26+.";
+"Requires Apple Silicon." = "Requires Apple Silicon.";
+"Apple Intelligence is not enabled in System Settings." = "Apple Intelligence is not enabled in System Settings.";
+"On-device model is still preparing." = "On-device model is still preparing.";
+"This device is not eligible — often due to system region." = "This device is not eligible — often due to system region.";
+"Foundation Models is unavailable." = "Foundation Models is unavailable.";
 "Copy summary" = "Copy summary";

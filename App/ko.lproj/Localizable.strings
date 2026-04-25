@@ -129,6 +129,13 @@
 "Summarize images" = "이미지 요약";
 "Summarize text" = "텍스트 요약";
 "Summarize files" = "파일 요약";
-"Foundation Models available on this device." = "이 기기에서 Foundation Models를 사용할 수 있습니다.";
-"Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon." = "온디바이스 Vision + NaturalLanguage 사용. 더 풍부한 요약은 macOS 26+ Apple Silicon이 필요합니다.";
+"Text and file summaries run on the on-device LLM." = "텍스트와 파일 요약은 온디바이스 LLM에서 실행됩니다.";
+"File summaries are disabled; text summaries fall back to a keyword list." = "파일 요약은 비활성화되며, 텍스트 요약은 키워드 목록으로 대체됩니다.";
+"Foundation Models unavailable — " = "Foundation Models를 사용할 수 없음 — ";
+"Requires macOS 26+." = "macOS 26 이상이 필요합니다.";
+"Requires Apple Silicon." = "Apple Silicon이 필요합니다.";
+"Apple Intelligence is not enabled in System Settings." = "시스템 설정에서 Apple Intelligence가 활성화되어 있지 않습니다.";
+"On-device model is still preparing." = "온디바이스 모델을 준비 중입니다.";
+"This device is not eligible — often due to system region." = "이 기기는 대상이 아닙니다 — 주로 시스템 지역 때문입니다.";
+"Foundation Models is unavailable." = "Foundation Models를 사용할 수 없습니다.";
 "Copy summary" = "요약 복사";

@@ -1,3 +1,4 @@
+import AppKit
 import ClipboardCore
 import SwiftUI
 
@@ -173,6 +174,10 @@ struct PreferencesView: View {
               RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
             )
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .onHover { hovering in
+              if hovering { NSCursor.iBeam.push() } else { NSCursor.pop() }
+            }
           }
           HStack {
             Text("Skip items larger than")
@@ -202,6 +207,10 @@ struct PreferencesView: View {
               RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
             )
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .onHover { hovering in
+              if hovering { NSCursor.iBeam.push() } else { NSCursor.pop() }
+            }
             Text("MiB")
               .foregroundStyle(.secondary)
           }
@@ -283,9 +292,7 @@ struct PreferencesView: View {
             )
           )
           .disabled(!prefs.summariesEnabled || !AICapability.isFoundationModelsAvailable)
-          Text(aiCapabilityCaption)
-            .font(.caption)
-            .foregroundStyle(.secondary)
+          aiCapabilityCaption
         }
       }
     }
@@ -298,12 +305,23 @@ struct PreferencesView: View {
       ?? "?"
   }
 
-  private var aiCapabilityCaption: LocalizedStringKey {
-    // Summarize what the current device supports in one line.
-    if AICapability.isFoundationModelsAvailable {
-      return "Foundation Models available on this device."
+  @ViewBuilder
+  private var aiCapabilityCaption: some View {
+    // When FM is unavailable show two lines: the user-visible impact
+    // (which toggles will or won't produce output) on the first line,
+    // and the technical reason on the second line for support / dev
+    // diagnosis. Image summaries always work via Vision and need no
+    // mention here.
+    VStack(alignment: .leading, spacing: 4) {
+      if let reason = AICapability.foundationModelsUnavailableReason {
+        Text("File summaries are disabled; text summaries fall back to a keyword list.")
+        (Text("Foundation Models unavailable — ") + Text(reason))
+      } else {
+        Text("Text and file summaries run on the on-device LLM.")
+      }
     }
-    return "Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon."
+    .font(.caption)
+    .foregroundStyle(.secondary)
   }
 
   private var shortcuts: some View {

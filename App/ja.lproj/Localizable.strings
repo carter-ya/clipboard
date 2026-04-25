@@ -128,6 +128,13 @@
 "Summarize images" = "画像を要約する";
 "Summarize text" = "テキストを要約する";
 "Summarize files" = "ファイルを要約する";
-"Foundation Models available on this device." = "このデバイスで Foundation Models を利用できます。";
-"Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon." = "オンデバイスで Vision + NaturalLanguage を使用。より詳細な要約には macOS 26+ の Apple シリコンが必要です。";
+"Text and file summaries run on the on-device LLM." = "テキストとファイルの要約はオンデバイス LLM で処理されます。";
+"File summaries are disabled; text summaries fall back to a keyword list." = "ファイルの要約は無効化され、テキストの要約はキーワードリストにフォールバックします。";
+"Foundation Models unavailable — " = "Foundation Models は利用できません — ";
+"Requires macOS 26+." = "macOS 26 以降が必要です。";
+"Requires Apple Silicon." = "Apple シリコンが必要です。";
+"Apple Intelligence is not enabled in System Settings." = "システム設定で Apple Intelligence が有効になっていません。";
+"On-device model is still preparing." = "オンデバイスモデルを準備中です。";
+"This device is not eligible — often due to system region." = "このデバイスは対象外です — 通常はシステム地域が原因です。";
+"Foundation Models is unavailable." = "Foundation Models は利用できません。";
 "Copy summary" = "要約をコピー";

@@ -128,6 +128,13 @@
 "Summarize images" = "為圖片生成摘要";
 "Summarize text" = "為文字生成摘要";
 "Summarize files" = "為檔案生成摘要";
-"Foundation Models available on this device." = "本裝置支援 Foundation Models。";
-"Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon." = "裝置端執行 Vision + NaturalLanguage；更豐富的摘要需 macOS 26+ 的 Apple 晶片。";
+"Text and file summaries run on the on-device LLM." = "文字與檔案摘要由裝置端 LLM 處理。";
+"File summaries are disabled; text summaries fall back to a keyword list." = "檔案摘要無法使用，文字摘要將降級為關鍵字列表。";
+"Foundation Models unavailable — " = "Foundation Models 無法使用 —— ";
+"Requires macOS 26+." = "需要 macOS 26 或更新版本。";
+"Requires Apple Silicon." = "需要 Apple 晶片。";
+"Apple Intelligence is not enabled in System Settings." = "系統設定未啟用 Apple Intelligence。";
+"On-device model is still preparing." = "裝置端模型仍在準備中。";
+"This device is not eligible — often due to system region." = "本裝置不在支援名單 —— 通常與系統地區有關。";
+"Foundation Models is unavailable." = "Foundation Models 無法使用。";
 "Copy summary" = "複製摘要";

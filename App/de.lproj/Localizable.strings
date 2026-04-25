@@ -128,6 +128,13 @@
 "Summarize images" = "Bilder zusammenfassen";
 "Summarize text" = "Text zusammenfassen";
 "Summarize files" = "Dateien zusammenfassen";
-"Foundation Models available on this device." = "Foundation Models auf diesem Gerät verfügbar.";
-"Vision + NaturalLanguage on-device; richer summaries need macOS 26+ Apple Silicon." = "Vision + NaturalLanguage auf dem Gerät; ausführlichere Zusammenfassungen benötigen macOS 26+ mit Apple Silicon.";
+"Text and file summaries run on the on-device LLM." = "Text- und Dateizusammenfassungen laufen auf dem On-Device-LLM.";
+"File summaries are disabled; text summaries fall back to a keyword list." = "Dateizusammenfassungen sind deaktiviert; Textzusammenfassungen weichen auf eine Schlüsselwortliste aus.";
+"Foundation Models unavailable — " = "Foundation Models nicht verfügbar — ";
+"Requires macOS 26+." = "Benötigt macOS 26 oder neuer.";
+"Requires Apple Silicon." = "Benötigt Apple Silicon.";
+"Apple Intelligence is not enabled in System Settings." = "Apple Intelligence ist in den Systemeinstellungen nicht aktiviert.";
+"On-device model is still preparing." = "Das On-Device-Modell wird noch vorbereitet.";
+"This device is not eligible — often due to system region." = "Dieses Gerät ist nicht qualifiziert — häufig aufgrund der Systemregion.";
+"Foundation Models is unavailable." = "Foundation Models ist nicht verfügbar.";
 "Copy summary" = "Zusammenfassung kopieren";

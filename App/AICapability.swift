@@ -1,4 +1,6 @@
+import ClipboardCore
 import Foundation
+import SwiftUI
 
 #if canImport(FoundationModels)
   import FoundationModels
@@ -28,23 +30,45 @@ enum AICapability {
   /// availability check lives inside a @available-gated helper so the
   /// FoundationModels symbols never load on older systems.
   static var isFoundationModelsAvailable: Bool {
+    foundationModelsUnavailableReason == nil
+  }
+
+  /// Human-readable reason — as a LocalizedStringKey so the UI can
+  /// surface the specific failure mode (Apple Intelligence off,
+  /// model still downloading, device not eligible, macOS too old,
+  /// Intel Mac). Returns nil when FM is actually available.
+  static var foundationModelsUnavailableReason: LocalizedStringKey? {
     #if arch(arm64)
       if #available(macOS 26.0, *) {
-        return FoundationModelsAvailability.isActive
+        return FoundationModelsAvailability.unavailableReason
       }
+      return "Requires macOS 26+."
+    #else
+      return "Requires Apple Silicon."
     #endif
-    return false
   }
 }
 
 @available(macOS 26.0, *)
 private enum FoundationModelsAvailability {
-  static var isActive: Bool {
+  static var unavailableReason: LocalizedStringKey? {
     switch SystemLanguageModel.default.availability {
     case .available:
-      return true
-    case .unavailable:
-      return false
+      return nil
+    case .unavailable(let reason):
+      Log.ui.info(
+        "summary.fm.unavailable reason=\(String(describing: reason), privacy: .public)"
+      )
+      switch reason {
+      case .appleIntelligenceNotEnabled:
+        return "Apple Intelligence is not enabled in System Settings."
+      case .modelNotReady:
+        return "On-device model is still preparing."
+      case .deviceNotEligible:
+        return "This device is not eligible — often due to system region."
+      @unknown default:
+        return "Foundation Models is unavailable."
+      }
     }
   }
 }
