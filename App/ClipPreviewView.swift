@@ -16,6 +16,18 @@ struct ClipPreviewView: View {
   /// `retry(_:)`, which re-runs the engine waterfall.
   var onRetry: (ClipItem) async -> Void = { _ in }
 
+  // 64KB UTF-8 byte cap; pasteboard write still uses full payload
+  private static let textDisplayLimit = 64 * 1024
+
+  /// Terminal state for an off-main text load. Storing `displayCount` avoids
+  /// recomputing `body.count` (O(N) graphemes) on the main thread per render.
+  private struct LoadedText: Equatable {
+    let id: UUID
+    let body: String
+    let truncated: Bool
+    let displayCount: Int
+  }
+
   @State private var previewImage: NSImage?
   @State private var loadedImageForID: UUID?
   @State private var loadEpoch: Int = 0
@@ -23,6 +35,7 @@ struct ClipPreviewView: View {
   @State private var isHoveringImage = false
   @State private var showPeek = false
   @State private var peekHideTask: Task<Void, Never>?
+  @State private var loadedText: LoadedText?
 
   var body: some View {
     VStack(spacing: 0) {
@@ -227,11 +240,31 @@ struct ClipPreviewView: View {
 
   private func textView(_ item: ClipItem) -> some View {
     ScrollView {
-      Text(resolveFullText(for: item) ?? item.preview)
-        .textSelection(.enabled)
-        .font(.system(size: 13))
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
+      VStack(alignment: .leading, spacing: 6) {
+        if let loaded = loadedText, loaded.id == item.id {
+          if !loaded.body.isEmpty {
+            Text(loaded.body)
+            if loaded.truncated {
+              Text(Self.truncatedNotice(charCount: loaded.displayCount))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+          } else {
+            Text(item.preview)
+          }
+        } else {
+          Text(item.preview)
+          ProgressView()
+            .controlSize(.small)
+        }
+      }
+      .textSelection(.enabled)
+      .font(.system(size: 13))
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding()
+    }
+    .task(id: item.id) {
+      await loadText(for: item)
     }
   }
 
@@ -314,17 +347,18 @@ struct ClipPreviewView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private func resolveFullText(for item: ClipItem) -> String? {
-    guard let resolver else { return nil }
+  private static func resolveFullTextOffMain(payloads: [Payload], resolver: PayloadResolver)
+    -> String?
+  {
     for type in ["public.utf8-plain-text", "public.plain-text", "public.string"] {
-      if let payload = item.payloads.first(where: { $0.pasteboardType == type }),
+      if let payload = payloads.first(where: { $0.pasteboardType == type }),
         let data = try? resolver.data(for: payload),
         let text = String(data: data, encoding: .utf8)
       {
         return text
       }
     }
-    if let rtf = item.payloads.first(where: { $0.pasteboardType == "public.rtf" }),
+    if let rtf = payloads.first(where: { $0.pasteboardType == "public.rtf" }),
       let data = try? resolver.data(for: rtf),
       let attrib = try? NSAttributedString(
         data: data, options: [.documentType: NSAttributedString.DocumentType.rtf],
@@ -334,6 +368,55 @@ struct ClipPreviewView: View {
       return attrib.string
     }
     return nil
+  }
+
+  @MainActor
+  private func loadText(for item: ClipItem) async {
+    // SwiftUI's .task(id:) cancels and re-launches on id change, so no manual
+    // epoch is needed. Reset previous state synchronously so the spinner shows
+    // while the new resolution is in flight.
+    if loadedText?.id != item.id {
+      loadedText = nil
+    }
+    guard let resolver else {
+      loadedText = LoadedText(id: item.id, body: "", truncated: false, displayCount: 0)
+      return
+    }
+    let payloads = item.payloads
+    let limit = Self.textDisplayLimit
+    let targetID = item.id
+    let result: LoadedText = await Task.detached(priority: .userInitiated) {
+      guard
+        let full = ClipPreviewView.resolveFullTextOffMain(
+          payloads: payloads, resolver: resolver)
+      else {
+        return LoadedText(id: targetID, body: "", truncated: false, displayCount: 0)
+      }
+      let utf8Count = full.utf8.count
+      let truncated = utf8Count > limit
+      let body: String
+      let displayCount: Int
+      if truncated {
+        body = String(decoding: full.utf8.prefix(limit), as: UTF8.self)
+        displayCount = body.count
+      } else {
+        body = full
+        displayCount = full.count
+      }
+      return LoadedText(id: targetID, body: body, truncated: truncated, displayCount: displayCount)
+    }.value
+    if Task.isCancelled { return }
+    loadedText = result
+  }
+
+  private static func truncatedNotice(charCount: Int) -> String {
+    let formatter = NumberFormatter()
+    formatter.numberStyle = .decimal
+    let formatted = formatter.string(from: NSNumber(value: charCount)) ?? String(charCount)
+    return String(
+      format: NSLocalizedString("preview.text.truncated.format", comment: ""),
+      formatted
+    )
   }
 
   private func resolveFileURLs(for item: ClipItem) -> [URL] {

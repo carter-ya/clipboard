@@ -42,6 +42,7 @@
 "Select an item to preview" = "プレビューする項目を選択してください";
 "Sensitive content from %@" = "%@ の機密情報";
 "Reveal for this session" = "このセッションのみ表示";
+"preview.text.truncated.format" = "先頭 %@ 文字を表示中 · クリップボードには全文がコピーされます";
 
 "Skipped a %1$@ item from %2$@" = "%2$@ からの %1$@ 項目をスキップしました";
 "Skipped a %@ item" = "%@ 項目をスキップしました";

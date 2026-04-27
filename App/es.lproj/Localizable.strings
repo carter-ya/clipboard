@@ -42,6 +42,7 @@
 "Select an item to preview" = "Selecciona un elemento para previsualizar";
 "Sensitive content from %@" = "Contenido sensible de %@";
 "Reveal for this session" = "Mostrar en esta sesión";
+"preview.text.truncated.format" = "Mostrando los primeros %@ caracteres · el portapapeles recibe el contenido completo";
 
 "Skipped a %1$@ item from %2$@" = "Se omitió un elemento %1$@ de %2$@";
 "Skipped a %@ item" = "Se omitió un elemento %@";

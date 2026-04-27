@@ -42,6 +42,7 @@
 "Select an item to preview" = "Wähle ein Element für die Vorschau aus";
 "Sensitive content from %@" = "Sensibler Inhalt aus %@";
 "Reveal for this session" = "Für diese Sitzung anzeigen";
+"preview.text.truncated.format" = "Erste %@ Zeichen werden angezeigt · Vollständiger Inhalt landet in der Zwischenablage";
 
 "Skipped a %1$@ item from %2$@" = "Ein %1$@-Element aus %2$@ wurde übersprungen";
 "Skipped a %@ item" = "Ein %@-Element wurde übersprungen";

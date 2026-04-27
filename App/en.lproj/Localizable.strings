@@ -50,6 +50,7 @@
 "Select an item to preview" = "Select an item to preview";
 "Sensitive content from %@" = "Sensitive content from %@";
 "Reveal for this session" = "Reveal for this session";
+"preview.text.truncated.format" = "Showing first %@ characters · pasteboard still receives full content";
 
 /* MARK: - Skip banner */
 "Skipped a %1$@ item from %2$@" = "Skipped a %1$@ item from %2$@";

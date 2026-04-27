@@ -42,6 +42,7 @@
 "Select an item to preview" = "選擇項目以預覽";
 "Sensitive content from %@" = "來自 %@ 的敏感內容";
 "Reveal for this session" = "僅本次顯示";
+"preview.text.truncated.format" = "僅顯示前 %@ 字 · 寫回剪貼簿時仍是完整內容";
 
 "Skipped a %1$@ item from %2$@" = "已略過來自 %2$@ 的 %1$@";
 "Skipped a %@ item" = "已略過 %@ 項目";

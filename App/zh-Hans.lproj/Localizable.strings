@@ -43,6 +43,7 @@
 "Select an item to preview" = "选择一条以预览";
 "Sensitive content from %@" = "来自 %@ 的敏感内容";
 "Reveal for this session" = "本次会话内显示";
+"preview.text.truncated.format" = "仅显示前 %@ 字 · 写回剪贴板时仍是完整内容";
 
 "Skipped a %1$@ item from %2$@" = "已跳过来自 %2$@ 的 %1$@";
 "Skipped a %@ item" = "已跳过 %@ 条目";
