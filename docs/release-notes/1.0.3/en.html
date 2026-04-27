@@ -21,5 +21,9 @@
     <li>Opt-in, off by default. API key stored per-endpoint in Keychain. Sensitive and concealed pasteboard items are never sent to a remote service.</li>
     <li>Localized in 7 languages.</li>
   </ul>
+  <h2>Performance</h2>
+  <ul>
+    <li>Selecting clipboard items with very large text content (multi-MB) no longer blocks the UI; preview rendering is now async with a 64KB display cap. The full text is still copied to the pasteboard.</li>
+  </ul>
 </body>
 </html>

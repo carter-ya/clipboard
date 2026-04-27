@@ -54,7 +54,7 @@ targets:
         PRODUCT_NAME: Clipboard
         PRODUCT_BUNDLE_IDENTIFIER: com.clipboard.app
         MARKETING_VERSION: "1.0.3"
-        CURRENT_PROJECT_VERSION: "4"
+        CURRENT_PROJECT_VERSION: "5"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         SWIFT_VERSION: "5.9"
         CODE_SIGN_STYLE: Manual
