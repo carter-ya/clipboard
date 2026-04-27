@@ -18,6 +18,16 @@ import PDFKit
 struct FoundationModelsSummarizer: Sendable, TextSummarizer {
   private static let maxSummaryLength = 200
 
+  /// Optional language name (e.g. "Simplified Chinese", "Japanese")
+  /// to embed in the system instructions. nil → no language clause;
+  /// the model defaults to its own behaviour. The Apple ~3B model does
+  /// honour this kind of nudge for major languages.
+  let responseLanguage: String?
+
+  init(responseLanguage: String? = nil) {
+    self.responseLanguage = responseLanguage
+  }
+
   /// Returns nil if the prompt is effectively empty or the model
   /// refused / errored. Callers use nil as "fallback to baseline
   /// summarizer".
@@ -25,24 +35,31 @@ struct FoundationModelsSummarizer: Sendable, TextSummarizer {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
 
-    let session = LanguageModelSession(
-      instructions: """
-        You write a single concise sentence summarising clipboard \
-        snippets for a history viewer. Return only the sentence — no \
-        preamble, no quoting, no bullet list. Keep it under 160 \
-        characters.
-        """
-    )
+    var instructions = """
+      You write a single concise sentence summarising clipboard \
+      snippets for a history viewer. Return only the sentence — no \
+      preamble, no quoting, no bullet list. Keep it under 160 \
+      characters.
+      """
+    if let lang = responseLanguage, !lang.isEmpty {
+      instructions += " Always reply in \(lang)."
+    }
+    let session = LanguageModelSession(instructions: instructions)
     do {
       let response = try await session.respond(
         to: "Summarise the following:\n\n\(trimmed)"
       )
-      let output = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !output.isEmpty else {
+      // Strip any `<think>` blocks as insurance — Apple's FM rarely
+      // emits reasoning traces but the helper is harmless on plain
+      // text and keeps the post-processing one implementation.
+      let stripped = stripReasoningBlocks(
+        response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+      )
+      guard !stripped.isEmpty else {
         Log.ui.info("summary.fm.emptyResponse chars=\(trimmed.count)")
         return nil
       }
-      return String(output.prefix(Self.maxSummaryLength))
+      return String(stripped.prefix(Self.maxSummaryLength))
     } catch {
       Log.ui.error(
         "summary.fm.error chars=\(trimmed.count) err=\(String(describing: error), privacy: .public)"

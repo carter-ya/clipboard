@@ -17,6 +17,12 @@ public struct Preferences: Sendable, Equatable {
   public var allowImageSummaries: Bool
   public var allowTextSummaries: Bool
   public var allowFileSummaries: Bool
+  public var remoteAIEnabled: Bool
+  public var remoteAIBaseURL: String?
+  public var remoteAIModel: String?
+  public var remoteAIAllowImages: Bool
+  public var remoteAITimeoutSeconds: Int
+  public var remoteAIMaxImageBytes: Int
 
   public init(
     maxClipSizeBytes: Int = 10 * 1024 * 1024,
@@ -29,7 +35,13 @@ public struct Preferences: Sendable, Equatable {
     summariesEnabled: Bool = true,
     allowImageSummaries: Bool = true,
     allowTextSummaries: Bool = true,
-    allowFileSummaries: Bool = true
+    allowFileSummaries: Bool = true,
+    remoteAIEnabled: Bool = false,
+    remoteAIBaseURL: String? = nil,
+    remoteAIModel: String? = nil,
+    remoteAIAllowImages: Bool = false,
+    remoteAITimeoutSeconds: Int = 60,
+    remoteAIMaxImageBytes: Int = 2 * 1024 * 1024
   ) {
     self.maxClipSizeBytes = maxClipSizeBytes
     self.skipSensitive = skipSensitive
@@ -42,6 +54,12 @@ public struct Preferences: Sendable, Equatable {
     self.allowImageSummaries = allowImageSummaries
     self.allowTextSummaries = allowTextSummaries
     self.allowFileSummaries = allowFileSummaries
+    self.remoteAIEnabled = remoteAIEnabled
+    self.remoteAIBaseURL = remoteAIBaseURL
+    self.remoteAIModel = remoteAIModel
+    self.remoteAIAllowImages = remoteAIAllowImages
+    self.remoteAITimeoutSeconds = remoteAITimeoutSeconds
+    self.remoteAIMaxImageBytes = remoteAIMaxImageBytes
   }
 }
 
@@ -61,6 +79,12 @@ public final class PreferencesStore: @unchecked Sendable {
     static let allowImageSummaries = "allowImageSummaries"
     static let allowTextSummaries = "allowTextSummaries"
     static let allowFileSummaries = "allowFileSummaries"
+    static let remoteAIEnabled = "remoteAIEnabled"
+    static let remoteAIBaseURL = "remoteAIBaseURL"
+    static let remoteAIModel = "remoteAIModel"
+    static let remoteAIAllowImages = "remoteAIAllowImages"
+    static let remoteAITimeoutSeconds = "remoteAITimeoutSeconds"
+    static let remoteAIMaxImageBytes = "remoteAIMaxImageBytes"
   }
 
   public init(defaults: UserDefaults = .standard) {
@@ -89,7 +113,24 @@ public final class PreferencesStore: @unchecked Sendable {
       allowTextSummaries: defaults.object(forKey: Keys.allowTextSummaries) as? Bool
         ?? defaultsValue.allowTextSummaries,
       allowFileSummaries: defaults.object(forKey: Keys.allowFileSummaries) as? Bool
-        ?? defaultsValue.allowFileSummaries
+        ?? defaultsValue.allowFileSummaries,
+      remoteAIEnabled: defaults.object(forKey: Keys.remoteAIEnabled) as? Bool
+        ?? defaultsValue.remoteAIEnabled,
+      remoteAIBaseURL: defaults.string(forKey: Keys.remoteAIBaseURL),
+      remoteAIModel: defaults.string(forKey: Keys.remoteAIModel),
+      remoteAIAllowImages: defaults.object(forKey: Keys.remoteAIAllowImages) as? Bool
+        ?? defaultsValue.remoteAIAllowImages,
+      // Treat the legacy default (20s) as "unset" — reasoning models
+      // routinely need 30-50s for one summary, and 20s was hit by
+      // anyone who configured Remote AI before this bump. Saved
+      // values other than 20 are honoured as deliberate user choices.
+      remoteAITimeoutSeconds: {
+        let saved = defaults.object(forKey: Keys.remoteAITimeoutSeconds) as? Int
+        if let saved, saved != 20 { return saved }
+        return defaultsValue.remoteAITimeoutSeconds
+      }(),
+      remoteAIMaxImageBytes: defaults.object(forKey: Keys.remoteAIMaxImageBytes) as? Int
+        ?? defaultsValue.remoteAIMaxImageBytes
     )
   }
 
@@ -109,6 +150,22 @@ public final class PreferencesStore: @unchecked Sendable {
     defaults.set(prefs.allowImageSummaries, forKey: Keys.allowImageSummaries)
     defaults.set(prefs.allowTextSummaries, forKey: Keys.allowTextSummaries)
     defaults.set(prefs.allowFileSummaries, forKey: Keys.allowFileSummaries)
+    defaults.set(prefs.remoteAIEnabled, forKey: Keys.remoteAIEnabled)
+    if let raw = prefs.remoteAIBaseURL,
+      let url = validateRemoteAIBaseURL(raw)
+    {
+      defaults.set(url.absoluteString, forKey: Keys.remoteAIBaseURL)
+    } else {
+      defaults.removeObject(forKey: Keys.remoteAIBaseURL)
+    }
+    if let model = prefs.remoteAIModel {
+      defaults.set(model, forKey: Keys.remoteAIModel)
+    } else {
+      defaults.removeObject(forKey: Keys.remoteAIModel)
+    }
+    defaults.set(prefs.remoteAIAllowImages, forKey: Keys.remoteAIAllowImages)
+    defaults.set(prefs.remoteAITimeoutSeconds, forKey: Keys.remoteAITimeoutSeconds)
+    defaults.set(prefs.remoteAIMaxImageBytes, forKey: Keys.remoteAIMaxImageBytes)
   }
 
   public func reset() {
@@ -123,5 +180,11 @@ public final class PreferencesStore: @unchecked Sendable {
     defaults.removeObject(forKey: Keys.allowImageSummaries)
     defaults.removeObject(forKey: Keys.allowTextSummaries)
     defaults.removeObject(forKey: Keys.allowFileSummaries)
+    defaults.removeObject(forKey: Keys.remoteAIEnabled)
+    defaults.removeObject(forKey: Keys.remoteAIBaseURL)
+    defaults.removeObject(forKey: Keys.remoteAIModel)
+    defaults.removeObject(forKey: Keys.remoteAIAllowImages)
+    defaults.removeObject(forKey: Keys.remoteAITimeoutSeconds)
+    defaults.removeObject(forKey: Keys.remoteAIMaxImageBytes)
   }
 }

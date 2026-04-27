@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <title>Clipboard 1.0.3</title>
+  <style>
+    body { font: 13px -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; color: #1c1c1e; margin: 16px; line-height: 1.6; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    h2 { font-size: 11px; margin: 12px 0 4px; color: #6e6e73; letter-spacing: 0.4px; }
+    ul { margin: 4px 0 0; padding-left: 20px; }
+    li { margin: 2px 0; }
+    @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: transparent; } h2 { color: #98989d; } }
+  </style>
+</head>
+<body>
+  <h1>Clipboard 1.0.3</h1>
+  <h2>新增</h2>
+  <ul>
+    <li>可选的远端 AI 引擎，用于生成文本与图像摘要 —— 可指向任何 OpenAI 兼容端点（OpenAI、Ollama、vLLM、OpenRouter、DeepSeek 等）。</li>
+    <li>远端调用失败时自动回退到本机 Foundation Models / NaturalLanguage / Vision。</li>
+    <li>默认关闭，需显式开启。API Key 按端点单独存于 Keychain；敏感与隐藏类型剪贴板永不外发。</li>
+    <li>覆盖 7 种语言界面。</li>
+  </ul>
+</body>
+</html>

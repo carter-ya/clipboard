@@ -50,5 +50,20 @@
       <sparkle:releaseNotesLink xml:lang="es">https://carter-ya.github.io/clipboard/release-notes/1.0.2/es.html</sparkle:releaseNotesLink>
       <enclosure url="https://github.com/carter-ya/clipboard/releases/download/v1.0.2/Clipboard-1.0.2.dmg" sparkle:edSignature="tz3/4SEc4OpyneN4XgWh8JoWVFRzRGzE4AkkvuP+21LUq/rUhWyCm3LByIGTKEeaNMDfyb/Zs6+fsEPnwu71Ag==" length="4683266" type="application/octet-stream" />
     </item>
+    <item>
+      <title>Version 1.0.3</title>
+      <pubDate>Sat, 25 Apr 2026 00:00:00 +0000</pubDate>
+      <sparkle:version>4</sparkle:version>
+      <sparkle:shortVersionString>1.0.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:releaseNotesLink xml:lang="en">https://carter-ya.github.io/clipboard/release-notes/1.0.3/en.html</sparkle:releaseNotesLink>
+      <sparkle:releaseNotesLink xml:lang="zh-Hans">https://carter-ya.github.io/clipboard/release-notes/1.0.3/zh-Hans.html</sparkle:releaseNotesLink>
+      <sparkle:releaseNotesLink xml:lang="zh-Hant">https://carter-ya.github.io/clipboard/release-notes/1.0.3/zh-Hant.html</sparkle:releaseNotesLink>
+      <sparkle:releaseNotesLink xml:lang="ja">https://carter-ya.github.io/clipboard/release-notes/1.0.3/ja.html</sparkle:releaseNotesLink>
+      <sparkle:releaseNotesLink xml:lang="ko">https://carter-ya.github.io/clipboard/release-notes/1.0.3/ko.html</sparkle:releaseNotesLink>
+      <sparkle:releaseNotesLink xml:lang="de">https://carter-ya.github.io/clipboard/release-notes/1.0.3/de.html</sparkle:releaseNotesLink>
+      <sparkle:releaseNotesLink xml:lang="es">https://carter-ya.github.io/clipboard/release-notes/1.0.3/es.html</sparkle:releaseNotesLink>
+      <enclosure url="https://github.com/carter-ya/clipboard/releases/download/v1.0.3/Clipboard-1.0.3.dmg" sparkle:edSignature="REPLACE_WITH_SIGNATURE_AT_RELEASE" length="0" type="application/octet-stream" />
+    </item>
   </channel>
 </rss>

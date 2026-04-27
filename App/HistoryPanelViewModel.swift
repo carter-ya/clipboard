@@ -19,10 +19,17 @@ final class HistoryPanelViewModel: ObservableObject {
   /// its top (e.g., when the panel reopens). The view observes
   /// changes to this value via .onChange.
   @Published private(set) var scrollEpoch: Int = 0
+  /// Per-clip ephemeral summary state — populated by
+  /// `SummaryCoordinator.progressEvents`. Keys are dropped on
+  /// `.finished` (the summary itself is now visible) and persist on
+  /// `.failed` so the preview pane can render the Retry affordance.
+  @Published private(set) var summaryProgress: [UUID: SummaryProgress] = [:]
 
   private let store: any ClipStore
   private var searchTask: Task<Void, Never>?
   private var observeTask: Task<Void, Never>?
+  private weak var coordinator: SummaryCoordinator?
+  private var progressTask: Task<Void, Never>?
 
   init(store: any ClipStore) {
     self.store = store
@@ -80,6 +87,47 @@ final class HistoryPanelViewModel: ObservableObject {
   func stop() {
     observeTask?.cancel()
     searchTask?.cancel()
+    progressTask?.cancel()
+    progressTask = nil
+  }
+
+  /// Wire the view model to the coordinator's progress stream. The
+  /// coordinator is held weakly to avoid a retain cycle with
+  /// `AppWiring`; the for-await loop holds a strong ref via the
+  /// task closure for the lifetime of the stream — when
+  /// `coordinator.stop()` finishes the continuation, the task
+  /// exits.
+  func bind(coordinator: SummaryCoordinator) {
+    self.coordinator = coordinator
+    progressTask?.cancel()
+    progressTask = Task { [weak self] in
+      guard let self else { return }
+      for await event in coordinator.progressEvents {
+        if Task.isCancelled { break }
+        await self.applyProgress(event)
+      }
+    }
+  }
+
+  @MainActor
+  private func applyProgress(_ event: SummaryProgressEvent) {
+    switch event {
+    case .started(let id, let engine):
+      Log.ui.info(
+        "summary.vm.started id=\(id.uuidString, privacy: .public) engine=\(engine.rawValue, privacy: .public) dictCount=\(self.summaryProgress.count)"
+      )
+      summaryProgress[id] = .inProgress(engine: engine)
+    case .finished(let id):
+      Log.ui.info("summary.vm.finished id=\(id.uuidString, privacy: .public)")
+      summaryProgress.removeValue(forKey: id)
+    case .failed(let id):
+      Log.ui.info("summary.vm.failed id=\(id.uuidString, privacy: .public)")
+      summaryProgress[id] = .failed
+    }
+  }
+
+  func retrySummary(for item: ClipItem) async {
+    await coordinator?.retry(item)
   }
 
   /// Move the selection to the first visible row (honouring the

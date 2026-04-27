@@ -18,6 +18,30 @@ struct PreferencesView: View {
 
   @State private var selectedTab: PreferencesTab = .general
 
+  // Remote AI tab — API key local UI state. The key itself never
+  // leaves the SecureField; on Save we hand it to Keychain and clear
+  // the field. `keyPresent` mirrors `RemoteAICredentials.hasKey(...)`
+  // and is refreshed `.onAppear` and after every save / remove so the
+  // UI stays in sync without polling.
+  @State private var apiKeyDraft: String = ""
+  @State private var keyPresent: Bool = false
+  @State private var isReplacingKey: Bool = false
+
+  // Remote AI tab — Test connection state. Cancelled on disappear.
+  @State private var testTask: Task<Void, Never>?
+  @State private var testState: TestConnectionState = .idle
+
+  enum TestConnectionState: Equatable {
+    case idle
+    case testing
+    case ok
+    case authFailed(detail: String?)
+    case notFound
+    case serverError(code: Int, detail: String?)
+    case network
+    case badResponse
+  }
+
   private enum PreferencesTab: Hashable {
     case general, shortcuts, ai, privacy, data
   }
@@ -295,9 +319,387 @@ struct PreferencesView: View {
           aiCapabilityCaption
         }
       }
+      remoteAISection
     }
     .formStyle(.grouped)
     .scrollContentBackground(.hidden)
+    .onAppear { refreshKeyPresent() }
+    .onDisappear {
+      testTask?.cancel()
+      testTask = nil
+    }
+  }
+
+  // MARK: - Remote AI section
+
+  /// "Remote AI (OpenAI-compatible)" Section under the AI tab.
+  /// All controls (incl. Save / Replace / Remove / Test) are gated
+  /// behind `summariesEnabled && remoteAIEnabled`, except the master
+  /// toggle itself (which is gated only on `summariesEnabled`) and the
+  /// privacy caption (always visible so users can read the policy
+  /// before opting in).
+  @ViewBuilder
+  private var remoteAISection: some View {
+    let remoteEnabled = prefs.summariesEnabled && prefs.remoteAIEnabled
+    let validatedURL = validateRemoteAIBaseURL(prefs.remoteAIBaseURL ?? "")
+    let baseURLText = prefs.remoteAIBaseURL ?? ""
+    let baseURLInvalid = !baseURLText.isEmpty && validatedURL == nil
+
+    Section("remoteAI.section.title") {
+      VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 2) {
+          Toggle(
+            "remoteAI.toggle.title",
+            isOn: Binding(
+              get: { prefs.remoteAIEnabled },
+              set: {
+                prefs.remoteAIEnabled = $0
+                onSave(prefs)
+              }
+            )
+          )
+          .disabled(!prefs.summariesEnabled)
+          Text("remoteAI.toggle.subtitle")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text("remoteAI.baseURL.label")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          TextField(
+            "",
+            text: Binding(
+              get: { prefs.remoteAIBaseURL ?? "" },
+              set: { newValue in
+                let trimmed = newValue
+                prefs.remoteAIBaseURL = trimmed.isEmpty ? nil : trimmed
+                onSave(prefs)
+                refreshKeyPresent()
+              }
+            ),
+            prompt: Text("remoteAI.baseURL.placeholder")
+          )
+          .textFieldStyle(.roundedBorder)
+          .overlay(
+            RoundedRectangle(cornerRadius: 6)
+              .strokeBorder(Color.red, lineWidth: baseURLInvalid ? 1 : 0)
+          )
+          if baseURLInvalid {
+            Text("remoteAI.baseURL.invalid")
+              .font(.caption)
+              .foregroundStyle(.red)
+          }
+        }
+        .disabled(!remoteEnabled)
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text("remoteAI.model.label")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          TextField(
+            "",
+            text: Binding(
+              get: { prefs.remoteAIModel ?? "" },
+              set: { newValue in
+                prefs.remoteAIModel = newValue.isEmpty ? nil : newValue
+                onSave(prefs)
+              }
+            ),
+            prompt: Text("remoteAI.model.placeholder")
+          )
+          .textFieldStyle(.roundedBorder)
+        }
+        .disabled(!remoteEnabled)
+
+        apiKeyRow(remoteEnabled: remoteEnabled, validatedURL: validatedURL)
+
+        VStack(alignment: .leading, spacing: 2) {
+          Toggle(
+            "remoteAI.allowImages.title",
+            isOn: Binding(
+              get: { prefs.remoteAIAllowImages },
+              set: {
+                prefs.remoteAIAllowImages = $0
+                onSave(prefs)
+              }
+            )
+          )
+          .disabled(!remoteEnabled)
+          if prefs.remoteAIAllowImages {
+            Text("remoteAI.allowImages.caption")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        testConnectionRow(validatedURL: validatedURL)
+
+        Text("remoteAI.privacy.caption")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  /// API Key row. Two presentations:
+  /// - No key in Keychain: SecureField + "Save" button. Save is
+  ///   disabled until the base URL validates, since the Keychain
+  ///   account is the canonicalised URL — saving against an invalid
+  ///   URL would orphan the entry.
+  /// - Key already saved: masked label + "Replace…" + "Remove".
+  ///   "Replace…" flips local UI state to show the SecureField again
+  ///   without touching Keychain (so the user can cancel by entering
+  ///   nothing and never pressing Save).
+  @ViewBuilder
+  private func apiKeyRow(remoteEnabled: Bool, validatedURL: URL?) -> some View {
+    let canSaveKey = remoteEnabled && validatedURL != nil
+    let showSecure = !keyPresent || isReplacingKey
+    VStack(alignment: .leading, spacing: 4) {
+      Text("remoteAI.apiKey.label")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      Text("remoteAI.apiKey.optional")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      if showSecure {
+        HStack(spacing: 8) {
+          SecureField(
+            "",
+            text: $apiKeyDraft,
+            prompt: Text("remoteAI.apiKey.label")
+          )
+          .textFieldStyle(.roundedBorder)
+          Button("Save") {
+            saveAPIKey(validatedURL: validatedURL)
+          }
+          .disabled(!canSaveKey)
+        }
+      } else {
+        HStack(spacing: 8) {
+          Text("remoteAI.apiKey.masked")
+            .font(.system(.body, design: .monospaced))
+            .foregroundStyle(.secondary)
+          Spacer()
+          Button("remoteAI.apiKey.replace") {
+            isReplacingKey = true
+            apiKeyDraft = ""
+          }
+          Button("remoteAI.apiKey.remove") {
+            removeAPIKey(validatedURL: validatedURL)
+          }
+        }
+      }
+    }
+    .disabled(!remoteEnabled)
+  }
+
+  /// Test-connection button + result text.
+  /// Enable rule (`canTest`) is computed locally without a Keychain
+  /// hit per plan v4 S1: missing key just falls through to a 401 in
+  /// the request which surfaces as `.authFailed`.
+  @ViewBuilder
+  private func testConnectionRow(validatedURL: URL?) -> some View {
+    let canTest =
+      prefs.remoteAIEnabled
+      && prefs.summariesEnabled
+      && validatedURL != nil
+      && !(prefs.remoteAIModel ?? "").isEmpty
+    HStack(spacing: 8) {
+      Button("remoteAI.test.button") {
+        startTestConnection(validatedURL: validatedURL)
+      }
+      .disabled(!canTest || testState == .testing)
+      testStateLabel
+    }
+  }
+
+  @ViewBuilder
+  private var testStateLabel: some View {
+    switch testState {
+    case .idle:
+      EmptyView()
+    case .testing:
+      Text("remoteAI.test.testing")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    case .ok:
+      Text("remoteAI.test.ok")
+        .font(.caption)
+        .foregroundStyle(.green)
+    case .authFailed(let detail):
+      if let d = detail, !d.isEmpty {
+        Text(
+          String(
+            format: NSLocalizedString("remoteAI.test.authFailedWithDetail", comment: ""),
+            d
+          )
+        )
+        .font(.caption)
+        .foregroundStyle(.red)
+      } else {
+        Text("remoteAI.test.authFailed")
+          .font(.caption)
+          .foregroundStyle(.red)
+      }
+    case .notFound:
+      Text("remoteAI.test.notFound")
+        .font(.caption)
+        .foregroundStyle(.red)
+    case .serverError(let code, let detail):
+      if let d = detail, !d.isEmpty {
+        Text(
+          String(
+            format: NSLocalizedString("remoteAI.test.serverErrorWithDetail", comment: ""),
+            code,
+            d
+          )
+        )
+        .font(.caption)
+        .foregroundStyle(.red)
+      } else {
+        Text(
+          String(
+            format: NSLocalizedString("remoteAI.test.serverError", comment: ""),
+            code
+          )
+        )
+        .font(.caption)
+        .foregroundStyle(.red)
+      }
+    case .network, .badResponse:
+      // .badResponse folds into the network message: from the user's
+      // perspective the endpoint is reachable but unusable, which is
+      // indistinguishable from a network failure for diagnosis.
+      Text("remoteAI.test.network")
+        .font(.caption)
+        .foregroundStyle(.red)
+    }
+  }
+
+  // MARK: - Remote AI helpers
+
+  /// Recompute `keyPresent` from Keychain. Cheap (microseconds);
+  /// fine to run on the main thread per plan note.
+  private func refreshKeyPresent() {
+    if let url = validateRemoteAIBaseURL(prefs.remoteAIBaseURL ?? "") {
+      keyPresent = RemoteAICredentials.hasKey(baseURL: url.absoluteString)
+    } else {
+      keyPresent = false
+    }
+  }
+
+  private func saveAPIKey(validatedURL: URL?) {
+    guard let url = validatedURL else { return }
+    let trimmed = apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty {
+      // Treat trimmed-empty (or blank-only) input as a no-op: don't
+      // write a `Bearer    ` 401 to Keychain, and don't delete an
+      // existing key. Removing requires the explicit Remove button.
+      apiKeyDraft = ""
+      isReplacingKey = false
+      refreshKeyPresent()
+      return
+    }
+    try? RemoteAICredentials.save(trimmed, baseURL: url.absoluteString)
+    apiKeyDraft = ""
+    isReplacingKey = false
+    refreshKeyPresent()
+  }
+
+  private func removeAPIKey(validatedURL: URL?) {
+    guard let url = validatedURL else { return }
+    try? RemoteAICredentials.delete(baseURL: url.absoluteString)
+    apiKeyDraft = ""
+    isReplacingKey = false
+    refreshKeyPresent()
+  }
+
+  /// Build a one-shot ephemeral session and POST a tiny chat
+  /// completion (`max_tokens=4`) to surface auth / network / model
+  /// errors quickly. State writes happen via `MainActor.run` because
+  /// the Task body is `nonisolated`.
+  private func startTestConnection(validatedURL: URL?) {
+    guard let url = validatedURL else { return }
+    let model = prefs.remoteAIModel ?? ""
+    guard !model.isEmpty else { return }
+    testTask?.cancel()
+    testState = .testing
+    testTask = Task {
+      let cfg = URLSessionConfiguration.ephemeral
+      cfg.httpAdditionalHeaders = [:]
+      cfg.httpCookieAcceptPolicy = .never
+      cfg.httpShouldSetCookies = false
+      cfg.urlCache = nil
+      cfg.waitsForConnectivity = true
+      cfg.timeoutIntervalForRequest = 5
+      cfg.timeoutIntervalForResource = 5
+      let session = URLSession(configuration: cfg)
+      let endpoint = url.appendingPathComponent("chat/completions")
+
+      // Key is now optional — local OpenAI-compatible servers (Ollama,
+      // vLLM default) accept unauthenticated requests. If present, we
+      // attach Authorization; if absent, we let the server respond and
+      // surface its actual status (200, 401, 404, ...).
+      let key = RemoteAICredentials.read(baseURL: url.absoluteString)
+
+      var request = URLRequest(url: endpoint)
+      request.httpMethod = "POST"
+      request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      if let k = key, !k.isEmpty {
+        request.setValue("Bearer \(k)", forHTTPHeaderField: "Authorization")
+      }
+      let body = RemoteOpenAIRequest(
+        model: model,
+        messages: buildRemoteOpenAITextMessages("reply OK"),
+        maxTokens: 4,
+        temperature: 0
+      )
+      do {
+        request.httpBody = try JSONEncoder().encode(body)
+      } catch {
+        await MainActor.run { testState = .badResponse }
+        return
+      }
+
+      let result: TestConnectionState
+      do {
+        try Task.checkCancellation()
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+          result = .badResponse
+          await MainActor.run { testState = result }
+          return
+        }
+        switch http.statusCode {
+        case 200:
+          result = .ok
+        case 404:
+          result = .notFound
+        case 401, 403:
+          // Detail is shown only here in the UI — never logged
+          // (must_not exception in harness.json).
+          result = .authFailed(detail: parseRemoteOpenAIErrorBody(data))
+        case let code where (400..<600).contains(code):
+          result = .serverError(code: code, detail: parseRemoteOpenAIErrorBody(data))
+        default:
+          result = .badResponse
+        }
+      } catch is CancellationError {
+        return
+      } catch _ as URLError {
+        // Covers timeout / DNS / connection refused / TLS — folded
+        // into a single "network" state per plan v4 N3.
+        await MainActor.run { testState = .network }
+        return
+      } catch {
+        await MainActor.run { testState = .badResponse }
+        return
+      }
+      await MainActor.run { testState = result }
+    }
   }
 
   private var appVersion: String {

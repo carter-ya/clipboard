@@ -23,6 +23,68 @@ final class PreferencesStoreTests: XCTestCase {
     XCTAssertTrue(prefs.allowImageSummaries)
     XCTAssertTrue(prefs.allowTextSummaries)
     XCTAssertTrue(prefs.allowFileSummaries)
+    XCTAssertFalse(prefs.remoteAIEnabled)
+    XCTAssertNil(prefs.remoteAIBaseURL)
+    XCTAssertNil(prefs.remoteAIModel)
+    XCTAssertFalse(prefs.remoteAIAllowImages)
+    XCTAssertEqual(prefs.remoteAITimeoutSeconds, 60)
+    XCTAssertEqual(prefs.remoteAIMaxImageBytes, 2 * 1024 * 1024)
+  }
+
+  func testRemoteAIRoundTrip() {
+    let (store, _) = makeIsolated()
+    var prefs = store.current
+    prefs.remoteAIEnabled = true
+    prefs.remoteAIBaseURL = "https://api.openai.com/v1"
+    prefs.remoteAIModel = "gpt-4o-mini"
+    prefs.remoteAIAllowImages = true
+    prefs.remoteAITimeoutSeconds = 45
+    prefs.remoteAIMaxImageBytes = 1_048_576
+    store.save(prefs)
+
+    let reloaded = store.current
+    XCTAssertTrue(reloaded.remoteAIEnabled)
+    XCTAssertEqual(reloaded.remoteAIBaseURL, "https://api.openai.com/v1")
+    XCTAssertEqual(reloaded.remoteAIModel, "gpt-4o-mini")
+    XCTAssertTrue(reloaded.remoteAIAllowImages)
+    XCTAssertEqual(reloaded.remoteAITimeoutSeconds, 45)
+    XCTAssertEqual(reloaded.remoteAIMaxImageBytes, 1_048_576)
+
+    var cleared = reloaded
+    cleared.remoteAIBaseURL = nil
+    cleared.remoteAIModel = nil
+    store.save(cleared)
+    XCTAssertNil(store.current.remoteAIBaseURL)
+    XCTAssertNil(store.current.remoteAIModel)
+  }
+
+  func testRemoteAIInvalidBaseURLDroppedOnSave() {
+    let (store, _) = makeIsolated()
+    var prefs = store.current
+    prefs.remoteAIBaseURL = "ssh://nope.example.com"
+    store.save(prefs)
+    XCTAssertNil(store.current.remoteAIBaseURL)
+  }
+
+  func testRemoteAIReset() {
+    let (store, _) = makeIsolated()
+    var prefs = store.current
+    prefs.remoteAIEnabled = true
+    prefs.remoteAIBaseURL = "https://api.openai.com/v1"
+    prefs.remoteAIModel = "gpt-4o-mini"
+    prefs.remoteAIAllowImages = true
+    prefs.remoteAITimeoutSeconds = 45
+    prefs.remoteAIMaxImageBytes = 1_048_576
+    store.save(prefs)
+
+    store.reset()
+    let afterReset = store.current
+    XCTAssertFalse(afterReset.remoteAIEnabled)
+    XCTAssertNil(afterReset.remoteAIBaseURL)
+    XCTAssertNil(afterReset.remoteAIModel)
+    XCTAssertFalse(afterReset.remoteAIAllowImages)
+    XCTAssertEqual(afterReset.remoteAITimeoutSeconds, 60)
+    XCTAssertEqual(afterReset.remoteAIMaxImageBytes, 2 * 1024 * 1024)
   }
 
   /// S63: the four summary toggles should persist through a save/load

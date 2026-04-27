@@ -23,7 +23,7 @@ public actor InMemoryClipStore: ClipStore {
     }
     let item = ClipItem(
       createdAt: raw.timestamp,
-      kind: ClipKind.infer(from: raw.payloads.map(\.pasteboardType)),
+      kind: ClipKind.infer(from: raw.payloads),
       preview: PreviewBuilder.build(for: raw.payloads),
       sha256: sha,
       sizeBytes: raw.totalBytes,

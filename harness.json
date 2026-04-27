@@ -121,7 +121,10 @@
       "pinned": "bool",
       "sensitive": "bool——SensitivityFilter 或 BlocklistFilter 返回 .markSensitive 时置 true。语义：该条目只驻留内存、不写 history.json 也不写 blobs/；UI 默认以遮罩呈现 preview 和 payloads，可通过『显示敏感内容』操作临时揭示；App 重启后丢失。",
       "sourceBundleID": "拷贝时前台 App 的 bundle identifier（可空）——在 Monitor 抓取 changeCount 变化时同步读取 NSWorkspace.shared.frontmostApplication",
-      "payloads": "{ pasteboardType, inlineData?（≤ 16KB 时用 base64 内联；sensitive 条目一律内联，无论大小，以避免落盘）, blobPath?（相对于 blobs/） } 数组——inlineData / blobPath 二者只占其一"
+      "payloads": "{ pasteboardType, inlineData?（≤ 16KB 时用 base64 内联；sensitive 条目一律内联，无论大小，以避免落盘）, blobPath?（相对于 blobs/） } 数组——inlineData / blobPath 二者只占其一",
+      "summary": "可选短文本摘要（图像 OCR / 文本实体清单 / Foundation Models 生成 / 远端 OpenAI 兼容引擎），由 store.updateSummary 单点写入；nil 表示尚未生成或不适用。",
+      "summarySource": "可选枚举，记录 summary 由哪种引擎产出，用于 UI 徽章；取值见 summary_source_values。",
+      "summary_source_values": ["vision", "naturalLanguage", "foundationModels", "remoteOpenAI"]
     },
     "inline_threshold_bytes": 16384,
     "retention": {
@@ -238,7 +241,9 @@
       "Core 的公共 API 只有显式标注时才 @MainActor 安全，其余默认按后台线程对待。",
       "人体工程学场景下错误用 Swift typed throws；其他情况用领域特定的 Error enum。",
       "测试之外禁止 force unwrap；除调试期的程序员错误外禁止 fatalError。",
-      "日志只走 os.Logger；提交的代码中不得使用 print()。"
+      "日志只走 os.Logger；提交的代码中不得使用 print()。",
+      "Remote summarisers run off main on URLSession's own delegate queue, downstream of store.events like the local summarisers — they do not introduce a 4th architectural queue.",
+      "When remote AI is enabled and configured, summary engines are tried in fixed order: remote → Foundation Models → NaturalLanguage. There is no user-facing toggle to alter this order."
     ]
   },
   "slices": [
@@ -1792,6 +1797,52 @@
         "`just build` / `just lint` / `just test` 全绿，测试数不回归。"
       ],
       "commit_message": "S81: preferences AI tab (promote AI summaries out of General)"
+    },
+    {
+      "id": "S82",
+      "title": "Remote OpenAI-compatible summary engine",
+      "goal": "Allow users to point Clipboard at an OpenAI-compatible API (OpenAI / Ollama / vLLM / OpenRouter / DeepSeek / Azure OpenAI / etc.) as a remote AI engine for text and image summaries. The local Foundation Models path is unavailable on Apple Silicon devices sold in mainland China (deviceNotEligible), so text summaries currently degrade to a NaturalLanguage entity list. Remote engine becomes the primary path when configured; on failure, falls through to FM → NL. Opt-in, off by default. API key in Keychain, never UserDefaults. Sensitive items and concealed-pasteboard items are never sent.",
+      "deliverables": [
+        "Core: ClipItem.swift (SummarySource case .remoteOpenAI)",
+        "Core: Preferences.swift (6 new fields: remoteAIEnabled, remoteAIBaseURL, remoteAIModel, remoteAIAllowImages, remoteAITimeoutSeconds, remoteAIMaxImageBytes)",
+        "Core: AI/RemoteOpenAIWire.swift (request/response types + parser + URL validator + message builders with 16 KiB UTF-8 cap)",
+        "Core: AI/RemoteAIImageEncoder.swift (CGImageSource downscale: PNG 2048→1536→1024→768 then JPEG 0.85→0.7; refuses animated GIF)",
+        "Core: Secrets/RemoteAICredentials.swift (Keychain wrapper; per-baseURL account; SecItemUpdate not delete-then-add; AfterFirstUnlockThisDeviceOnly; Synchronizable=false)",
+        "Core: tests for wire/encoder/preferences round-trip; gated Keychain test",
+        "App: RemoteOpenAISummarizer.swift (Sendable struct; nonisolated summarize; keyProvider closure; ephemeral URLSession; injected fetcher)",
+        "App: SummaryCoordinator.swift (per-handle remoteFactory; isConcealed guard; remote→FM→NL waterfall)",
+        "App: AppWiring.swift (defaultRemoteFactory; gates on remoteAIEnabled + valid URL + non-empty model; never pre-reads Keychain)",
+        "App: PreferencesView.swift (Remote AI section; Save/Replace/Remove API key; Test connection state machine; live URL validation)",
+        "App: ClipPreviewView.swift (.remoteOpenAI badge → localized 'Remote')",
+        "Localization: 22 new remoteAI.* keys × 7 locales (en / zh-Hans / zh-Hant / ja / ko / de / es)"
+      ],
+      "acceptance": [
+        "Default state: remoteAIEnabled=false; nothing leaves the device.",
+        "Enable + valid key + Ollama at http://localhost:11434/v1 → text summaries arrive with Remote badge.",
+        "Toggle remoteAIEnabled on does NOT retroactively summarise existing items (only .inserted events trigger).",
+        "Disable while a remote summary is in flight: in-flight finishes harmlessly with the snapshot of the key in effect; next clip uses local.",
+        "Rotate key in Preferences: in-flight keeps old key; next clip uses new key (factory + keyProvider read on each handle).",
+        "Concealed pasteboard payload + remote enabled: no outbound network call; falls through to local engine.",
+        "Invalid base URL (localhost:11434, ssh://, file://, missing host) is rejected at save time and AppWiring.defaultRemoteFactory returns nil.",
+        "All 22 localized strings present in en / zh-Hans / zh-Hant / ja / ko / de / es.",
+        "Remote success → SummarySource.remoteOpenAI. Remote failure → falls through to FM (if available) → NL.",
+        "just test (116 tests, 1 skipped) / just lint / just build all green.",
+        "API key 选填：Ollama 默认部署（无 key）配置后 Test connection 返回 OK，summary 正常生成。",
+        "404 单独提示：错误的 baseURL 路径产生 actionable 错误信息，引导用户检查 /v1 与 model 名。",
+        "401/403/4xx-non-404 展示远端 error message（sanitised + ≤200 chars），日志仍只含 status code。",
+        "Base URL / Model / API Key 输入框文字与 placeholder 左对齐（grouped Form 内）。",
+        "Toggle Remote AI off 不删除已存的 Keychain key；只有 Remove 按钮删除。",
+        "Remote file summary (PDF + UTF-8 text-extension allow-list) works on FM-ineligible devices; concealed-payload guard still applies.",
+        "<think>...</think> reasoning blocks (Qwen3-think / DeepSeek-R1) are stripped before display. Strategy: strip ONLY leading reasoning blocks using greedy LAST `</think>` (not non-greedy first), so legitimate content that mentions the tag literally — e.g. a bullet describing reasoning models — is preserved verbatim instead of being corrupted into garbage like `` `) without outputting content. ``.",
+        "PDF copies from Finder — which carry both a `public.file-url` and a preview thumbnail image — are routed to the file path (not Vision), preventing 'diskette, media' icon-classification artifacts. Disambiguation peeks at the file URL extension: non-image extensions (.pdf/.docx/.txt/...) → .file; image extensions (.png/.jpg/.heic/...) keep the .image classification (Telegram/Messages still work).",
+        "Summary output language follows prefs.languageOverride; system locale uses script tag to disambiguate zh-Hans vs zh-Hant. Implementation requires BOTH: (1) front-loaded system-prompt directive 'Reply in X. All output must be in X regardless of the input's language.' — small models ignore tail-of-prompt instructions; (2) user-message wrapper rewritten in the target language (e.g. zh-Hans uses '请用简体中文总结以下内容（无论输入是何种语言，回答必须使用简体中文）：') — small models follow the user-message language much more strongly than the system prompt. Languages outside the shipped UI 7-language set (en/zh-Hans/zh-Hant/ja/ko/de/es) fall back to Apple's Locale-derived English name for the system-prompt directive (so 'fr' → 'French', 'ru' → 'Russian'); user wrapper stays English in that case. Hard cases like 14-char ASCII (IP, file path) on 3B reasoning models may still default to input language; that's a model capability limit not solvable via prompt engineering alone.",
+        "Background remote summarisation sends NO `max_tokens` field — let the provider's EOS govern length. The system prompt's '<160 chars' instruction, the 200-char client-side prefix, and the 64 KiB response body cap together bound everything we care about. Hardcoding any cap (we tried 80 → 400 → 1200 → 4000) plays whack-a-mole with reasoning models that spend variable token counts inside <think>. Test-connection probe still sets `max_tokens=4` to keep the health check cheap.",
+        "Default remoteAITimeoutSeconds is 60 (was 20) — Ollama-hosted reasoning models routinely take 20-50s to finish a single summary; legacy stored value of 20 is treated as 'unset' and falls through to the new default.",
+        "System prompt instructs the model to omit reasoning / <think> blocks and, for too-short inputs, repeat the snippet verbatim instead of inventing a label.",
+        "SummaryCoordinator.start() does NOT finish the progress AsyncStream's continuation when re-entering — only the public stop() does. Without this guard, the VM subscriber loop would exit immediately and never deliver progress events to the preview pane.",
+        "Per-clip summary state (`generating` / `failed` + retry button) shown in preview pane while engine waterfall runs; deliberate skips (sensitive / concealed / disabled toggles / unsupported ext) stay silent. In-flight guard prevents double network requests when user clicks Retry while original attempt is still running."
+      ],
+      "commit_message": "feat: OpenAI-compatible remote AI summary engine (text + images)"
     }
   ],
   "slice_rhythm": [
@@ -1826,7 +1877,12 @@
       "启用 App Sandbox（会把开机启动和源 App bundle ID 检测搞复杂）。",
       "提交生成的 .xcodeproj。",
       "引入跨平台抽象——本项目有意只做 macOS。",
-      "用 print() 记日志；统一用 os.Logger。"
+      "用 print() 记日志；统一用 os.Logger。",
+      "Remote summarisation must be opt-in. Never default-on. Never auto-enable on upgrade.",
+      "Never send sensitive items, concealed-pasteboard items, or items with sensitive=true to a remote endpoint, regardless of user prefs.",
+      "Never log API keys, full URLs (query strings can carry credentials), request bodies, or prompt/completion text.",
+      "Never log remote response bodies, request bodies, prompts, completions, the Authorization header, or API key length. Exception (UI only): on a user-initiated Test connection action, a sanitised + truncated remote error message MAY be displayed in the Preferences UI; it MUST NOT be written to OS Log / file logs. (Refines the prior 'Never log ... request bodies, or prompt/completion text' rule — UI display ≠ logging.)",
+      "Single-write invariant: store.updateSummary is the only write site for summary/summarySource. The remote→FM→NL waterfall must respect first-success-wins and the summary == nil precondition."
     ],
     "required_permissions": []
   },
@@ -1966,7 +2022,8 @@
       "S78",
       "S79",
       "S80",
-      "S81"
+      "S81",
+      "S82"
     ]
   },
   "open_questions": [

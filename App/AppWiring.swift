@@ -57,10 +57,16 @@ final class AppWiring {
       let summaryCoordinator = SummaryCoordinator(
         store: store,
         resolver: payloadResolver,
-        prefsStore: preferencesStore
+        prefsStore: preferencesStore,
+        remoteFactory: { prefs in AppWiring.defaultRemoteFactory(prefs: prefs) }
       )
       summaryCoordinator.start()
       self.summaryCoordinator = summaryCoordinator
+      // Pinned: same MainActor turn as `start()` — no `await` may
+      // be inserted before this line, otherwise an `.inserted`
+      // store event could fire before the VM subscribes and we'd
+      // drop the `.started` progress event for the first clip.
+      vm.bind(coordinator: summaryCoordinator)
 
       Log.ui.info("app.launched{root:\(root.path, privacy: .public)}")
     } catch {
@@ -189,6 +195,40 @@ final class AppWiring {
       prefs.launchAtLogin = LoginItemController.isEnabled
       preferencesStore.save(prefs)
     }
+  }
+
+  /// Build a fresh `RemoteOpenAISummarizer` from the current
+  /// preferences, or return `nil` if remote AI isn't configured. The
+  /// factory is invoked per `SummaryCoordinator.handle()` so prefs
+  /// edits take effect on the next clip without rebuilding wiring.
+  ///
+  /// Important: this never reads the Keychain. The summarizer's
+  /// `keyProvider` closure is invoked later, off the main actor,
+  /// inside `summarize(...)` — a missing key is no longer fatal:
+  /// the summarizer issues the request without an `Authorization`
+  /// header so local OpenAI-compatible endpoints (Ollama, vLLM)
+  /// work without a key. Keychain I/O still stays off the main actor.
+  nonisolated private static func defaultRemoteFactory(
+    prefs: Preferences
+  ) -> RemoteOpenAISummarizer? {
+    guard prefs.remoteAIEnabled,
+      let rawURL = prefs.remoteAIBaseURL,
+      let url = validateRemoteAIBaseURL(rawURL),
+      let model = prefs.remoteAIModel, !model.isEmpty
+    else { return nil }
+    let keyAccount = url.absoluteString
+    // Snapshot the language tag at factory-build time so the closure
+    // doesn't capture `prefs` itself; the factory runs per `handle()`
+    // so prefs edits take effect on the next clip.
+    let langTag = prefs.languageOverride
+    return RemoteOpenAISummarizer(
+      baseURL: url,
+      keyProvider: { RemoteAICredentials.read(baseURL: keyAccount) },
+      model: model,
+      timeout: TimeInterval(prefs.remoteAITimeoutSeconds),
+      maxImageBytes: prefs.remoteAIMaxImageBytes,
+      responseLanguageProvider: { remoteAIResponseLanguageName(for: langTag) }
+    )
   }
 
   private func startStoreEventObserver() {

@@ -139,3 +139,36 @@
 "This device is not eligible — often due to system region." = "이 기기는 대상이 아닙니다 — 주로 시스템 지역 때문입니다.";
 "Foundation Models is unavailable." = "Foundation Models를 사용할 수 없습니다.";
 "Copy summary" = "요약 복사";
+
+/* MARK: - Remote AI (OpenAI-compatible) */
+"remoteAI.section.title" = "원격 AI (OpenAI 호환)";
+"remoteAI.toggle.title" = "원격 AI 서비스 사용";
+"remoteAI.toggle.subtitle" = "클립 텍스트와 (선택적으로) 이미지를 설정한 엔드포인트로 전송합니다.";
+"remoteAI.baseURL.label" = "베이스 URL";
+"remoteAI.baseURL.placeholder" = "https://api.openai.com/v1";
+"remoteAI.baseURL.invalid" = "URL은 http:// 또는 https://로 시작해야 하며 호스트를 포함해야 합니다.";
+"remoteAI.model.label" = "모델";
+"remoteAI.model.placeholder" = "gpt-4o-mini";
+"remoteAI.apiKey.label" = "API 키";
+"remoteAI.apiKey.optional" = "Ollama 같은 로컬 모델로 인증이 필요 없는 경우 비워 두세요.";
+"remoteAI.apiKey.masked" = "••••••••";
+"remoteAI.apiKey.replace" = "교체…";
+"remoteAI.apiKey.remove" = "제거";
+"remoteAI.privacy.caption" = "원격을 먼저 시도하고, 실패하면 온디바이스 엔진을 사용합니다. 클립 텍스트와 (활성화된 경우) 이미지가 설정된 엔드포인트로 전송됩니다. 숨김 페이스트보드 항목 및 민감 항목으로 표시된 항목은 전송되지 않습니다.";
+"remoteAI.allowImages.title" = "이미지 전송 허용";
+"remoteAI.allowImages.caption" = "이미지는 축소되어 base64로 인코딩된 후 엔드포인트로 전송됩니다.";
+"remoteAI.test.button" = "연결 테스트";
+"remoteAI.test.testing" = "테스트 중…";
+"remoteAI.test.ok" = "연결됨 (HTTP 200)";
+"remoteAI.test.authFailed" = "인증 실패";
+"remoteAI.test.authFailedWithDetail" = "인증 실패: %@";
+"remoteAI.test.notFound" = "엔드포인트를 찾을 수 없습니다 (HTTP 404). Base URL 경로(보통 /v1로 끝남)와 모델 이름을 확인하세요.";
+"remoteAI.test.serverError" = "서버 오류 (HTTP %d)";
+"remoteAI.test.serverErrorWithDetail" = "서버 오류 (HTTP %1$d): %2$@";
+"remoteAI.test.network" = "네트워크 오류";
+"remoteAI.badge.remote" = "원격";
+
+/* MARK: - 요약 상태 자리 표시자 (S82 fixup-3) */
+"summary.state.generating" = "요약 중…";
+"summary.state.failed" = "요약을 생성하지 못했습니다";
+"summary.state.retry" = "다시 시도";

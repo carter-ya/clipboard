@@ -138,3 +138,36 @@
 "This device is not eligible — often due to system region." = "このデバイスは対象外です — 通常はシステム地域が原因です。";
 "Foundation Models is unavailable." = "Foundation Models は利用できません。";
 "Copy summary" = "要約をコピー";
+
+/* MARK: - Remote AI (OpenAI-compatible) */
+"remoteAI.section.title" = "リモート AI（OpenAI 互換）";
+"remoteAI.toggle.title" = "リモート AI サービスを使用";
+"remoteAI.toggle.subtitle" = "クリップのテキストおよび（オプションで）画像を、設定したエンドポイントへ送信します。";
+"remoteAI.baseURL.label" = "ベース URL";
+"remoteAI.baseURL.placeholder" = "https://api.openai.com/v1";
+"remoteAI.baseURL.invalid" = "URL は http:// または https:// で始まり、ホスト名を含む必要があります。";
+"remoteAI.model.label" = "モデル";
+"remoteAI.model.placeholder" = "gpt-4o-mini";
+"remoteAI.apiKey.label" = "API キー";
+"remoteAI.apiKey.optional" = "ローカルモデル (Ollama など) で認証が不要な場合は空欄にしてください。";
+"remoteAI.apiKey.masked" = "••••••••";
+"remoteAI.apiKey.replace" = "置き換え…";
+"remoteAI.apiKey.remove" = "削除";
+"remoteAI.privacy.caption" = "リモートを優先して試行し、失敗時はオンデバイスのエンジンを使用します。クリップのテキスト（および有効な場合は画像）は、設定したエンドポイントへ送信されます。隠ぺいタイプおよびセンシティブとマークされた項目は送信されません。";
+"remoteAI.allowImages.title" = "画像の送信を許可";
+"remoteAI.allowImages.caption" = "画像は縮小し、base64 エンコードしてエンドポイントへ送信します。";
+"remoteAI.test.button" = "接続テスト";
+"remoteAI.test.testing" = "テスト中…";
+"remoteAI.test.ok" = "接続成功（HTTP 200）";
+"remoteAI.test.authFailed" = "認証失敗";
+"remoteAI.test.authFailedWithDetail" = "認証失敗：%@";
+"remoteAI.test.notFound" = "エンドポイントが見つかりません（HTTP 404）。ベース URL のパス（通常 /v1 で終わる）とモデル名を確認してください。";
+"remoteAI.test.serverError" = "サーバエラー（HTTP %d）";
+"remoteAI.test.serverErrorWithDetail" = "サーバエラー（HTTP %1$d）：%2$@";
+"remoteAI.test.network" = "ネットワークエラー";
+"remoteAI.badge.remote" = "リモート";
+
+/* MARK: - 要約状態プレースホルダー（S82 fixup-3） */
+"summary.state.generating" = "要約中…";
+"summary.state.failed" = "要約を生成できませんでした";
+"summary.state.retry" = "再試行";

@@ -4,6 +4,36 @@
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-04-25
+
+### 新增
+
+- 可选的 OpenAI 兼容远端 AI（OpenAI / Ollama / vLLM / OpenRouter / DeepSeek 等）作为文本与图像 summary 引擎，失败自动回退到本地 FM / NL / Vision
+- 偏好设置 → AI → 「Remote AI (OpenAI-compatible)」配置区，含 Base URL / Model / API Key / 测试连接 按钮
+
+### 修复
+
+- API Key 现在选填（本地模型如 Ollama 无需配置）。
+- Test connection 在 HTTP 404 时给出可操作提示；其它 4xx/5xx (含 401/403) 展示远端返回的错误信息（sanitised，仅 UI，不写日志）。
+- Remote AI 输入框（Base URL / Model / API Key）文字与占位符正确左对齐。
+- 禁用 Remote AI 不会删除已保存的 API Key；如需删除请使用 Remove 按钮。注：更换 Base URL 时旧端点对应的 Keychain 项保留（按设计，每端点独立 account）。
+- 支持远端 AI 摘要文件（PDF / 常见文本扩展名），FM 不可用的设备也能用了。
+- 剥离 reasoning 模型（Qwen3-think / DeepSeek-R1 等）输出中的 `<think>...</think>` 思考块。
+- 摘要输出语言跟随用户偏好（系统语言或 Preferences → 语言）。
+- AI 摘要生成时显示进度，失败时给出重试按钮。
+- 后台摘要请求**移除 `max_tokens` 限制**，让模型按 EOS 自停。原本 80 → 400 → 1200 → 4000 一路调高都是和 reasoning 模型 think 块大小赛跑，不必要——system prompt 已要求"单句 ≤160 字"，client 端 200 字 prefix 截断 + 64 KB 响应体上限已足够兜底。Test connection 探测保留 `max_tokens=4` 以维持快速健康检查。
+- 修复摘要不跟随用户语言偏好的问题。原因是 system prompt 末尾的 "Always reply in <Language>." 在小模型（3B 类）上经常被忽略；改为：(1) 把语言指令前置到 system prompt 开头并加 "All output must be in X regardless of the input's language."；(2) user message 也改用目标语言写（如简中："请用简体中文总结以下内容（无论输入是何种语言，回答必须使用简体中文）："）。中等长度及以上的输入现在能稳定按用户偏好语言产出。短纯 ASCII 输入（如 IP、路径）仍可能受具体模型能力限制——属于 reasoning 模型对无语义短输入的处理能力问题，建议改用非 reasoning 模型或长一点的输入。
+- 未覆盖的语言（fr / ru / it / pt 等 UI 7 语之外）现在通过 Apple 的 Locale 服务动态拿英文名（如 `fr` → "French"）注入 system prompt，覆盖 ~150 种语言；user wrapper 仍退到英文（无目标语言原生句子），但 system 指令足以让正经能力的模型产出对应语言。
+- 默认远端超时从 20 秒提到 60 秒，适配 Ollama 本地 reasoning 模型常见的 20–50 秒响应时间（旧版 20 秒会被当成"未配置"自动跟进新默认）。
+- system prompt 增加"不要包含思考过程；过短输入直接回显原文"指令，提升 reasoning 模型与极短剪贴板内容的输出质量。
+- 修复 progress 事件管道：`SummaryCoordinator.start()` 不再误关 progress AsyncStream 的 continuation，VM 现在能正常收到 generating / finished / failed 事件，预览面板的进度提示真实可见。
+- 修复 reasoning 模型摘要被截断成 `` `) without outputting content. ... `` 之类乱码：strip 策略改为只剥离开头的 reasoning 块且采用贪婪 LAST `</think>`，保留正文里对 `<think>` 的字面引用不被误删。
+- 修复 Finder 复制 PDF / docx 等文档时被误判为图片、Vision 把 PDF 图标 OCR 成 "diskette, media" 的 bug：`ClipKind.infer` 看到 image-payload + file-url 同时存在时，按文件扩展名判断（非图片扩展名走 file 路径，图片扩展名维持 image，Telegram / Messages 用 case 不受影响）。
+
+### 隐私
+
+- API Key 存于 Keychain（per-endpoint）；敏感与隐藏类型剪贴板永不外发；7 语本地化
+
 ## [1.0.2] - 2026-04-24
 
 ### 新增
@@ -61,7 +91,8 @@
 - 直接分发未签名 DMG；首次安装需用户 `xattr -cr` 解除 Gatekeeper 隔离标记
 - 不上 Mac App Store、不启用 App Sandbox
 
-[Unreleased]: https://github.com/carter-ya/clipboard/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/carter-ya/clipboard/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.3
 [1.0.2]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.2
 [1.0.1]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.1
 [1.0.0]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.0

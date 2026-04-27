@@ -24,7 +24,9 @@ struct HistoryPanelView: View {
         ClipPreviewView(
           item: selectedItem,
           thumbnailLoader: thumbnailLoader,
-          resolver: resolver
+          resolver: resolver,
+          summaryProgress: viewModel.summaryProgress,
+          onRetry: { item in await viewModel.retrySummary(for: item) }
         )
         .frame(width: 239)
       }

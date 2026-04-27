@@ -62,7 +62,7 @@ public actor JSONSnapshotClipStore: ClipStore {
     }
 
     let preview = PreviewBuilder.build(for: raw.payloads, limit: PreviewBuilder.limit)
-    let kind = ClipKind.infer(from: raw.payloads.map(\.pasteboardType))
+    let kind = ClipKind.infer(from: raw.payloads)
     let payloads = await persistPayloads(raw: raw, sensitive: raw.isSensitive)
 
     let item = ClipItem(

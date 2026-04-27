@@ -6,6 +6,15 @@ struct ClipPreviewView: View {
   let item: ClipItem?
   let thumbnailLoader: ThumbnailLoader?
   let resolver: PayloadResolver?
+  /// Per-clip ephemeral summary state from `HistoryPanelViewModel`.
+  /// When the selected item has no summary yet but is mid-flight or
+  /// failed, the preview pane renders a small placeholder instead
+  /// of leaving a silent gap above the content.
+  var summaryProgress: [UUID: SummaryProgress] = [:]
+  /// Async closure invoked when the user clicks the Retry button on
+  /// a failed summary. The VM dispatches into the coordinator's
+  /// `retry(_:)`, which re-runs the engine waterfall.
+  var onRetry: (ClipItem) async -> Void = { _ in }
 
   @State private var previewImage: NSImage?
   @State private var loadedImageForID: UUID?
@@ -22,6 +31,9 @@ struct ClipPreviewView: View {
         Divider()
         if let summary = item.summary, !summary.isEmpty, !item.sensitive {
           summarySection(summary: summary, source: item.summarySource)
+          Divider()
+        } else if !item.sensitive, let progress = summaryProgress[item.id] {
+          summaryProgressSection(progress: progress, item: item)
           Divider()
         }
       }
@@ -75,6 +87,49 @@ struct ClipPreviewView: View {
     .padding(.vertical, 6)
   }
 
+  @ViewBuilder
+  private func summaryProgressSection(progress: SummaryProgress, item: ClipItem)
+    -> some View
+  {
+    HStack(spacing: 8) {
+      switch progress {
+      case .inProgress(let engine):
+        ProgressView()
+          .controlSize(.small)
+        Text("summary.state.generating")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Spacer()
+        Text(sourceBadge(for: engine))
+          .font(.system(size: 9, weight: .semibold))
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, 5)
+          .padding(.vertical, 1.5)
+          .background(
+            RoundedRectangle(cornerRadius: 4)
+              .fill(Color.primary.opacity(0.08))
+          )
+      case .failed:
+        Image(systemName: "exclamationmark.triangle.fill")
+          .font(.caption)
+          .foregroundStyle(.orange)
+        Text("summary.state.failed")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Spacer()
+        Button {
+          Task { await onRetry(item) }
+        } label: {
+          Text("summary.state.retry")
+            .font(.caption2)
+        }
+        .buttonStyle(.borderless)
+      }
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 6)
+  }
+
   private func copySummary(_ text: String) {
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
@@ -86,6 +141,7 @@ struct ClipPreviewView: View {
     case .vision: return "Vision"
     case .naturalLanguage: return "NL"
     case .foundationModels: return "FM"
+    case .remoteOpenAI: return NSLocalizedString("remoteAI.badge.remote", comment: "")
     }
   }
 

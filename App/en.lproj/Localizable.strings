@@ -157,3 +157,36 @@
 "This device is not eligible — often due to system region." = "This device is not eligible — often due to system region.";
 "Foundation Models is unavailable." = "Foundation Models is unavailable.";
 "Copy summary" = "Copy summary";
+
+/* MARK: - Remote AI (OpenAI-compatible) */
+"remoteAI.section.title" = "Remote AI (OpenAI-compatible)";
+"remoteAI.toggle.title" = "Use a remote AI service";
+"remoteAI.toggle.subtitle" = "Send clip text and (optionally) images to your configured endpoint.";
+"remoteAI.baseURL.label" = "Base URL";
+"remoteAI.baseURL.placeholder" = "https://api.openai.com/v1";
+"remoteAI.baseURL.invalid" = "URL must start with http:// or https:// and include a host.";
+"remoteAI.model.label" = "Model";
+"remoteAI.model.placeholder" = "gpt-4o-mini";
+"remoteAI.apiKey.label" = "API Key";
+"remoteAI.apiKey.optional" = "Leave empty for local models that don't require authentication.";
+"remoteAI.apiKey.masked" = "••••••••";
+"remoteAI.apiKey.replace" = "Replace…";
+"remoteAI.apiKey.remove" = "Remove";
+"remoteAI.privacy.caption" = "Remote is tried first; on failure, on-device engines are used. Clip text and (when enabled) images are sent to the configured endpoint. Concealed-pasteboard items and items flagged as sensitive are never sent.";
+"remoteAI.allowImages.title" = "Allow sending images";
+"remoteAI.allowImages.caption" = "Images are downscaled and sent base64-encoded to the endpoint.";
+"remoteAI.test.button" = "Test connection";
+"remoteAI.test.testing" = "Testing…";
+"remoteAI.test.ok" = "Connected (HTTP 200)";
+"remoteAI.test.authFailed" = "Authentication failed";
+"remoteAI.test.authFailedWithDetail" = "Authentication failed: %@";
+"remoteAI.test.notFound" = "Endpoint not found (HTTP 404). Check the Base URL path (usually ends with /v1) and the Model name.";
+"remoteAI.test.serverError" = "Server error (HTTP %d)";
+"remoteAI.test.serverErrorWithDetail" = "Server error (HTTP %1$d): %2$@";
+"remoteAI.test.network" = "Network error";
+"remoteAI.badge.remote" = "Remote";
+
+/* MARK: - Summary state placeholders (S82 fixup-3) */
+"summary.state.generating" = "Summarising…";
+"summary.state.failed" = "Couldn't generate summary";
+"summary.state.retry" = "Retry";

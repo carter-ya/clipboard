@@ -138,3 +138,36 @@
 "This device is not eligible — often due to system region." = "Este dispositivo no cumple los requisitos — a menudo por la región del sistema.";
 "Foundation Models is unavailable." = "Foundation Models no está disponible.";
 "Copy summary" = "Copiar resumen";
+
+/* MARK: - Remote AI (OpenAI-compatible) */
+"remoteAI.section.title" = "IA remota (compatible con OpenAI)";
+"remoteAI.toggle.title" = "Usar un servicio de IA remoto";
+"remoteAI.toggle.subtitle" = "Envía el texto del clip y (opcionalmente) las imágenes al endpoint configurado.";
+"remoteAI.baseURL.label" = "URL base";
+"remoteAI.baseURL.placeholder" = "https://api.openai.com/v1";
+"remoteAI.baseURL.invalid" = "La URL debe empezar por http:// o https:// e incluir un host.";
+"remoteAI.model.label" = "Modelo";
+"remoteAI.model.placeholder" = "gpt-4o-mini";
+"remoteAI.apiKey.label" = "Clave de API";
+"remoteAI.apiKey.optional" = "Déjalo vacío si tu modelo local (como Ollama) no requiere autenticación.";
+"remoteAI.apiKey.masked" = "••••••••";
+"remoteAI.apiKey.replace" = "Reemplazar…";
+"remoteAI.apiKey.remove" = "Quitar";
+"remoteAI.privacy.caption" = "Se intenta primero el servicio remoto; si falla, se usan los motores en el dispositivo. El texto del clip (y las imágenes, si están habilitadas) se envía al endpoint configurado. Los elementos ocultos y los marcados como sensibles nunca se envían.";
+"remoteAI.allowImages.title" = "Permitir el envío de imágenes";
+"remoteAI.allowImages.caption" = "Las imágenes se reducen y se envían codificadas en base64 al endpoint.";
+"remoteAI.test.button" = "Probar conexión";
+"remoteAI.test.testing" = "Probando…";
+"remoteAI.test.ok" = "Conectado (HTTP 200)";
+"remoteAI.test.authFailed" = "Error de autenticación";
+"remoteAI.test.authFailedWithDetail" = "Error de autenticación: %@";
+"remoteAI.test.notFound" = "Endpoint no encontrado (HTTP 404). Comprueba la ruta de la URL base (suele terminar en /v1) y el nombre del modelo.";
+"remoteAI.test.serverError" = "Error del servidor (HTTP %d)";
+"remoteAI.test.serverErrorWithDetail" = "Error del servidor (HTTP %1$d): %2$@";
+"remoteAI.test.network" = "Error de red";
+"remoteAI.badge.remote" = "Remoto";
+
+/* MARK: - Marcadores de estado de resumen (S82 fixup-3) */
+"summary.state.generating" = "Resumiendo…";
+"summary.state.failed" = "No se pudo generar el resumen";
+"summary.state.retry" = "Reintentar";

@@ -59,6 +59,32 @@ public enum ClipKind: String, Sendable, Codable, CaseIterable, Equatable {
     if hasText { return .text }
     return .text
   }
+
+  /// Same as `infer(from:)` but with file-extension disambiguation:
+  /// when both an image payload AND a `public.file-url` are present,
+  /// peek inside the file URL — if its extension is non-image (PDF,
+  /// docx, txt, …) the user is copying a document from Finder whose
+  /// preview thumbnail just happened to come along, so treat it as
+  /// `.file` and let the file summariser see it. Pure-image cases
+  /// (Telegram / Messages temp files, screenshots) still resolve to
+  /// `.image` because their file-url ends in `.png` / `.jpg` / etc.
+  public static func infer(from rawPayloads: [RawPayload]) -> ClipKind {
+    let kind = infer(from: rawPayloads.map(\.pasteboardType))
+    guard kind == .image else { return kind }
+    guard
+      let urlPayload = rawPayloads.first(
+        where: { $0.pasteboardType == "public.file-url" })
+    else { return .image }
+    guard let urlString = String(data: urlPayload.data, encoding: .utf8),
+      let url = URL(string: urlString)
+    else { return .image }
+    let ext = url.pathExtension.lowercased()
+    let imageExtensions: Set<String> = [
+      "png", "jpg", "jpeg", "gif", "tiff", "tif",
+      "webp", "bmp", "heic", "heif", "ico", "svg",
+    ]
+    return imageExtensions.contains(ext) ? .image : .file
+  }
 }
 
 extension String {

@@ -138,3 +138,36 @@
 "This device is not eligible — often due to system region." = "Dieses Gerät ist nicht qualifiziert — häufig aufgrund der Systemregion.";
 "Foundation Models is unavailable." = "Foundation Models ist nicht verfügbar.";
 "Copy summary" = "Zusammenfassung kopieren";
+
+/* MARK: - Remote AI (OpenAI-compatible) */
+"remoteAI.section.title" = "Remote-KI (OpenAI-kompatibel)";
+"remoteAI.toggle.title" = "Remote-KI-Dienst verwenden";
+"remoteAI.toggle.subtitle" = "Sendet Clip-Text und (optional) Bilder an den konfigurierten Endpunkt.";
+"remoteAI.baseURL.label" = "Basis-URL";
+"remoteAI.baseURL.placeholder" = "https://api.openai.com/v1";
+"remoteAI.baseURL.invalid" = "URL muss mit http:// oder https:// beginnen und einen Host enthalten.";
+"remoteAI.model.label" = "Modell";
+"remoteAI.model.placeholder" = "gpt-4o-mini";
+"remoteAI.apiKey.label" = "API-Schlüssel";
+"remoteAI.apiKey.optional" = "Bei lokalen Modellen (z. B. Ollama), die keine Authentifizierung erfordern, leer lassen.";
+"remoteAI.apiKey.masked" = "••••••••";
+"remoteAI.apiKey.replace" = "Ersetzen…";
+"remoteAI.apiKey.remove" = "Entfernen";
+"remoteAI.privacy.caption" = "Remote wird zuerst versucht; bei Fehler werden Engines auf dem Gerät verwendet. Clip-Text und (sofern aktiviert) Bilder werden an den konfigurierten Endpunkt gesendet. Verdeckte und als sensibel markierte Einträge werden nie gesendet.";
+"remoteAI.allowImages.title" = "Senden von Bildern erlauben";
+"remoteAI.allowImages.caption" = "Bilder werden verkleinert und base64-kodiert an den Endpunkt gesendet.";
+"remoteAI.test.button" = "Verbindung testen";
+"remoteAI.test.testing" = "Teste…";
+"remoteAI.test.ok" = "Verbunden (HTTP 200)";
+"remoteAI.test.authFailed" = "Authentifizierung fehlgeschlagen";
+"remoteAI.test.authFailedWithDetail" = "Authentifizierung fehlgeschlagen: %@";
+"remoteAI.test.notFound" = "Endpunkt nicht gefunden (HTTP 404). Prüfen Sie den Pfad der Basis-URL (endet normalerweise mit /v1) und den Modellnamen.";
+"remoteAI.test.serverError" = "Serverfehler (HTTP %d)";
+"remoteAI.test.serverErrorWithDetail" = "Serverfehler (HTTP %1$d): %2$@";
+"remoteAI.test.network" = "Netzwerkfehler";
+"remoteAI.badge.remote" = "Remote";
+
+/* MARK: - Platzhalter für Zusammenfassungszustand (S82 fixup-3) */
+"summary.state.generating" = "Wird zusammengefasst…";
+"summary.state.failed" = "Zusammenfassung fehlgeschlagen";
+"summary.state.retry" = "Erneut versuchen";

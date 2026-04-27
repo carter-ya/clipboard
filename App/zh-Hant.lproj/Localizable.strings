@@ -138,3 +138,36 @@
 "This device is not eligible — often due to system region." = "本裝置不在支援名單 —— 通常與系統地區有關。";
 "Foundation Models is unavailable." = "Foundation Models 無法使用。";
 "Copy summary" = "複製摘要";
+
+/* MARK: - Remote AI (OpenAI-compatible) */
+"remoteAI.section.title" = "遠端 AI（OpenAI 相容）";
+"remoteAI.toggle.title" = "使用遠端 AI 服務";
+"remoteAI.toggle.subtitle" = "將剪貼簿文字（以及可選的圖像）傳送到您設定的端點。";
+"remoteAI.baseURL.label" = "Base URL";
+"remoteAI.baseURL.placeholder" = "https://api.openai.com/v1";
+"remoteAI.baseURL.invalid" = "URL 必須以 http:// 或 https:// 開頭並包含主機。";
+"remoteAI.model.label" = "模型";
+"remoteAI.model.placeholder" = "gpt-4o-mini";
+"remoteAI.apiKey.label" = "API 密鑰";
+"remoteAI.apiKey.optional" = "本機模型（如 Ollama）無需 API 密鑰時可留空。";
+"remoteAI.apiKey.masked" = "••••••••";
+"remoteAI.apiKey.replace" = "替換…";
+"remoteAI.apiKey.remove" = "移除";
+"remoteAI.privacy.caption" = "優先嘗試遠端引擎；失敗時回退到裝置端引擎。剪貼簿文字（以及在啟用時圖像）會被傳送到您設定的端點。被標記為隱藏或敏感的剪貼簿內容永遠不會傳送。";
+"remoteAI.allowImages.title" = "允許傳送圖像";
+"remoteAI.allowImages.caption" = "圖像會被壓縮並以 base64 編碼後傳送到端點。";
+"remoteAI.test.button" = "測試連線";
+"remoteAI.test.testing" = "測試中…";
+"remoteAI.test.ok" = "已連線（HTTP 200）";
+"remoteAI.test.authFailed" = "驗證失敗";
+"remoteAI.test.authFailedWithDetail" = "驗證失敗：%@";
+"remoteAI.test.notFound" = "找不到端點（HTTP 404）。請檢查 Base URL 路徑（通常以 /v1 結尾）和模型名稱。";
+"remoteAI.test.serverError" = "伺服器錯誤（HTTP %d）";
+"remoteAI.test.serverErrorWithDetail" = "伺服器錯誤（HTTP %1$d）：%2$@";
+"remoteAI.test.network" = "網路錯誤";
+"remoteAI.badge.remote" = "遠端";
+
+/* MARK: - 摘要狀態占位（S82 fixup-3） */
+"summary.state.generating" = "生成中…";
+"summary.state.failed" = "無法生成摘要";
+"summary.state.retry" = "重試";
