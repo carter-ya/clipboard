@@ -48,8 +48,7 @@ jobs:
       - name: Package DMG
         run: just package
 
-      - name: Sign update with Sparkle
-        id: sign
+      - name: Sign updates and emit appcast items
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
@@ -59,50 +58,50 @@ jobs:
             exit 1
           fi
           VERSION="${{ steps.ver.outputs.version }}"
-          DMG="dist/Clipboard-${VERSION}.dmg"
-          # sign_update ships inside Sparkle's SPM binary artifact; 'just package'
-          # already ran xcodebuild which populated build/SourcePackages.
-          SIGN_UPDATE=$(find build/SourcePackages -name sign_update -type f -not -path "*old_dsa_scripts*" 2>/dev/null | head -1)
+          # sign_update ships inside Sparkle's SPM binary artifact, populated
+          # by 'just package' under each arch's derived-data dir. Search both
+          # so the lookup never depends on which arch happened to use build/.
+          SIGN_UPDATE=$(find build build-x86_64 -name sign_update -type f -not -path "*old_dsa_scripts*" 2>/dev/null | head -1)
           if [[ -z "$SIGN_UPDATE" ]]; then
-            echo "::error::sign_update not found under build/SourcePackages. Did 'just package' run?"
+            echo "::error::sign_update not found under build/ or build-x86_64/. Did 'just package' run?"
             exit 1
           fi
           KEY_FILE="$(mktemp)"
           trap 'rm -f "$KEY_FILE"' EXIT
           printf '%s' "$SPARKLE_PRIVATE_KEY" > "$KEY_FILE"
-          SIG_LINE=$("$SIGN_UPDATE" -f "$KEY_FILE" "$DMG")
-          # sign_update prints e.g. `sparkle:edSignature="..." length="..."`
-          echo "$SIG_LINE" > dist/sparkle-attrs.txt
-          echo "sig_line=$SIG_LINE" >> "$GITHUB_OUTPUT"
 
-      - name: Emit appcast snippet
-        id: snippet
-        run: |
-          set -euo pipefail
-          VERSION="${{ steps.ver.outputs.version }}"
-          DMG="dist/Clipboard-${VERSION}.dmg"
-          SIG_LINE=$(cat dist/sparkle-attrs.txt)
-          DMG_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/Clipboard-${VERSION}.dmg"
           PUBDATE=$(date -u '+%a, %d %b %Y %H:%M:%S +0000')
           # Sparkle semantics: shortVersionString = marketing (user-facing),
           # version = CFBundleVersion (build number used for comparison).
-          # Read the build number from the freshly built .app so it always
-          # tracks project.yml's CURRENT_PROJECT_VERSION.
-          APP="build/Build/Products/Release/Clipboard.app"
-          BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP/Contents/Info.plist")
-          # sign_update already emits both sparkle:edSignature="..." and
-          # length="..." attributes, so we must NOT append our own length=.
-          # Release-notes URLs point at GitHub Pages (docs/release-notes/
-          # <version>/<lang>.html). Sparkle picks by system language; the
-          # just release-notes-check step above guarantees all 7 exist.
+          # The build number is identical across arch slices (same project.yml),
+          # so read it once from the arm64 build.
+          BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "build/Build/Products/Release/Clipboard.app/Contents/Info.plist")
           NOTES_BASE="https://carter-ya.github.io/clipboard/release-notes/${VERSION}"
-          cat > dist/appcast-item.xml <<ITEM
+
+          # One DMG + one appcast item per architecture. sign_update already
+          # emits both sparkle:edSignature="..." and length="...", so we must
+          # NOT append our own length=. Release-notes URLs point at GitHub
+          # Pages; the release-notes-check step above guarantees all 7 exist.
+          emit_item() {
+            local ARCH="$1"
+            local DMG="dist/Clipboard-${VERSION}-${ARCH}.dmg"
+            local SIG_LINE
+            SIG_LINE=$("$SIGN_UPDATE" -f "$KEY_FILE" "$DMG")
+            local DMG_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/Clipboard-${VERSION}-${ARCH}.dmg"
+            # arm64 carries a hardware requirement so the merged appcast.xml
+            # filters it out on native Intel Macs. Harmless in the pure
+            # appcast-arm64.xml feed, so we reuse one item body for both.
+            local HWREQ=""
+            if [[ "$ARCH" == "arm64" ]]; then
+              HWREQ=$'\n                <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>'
+            fi
+          cat > "dist/appcast-item-${ARCH}.xml" <<ITEM
               <item>
                 <title>Version ${VERSION}</title>
                 <pubDate>${PUBDATE}</pubDate>
                 <sparkle:version>${BUILD_NUMBER}</sparkle:version>
                 <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
-                <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+                <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>${HWREQ}
                 <sparkle:releaseNotesLink xml:lang="en">${NOTES_BASE}/en.html</sparkle:releaseNotesLink>
                 <sparkle:releaseNotesLink xml:lang="zh-Hans">${NOTES_BASE}/zh-Hans.html</sparkle:releaseNotesLink>
                 <sparkle:releaseNotesLink xml:lang="zh-Hant">${NOTES_BASE}/zh-Hant.html</sparkle:releaseNotesLink>
@@ -113,11 +112,17 @@ jobs:
                 <enclosure url="${DMG_URL}" ${SIG_LINE} type="application/octet-stream" />
               </item>
           ITEM
-          echo "## Appcast snippet" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo '```xml' >> "$GITHUB_STEP_SUMMARY"
-          cat dist/appcast-item.xml >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          }
+          emit_item arm64
+          emit_item x86_64
+
+          echo "## Appcast snippets" >> "$GITHUB_STEP_SUMMARY"
+          for ARCH in arm64 x86_64; do
+            echo "### ${ARCH}" >> "$GITHUB_STEP_SUMMARY"
+            echo '```xml' >> "$GITHUB_STEP_SUMMARY"
+            cat "dist/appcast-item-${ARCH}.xml" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          done
 
       - name: Extract release notes
         run: |
@@ -133,13 +138,74 @@ jobs:
           # Replace X.Y.Z placeholders in the template body
           sed -i '' "s/X\\.Y\\.Z/${VERSION}/g" dist/final-notes.md
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Clipboard-${{ steps.ver.outputs.version }}
+          path: |
+            dist/Clipboard-*.dmg
+            dist/Clipboard-*.dmg.sha256
+            dist/appcast-item-*.xml
+            dist/final-notes.md
+
+  release:
+    # Runs on the last Intel runner so the x86_64 slice — cross-compiled on
+    # the arm64 build runner and otherwise never executed — is launched
+    # natively as a smoke gate before anything is published. The release and
+    # appcast steps run only if that smoke test passes.
+    needs: build
+    runs-on: macos-13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version from tag
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: Clipboard-${{ steps.ver.outputs.version }}
+          path: dist
+
+      - name: Smoke-test the x86_64 DMG on native Intel
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.ver.outputs.version }}"
+          DMG="dist/Clipboard-${VERSION}-x86_64.dmg"
+          # Guard: this gate is only meaningful on real Intel hardware. If a
+          # future runner image flips this label to arm64, the x86_64 slice
+          # would run under Rosetta and prove less — fail loudly instead.
+          [[ "$(uname -m)" == "x86_64" ]] \
+            || { echo "::error::Expected an Intel runner but uname -m=$(uname -m); smoke gate is not native."; exit 1; }
+
+          MNT="$(mktemp -d)/mnt"
+          hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$MNT" "$DMG"
+          APP="$(mktemp -d)/Clipboard.app"
+          ditto "$MNT/Clipboard.app" "$APP"
+          hdiutil detach "$MNT" -quiet || true
+          xattr -cr "$APP" || true
+
+          # The slice must be thin x86_64 (no arm64), and must launch and stay
+          # up natively — a broken cross-compile would crash on first launch.
+          lipo -archs "$APP/Contents/MacOS/Clipboard"
+          lipo -archs "$APP/Contents/MacOS/Clipboard" | tr ' ' '\n' | grep -qx x86_64
+          open "$APP"
+          sleep 8
+          if ! pgrep -x Clipboard >/dev/null; then
+            echo "::error::Clipboard (x86_64) did not stay running on Intel — it likely crashed on launch."
+            exit 1
+          fi
+          osascript -e 'quit app "Clipboard"' 2>/dev/null || pkill -x Clipboard || true
+          echo "x86_64 smoke test passed natively on $(uname -m)."
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           VERSION="${{ steps.ver.outputs.version }}"
-          DMG="dist/Clipboard-${VERSION}.dmg"
           # Idempotent: if a release already exists at this tag (e.g. a
           # previous run succeeded partway), delete it first so we can
           # publish fresh artifacts. Keep the tag itself — it's what
@@ -148,69 +214,85 @@ jobs:
             gh release delete "v${VERSION}" --yes --cleanup-tag=false
           fi
           gh release create "v${VERSION}" \
-            "${DMG}" "${DMG}.sha256" "dist/appcast-item.xml" \
+            "dist/Clipboard-${VERSION}-arm64.dmg" "dist/Clipboard-${VERSION}-arm64.dmg.sha256" \
+            "dist/Clipboard-${VERSION}-x86_64.dmg" "dist/Clipboard-${VERSION}-x86_64.dmg.sha256" \
+            "dist/appcast-item-arm64.xml" "dist/appcast-item-x86_64.xml" \
             --title "Clipboard v${VERSION}" \
             --notes-file dist/final-notes.md
 
-      - name: Publish appcast to main
+      - name: Publish appcasts to main
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           VERSION="${{ steps.ver.outputs.version }}"
-          # Stash the generated item; switching branches would lose dist/.
-          ITEM_TMP="$(mktemp)"
-          cp dist/appcast-item.xml "$ITEM_TMP"
+          # Stash the generated items; switching branches would lose dist/.
+          ARM_TMP="$(mktemp)"; cp dist/appcast-item-arm64.xml "$ARM_TMP"
+          X86_TMP="$(mktemp)"; cp dist/appcast-item-x86_64.xml "$X86_TMP"
 
           git fetch origin main
           git checkout main
           git pull --ff-only origin main
 
-          # Strip any existing <item> for this version so re-runs replace
-          # (not duplicate / stale-sig) the entry. Sparkle's edSignature
-          # is tied to the DMG bytes, so a rebuilt DMG needs a fresh item.
-          awk -v ver="${VERSION}" '
-            BEGIN { in_item = 0; buf = "" }
-            /<item>/ { in_item = 1; buf = $0 ORS; next }
-            in_item {
-              buf = buf $0 ORS
-              if ($0 ~ /<\/item>/) {
-                if (buf !~ "<sparkle:version>" ver "</sparkle:version>") {
-                  printf "%s", buf
+          # Drop the existing <item> carrying this exact DMG so re-runs
+          # refresh instead of duplicating (a rebuilt DMG has a fresh
+          # edSignature). Match on the enclosure filename — unique per
+          # (version, arch) — via literal index(), not shortVersionString
+          # (a marketing version can recur under several build numbers) and
+          # not a regex (the dots in the version are not metacharacters here).
+          strip_item() {
+            local FEED="$1" DMG="$2"
+            awk -v dmg="$DMG" '
+              BEGIN { in_item = 0; buf = "" }
+              /<item>/ { in_item = 1; buf = $0 ORS; next }
+              in_item {
+                buf = buf $0 ORS
+                if ($0 ~ /<\/item>/) {
+                  if (index(buf, dmg) == 0) printf "%s", buf
+                  in_item = 0; buf = ""
                 }
-                in_item = 0; buf = ""
+                next
               }
-              next
-            }
-            { print }
-          ' docs/appcast.xml > docs/appcast.xml.stripped
-          mv docs/appcast.xml.stripped docs/appcast.xml
+              { print }
+            ' "$FEED" > "$FEED.stripped"
+            mv "$FEED.stripped" "$FEED"
+          }
 
-          # Insert the fresh item immediately before </channel>.
-          awk -v item_file="$ITEM_TMP" '
-            /<\/channel>/ {
-              while ((getline line < item_file) > 0) print line
-              close(item_file)
-            }
-            { print }
-          ' docs/appcast.xml > docs/appcast.xml.new
-          mv docs/appcast.xml.new docs/appcast.xml
+          # Append one item before </channel>. Call order is preserved, which
+          # matters for the merged feed: arm64 must precede the same-version
+          # x86_64 item so Sparkle's "first of equal versions wins" picks
+          # arm64 on Apple Silicon (Intel filtered arm64 out via hwreq).
+          append_item() {
+            local FEED="$1" ITEM_TMP="$2"
+            awk -v item_file="$ITEM_TMP" '
+              /<\/channel>/ {
+                while ((getline line < item_file) > 0) print line
+                close(item_file)
+              }
+              { print }
+            ' "$FEED" > "$FEED.new"
+            mv "$FEED.new" "$FEED"
+          }
 
-          if git diff --quiet docs/appcast.xml; then
-            echo "docs/appcast.xml unchanged, nothing to commit."
+          ARM_DMG="Clipboard-${VERSION}-arm64.dmg"
+          X86_DMG="Clipboard-${VERSION}-x86_64.dmg"
+          # Per-arch feeds: one item each.
+          strip_item docs/appcast-arm64.xml  "$ARM_DMG"; append_item docs/appcast-arm64.xml  "$ARM_TMP"
+          strip_item docs/appcast-x86_64.xml "$X86_DMG"; append_item docs/appcast-x86_64.xml "$X86_TMP"
+          # Merged feed (legacy <=1.0.4 installs poll this): both items,
+          # arm64 first.
+          strip_item docs/appcast.xml "$ARM_DMG"
+          strip_item docs/appcast.xml "$X86_DMG"
+          append_item docs/appcast.xml "$ARM_TMP"
+          append_item docs/appcast.xml "$X86_TMP"
+
+          FEEDS="docs/appcast.xml docs/appcast-arm64.xml docs/appcast-x86_64.xml"
+          if git diff --quiet -- $FEEDS; then
+            echo "appcasts unchanged, nothing to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/appcast.xml
-          git commit -m "appcast: publish v${VERSION}"
+          git add $FEEDS
+          git commit -m "appcast: publish v${VERSION} (arm64 + x86_64)"
           git push origin main
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: Clipboard-${{ steps.ver.outputs.version }}
-          path: |
-            dist/Clipboard-*.dmg
-            dist/Clipboard-*.dmg.sha256
-            dist/appcast-item.xml

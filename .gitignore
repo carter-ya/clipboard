@@ -3,6 +3,7 @@
 
 # Build artifacts
 build/
+build-x86_64/
 DerivedData/
 .build/
 dist

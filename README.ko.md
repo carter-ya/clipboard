@@ -31,7 +31,7 @@ curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash
 
 ### GitHub Release 에서 수동 설치
 
-1. [Releases 페이지](https://github.com/carter-ya/clipboard/releases/latest) 에서 `Clipboard-<version>.dmg` 다운로드
+1. [Releases 페이지](https://github.com/carter-ya/clipboard/releases/latest) 에서 Mac 칩에 맞는 DMG 다운로드: Apple Silicon 은 `Clipboard-<version>-arm64.dmg`, Intel 은 `Clipboard-<version>-x86_64.dmg` (Apple 메뉴 → 이 Mac에 관하여 에서 칩 확인 가능)
 2. 더블클릭으로 마운트한 뒤 `Clipboard.app` 을 `Applications/` 에 드래그
 3. **Gatekeeper 격리 속성 제거** (본 프로젝트는 Apple Developer ID 서명·공증을 사용하지 않습니다):
 
@@ -48,8 +48,9 @@ curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash
 모든 DMG 에는 같은 이름의 `.sha256` 파일이 함께 있습니다. DMG 와 `.sha256` 을 같은 폴더에 받은 뒤 해시를 비교합니다:
 
 ```bash
-shasum -a 256 Clipboard-<version>.dmg
-cat Clipboard-<version>.dmg.sha256
+# <arch> 는 arm64(Apple Silicon) 또는 x86_64(Intel)
+shasum -a 256 Clipboard-<version>-<arch>.dmg
+cat Clipboard-<version>-<arch>.dmg.sha256
 # 두 줄의 첫 번째 필드가 일치해야 합니다
 ```
 
@@ -97,7 +98,7 @@ just lint      # swift-format lint
 just fmt       # swift-format 자동 포맷
 just logs      # os.Logger 출력 스트림 (subsystem com.clipboard.app)
 just reset     # 로컬 히스토리 데이터 제거
-just package   # Release DMG + SHA256 을 dist/ 에 생성
+just package   # 아키텍처별 Release DMG(arm64 + x86_64) + SHA256 을 dist/ 에 생성
 just clean     # 빌드 아티팩트와 생성된 .xcodeproj 삭제
 ```
 
@@ -105,8 +106,8 @@ just clean     # 빌드 아티팩트와 생성된 .xcodeproj 삭제
 
 ```bash
 just package
-# → dist/Clipboard-<version>.dmg
-# → dist/Clipboard-<version>.dmg.sha256
+# → dist/Clipboard-<version>-arm64.dmg  (+ .sha256)
+# → dist/Clipboard-<version>-x86_64.dmg (+ .sha256)
 ```
 
 ### 프로젝트 구조
@@ -122,8 +123,8 @@ just package
 2. `project.yml` 의 `MARKETING_VERSION` 을 `x.y.z` 로, `CURRENT_PROJECT_VERSION` 을 1 증가
 3. `git commit -am "release: x.y.z"`
 4. `git tag -a vx.y.z -m "x.y.z"`
-5. `git push && git push --tags` —— GitHub Actions 가 `release.yml` 실행: DMG 빌드, Sparkle 개인 키 서명, Release 생성 (DMG + `.sha256` + `appcast-item.xml` 첨부), appcast 스니펫을 workflow 의 Step Summary 에 출력
-6. **Step Summary 의 `<item>…</item>` 스니펫을 `docs/appcast.xml` 의 `</channel>` 바로 앞에 붙여 넣은 뒤** `git commit -am "appcast: vx.y.z" && git push` 실행 (GitHub Pages 가 반영된 후에야 Sparkle 이 새 버전을 감지)
+5. `git push && git push --tags` —— GitHub Actions 가 `release.yml` 실행: 두 아키텍처 DMG(arm64 + x86_64) 빌드, 각각 Sparkle 개인 키로 서명, Release 생성 (두 DMG + `.sha256` + 아키텍처별 `appcast-item-<arch>.xml` 첨부), 두 appcast 스니펫을 workflow 의 Step Summary 에 출력
+6. 이후 `release.yml` 이 갱신된 appcast 를 자동으로 `main` 에 커밋합니다 —— 아키텍처별 `appcast-arm64.xml` / `appcast-x86_64.xml` 와, 구버전(≤1.0.4) 설치본을 위한 통합 `appcast.xml` —— 따라서 수동으로 붙여 넣을 필요가 없습니다. (GitHub Pages 가 다시 반영된 후에야 Sparkle 이 새 버전을 감지합니다.)
 
 **첫 릴리스 전** 한 번만 필요한 설정:
 
@@ -132,7 +133,7 @@ just package
 3. 출력된 공개 키 (base64 문자열) 를 `project.yml` 과 `App/Info.plist` **두 곳** 모두의 `SUPublicEDKey` 에 붙여 넣습니다 (플레이스홀더 `REPLACE_WITH_BASE64_EDKEY` 교체). XcodeGen 은 `just gen` 때마다 `project.yml` 값으로 `Info.plist` 를 덮어쓰므로, `project.yml` 쪽을 놓치면 `just gen` 이후 다시 플레이스홀더로 돌아갑니다
 4. CI secret 용으로 개인 키를 내보내기: `just sparkle-keys -x sparkle_ed_priv.key` (`-x` 는 `generate_keys` 로 그대로 전달). `cat sparkle_ed_priv.key` 로 내용을 비밀번호 관리자에 복사한 뒤 **즉시 `rm sparkle_ed_priv.key`**
 5. 저장소의 Settings → Secrets → Actions 에서 `SPARKLE_PRIVATE_KEY` 를 추가하고 방금 내보낸 base64 내용을 붙여 넣기
-6. 현재 owner 는 `carter-ya`. fork 이후에는 다음 모두를 본인의 GitHub 사용자명 / 조직명으로 전부 치환: `project.yml` 의 `SUFeedURL`, `App/Info.plist` 의 `SUFeedURL`, `docs/appcast.xml`, `docs/install.sh` 의 `REPO` 상수와 header 주석 URL, `CHANGELOG.md` 링크 정의, 모든 `README*.md` 의 설치 섹션 내 install.sh URL, `harness.json` 의 `project.distribution`
+6. 현재 owner 는 `carter-ya`. fork 이후에는 다음 모두를 본인의 GitHub 사용자명 / 조직명으로 전부 치환: `project.yml` 의 `SU_FEED_URL` 기본값, `Justfile` `package` 레시피의 아키텍처별 feed URL, `docs/appcast.xml` / `docs/appcast-arm64.xml` / `docs/appcast-x86_64.xml`, `docs/install.sh` 의 `REPO` 상수와 header 주석 URL, `CHANGELOG.md` 링크 정의, 모든 `README*.md` 의 설치 섹션 내 install.sh URL, `harness.json` 의 `project.distribution`
 7. GitHub Pages 활성화: Settings → Pages → Source `Deploy from a branch` → Branch `main` → `/docs` → Save. appcast 는 `https://carter-ya.github.io/clipboard/appcast.xml` 에 공개됩니다
 8. `just clean && just package` 로 **재패키징** —— `dist/` 에 이미 있는 DMG 는 플레이스홀더 값으로 빌드되어 있으므로 절대 업로드하면 안 됩니다
 

@@ -36,12 +36,12 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Clipboard</string>
-	<key>SUFeedURL</key>
-	<string>https://carter-ya.github.io/clipboard/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>U4bGyKmbqkzf83bO2gau/85yVHIf1l+JNB4nK9ntUB8=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<key>SUFeedURL</key>
+	<string>$(SU_FEED_URL)</string>
+	<key>SUPublicEDKey</key>
+	<string>U4bGyKmbqkzf83bO2gau/85yVHIf1l+JNB4nK9ntUB8=</string>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
 </dict>

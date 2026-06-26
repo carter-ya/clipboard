@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-06-26
+
+### 新增
+
+- 现在为 Apple Silicon 与 Intel 分别提供独立的单架构 DMG（`Clipboard-<ver>-arm64.dmg` / `Clipboard-<ver>-x86_64.dmg`），Intel Mac 终于可装可用。每个下载只含本机架构，体积更轻；自动更新按架构走各自的 Sparkle feed，已安装的老版本会无缝拿到对应架构的更新。
+
 ## [1.0.4] - 2026-06-26
 
 ### 修复
@@ -99,7 +105,8 @@
 - 直接分发未签名 DMG；首次安装需用户 `xattr -cr` 解除 Gatekeeper 隔离标记
 - 不上 Mac App Store、不启用 App Sandbox
 
-[Unreleased]: https://github.com/carter-ya/clipboard/compare/v1.0.4...HEAD
+[Unreleased]: https://github.com/carter-ya/clipboard/compare/v1.0.5...HEAD
+[1.0.5]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.5
 [1.0.4]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.4
 [1.0.3]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.3
 [1.0.2]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.2
