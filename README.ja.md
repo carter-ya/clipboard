@@ -31,7 +31,7 @@ curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash
 
 ### GitHub Release から手動インストール
 
-1. [Releases ページ](https://github.com/carter-ya/clipboard/releases/latest) から `Clipboard-<version>.dmg` をダウンロード
+1. [Releases ページ](https://github.com/carter-ya/clipboard/releases/latest) から Mac のチップに合った DMG をダウンロード：Apple Silicon は `Clipboard-<version>-arm64.dmg`、Intel は `Clipboard-<version>-x86_64.dmg`（アップルメニュー → このMacについて でチップを確認できます）
 2. ダブルクリックでマウントし、`Clipboard.app` を `Applications/` にドラッグ
 3. **Gatekeeper の隔離属性を除去**（本プロジェクトは Apple Developer ID 署名・公証を使用していません）：
 
@@ -48,8 +48,9 @@ curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash
 各 DMG には同名の `.sha256` ファイルが付属します。DMG と `.sha256` を同じディレクトリに配置し、ハッシュを比較します：
 
 ```bash
-shasum -a 256 Clipboard-<version>.dmg
-cat Clipboard-<version>.dmg.sha256
+# <arch> は arm64（Apple Silicon）または x86_64（Intel）
+shasum -a 256 Clipboard-<version>-<arch>.dmg
+cat Clipboard-<version>-<arch>.dmg.sha256
 # 両行の先頭フィールドが一致するはずです
 ```
 
@@ -97,7 +98,7 @@ just lint      # swift-format による lint
 just fmt       # swift-format による整形
 just logs      # os.Logger 出力をストリーム（subsystem com.clipboard.app）
 just reset     # ローカル履歴データを削除
-just package   # Release DMG + SHA256 を dist/ に生成
+just package   # アーキ別 Release DMG（arm64 + x86_64）+ SHA256 を dist/ に生成
 just clean     # build 生成物と生成された .xcodeproj を削除
 ```
 
@@ -105,8 +106,8 @@ just clean     # build 生成物と生成された .xcodeproj を削除
 
 ```bash
 just package
-# → dist/Clipboard-<version>.dmg
-# → dist/Clipboard-<version>.dmg.sha256
+# → dist/Clipboard-<version>-arm64.dmg  (+ .sha256)
+# → dist/Clipboard-<version>-x86_64.dmg (+ .sha256)
 ```
 
 ### プロジェクト構成
@@ -122,8 +123,8 @@ just package
 2. `project.yml` の `MARKETING_VERSION` を `x.y.z` に変更し、`CURRENT_PROJECT_VERSION` をインクリメント
 3. `git commit -am "release: x.y.z"`
 4. `git tag -a vx.y.z -m "x.y.z"`
-5. `git push && git push --tags` —— GitHub Actions が `release.yml` を実行：DMG のビルド、Sparkle 秘密鍵による署名、Release の作成（DMG + `.sha256` + `appcast-item.xml` を添付）、appcast スニペットを workflow の Step Summary に出力
-6. **Step Summary の `<item>…</item>` スニペットを `docs/appcast.xml` の `</channel>` の直前に貼り付け**、`git commit -am "appcast: vx.y.z" && git push`（GitHub Pages の反映後、Sparkle が新バージョンを検出）
+5. `git push && git push --tags` —— GitHub Actions が `release.yml` を実行：両アーキの DMG（arm64 + x86_64）をビルド、それぞれ Sparkle 秘密鍵で署名、Release の作成（両 DMG + `.sha256` + アーキ別 `appcast-item-<arch>.xml` を添付）、両方の appcast スニペットを workflow の Step Summary に出力
+6. その後 `release.yml` が更新済みの appcast を自動で `main` にコミットします——アーキ別の `appcast-arm64.xml` / `appcast-x86_64.xml` と、旧（≤1.0.4）インストール向けの統合 `appcast.xml`——ので、手動での貼り付けは不要です。（GitHub Pages の再反映後に Sparkle が新バージョンを検出します。）
 
 **初回リリース前**の一度だけ必要な設定：
 
@@ -132,7 +133,7 @@ just package
 3. 出力された公開鍵（base64 文字列）を `project.yml` と `App/Info.plist` の **両方**の `SUPublicEDKey` に貼り付け（プレースホルダ `REPLACE_WITH_BASE64_EDKEY` を置換）。XcodeGen は `just gen` のたびに `project.yml` の値で `Info.plist` を上書きするため、`project.yml` 側を忘れると `just gen` 後にプレースホルダに戻ります
 4. CI secret 用に秘密鍵をエクスポート：`just sparkle-keys -x sparkle_ed_priv.key`（`-x` は `generate_keys` にそのまま渡されます）。`cat sparkle_ed_priv.key` で中身をパスワードマネージャーへコピーし、**直ちに `rm sparkle_ed_priv.key`**
 5. リポジトリの Settings → Secrets → Actions で `SPARKLE_PRIVATE_KEY` を追加し、エクスポートした秘密鍵の base64 内容を貼り付け
-6. 現在の owner は `carter-ya`。fork 後は以下すべてをご自身の GitHub ユーザー名 / 組織名にグローバル置換してください：`project.yml` の `SUFeedURL`、`App/Info.plist` の `SUFeedURL`、`docs/appcast.xml`、`docs/install.sh` の `REPO` 定数と header コメントの URL、`CHANGELOG.md` のリンク定義、すべての `README*.md` のインストールセクション内の install.sh URL、`harness.json` の `project.distribution`
+6. 現在の owner は `carter-ya`。fork 後は以下すべてをご自身の GitHub ユーザー名 / 組織名にグローバル置換してください：`project.yml` の `SU_FEED_URL` デフォルト値、`Justfile` の `package` レシピ内のアーキ別 feed URL、`docs/appcast.xml` / `docs/appcast-arm64.xml` / `docs/appcast-x86_64.xml`、`docs/install.sh` の `REPO` 定数と header コメントの URL、`CHANGELOG.md` のリンク定義、すべての `README*.md` のインストールセクション内の install.sh URL、`harness.json` の `project.distribution`
 7. GitHub Pages を有効化：Settings → Pages → Source `Deploy from a branch` → Branch `main` → `/docs` → Save。appcast は `https://carter-ya.github.io/clipboard/appcast.xml` で公開されます
 8. `just clean && just package` で**再パッケージ** —— `dist/` にすでにある DMG はプレースホルダ値でビルドされているので、絶対にアップロードしないでください
 

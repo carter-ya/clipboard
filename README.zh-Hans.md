@@ -31,7 +31,7 @@ curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash
 
 ### 手动从 GitHub Release 下载
 
-1. 到 [Releases 页面](https://github.com/carter-ya/clipboard/releases/latest) 下载 `Clipboard-<version>.dmg`
+1. 到 [Releases 页面](https://github.com/carter-ya/clipboard/releases/latest) 下载对应你 Mac 芯片的 DMG：Apple Silicon 选 `Clipboard-<version>-arm64.dmg`，Intel 选 `Clipboard-<version>-x86_64.dmg`（左上角 Apple 菜单 → 关于本机 可查看芯片）
 2. 双击挂载，把 `Clipboard.app` 拖进 `Applications/`
 3. **去掉 Gatekeeper 隔离标记**（本项目未走 Apple Developer ID 签名与公证）：
 
@@ -48,8 +48,9 @@ curl -fsSL https://carter-ya.github.io/clipboard/install.sh | bash
 每个 DMG 都带同名 `.sha256` 文件。把 DMG 和 `.sha256` 下到同目录后比对哈希：
 
 ```bash
-shasum -a 256 Clipboard-<version>.dmg
-cat Clipboard-<version>.dmg.sha256
+# <arch> 取 arm64（Apple Silicon）或 x86_64（Intel）
+shasum -a 256 Clipboard-<version>-<arch>.dmg
+cat Clipboard-<version>-<arch>.dmg.sha256
 # 两行首段哈希应一致
 ```
 
@@ -97,7 +98,7 @@ just lint      # swift-format 检查
 just fmt       # swift-format 格式化
 just logs      # 流式查看 os.Logger 输出（subsystem com.clipboard.app）
 just reset     # 清除本地历史数据
-just package   # 打 Release DMG + SHA256 到 dist/
+just package   # 打两架构 Release DMG（arm64 + x86_64）+ SHA256 到 dist/
 just clean     # 清理 build 与生成物
 ```
 
@@ -105,8 +106,8 @@ just clean     # 清理 build 与生成物
 
 ```bash
 just package
-# → dist/Clipboard-<version>.dmg
-# → dist/Clipboard-<version>.dmg.sha256
+# → dist/Clipboard-<version>-arm64.dmg  (+ .sha256)
+# → dist/Clipboard-<version>-x86_64.dmg (+ .sha256)
 ```
 
 ### 项目结构
@@ -122,8 +123,8 @@ just package
 2. 把 `project.yml` 的 `MARKETING_VERSION` 改成 `x.y.z`，`CURRENT_PROJECT_VERSION` 自增
 3. `git commit -am "release: x.y.z"`
 4. `git tag -a vx.y.z -m "x.y.z"`
-5. `git push && git push --tags` —— GitHub Actions 跑 `release.yml`：打 DMG、用 Sparkle 私钥签名、创建 Release 挂 DMG + `.sha256` + `appcast-item.xml`，并把 appcast 片段打进 workflow 的 Step Summary
-6. **手动把 Step Summary 里的 `<item>…</item>` 片段粘进 `docs/appcast.xml` 的 `</channel>` 前**，`git commit -am "appcast: vx.y.z" && git push`（GitHub Pages 发布后 Sparkle 才能看到新版）
+5. `git push && git push --tags` —— GitHub Actions 跑 `release.yml`：打两架构 DMG（arm64 + x86_64）、各用 Sparkle 私钥签名、创建 Release 挂两个 DMG + `.sha256` + 按架构的 `appcast-item-<arch>.xml`，并把两段 appcast 片段打进 workflow 的 Step Summary
+6. 随后 `release.yml` 会自动把刷新后的 appcast 提交到 `main`——按架构的 `appcast-arm64.xml` / `appcast-x86_64.xml`，外加供老（≤1.0.4）安装继续轮询的融合 `appcast.xml`——无需手动粘贴。（GitHub Pages 重新发布后 Sparkle 才能看到新版。）
 
 **首次发布前**必须做的一次性配置：
 
@@ -132,7 +133,7 @@ just package
 3. 把输出的公钥（一串 base64）填进 `project.yml` 与 `App/Info.plist` **两处**的 `SUPublicEDKey` 字段（替换占位符 `REPLACE_WITH_BASE64_EDKEY`）。XcodeGen 每次 `just gen` 会用 `project.yml` 覆盖 `Info.plist` 同名键，漏改 `project.yml` 那一侧 `just gen` 后会被打回占位
 4. 导出私钥以便放进 CI secret：`just sparkle-keys -x sparkle_ed_priv.key`（`-x` 透传给 `generate_keys`），`cat sparkle_ed_priv.key` 拷内容到密码管理器，**立即 `rm sparkle_ed_priv.key`**
 5. 在 GitHub 仓库 Settings → Secrets → Actions 新增 `SPARKLE_PRIVATE_KEY`，粘贴刚导出的私钥 base64 内容
-6. 当前 owner 为 `carter-ya`；fork 后需全局替换为你自己的 GitHub 用户名 / 组织名：`project.yml` 的 `SUFeedURL`、`App/Info.plist` 的 `SUFeedURL`、`docs/appcast.xml`、`docs/install.sh` 的 `REPO` 与 header 注释里的 URL、`CHANGELOG.md` 链接定义、所有 `README*.md` 安装段落里的 install.sh URL、`harness.json` 的 `project.distribution`
+6. 当前 owner 为 `carter-ya`；fork 后需全局替换为你自己的 GitHub 用户名 / 组织名：`project.yml` 的 `SU_FEED_URL` 默认值、`Justfile` `package` recipe 里的按架构 feed URL、`docs/appcast.xml` / `docs/appcast-arm64.xml` / `docs/appcast-x86_64.xml`、`docs/install.sh` 的 `REPO` 与 header 注释里的 URL、`CHANGELOG.md` 链接定义、所有 `README*.md` 安装段落里的 install.sh URL、`harness.json` 的 `project.distribution`
 7. 启用 GitHub Pages：Settings → Pages → Source `Deploy from a branch` → Branch `main` → `/docs` → Save；appcast 会挂在 `https://carter-ya.github.io/clipboard/appcast.xml`
 8. `just clean && just package` **重新打包** —— 之前 `dist/` 里的 DMG 带的是占位值，绝不能上传
 

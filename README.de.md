@@ -31,7 +31,7 @@ Das Skript lädt die neueste DMG → verifiziert SHA-256 → beendet eine laufen
 
 ### Manuelle Installation vom GitHub Release
 
-1. `Clipboard-<version>.dmg` von der [Releases-Seite](https://github.com/carter-ya/clipboard/releases/latest) herunterladen
+1. Lade die zum Chip deines Macs passende DMG von der [Releases-Seite](https://github.com/carter-ya/clipboard/releases/latest) herunter: `Clipboard-<version>-arm64.dmg` für Apple Silicon, `Clipboard-<version>-x86_64.dmg` für Intel (Apple-Menü → Über diesen Mac zeigt den Chip)
 2. Per Doppelklick mounten und `Clipboard.app` nach `Applications/` ziehen
 3. **Gatekeeper-Quarantäne-Attribut entfernen** (dieses Projekt nutzt keine Apple-Developer-ID-Signatur / Notarisierung):
 
@@ -48,8 +48,9 @@ Das Skript lädt die neueste DMG → verifiziert SHA-256 → beendet eine laufen
 Zu jeder DMG liegt eine gleichnamige `.sha256`-Datei. DMG und `.sha256` in dasselbe Verzeichnis laden und Hashes vergleichen:
 
 ```bash
-shasum -a 256 Clipboard-<version>.dmg
-cat Clipboard-<version>.dmg.sha256
+# <arch> = arm64 (Apple Silicon) oder x86_64 (Intel)
+shasum -a 256 Clipboard-<version>-<arch>.dmg
+cat Clipboard-<version>-<arch>.dmg.sha256
 # Der erste Hash in beiden Zeilen sollte übereinstimmen
 ```
 
@@ -97,7 +98,7 @@ just lint      # swift-format lint
 just fmt       # swift-format in-place
 just logs      # Stream der os.Logger-Ausgabe (Subsystem com.clipboard.app)
 just reset     # Lokale Verlaufsdaten entfernen
-just package   # Release-DMG + SHA256 nach dist/ bauen
+just package   # Release-DMGs je Architektur (arm64 + x86_64) + SHA256 nach dist/ bauen
 just clean     # Build-Artefakte und generiertes Projekt löschen
 ```
 
@@ -105,8 +106,8 @@ just clean     # Build-Artefakte und generiertes Projekt löschen
 
 ```bash
 just package
-# → dist/Clipboard-<version>.dmg
-# → dist/Clipboard-<version>.dmg.sha256
+# → dist/Clipboard-<version>-arm64.dmg  (+ .sha256)
+# → dist/Clipboard-<version>-x86_64.dmg (+ .sha256)
 ```
 
 ### Projektstruktur
@@ -122,8 +123,8 @@ just package
 2. `MARKETING_VERSION` in `project.yml` auf `x.y.z` setzen, `CURRENT_PROJECT_VERSION` inkrementieren
 3. `git commit -am "release: x.y.z"`
 4. `git tag -a vx.y.z -m "x.y.z"`
-5. `git push && git push --tags` — GitHub Actions führt `release.yml` aus: baut die DMG, signiert mit dem Sparkle-Private-Key, erzeugt ein Release mit DMG + `.sha256` + `appcast-item.xml` und schreibt das appcast-Snippet in die Step Summary des Workflows
-6. **Das `<item>…</item>`-Snippet aus der Step Summary manuell vor `</channel>` in `docs/appcast.xml` einfügen**, dann `git commit -am "appcast: vx.y.z" && git push` (Sparkle sieht die neue Version erst nach der Veröffentlichung durch GitHub Pages)
+5. `git push && git push --tags` — GitHub Actions führt `release.yml` aus: baut beide DMGs je Architektur (arm64 + x86_64), signiert jede mit dem Sparkle-Private-Key, erzeugt ein Release mit beiden DMGs + `.sha256` + architekturspezifischen `appcast-item-<arch>.xml` und schreibt beide appcast-Snippets in die Step Summary des Workflows
+6. `release.yml` committet anschließend die aktualisierten appcasts automatisch nach `main` — die architekturspezifischen `appcast-arm64.xml` / `appcast-x86_64.xml` sowie das zusammengeführte `appcast.xml` für ältere (≤1.0.4) Installationen — ein manuelles Einfügen entfällt also. (Sparkle sieht die neue Version erst, nachdem GitHub Pages erneut veröffentlicht hat.)
 
 **Vor dem ersten Release einmalig nötig**:
 
@@ -132,7 +133,7 @@ just package
 3. Public Key (base64-String) in sowohl `project.yml` als auch `App/Info.plist` unter `SUPublicEDKey` eintragen (Platzhalter `REPLACE_WITH_BASE64_EDKEY` ersetzen). XcodeGen überschreibt `Info.plist` bei jedem `just gen` aus `project.yml` — vergisst man die `project.yml`-Seite, wird der Wert beim nächsten `just gen` wieder auf den Platzhalter zurückgesetzt
 4. Private Key für das CI-Secret exportieren: `just sparkle-keys -x sparkle_ed_priv.key` (`-x` wird an `generate_keys` durchgereicht); `cat sparkle_ed_priv.key` in einen Passwort-Manager kopieren und **sofort `rm sparkle_ed_priv.key`**
 5. Unter Settings → Secrets → Actions das Geheimnis `SPARKLE_PRIVATE_KEY` anlegen und den exportierten base64-Key einfügen
-6. Der aktuelle Owner ist `carter-ya`; Forker müssen ihn durch ihren eigenen GitHub-Benutzernamen / Organisationsnamen ersetzen in: `SUFeedURL` in `project.yml`, `SUFeedURL` in `App/Info.plist`, `docs/appcast.xml`, `docs/install.sh` (Konstante `REPO` und URL im Header-Kommentar), `CHANGELOG.md`-Link-Definitionen, Install-Abschnitt jeder `README*.md`-Datei (install.sh-URL) sowie `project.distribution` in `harness.json`
+6. Der aktuelle Owner ist `carter-ya`; Forker müssen ihn durch ihren eigenen GitHub-Benutzernamen / Organisationsnamen ersetzen in: `SU_FEED_URL`-Default in `project.yml`, den architekturspezifischen Feed-URLs im `package`-Rezept des `Justfile`, `docs/appcast.xml` / `docs/appcast-arm64.xml` / `docs/appcast-x86_64.xml`, `docs/install.sh` (Konstante `REPO` und URL im Header-Kommentar), `CHANGELOG.md`-Link-Definitionen, Install-Abschnitt jeder `README*.md`-Datei (install.sh-URL) sowie `project.distribution` in `harness.json`
 7. GitHub Pages aktivieren: Settings → Pages → Source `Deploy from a branch` → Branch `main` → `/docs` → Save; der appcast liegt dann unter `https://carter-ya.github.io/clipboard/appcast.xml`
 8. `just clean && just package` zum **Neubauen** — alle DMGs, die bereits in `dist/` liegen, wurden mit Platzhaltern gebaut und dürfen nicht hochgeladen werden
 

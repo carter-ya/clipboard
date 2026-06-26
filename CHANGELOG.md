@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 新增
+
+- 现在为 Apple Silicon 与 Intel 分别提供独立的单架构 DMG（`Clipboard-<ver>-arm64.dmg` / `Clipboard-<ver>-x86_64.dmg`），Intel Mac 终于可装可用。每个下载只含本机架构，体积更轻；自动更新按架构走各自的 Sparkle feed，已安装的老版本会无缝拿到对应架构的更新。
+
 ## [1.0.4] - 2026-06-26
 
 ### 修复

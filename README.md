@@ -31,7 +31,7 @@ The script fetches the latest DMG → verifies SHA-256 → quits a running Clipb
 
 ### Manual install from GitHub Release
 
-1. Download `Clipboard-<version>.dmg` from the [Releases page](https://github.com/carter-ya/clipboard/releases/latest)
+1. Download the DMG matching your Mac's chip from the [Releases page](https://github.com/carter-ya/clipboard/releases/latest): `Clipboard-<version>-arm64.dmg` for Apple Silicon, `Clipboard-<version>-x86_64.dmg` for Intel (Apple menu → About This Mac shows your chip)
 2. Double-click to mount, drag `Clipboard.app` into `Applications/`
 3. **Strip the Gatekeeper quarantine attribute** (this project does not use Apple Developer ID signing / notarization):
 
@@ -48,8 +48,9 @@ The script fetches the latest DMG → verifies SHA-256 → quits a running Clipb
 Every DMG ships with a matching `.sha256` file. Download both to the same directory and compare hashes:
 
 ```bash
-shasum -a 256 Clipboard-<version>.dmg
-cat Clipboard-<version>.dmg.sha256
+# <arch> = arm64 (Apple Silicon) or x86_64 (Intel)
+shasum -a 256 Clipboard-<version>-<arch>.dmg
+cat Clipboard-<version>-<arch>.dmg.sha256
 # The first field of each line should match
 ```
 
@@ -97,7 +98,7 @@ just lint      # swift-format lint
 just fmt       # swift-format in place
 just logs      # Stream os.Logger output (subsystem com.clipboard.app)
 just reset     # Clear local history data
-just package   # Build a Release DMG + SHA256 into dist/
+just package   # Build per-arch Release DMGs (arm64 + x86_64) + SHA256 into dist/
 just clean     # Remove build artifacts and the generated project
 ```
 
@@ -105,8 +106,8 @@ just clean     # Remove build artifacts and the generated project
 
 ```bash
 just package
-# → dist/Clipboard-<version>.dmg
-# → dist/Clipboard-<version>.dmg.sha256
+# → dist/Clipboard-<version>-arm64.dmg  (+ .sha256)
+# → dist/Clipboard-<version>-x86_64.dmg (+ .sha256)
 ```
 
 ### Project layout
@@ -122,8 +123,8 @@ just package
 2. Bump `MARKETING_VERSION` in `project.yml` to `x.y.z`; increment `CURRENT_PROJECT_VERSION`
 3. `git commit -am "release: x.y.z"`
 4. `git tag -a vx.y.z -m "x.y.z"`
-5. `git push && git push --tags` — GitHub Actions runs `release.yml`: builds the DMG, signs with the Sparkle private key, creates a Release with DMG + `.sha256` + `appcast-item.xml`, and prints the appcast snippet to the workflow Step Summary
-6. **Paste the `<item>…</item>` snippet from the Step Summary into `docs/appcast.xml` before `</channel>`**, then `git commit -am "appcast: vx.y.z" && git push` (Sparkle won't see the new version until GitHub Pages publishes)
+5. `git push && git push --tags` — GitHub Actions runs `release.yml`: builds both per-arch DMGs (arm64 + x86_64), signs each with the Sparkle private key, creates a Release with both DMGs + `.sha256` + per-arch `appcast-item-<arch>.xml`, and prints both appcast snippets to the workflow Step Summary
+6. `release.yml` then auto-commits the refreshed appcasts to `main` — the per-arch `appcast-arm64.xml` / `appcast-x86_64.xml` plus the merged `appcast.xml` for older (≤1.0.4) installs still polling it — so no manual paste is needed. (Sparkle won't see the new version until GitHub Pages republishes.)
 
 **One-time setup before the first release**:
 
@@ -132,7 +133,7 @@ just package
 3. Paste the public key (a base64 string) into both `project.yml` and `App/Info.plist` under `SUPublicEDKey`, replacing the `REPLACE_WITH_BASE64_EDKEY` placeholder. XcodeGen overwrites `Info.plist` from `project.yml` on each `just gen`, so missing the `project.yml` side silently reverts to the placeholder
 4. Export the private key for CI: `just sparkle-keys -x sparkle_ed_priv.key` (`-x` is forwarded to `generate_keys`); `cat sparkle_ed_priv.key` and copy into a password manager, then **immediately `rm sparkle_ed_priv.key`**
 5. Add `SPARKLE_PRIVATE_KEY` under Settings → Secrets → Actions, pasting the exported base64 key
-6. Current owner is `carter-ya`; forkers must replace it with their GitHub username / org in: `project.yml`'s `SUFeedURL`, `App/Info.plist`'s `SUFeedURL`, `docs/appcast.xml`, `docs/install.sh` (`REPO` constant and header-comment URL), `CHANGELOG.md` link definitions, every `README*.md` file's install section (the install.sh URL), and `harness.json`'s `project.distribution`
+6. Current owner is `carter-ya`; forkers must replace it with their GitHub username / org in: `project.yml`'s `SU_FEED_URL` default, the per-arch feed URLs in the `Justfile` `package` recipe, `docs/appcast.xml` / `docs/appcast-arm64.xml` / `docs/appcast-x86_64.xml`, `docs/install.sh` (`REPO` constant and header-comment URL), `CHANGELOG.md` link definitions, every `README*.md` file's install section (the install.sh URL), and `harness.json`'s `project.distribution`
 7. Enable GitHub Pages: Settings → Pages → Source `Deploy from a branch` → Branch `main` → `/docs` → Save; the appcast will live at `https://carter-ya.github.io/clipboard/appcast.xml`
 8. `just clean && just package` to **rebuild** — any DMG already in `dist/` was built against placeholder values and must not be uploaded
 

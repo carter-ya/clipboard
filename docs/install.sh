@@ -55,16 +55,44 @@ main() {
   [[ -n "$tag" && "$tag" != "$latest_url" ]] \
     || die "Could not resolve latest tag from ${latest_url}"
   version="${tag#v}"
-  dmg_name="${APP_NAME}-${version}.dmg"
+
+  # One DMG per CPU arch — pick the one matching this Mac. Under Rosetta
+  # `uname -m` reports x86_64 on arm64 hardware, so prefer arm64 there.
+  local arch
+  arch="$(uname -m)"
+  if [[ "$arch" == "x86_64" \
+        && "$(sysctl -n sysctl.proc_translated 2>/dev/null || true)" == "1" ]]; then
+    arch="arm64"
+  fi
+  case "$arch" in
+    arm64|x86_64) ;;
+    *) die "Unsupported architecture: ${arch}" ;;
+  esac
+
+  dmg_name="${APP_NAME}-${version}-${arch}.dmg"
   dmg_url="https://github.com/${REPO}/releases/download/${tag}/${dmg_name}"
-  sha_url="${dmg_url}.sha256"
-  ok "Found ${tag}"
+  ok "Found ${tag} (${arch})"
 
   say "Downloading ${dmg_name}..."
-  curl -fL --retry 3 --retry-delay 2 --progress-bar \
-    -o "${TMP}/${dmg_name}" "$dmg_url"
-  curl -fsSL --retry 3 --retry-delay 2 \
-    -o "${TMP}/${dmg_name}.sha256" "$sha_url"
+  if ! curl -fL --retry 3 --retry-delay 2 --progress-bar \
+       -o "${TMP}/${dmg_name}" "$dmg_url"; then
+    # Releases <=v1.0.4 shipped a single arch-less arm64 DMG. Fall back to it
+    # only on Apple Silicon — those tags never had an Intel build, so for
+    # x86_64 we fail loudly instead of handing the user an arm64 app that
+    # won't launch. The --retry above already absorbed transient errors, so
+    # reaching here means the per-arch asset is genuinely absent.
+    [[ "$arch" == "arm64" ]] \
+      || die "No ${arch} build is published for ${tag} (releases up to 1.0.4 are Apple Silicon only)."
+    warn "Per-architecture DMG not found for ${tag}; trying the legacy arch-less DMG."
+    dmg_name="${APP_NAME}-${version}.dmg"
+    dmg_url="https://github.com/${REPO}/releases/download/${tag}/${dmg_name}"
+    curl -fL --retry 3 --retry-delay 2 --progress-bar \
+      -o "${TMP}/${dmg_name}" "$dmg_url" \
+      || die "Could not download ${dmg_name} from ${tag}."
+  fi
+  sha_url="${dmg_url}.sha256"
+  curl -fsSL --retry 3 --retry-delay 2 -o "${TMP}/${dmg_name}.sha256" "$sha_url" \
+    || die "Checksum ${dmg_name}.sha256 is missing from ${tag}; cannot verify the download."
 
   say "Verifying SHA-256..."
   expected="$(awk '{print $1}' "${TMP}/${dmg_name}.sha256")"
