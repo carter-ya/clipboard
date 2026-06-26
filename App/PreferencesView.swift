@@ -187,9 +187,9 @@ struct PreferencesView: View {
             )
             .textFieldStyle(.plain)
             .multilineTextAlignment(.trailing)
+            .frame(width: 64)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .frame(width: 80)
             .background(
               RoundedRectangle(cornerRadius: 6)
                 .fill(Color.primary.opacity(0.06))
@@ -198,9 +198,12 @@ struct PreferencesView: View {
               RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 6))
-            .onHover { hovering in
-              if hovering { NSCursor.iBeam.push() } else { NSCursor.pop() }
+            .contentShape(Rectangle())
+            .onContinuousHover { phase in
+              switch phase {
+              case .active: NSCursor.iBeam.set()
+              case .ended: NSCursor.arrow.set()
+              }
             }
           }
           HStack {
@@ -220,9 +223,9 @@ struct PreferencesView: View {
             )
             .textFieldStyle(.plain)
             .multilineTextAlignment(.trailing)
+            .frame(width: 64)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .frame(width: 80)
             .background(
               RoundedRectangle(cornerRadius: 6)
                 .fill(Color.primary.opacity(0.06))
@@ -231,9 +234,12 @@ struct PreferencesView: View {
               RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 6))
-            .onHover { hovering in
-              if hovering { NSCursor.iBeam.push() } else { NSCursor.pop() }
+            .contentShape(Rectangle())
+            .onContinuousHover { phase in
+              switch phase {
+              case .active: NSCursor.iBeam.set()
+              case .ended: NSCursor.arrow.set()
+              }
             }
             Text("MiB")
               .foregroundStyle(.secondary)
