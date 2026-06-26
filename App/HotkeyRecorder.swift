@@ -86,7 +86,7 @@ struct HotkeyRecorder: View {
         return nil
       }
       if let shortcut = KeyboardShortcuts.Shortcut(event: event) {
-        KeyboardShortcuts.setShortcut(shortcut, for: name)
+        storeShortcut(shortcut)
         refresh()
       }
       stop()
@@ -105,5 +105,22 @@ struct HotkeyRecorder: View {
   private func clear() {
     KeyboardShortcuts.setShortcut(nil, for: name)
     refresh()
+  }
+
+  private func storeShortcut(_ shortcut: KeyboardShortcuts.Shortcut) {
+    // KeyboardShortcuts.setShortcut registers its own Carbon hotkey
+    // immediately. This app owns registration through
+    // KeyboardShortcutsHotkeyService, so write the same persisted
+    // value directly and notify observers without double-registering.
+    KeyboardShortcuts.setShortcut(nil, for: name)
+    guard let data = try? JSONEncoder().encode(shortcut),
+      let encoded = String(data: data, encoding: .utf8)
+    else { return }
+    UserDefaults.standard.set(encoded, forKey: "KeyboardShortcuts_\(name.rawValue)")
+    NotificationCenter.default.post(
+      name: Notification.Name("KeyboardShortcuts_shortcutByNameDidChange"),
+      object: nil,
+      userInfo: ["name": name]
+    )
   }
 }
