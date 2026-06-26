@@ -163,18 +163,19 @@ final class AppWiring {
   }
 
   private func startHotkey() {
-    if KeyboardShortcuts.getShortcut(for: .toggleHistoryPanel) == nil {
-      Log.hotkey.info("hotkey.unbound user has no shortcut configured")
-      onHotkeyUnbound?()
-      return
-    }
     hotkey.bind(.toggleHistoryPanel)
     hotkeyTask = Task { [hotkey] in
       for await _ in hotkey.events {
+        Log.hotkey.info("hotkey.event_dispatched")
         await MainActor.run {
           self.onHotkey?()
         }
       }
+    }
+
+    if KeyboardShortcuts.getShortcut(for: .toggleHistoryPanel) == nil {
+      Log.hotkey.info("hotkey.unbound user has no shortcut configured")
+      onHotkeyUnbound?()
     }
   }
 
