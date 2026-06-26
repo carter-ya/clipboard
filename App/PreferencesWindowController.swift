@@ -13,6 +13,13 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
   private let onCheckForUpdates: () -> Void
   private let canCheckForUpdates: () -> Bool
 
+  // A single, persistent hosting controller. We update its `rootView`
+  // on each show() rather than swapping `contentViewController`, because
+  // swapping briefly collapses the window to a 0-height frame and
+  // AppKit's top-left anchoring drifts the origin upward every reopen.
+  private let hostingController = NSHostingController(rootView: AnyView(Color.clear))
+  private var contentRevision = 0
+
   init(
     store: PreferencesStore,
     onChange: @escaping (Preferences) -> Void,
@@ -54,7 +61,19 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     window.isRestorable = false
     super.init(window: window)
     window.delegate = self
+    window.contentViewController = hostingController
     rebuildContent()
+    // Persist & restore the window position across open/close and app
+    // launches. Replaces the old "re-center on every show()" behavior,
+    // which jumped the window (and parked it upper-right when a content
+    // swap briefly reported a 0×0 frame). On first run there's no saved
+    // frame, so center once as the default. `setFrameUsingName` is the
+    // last word on the frame, so it runs after content is installed.
+    let autosaveName = NSWindow.FrameAutosaveName("ClipboardPreferences")
+    if !window.setFrameUsingName(autosaveName) {
+      window.center()
+    }
+    window.setFrameAutosaveName(autosaveName)
   }
 
   @available(*, unavailable)
@@ -72,38 +91,12 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     NSApp.setActivationPolicy(.regular)
     window?.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
-    // Position AFTER orderFront so AppKit's own cascading / state
-    // restoration has already run; our setFrameOrigin is the last
-    // word on placement.
-    if let window {
-      centerOnCursorScreen(window)
-    }
+    // Position is handled by frame autosave (see init); never reposition
+    // on show, so the window stays exactly where the user left it.
     // Drop the auto-picked first responder so the Language Picker (or
     // any other control in tab order) doesn't show a focus ring on
     // first open. The user can still click or tab into any control.
     window?.makeFirstResponder(nil)
-  }
-
-  /// Center the window on the visibleFrame of the screen under the
-  /// cursor — matches HistoryPanel's own positioning convention and
-  /// gives a predictable placement regardless of where any other
-  /// window happened to be last.
-  private func centerOnCursorScreen(_ window: NSWindow) {
-    let mouse = NSEvent.mouseLocation
-    let screen =
-      NSScreen.screens.first(where: { $0.frame.contains(mouse) })
-      ?? NSScreen.main
-      ?? NSScreen.screens.first!
-    let visible = screen.visibleFrame
-    let size = window.frame.size
-    let origin = NSPoint(
-      x: visible.midX - size.width / 2,
-      y: visible.midY - size.height / 2
-    )
-    window.setFrameOrigin(origin)
-    Log.ui.info(
-      "prefs.center screen=\(visible.debugDescription, privacy: .public) mouse=(\(mouse.x),\(mouse.y)) size=(\(size.width),\(size.height)) origin=(\(origin.x),\(origin.y))"
-    )
   }
 
   private func reconcileLaunchAtLogin() {
@@ -147,7 +140,10 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
       canCheckForUpdates: canCheckForUpdates(),
       hotkeyMissing: hotkeyMissing
     )
-    window?.contentViewController = NSHostingController(rootView: view)
+    // Bump the identity so SwiftUI rebuilds @State (fresh prefs snapshot,
+    // tab reset) without us swapping the contentViewController.
+    contentRevision += 1
+    hostingController.rootView = AnyView(view.id(contentRevision))
   }
 
   private func applyLanguageOverride(_ code: String?) {
