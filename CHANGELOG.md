@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-06-26
+
+### 修复
+
+- 全局快捷键现在能稳定唤出窗口：改用 Carbon `RegisterEventHotKey` 自管注册，修复应用闲置后首次按键偶尔无响应的问题。
+- 偏好设置 → Retention 的「条数上限」与「最大体积」输入框现在整框可点击：让输入控件填满外框、改用 `onContinuousHover` 取光标，修复了「只有点右侧数字才生效」「悬浮光标忽闪」「点击误选中全部」三个问题。
+- 偏好设置窗口现在记住上次位置：不再每次打开都自动居中或被推到右上角（旧逻辑替换内容视图时窗口瞬间塌成 0 高、被 AppKit 左上锚定逐次上移），改为常驻 hosting controller + frame autosave。
+
 ## [1.0.3] - 2026-04-25
 
 ### 新增
@@ -91,7 +99,8 @@
 - 直接分发未签名 DMG；首次安装需用户 `xattr -cr` 解除 Gatekeeper 隔离标记
 - 不上 Mac App Store、不启用 App Sandbox
 
-[Unreleased]: https://github.com/carter-ya/clipboard/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/carter-ya/clipboard/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.4
 [1.0.3]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.3
 [1.0.2]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.2
 [1.0.1]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.1
