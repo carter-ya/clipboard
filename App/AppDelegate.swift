@@ -42,9 +42,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     Task { @MainActor in
       await wiring.start()
       self.installPanelIfReady()
-      let onboarding = OnboardingController()
+      let onboarding = OnboardingController { [weak self] in
+        self?.openPreferences()
+      }
       self.onboarding = onboarding
-      onboarding.showIfFirstRun()
+      if !onboarding.showIfFirstRun() {
+        self.openPreferences()
+      }
     }
   }
 
@@ -80,15 +84,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   @MainActor
   @objc private func togglePanel() {
+    Log.ui.info("panel.toggle_requested")
     preferencesController?.window?.orderOut(nil)
     installPanelIfReady()
-    guard let panel else { return }
+    guard let panel else {
+      Log.ui.error("panel.toggle_failed reason=no_panel")
+      return
+    }
     if panel.isVisible {
       panel.close()
+      Log.ui.info("panel.closed")
       return
     }
     wiring?.viewModel?.resetSelection()
     panel.toggle()
+    Log.ui.info("panel.opened visible=\(panel.isVisible)")
   }
 
   @MainActor

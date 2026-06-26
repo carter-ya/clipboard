@@ -4,11 +4,17 @@ import SwiftUI
 @MainActor
 final class OnboardingController {
   private static let defaultsKey = "hasSeenOnboarding"
+  private let onDismiss: (() -> Void)?
   private var window: NSWindow?
 
-  func showIfFirstRun() {
-    if UserDefaults.standard.bool(forKey: Self.defaultsKey) { return }
+  init(onDismiss: (() -> Void)? = nil) {
+    self.onDismiss = onDismiss
+  }
+
+  func showIfFirstRun() -> Bool {
+    if UserDefaults.standard.bool(forKey: Self.defaultsKey) { return false }
     show()
+    return true
   }
 
   func show() {
@@ -16,6 +22,7 @@ final class OnboardingController {
       UserDefaults.standard.set(true, forKey: Self.defaultsKey)
       self?.window?.orderOut(nil)
       self?.window = nil
+      self?.onDismiss?()
     }
     let hosting = NSHostingController(rootView: view)
     let window = NSWindow(
