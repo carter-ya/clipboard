@@ -1,5 +1,5 @@
-import Foundation
 import Carbon.HIToolbox
+import Foundation
 import KeyboardShortcuts
 
 private func carbonHotkeyEventHandler(
@@ -12,7 +12,7 @@ private func carbonHotkeyEventHandler(
 
 public final class KeyboardShortcutsHotkeyService: HotkeyService, @unchecked Sendable {
   private static weak var activeService: KeyboardShortcutsHotkeyService?
-  private static let hotkeySignature: UInt32 = 0x434C5042  // "CLPB"
+  private static let hotkeySignature: UInt32 = 0x434C_5042  // "CLPB"
   private static let hotkeyID: UInt32 = 1
 
   public let events: AsyncStream<Void>
