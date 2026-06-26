@@ -149,12 +149,13 @@ jobs:
             dist/final-notes.md
 
   release:
-    # Runs on the last Intel runner so the x86_64 slice — cross-compiled on
+    # Runs on a native Intel runner so the x86_64 slice — cross-compiled on
     # the arm64 build runner and otherwise never executed — is launched
     # natively as a smoke gate before anything is published. The release and
-    # appcast steps run only if that smoke test passes.
+    # appcast steps run only if that smoke test passes. macos-15-intel is the
+    # free standard Intel image (the retired macos-13 never gets a runner).
     needs: build
-    runs-on: macos-13
+    runs-on: macos-15-intel
     steps:
       - name: Checkout
         uses: actions/checkout@v4
