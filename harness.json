@@ -43,7 +43,14 @@
       "dependencies": "Windows User32; Linux libX11 and libXfixes development packages. Linux integration tests use isolated Xvfb.",
       "privacy": "Native exclude-from-monitor / KDE secret hints are normalized into sensitive RawClipItem values. No raw clipboard body is logged. Writer marks sensitive text. Native detection remains convention-dependent.",
       "limits": "Wayland explicitly unsupported even if DISPLAY is set. X11 INCR transfer unsupported; reads bounded to 16 MiB, X11 writes bounded by XMaxRequestSize. No automatic paste or keyboard synthesis.",
-      "validation": "macOS: 159 tests (one existing Keychain skip), zero failures; Linux arm64: 140 tests and six native X11 checks passed; native Windows/Linux x86_64 CI results pending."
+      "validation": "macOS: 159 tests (one existing Keychain skip), zero failures and full app build passed. Linux arm64: 140 tests and six native X11 checks passed. GitHub Actions Swift 6.1.3: Windows x86_64 139 tests, Linux x86_64 140 tests; both passed five core and six native text checks.",
+      "github_actions": {
+        "tested_commit": "79b22d540145df4c9deefa21b1c9bdbef10470fe",
+        "run_url": "https://github.com/carter-ya/clipboard/actions/runs/40864222410",
+        "conclusion": "success",
+        "windows_job": 123414764819,
+        "linux_job": 123414764276
+      }
     },
     "evidence": "docs/swift-portability.md"
   },

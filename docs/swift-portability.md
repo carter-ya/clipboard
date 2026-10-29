@@ -174,8 +174,20 @@ Win32. The new Foundation-only `TextClipboardAccess` protocol, fake,
 | macOS regression suite | 159 tests, 1 existing Keychain skip, zero failures |
 | Linux arm64 unit suite | 140 tests, zero failures |
 | Linux arm64 native X11 scenario | All six checks passed in isolated Xvfb |
-| Windows native text scenario | CI run pending |
-| Linux x86_64 native X11 scenario | CI run pending |
+| Windows Server 2022 x86_64, Swift 6.1.3 | 139 unit tests, five core checks and six native text checks passed |
+| Ubuntu 22.04 x86_64, Swift 6.1.3 | 140 unit tests, five core checks and six native X11 checks passed |
+| macOS application build | Passed after platform module split; application was not launched |
+
+Native slice CI evidence:
+
+- Tested commit: `79b22d540145df4c9deefa21b1c9bdbef10470fe`.
+- Passing run: https://github.com/carter-ya/clipboard/actions/runs/40864222410
+- Windows job: https://github.com/carter-ya/clipboard/actions/runs/40864222410/job/123414764819
+- Ubuntu job: https://github.com/carter-ya/clipboard/actions/runs/40864222410/job/123414764276
+- Both `core-tests-windows-2022` and `core-tests-ubuntu-22.04` artifacts include
+  the toolchain, unit test, core scenario and native clipboard scenario logs.
+- The Windows and Linux test totals differ by the Linux-only Wayland capability
+  rejection test. No native text integration check is skipped on either runner.
 
 The workflow installs X11 headers/libraries and Xvfb on Ubuntu, runs the native
 scenario under a virtual display, runs the same scenario against the Windows
