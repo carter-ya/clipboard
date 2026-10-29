@@ -28,6 +28,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Install X11 build and integration-test dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libx11-dev libxfixes-dev xvfb xauth
       - name: Install Swift 6.1.3 on Windows
         if: runner.os == 'Windows'
         uses: compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7
@@ -67,6 +73,15 @@ jobs:
         run: |
           & swift run --package-path Core scenario-runner rich-types 2>&1 | Tee-Object -FilePath scenario.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify native text clipboard with an independent process
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_OS -eq 'Linux') {
+            & xvfb-run --auto-servernum swift run --package-path Core scenario-runner platform-clipboard 2>&1 | Tee-Object -FilePath platform-clipboard.log
+          } else {
+            & swift run --package-path Core scenario-runner platform-clipboard 2>&1 | Tee-Object -FilePath platform-clipboard.log
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload core test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -76,6 +91,7 @@ jobs:
             toolchain.log
             core-tests.log
             scenario.log
+            platform-clipboard.log
           if-no-files-found: ignore
 
   macos:

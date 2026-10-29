@@ -141,3 +141,57 @@ worktree. They contain test fixtures rather than the user's clipboard history.
    credential storage, startup, OCR and distribution for each platform.
 5. Test Linux X11 and specific Wayland desktop environments separately. A
    headless core container test makes no claim about desktop integration.
+
+## Native text clipboard slice
+
+This slice adds `DesktopClipboard`, separate from `ClipboardCore`, and a small
+`CDesktopClipboard` system-API shim. The business target does not link X11 or
+Win32. The new Foundation-only `TextClipboardAccess` protocol, fake,
+`TextClipboardMonitor` and `TextPasteboardWriter` live in Core.
+
+- Windows reads/writes CF_UNICODETEXT, normalizes native CRLF and Core LF, and
+  checks the inexpensive clipboard sequence number before reading content.
+  Native exclusion and history hints mark incoming text as sensitive.
+- Linux X11 reads/writes the CLIPBOARD selection, serves UTF8_STRING/TARGETS,
+  and uses XFixes notifications to detect changes even when the owner remains
+  the same window. A Dispatch socket read source serves ownership requests;
+  it does not spawn or poll external clipboard commands. The KDE secret hint
+  is preserved for sensitive writes and recognized on reads.
+- Reads are bounded to 16 MiB and failures do not reach the store. Oversized
+  entries produce SkipEvents. The existing store remains responsible for
+  keeping sensitive payloads out of JSON and blobs.
+- The command-line scenario launches an independent native peer process,
+  exchanges synthetic Unicode/multiline text over the OS clipboard, writes a
+  stored blob back for that peer to read, verifies a native secret marker and
+  memory-only persistence, and rejects oversized text. A 30-second watchdog
+  bounds the scenario and only checkpoint names enter failure reports.
+
+| Check | Current result |
+| --- | --- |
+| macOS regression suite | 159 tests, 1 existing Keychain skip, zero failures |
+| Linux arm64 unit suite | 140 tests, zero failures |
+| Linux arm64 native X11 scenario | All six checks passed in isolated Xvfb |
+| Windows native text scenario | CI run pending |
+| Linux x86_64 native X11 scenario | CI run pending |
+
+The workflow installs X11 headers/libraries and Xvfb on Ubuntu, runs the native
+scenario under a virtual display, runs the same scenario against the Windows
+runner clipboard, and retains `platform-clipboard.log`. No local user clipboard
+is accessed by these tests. Local Xvfb containers use `--init` so its ready
+signal reaches the waiting launcher rather than PID 1.
+
+Limitations: text only; no image/file/RTF/HTML payloads, source-app attribution,
+global shortcut, UI/focus/input-method testing, startup or credential adapters.
+Native secret detection depends on source applications setting recognized
+hints. Wayland is explicitly rejected even when DISPLAY is also present; this
+experiment does not treat XWayland as native Wayland support. X11 INCR transfers
+are unsupported; writes are bounded by the server's ordinary request size.
+Oversized X11 reads can report a conservative byte-count lower bound. Clipboard
+contention and changed owners are retried by the monitor, not logged. This is a
+prototype, not a production-hardened desktop adapter.
+
+
+CP2 promotes these adapters onto the latest-main delivery stack. The native checks
+are rerun on PRs; previous experiment results are historical rather than proof
+for the new branch. Clipboard capture/readback and sensitive-memory-only behavior
+remain required on both Windows and Linux.
