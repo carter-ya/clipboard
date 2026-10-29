@@ -4,10 +4,10 @@ Date: 2026-10-29 (Asia/Shanghai). Base: `b4ac516`. Branch: `codex/verify-swift-c
 
 ## Finding
 
-The existing Swift business core can run on Linux after isolating Apple-only
-implementations and supplying portable hashing and logging backends. Rewriting
-business logic in Rust is not a prerequisite. This experiment does not establish
-Windows support or deliver a Windows/Linux desktop application.
+The existing Swift business core compiles and runs on Linux and Windows after
+isolating Apple-only implementations and supplying portable hashing and logging
+backends. Rewriting business logic in Rust is not a prerequisite. This
+experiment validates the core, not a Windows/Linux desktop application.
 
 ## Evidence
 
@@ -19,7 +19,8 @@ Windows support or deliver a Windows/Linux desktop application.
 | Modified Core | Ubuntu 22.04 arm64 container, Swift 6.1.3 | 133 tests, zero failures |
 | Complete macOS application | Local Xcode, Debug | Build succeeded; application was not launched |
 | Synthetic rich-types scenario | macOS and Linux arm64 | Five checks passed on each platform |
-| Windows | No Windows runner available locally | Not executed; branch-scoped workflow prepared |
+| Remote Linux core | Ubuntu 22.04 x86_64, Swift 6.1.3 | 133 tests, zero failures; five scenario checks passed |
+| Remote Windows core | Windows Server 2022 x86_64, Swift 6.1.3 | 133 tests, zero failures; five scenario checks passed |
 
 Linux's test total is intentionally smaller: seven test files containing 23
 Apple-specific tests are compiled only on macOS. Linux runs 127 existing core
@@ -95,15 +96,33 @@ The GitHub Actions workflow, `.github/workflows/swift-portability.yml`,
 runs only on pushes of `codex/verify-swift-cross-platform` (or manual dispatch
 after GitHub registers the workflow on the default branch). It prepares Ubuntu
 22.04 and Windows Server 2022 x64 with Swift 6.1.3, runs Core
-unit tests and the synthetic scenario, and uploads toolchain, test and scenario logs. Only Core and
-workflow changes trigger push runs; report-only updates do not rerun tests.
-The first remote run is in progress. Its Ubuntu job passed 133 tests and the
-scenario, but selected preinstalled Swift 6.4.1 instead of the requested 6.1.3.
-The workflow now verifies the compiler version, selects the extracted Ubuntu
-toolchain explicitly, and saves logs regardless of test success. Windows
-results and the corrected run are still pending. A native Windows
-Swift installation can execute the same three commands directly. No Windows
-build success is claimed before that run finishes.
+unit tests and the synthetic scenario, and uploads toolchain, test and scenario
+logs. Only Core and workflow changes trigger push runs; report-only updates do
+not rerun tests.
+Swift version selection is verified before compiling. The Ubuntu installation
+explicitly selects the extracted toolchain rather than the runner's preinstalled
+Swift. Logs are copied to artifacts even if a test fails. Sequential test output
+is preserved directly; the initial run's `--xunit-output` option did not
+produce a report.
+
+Both jobs in the corrected workflow completed successfully on Swift 6.1.3.
+Windows and Ubuntu each passed all 133 core tests and five scenario checks.
+Both uploaded artifacts containing `toolchain.log`, `core-tests.log` and
+`scenario.log`. These results validate native x86_64 compilation and execution
+of the business core on both operating systems.
+
+- Original core commit: `aebafe277066d93fcddf57d706dee81cf5578907`.
+- Workflow correction commit: `ec9314dd4f8d08382df38aaf4ec8922e423fe648`.
+- Passing workflow: https://github.com/carter-ya/clipboard/actions/runs/40858523441
+- Windows job: https://github.com/carter-ya/clipboard/actions/runs/40858523441/job/123395520872
+- Ubuntu job: https://github.com/carter-ya/clipboard/actions/runs/40858523441/job/123395521341
+- Windows logs artifact: `core-tests-windows-2022` (ID `12890378115`).
+- Ubuntu logs artifact: `core-tests-ubuntu-22.04` (ID `12890072956`).
+
+The tested code/workflow commit is `ec9314dd4f8d08382df38aaf4ec8922e423fe648`.
+The later results-only commit updates this document and `harness.json`; Core
+sources and the passing workflow are unchanged. Report-only pushes do not
+trigger another run.
 
 The container copies package sources into disposable storage before building.
 This permits SwiftPM to maintain its lockfile without writing to the host. Xcode
@@ -116,13 +135,15 @@ Swift 5.9 toolchain requires a separate dependency-resolution check before merge
 The pinned crypto version is an experiment dependency, not a final dependency
 policy.
 
-Full local command logs are retained under ignored `build/portability/` in the
-worktree. They contain test fixtures rather than the user's clipboard history.
+Full local command logs and `github-results.json` are retained under ignored
+`build/portability/` in the worktree. GitHub also retains both job logs and the
+workflow artifacts. They contain test fixtures rather than the user's clipboard
+history.
 
 ## Remaining work
 
-1. Run the prepared tests on native Windows and handle any compiler/Foundation
-   differences. This is the next portability gate.
+1. Keep native Windows and Linux core tests running as platform adapters are
+   added. A passing core suite does not validate desktop integration.
 2. Split Apple adapters into a separate target if the experiment is adopted;
    make hotkey interfaces independent of KeyboardShortcuts types.
 3. Implement native clipboard capture/writeback and validate native format,

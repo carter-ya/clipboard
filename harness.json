@@ -28,7 +28,14 @@
       "macOS_app": "Full Debug application build passed; no GUI runtime result is claimed",
       "linux_arm64_core": "133 tests; zero failures; official Swift 6.1.3 Ubuntu 22.04 container",
       "synthetic_scenario": "Five rich-types checks passed on macOS and Linux arm64",
-      "windows": "Prepared branch-scoped workflow only; no native Windows build or runtime result is claimed"
+      "windows": "133 core tests and five synthetic scenario checks passed on Windows Server 2022 x86_64 with Swift 6.1.3 in GitHub Actions; desktop integration is not validated",
+      "linux_x86_64_core": "133 core tests and five synthetic scenario checks passed on Ubuntu 22.04 x86_64 with Swift 6.1.3 in GitHub Actions",
+      "github_actions": {
+        "tested_commit": "ec9314dd4f8d08382df38aaf4ec8922e423fe648",
+        "run_url": "https://github.com/carter-ya/clipboard/actions/runs/40858523441",
+        "conclusion": "success",
+        "artifacts": ["core-tests-windows-2022", "core-tests-ubuntu-22.04"]
+      }
     },
     "evidence": "docs/swift-portability.md"
   },
@@ -44,7 +51,7 @@
     "lint_format": "swift-format（Apple 官方）",
     "logging": "os.Logger（统一日志系统）",
     "testing": "XCTest + swift-testing（能简化书写时使用）",
-    "ci": "GitHub Actions（在 macOS runner 上 build + test）——延后到 S5 之后再启用"
+    "ci": "GitHub Actions：macOS 发版构建和测试；独立验证分支额外运行 Windows/Ubuntu Swift Core 测试及合成数据场景，并保存版本、测试和场景日志。"
   },
   "targets": [
     {
