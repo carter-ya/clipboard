@@ -59,3 +59,9 @@ just clean   # 清理 build 与生成的 .xcodeproj
 ## Slice 节奏
 
 见 `harness.json` 的 `slices[]` 与 `slice_rhythm`。每个 slice 以绿色、可运行、可提交的状态结束。
+
+## Swift Core portability experiment
+
+- The `codex/verify-swift-cross-platform` worktree may isolate Apple-only Core implementations and validate the real business core on Linux/Windows. The desktop product remains macOS-only.
+- macOS keeps OSLog and CryptoKit; the non-Apple experiment uses a private-by-default stderr logger and Swift Crypto. Native clipboard, hotkey, credentials and rich-text preview adapters remain separate work.
+- `.github/workflows/swift-portability.yml` runs Core tests and the synthetic scenario on Ubuntu and Windows when Core/workflow changes are pushed to the experiment branch. Results and limitations belong in `docs/swift-portability.md` and `harness.json`.
