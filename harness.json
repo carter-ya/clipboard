@@ -18,7 +18,7 @@
     "v1.x 不做 AI 功能（摘要 / 翻译 / 改写）"
   ],
   "portability_experiment": {
-    "scope": "Independent-worktree feasibility experiment only; not a Windows/Linux desktop port or a finalized module split.",
+    "scope": "Independent-worktree Core and native text clipboard feasibility experiment only; not a complete Windows/Linux desktop port or finalized module split.",
     "dependency": "apple/swift-crypto 3.12.3, pinned for reproducibility; Crypto target enabled only for Linux/Windows. CryptoKit remains on macOS.",
     "platform_boundary": "Apple clipboard, hotkey, Keychain and image encoder implementations/tests are guarded with os(macOS). PasteboardWriting is declared in a Foundation-only file. WorkspaceProvider and its stub remain portable.",
     "preview_limit": "Non-macOS preserves original RTF/HTML payloads but does not decode them for previews; a plain-text sidecar still supplies a preview.",
@@ -37,11 +37,20 @@
         "artifacts": ["core-tests-windows-2022", "core-tests-ubuntu-22.04"]
       }
     },
+    "platform_adapters": {
+      "scope": "Native Unicode text clipboard read/write and capture only; independent-process OS integration tests. No UI, hotkeys, image/file/RTF support or source-app attribution.",
+      "implementation": "Core owns TextClipboardAccess; separate DesktopClipboard target depends on Core and CDesktopClipboard shim. Windows uses CF_UNICODETEXT and clipboard sequence numbers. Linux X11 uses selection requests and XFixes owner-change notifications; a Dispatch read source serves ownership requests without a polling subprocess.",
+      "dependencies": "Windows User32; Linux libX11 and libXfixes development packages. Linux integration tests use isolated Xvfb.",
+      "privacy": "Native exclude-from-monitor / KDE secret hints are normalized into sensitive RawClipItem values. No raw clipboard body is logged. Writer marks sensitive text. Native detection remains convention-dependent.",
+      "limits": "Wayland explicitly unsupported even if DISPLAY is set. X11 INCR transfer unsupported; reads bounded to 16 MiB, X11 writes bounded by XMaxRequestSize. No automatic paste or keyboard synthesis.",
+      "validation": "macOS: 159 tests (one existing Keychain skip), zero failures; Linux arm64: 140 tests and six native X11 checks passed; native Windows/Linux x86_64 CI results pending."
+    },
     "evidence": "docs/swift-portability.md"
   },
   "tech_stack": {
     "language": "Swift 5.9+",
     "portability_validation_dependency": "apple/swift-crypto 3.12.3 for Linux/Windows SHA-256; resolved transitive swift-asn1 1.7.3 requires Swift 6.1. This experiment was tested with Swift 6.1.3 and 6.4; oldest-toolchain compatibility is not established.",
+    "native_clipboard_experiment": "CDesktopClipboard C shim links User32 on Windows and X11/Xfixes on Linux; Xvfb is test-only.",
     "ui_framework": "视图用 SwiftUI；NSStatusItem + NSPanel 外壳用 AppKit",
     "storage": "内存数组（权威）+ 磁盘 JSON 快照（Codable，原子写入）。较大的 payload（图片、RTF 二进制块）单独存为 blobs/<sha256>.<ext> 文件，由路径引用。容量默认上限 N=100，固定项（pinned）豁免。敏感条目只驻留内存、不落盘（见 data_model.persistence_strategy）。不引入任何数据库引擎。",
     "global_hotkey": "sindresorhus/KeyboardShortcuts（SPM）",
@@ -793,7 +802,7 @@
       "goal": "补上 Justfile 的 `scenario: swift run --package-path Core scenario-runner`——目前这条命令执行会报找不到可执行目标；补一个最小可执行 scenario-runner，用 InMemoryClipStore 跑几个预置情景并输出 JSON 报告。",
       "deliverables": [
         "Core/Package.swift 新增 `executableTarget(name: \"scenario-runner\", dependencies: [\"ClipboardCore\"])`。",
-        "Core/Sources/scenario-runner/main.swift：从 CLI 参数读场景名（默认 rich-types），执行：插入 text/rtf/image/file/sensitive 各一条 → 校验 dedup、搜索、sensitive 不入持久快照、pin/bump 顺序；把结果以 JSON 输出到 stdout（{scenario, passed, details}）。",
+        "Core/Sources/scenario-runner/ScenarioRunner.swift：从 CLI 参数读场景名（默认 rich-types），执行：插入 text/rtf/image/file/sensitive 各一条 → 校验 dedup、搜索、sensitive 不入持久快照、pin/bump 顺序；把结果以 JSON 输出到 stdout（{scenario, passed, details}）。",
         "场景 rich-types 至少覆盖：text+NSString 同内容进货只得 1 条；image payload 进库后按 image kind；sensitive 条目搜索可见但不在 history.json 的 in-memory 版本里不 applicable（InMemoryClipStore 就是纯内存）。",
         "Justfile 的 `scenario` 命令已存在，不改动。"
       ],

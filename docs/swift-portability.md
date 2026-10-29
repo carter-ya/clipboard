@@ -7,7 +7,9 @@ Date: 2026-10-29 (Asia/Shanghai). Base: `b4ac516`. Branch: `codex/verify-swift-c
 The existing Swift business core compiles and runs on Linux and Windows after
 isolating Apple-only implementations and supplying portable hashing and logging
 backends. Rewriting business logic in Rust is not a prerequisite. This
-experiment validates the core, not a Windows/Linux desktop application.
+experiment initially validated the core. The subsequent native text clipboard
+slice below validates a bounded portion of desktop integration; it is not a
+complete Windows/Linux desktop application.
 
 ## Evidence
 
@@ -52,8 +54,9 @@ payload preservation without a decoder, and private-by-default log interpolation
 
 The model still uses Apple UTI strings and source bundle identifiers. A future
 platform adapter must normalize native formats and supply platform source IDs.
-Sensitive-item persistence tests accept an already marked `RawClipItem`; they
-**do not prove native sensitive-content detection on Windows or Linux**.
+The original sensitive-item persistence tests accept an already marked
+`RawClipItem`. The native text slice additionally tests the supported Windows
+and KDE clipboard hints, but does not establish complete detection across apps.
 
 ## Reproduce
 
@@ -74,17 +77,20 @@ just build
 Linux container reproduction (POSIX shell, source mounted read-only):
 
 ```sh
-docker run --rm \
+docker run --rm --init \
   --mount "type=bind,source=$PWD,target=/workspace,readonly" \
   --workdir /workspace \
   swift@sha256:0a58f05d6c3d3ab48d3cc6f72202fce9bdda52f79f1f6e581c018fa70a590c67 \
   bash -lc '
     set -euo pipefail
+    apt-get update
+    apt-get install -y --no-install-recommends libx11-dev libxfixes-dev xvfb xauth
     mkdir -p /tmp/clipboard-core
     tar -C /workspace/Core --exclude=.build --exclude=.swiftpm -cf - . |
       tar -C /tmp/clipboard-core -xf -
     swift test --package-path /tmp/clipboard-core
     swift run --package-path /tmp/clipboard-core scenario-runner rich-types
+    xvfb-run --auto-servernum swift run --package-path /tmp/clipboard-core scenario-runner platform-clipboard
   '
 ```
 
@@ -119,10 +125,9 @@ of the business core on both operating systems.
 - Windows logs artifact: `core-tests-windows-2022` (ID `12890378115`).
 - Ubuntu logs artifact: `core-tests-ubuntu-22.04` (ID `12890072956`).
 
-The tested code/workflow commit is `ec9314dd4f8d08382df38aaf4ec8922e423fe648`.
-The later results-only commit updates this document and `harness.json`; Core
-sources and the passing workflow are unchanged. Report-only pushes do not
-trigger another run.
+The core-only tested commit is `ec9314dd4f8d08382df38aaf4ec8922e423fe648`;
+`c80b736` recorded those results. Native adapter work below is a subsequent
+slice and is validated separately. Report-only pushes do not trigger a run.
 
 The container copies package sources into disposable storage before building.
 This permits SwiftPM to maintain its lockfile without writing to the host. Xcode
@@ -139,6 +144,54 @@ Full local command logs and `github-results.json` are retained under ignored
 `build/portability/` in the worktree. GitHub also retains both job logs and the
 workflow artifacts. They contain test fixtures rather than the user's clipboard
 history.
+
+## Native text clipboard slice
+
+This slice adds `DesktopClipboard`, separate from `ClipboardCore`, and a small
+`CDesktopClipboard` system-API shim. The business target does not link X11 or
+Win32. The new Foundation-only `TextClipboardAccess` protocol, fake,
+`TextClipboardMonitor` and `TextPasteboardWriter` live in Core.
+
+- Windows reads/writes CF_UNICODETEXT, normalizes native CRLF and Core LF, and
+  checks the inexpensive clipboard sequence number before reading content.
+  Native exclusion and history hints mark incoming text as sensitive.
+- Linux X11 reads/writes the CLIPBOARD selection, serves UTF8_STRING/TARGETS,
+  and uses XFixes notifications to detect changes even when the owner remains
+  the same window. A Dispatch socket read source serves ownership requests;
+  it does not spawn or poll external clipboard commands. The KDE secret hint
+  is preserved for sensitive writes and recognized on reads.
+- Reads are bounded to 16 MiB and failures do not reach the store. Oversized
+  entries produce SkipEvents. The existing store remains responsible for
+  keeping sensitive payloads out of JSON and blobs.
+- The command-line scenario launches an independent native peer process,
+  exchanges synthetic Unicode/multiline text over the OS clipboard, writes a
+  stored blob back for that peer to read, verifies a native secret marker and
+  memory-only persistence, and rejects oversized text. A 30-second watchdog
+  bounds the scenario and only checkpoint names enter failure reports.
+
+| Check | Current result |
+| --- | --- |
+| macOS regression suite | 159 tests, 1 existing Keychain skip, zero failures |
+| Linux arm64 unit suite | 140 tests, zero failures |
+| Linux arm64 native X11 scenario | All six checks passed in isolated Xvfb |
+| Windows native text scenario | CI run pending |
+| Linux x86_64 native X11 scenario | CI run pending |
+
+The workflow installs X11 headers/libraries and Xvfb on Ubuntu, runs the native
+scenario under a virtual display, runs the same scenario against the Windows
+runner clipboard, and retains `platform-clipboard.log`. No local user clipboard
+is accessed by these tests. Local Xvfb containers use `--init` so its ready
+signal reaches the waiting launcher rather than PID 1.
+
+Limitations: text only; no image/file/RTF/HTML payloads, source-app attribution,
+global shortcut, UI/focus/input-method testing, startup or credential adapters.
+Native secret detection depends on source applications setting recognized
+hints. Wayland is explicitly rejected even when DISPLAY is also present; this
+experiment does not treat XWayland as native Wayland support. X11 INCR transfers
+are unsupported; writes are bounded by the server's ordinary request size.
+Oversized X11 reads can report a conservative byte-count lower bound. Clipboard
+contention and changed owners are retried by the monitor, not logged. This is a
+prototype, not a production-hardened desktop adapter.
 
 ## Remaining work
 
