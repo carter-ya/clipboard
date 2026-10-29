@@ -12,6 +12,7 @@ struct HistoryPanelView: View {
   var onShowPreferences: () -> Void = {}
 
   @FocusState private var searchFocused: Bool
+  @Environment(\.colorSchemeContrast) private var contrast
 
   var body: some View {
     VStack(spacing: 0) {
@@ -19,7 +20,7 @@ struct HistoryPanelView: View {
       Divider()
       HStack(spacing: 0) {
         listColumn
-          .frame(width: 480)
+          .frame(width: HistoryPanelLayout.listWidth)
         Divider()
         ClipPreviewView(
           item: selectedItem,
@@ -28,18 +29,22 @@ struct HistoryPanelView: View {
           summaryProgress: viewModel.summaryProgress,
           onRetry: { item in await viewModel.retrySummary(for: item) }
         )
-        .frame(width: 239)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .textBackgroundColor).opacity(0.10))
       }
     }
-    .frame(width: 720, height: 491)
-    .background(.regularMaterial)
-    .clipShape(RoundedRectangle(cornerRadius: 12))
-    .overlay(
-      RoundedRectangle(cornerRadius: 12)
-        .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
-    )
+    // The carrier fits the current screen, including narrow portrait displays.
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .clipShape(RoundedRectangle(cornerRadius: HistoryPanelLayout.cornerRadius))
+    .overlay {
+      // Native glass already defines the edge. Add a stronger outline
+      // only when the user explicitly requests increased contrast.
+      if contrast == .increased {
+        RoundedRectangle(cornerRadius: HistoryPanelLayout.cornerRadius)
+          .strokeBorder(Color.primary.opacity(0.5), lineWidth: 1)
+      }
+    }
     .background(keyboardShortcutButtons)
-    .onAppear { searchFocused = true }
     .onChange(of: viewModel.currentTab) { _ in
       viewModel.resetSelection()
     }
@@ -50,14 +55,15 @@ struct HistoryPanelView: View {
 
   private var listColumn: some View {
     VStack(spacing: 0) {
-      VStack(spacing: 0) {
+      VStack(spacing: 4) {
         tabBar
         KindChipBar(
           selection: $viewModel.kindFilter,
-          count: { viewModel.kindChipCount(for: $0) }
+          count: { viewModel.kindChipCount(for: $0) },
+          showsShortcutHints: viewModel.showsShortcutHints
         )
       }
-      .frame(height: 64)
+      .padding(.vertical, 8)
       Divider()
       if let skip = viewModel.lastSkip, viewModel.shouldShowLastSkip() {
         SkipBannerView(skip: skip) {
@@ -73,8 +79,9 @@ struct HistoryPanelView: View {
   }
 
   private var searchField: some View {
-    HStack(spacing: 6) {
+    HStack(spacing: 10) {
       Image(systemName: "magnifyingglass")
+        .font(.system(size: 16, weight: .medium))
         .foregroundStyle(.secondary)
       TextField(
         "Search",
@@ -84,35 +91,49 @@ struct HistoryPanelView: View {
         )
       )
       .textFieldStyle(.plain)
+      .font(.system(size: 15))
       .focused($searchFocused)
       .onSubmit { activateSelected() }
       .accessibilityLabel("Search history")
+      .accessibilityIdentifier("history-search")
+      if !viewModel.searchText.isEmpty {
+        Button {
+          viewModel.setSearch("")
+          searchFocused = true
+        } label: {
+          Image(systemName: "xmark.circle.fill")
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
+        .help("Clear search")
+        .accessibilityLabel("Clear search")
+      }
+      Divider().frame(height: 18)
+      Button(action: onShowPreferences) {
+        Image(systemName: "gearshape")
+          .font(.system(size: 15))
+      }
+      .buttonStyle(.borderless)
+      .foregroundStyle(.secondary)
+      .help("Preferences")
+      .accessibilityLabel("Preferences")
     }
-    .padding(.horizontal, 10)
-    .padding(.vertical, 6)
-    .background(
-      RoundedRectangle(cornerRadius: 8)
-        .fill(Color.primary.opacity(0.06))
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 8)
-        .strokeBorder(Color.primary.opacity(0.10), lineWidth: 0.5)
-    )
-    .padding(10)
+    .padding(.horizontal, 14)
+    .frame(height: 44)
+    .clipboardSearchSurface()
+    .padding(12)
   }
 
   private var tabBar: some View {
-    Picker("", selection: $viewModel.currentTab) {
-      (Text("All") + Text(verbatim: " (\(viewModel.allTabCount))"))
-        .tag(HistoryPanelTab.all)
-      (Text("Pinned") + Text(verbatim: " (\(viewModel.pinnedTabCount))"))
-        .tag(HistoryPanelTab.pinned)
-    }
-    .pickerStyle(.segmented)
-    .padding(.horizontal, 10)
-    .padding(.top, 8)
-    .padding(.bottom, 4)
-    .accessibilityLabel("Tab")
+    HistoryTabPicker(
+      selection: $viewModel.currentTab,
+      allCount: viewModel.allTabCount,
+      pinnedCount: viewModel.pinnedTabCount,
+      showsShortcutHints: viewModel.showsShortcutHints
+    )
+    .fixedSize()
+    .frame(maxWidth: .infinity)
+    .padding(.horizontal, 12)
   }
 
   private var list: some View {
@@ -143,8 +164,8 @@ struct HistoryPanelView: View {
             )
           }
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
       }
       .onChange(of: viewModel.scrollEpoch) { _ in
         if let id = viewModel.filteredItems.first?.id {
@@ -192,6 +213,9 @@ struct HistoryPanelView: View {
         .hidden()
       Button("") { onShowPreferences() }
         .keyboardShortcut(",", modifiers: .command)
+        .hidden()
+      Button("") { searchFocused = true }
+        .keyboardShortcut("f", modifiers: .command)
         .hidden()
       Button("") { viewModel.cycleTab(forward: false) }
         .keyboardShortcut("[", modifiers: [.command, .shift])

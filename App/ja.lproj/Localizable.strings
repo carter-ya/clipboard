@@ -172,3 +172,14 @@
 "summary.state.generating" = "要約中…";
 "summary.state.failed" = "要約を生成できませんでした";
 "summary.state.retry" = "再試行";
+
+/* History search toolbar */
+"Clear search" = "検索をクリア";
+
+"Appearance" = "外観";
+
+"Follow System" = "システムに合わせる";
+
+"Light" = "ライト";
+
+"Dark" = "ダーク";

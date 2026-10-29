@@ -68,6 +68,10 @@ dmg-background:
 test:
     swift test --package-path Core
 
+# Opens synthetic native windows; run in an interactive macOS desktop session.
+test-windows:
+    bash tools/check-window-regressions.sh
+
 lint:
     swift-format lint --strict --recursive Core/Sources Core/Tests App
 

@@ -14,6 +14,7 @@ final class HistoryPanelViewModel: ObservableObject {
   @Published var selectedID: UUID?
   @Published var currentTab: HistoryPanelTab = .all
   @Published var kindFilter: ClipKind?
+  @Published private(set) var showsShortcutHints = false
   @Published var lastSkip: SkipEvent?
   /// Bumped every time the UI should force-scroll the list back to
   /// its top (e.g., when the panel reopens). The view observes
@@ -33,6 +34,11 @@ final class HistoryPanelViewModel: ObservableObject {
 
   init(store: any ClipStore) {
     self.store = store
+  }
+
+  func setShortcutHintsVisible(_ visible: Bool) {
+    guard showsShortcutHints != visible else { return }
+    showsShortcutHints = visible
   }
 
   var filteredItems: [ClipItem] {

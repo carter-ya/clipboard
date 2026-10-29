@@ -173,3 +173,14 @@
 "summary.state.generating" = "요약 중…";
 "summary.state.failed" = "요약을 생성하지 못했습니다";
 "summary.state.retry" = "다시 시도";
+
+/* History search toolbar */
+"Clear search" = "검색 지우기";
+
+"Appearance" = "외관";
+
+"Follow System" = "시스템 설정";
+
+"Light" = "라이트";
+
+"Dark" = "다크";

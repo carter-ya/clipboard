@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var sparkleUpdater: SparkleUpdater?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    AppearanceController.apply(PreferencesStore.shared.current.appearance)
     installMainMenu()
 
     DistributedNotificationCenter.default().addObserver(
@@ -85,9 +86,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   @MainActor
   @objc private func togglePanel() {
     Log.ui.info("panel.toggle_requested")
-    preferencesController?.window?.orderOut(nil)
+    preferencesController?.hideForHistory()
     installPanelIfReady()
     guard let panel else {
+      preferencesController?.finishHistoryHandoff()
       Log.ui.error("panel.toggle_failed reason=no_panel")
       return
     }
@@ -96,16 +98,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       Log.ui.info("panel.closed")
       return
     }
-    wiring?.viewModel?.resetSelection()
     panel.toggle()
     Log.ui.info("panel.opened visible=\(panel.isVisible)")
   }
 
   @MainActor
   @objc private func openPreferences() {
+    let sourceScreen = panel?.isVisible == true ? panel?.screen : nil
+    preferencesController?.cancelHistoryHandoff()
     panel?.close()
     installPreferencesIfReady()
-    preferencesController?.show()
+    preferencesController?.show(on: sourceScreen)
   }
 
   @MainActor
@@ -250,7 +253,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     panel.onArrowDown = { [weak vm] in vm?.selectNext() }
     panel.onArrowUp = { [weak vm] in vm?.selectPrevious() }
+    panel.onCommandModifierChanged = { [weak vm] in vm?.setShortcutHintsVisible($0) }
     panel.onDidOpen = { [weak vm] in vm?.resetSelection() }
+    panel.onDidClose = { [weak self] in self?.preferencesController?.finishHistoryHandoff() }
     self.panel = panel
   }
 

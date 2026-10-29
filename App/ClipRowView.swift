@@ -15,7 +15,9 @@ struct ClipRowView: View {
         Text(displayPreview)
           .font(.system(size: 13, weight: .regular))
           .lineLimit(2)
-          .foregroundStyle(item.sensitive ? .secondary : .primary)
+          .foregroundStyle(
+            isSelected ? Color.white : (item.sensitive ? Color.secondary : Color.primary)
+          )
         HStack(spacing: 6) {
           // SwiftUI owns the refresh cadence for .relative — the row's
           // body no longer re-runs RelativeDateTimeFormatter every
@@ -28,31 +30,24 @@ struct ClipRowView: View {
               .truncationMode(.middle)
           }
           if item.pinned {
-            Image(systemName: "pin.fill").foregroundStyle(.orange)
+            Image(systemName: "pin.fill")
           }
           if item.sensitive {
-            Image(systemName: "lock.fill").foregroundStyle(.secondary)
+            Image(systemName: "lock.fill")
           }
         }
         .font(.system(size: 11))
-        .foregroundStyle(.secondary)
+        .foregroundStyle(isSelected ? Color.white.opacity(0.85) : Color.secondary)
       }
       Spacer(minLength: 0)
     }
     .padding(.horizontal, 10)
-    .padding(.vertical, 6)
+    .padding(.vertical, 8)
     .background(
-      RoundedRectangle(cornerRadius: 6)
-        .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
+      RoundedRectangle(cornerRadius: 8)
+        .fill(isSelected ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)
     )
-    .overlay(
-      RoundedRectangle(cornerRadius: 6)
-        .strokeBorder(
-          isSelected ? Color.accentColor.opacity(0.45) : Color.clear,
-          lineWidth: 0.5
-        )
-    )
-    .contentShape(RoundedRectangle(cornerRadius: 6))
+    .contentShape(RoundedRectangle(cornerRadius: 8))
     .onAppear { loadThumbnailIfNeeded() }
   }
 
@@ -82,10 +77,10 @@ struct ClipRowView: View {
     } else {
       ZStack {
         RoundedRectangle(cornerRadius: 4)
-          .fill(kindBackground.opacity(0.15))
+          .fill(isSelected ? Color.white.opacity(0.15) : kindBackground.opacity(0.10))
         Image(systemName: ClipKindFormatting.icon(for: item.kind))
           .font(.system(size: 14, weight: .medium))
-          .foregroundStyle(kindBackground)
+          .foregroundStyle(isSelected ? Color.white : kindBackground)
       }
       .frame(width: 40, height: 40)
     }

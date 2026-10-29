@@ -191,3 +191,14 @@
 "summary.state.generating" = "Summarising…";
 "summary.state.failed" = "Couldn't generate summary";
 "summary.state.retry" = "Retry";
+
+/* History search toolbar */
+"Clear search" = "Clear search";
+
+"Appearance" = "Appearance";
+
+"Follow System" = "Follow System";
+
+"Light" = "Light";
+
+"Dark" = "Dark";

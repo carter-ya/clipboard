@@ -19,6 +19,7 @@ final class PreferencesStoreTests: XCTestCase {
     XCTAssertTrue(prefs.blockedBundleIDs.contains("com.1password.1password"))
     XCTAssertFalse(prefs.launchAtLogin)
     XCTAssertNil(prefs.languageOverride)
+    XCTAssertEqual(prefs.appearance, .system)
     XCTAssertTrue(prefs.summariesEnabled)
     XCTAssertTrue(prefs.allowImageSummaries)
     XCTAssertTrue(prefs.allowTextSummaries)
@@ -121,6 +122,28 @@ final class PreferencesStoreTests: XCTestCase {
     prefs.languageOverride = nil
     store.save(prefs)
     XCTAssertNil(store.current.languageOverride)
+  }
+
+  func testAppearanceRoundTripAndReset() {
+    let (store, defaults) = makeIsolated()
+    for appearance in AppAppearance.allCases {
+      var prefs = store.current
+      prefs.appearance = appearance
+      store.save(prefs)
+      XCTAssertEqual(PreferencesStore(defaults: defaults).current.appearance, appearance)
+    }
+    var prefs = store.current
+    prefs.appearance = .dark
+    store.save(prefs)
+    store.reset()
+    XCTAssertEqual(store.current.appearance, .system)
+    XCTAssertNil(defaults.object(forKey: "appearance"))
+  }
+
+  func testUnknownAppearanceFallsBackToSystem() {
+    let (store, defaults) = makeIsolated()
+    defaults.set("future-appearance", forKey: "appearance")
+    XCTAssertEqual(store.current.appearance, .system)
   }
 
   func testRoundTripSaveLoad() {

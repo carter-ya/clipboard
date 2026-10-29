@@ -172,3 +172,14 @@
 "summary.state.generating" = "Wird zusammengefasst…";
 "summary.state.failed" = "Zusammenfassung fehlgeschlagen";
 "summary.state.retry" = "Erneut versuchen";
+
+/* History search toolbar */
+"Clear search" = "Suche löschen";
+
+"Appearance" = "Erscheinungsbild";
+
+"Follow System" = "System";
+
+"Light" = "Hell";
+
+"Dark" = "Dunkel";

@@ -1,7 +1,7 @@
 {
   "$schema_version": "1.0",
   "document_purpose": "Clipboard 项目的唯一权威文档。任何代理或开发者在提议改动前都必须先读这份文件。若代码与本文档不一致，必须在同一次提交中一并更新本文档——不得让两者静默分叉。",
-  "last_updated": "2026-04-24",
+  "last_updated": "2026-10-29",
   "project": {
     "name": "Clipboard",
     "one_liner": "macOS 的 Alfred 风格剪贴板历史——常驻菜单栏，支持全局快捷键、快速搜索；选中条目会写回系统剪贴板（由用户手动 Cmd+V 粘贴）。",
@@ -124,7 +124,12 @@
       "payloads": "{ pasteboardType, inlineData?（≤ 16KB 时用 base64 内联；sensitive 条目一律内联，无论大小，以避免落盘）, blobPath?（相对于 blobs/） } 数组——inlineData / blobPath 二者只占其一",
       "summary": "可选短文本摘要（图像 OCR / 文本实体清单 / Foundation Models 生成 / 远端 OpenAI 兼容引擎），由 store.updateSummary 单点写入；nil 表示尚未生成或不适用。",
       "summarySource": "可选枚举，记录 summary 由哪种引擎产出，用于 UI 徽章；取值见 summary_source_values。",
-      "summary_source_values": ["vision", "naturalLanguage", "foundationModels", "remoteOpenAI"]
+      "summary_source_values": [
+        "vision",
+        "naturalLanguage",
+        "foundationModels",
+        "remoteOpenAI"
+      ]
     },
     "inline_threshold_bytes": 16384,
     "retention": {
@@ -142,14 +147,23 @@
     "row_click_activates": "点击 HistoryPanel 中的任一行即视为激活——写回剪贴板 + 关闭面板。单击而非双击；双击不再需要。实现：ClipRowView.onTapGesture（count:1）→ onActivate；与 ↵ 共享同一路径（suppressNextCloseCommit 防双写）。",
     "panel_close_commits_selection": "HistoryPanel 的**任何**关闭路径（Esc / 面板外点击 / 再次按 ⌥⌘V / 菜单栏再点图标 / 窗口 X 按钮）都会把**当前选中项**写回系统剪贴板——等同于用户显式按 ↵。副作用：该条目经由 Monitor→Store 的去重链路自动移到队首（dedup first-write-wins 保留原 sourceBundleID）。如果关闭时无选中项（列表空），则普通关闭。显式的 ↵ 路径已提交过则不重复提交（用 suppress 标志避免双写）。",
     "click_outside_closes": "面板可见期间通过 NSEvent.addGlobalMonitorForEvents(.leftMouseDown | .rightMouseDown) 监听鼠标点击。**关键坑**：`.nonactivatingPanel` 样式下本 App 从未 activate，AppKit 把我们自己面板上的标题栏/关闭按钮等 chrome 区域的点击也当作『发给其他 App 的事件』派发给 global monitor——会导致『点一下标题窗口自己关了』的 bug。因此回调里不能无条件 close：必须先拿 NSEvent.mouseLocation（屏幕坐标）与 self.frame 比较，**仅当点击在面板矩形之外才 close**。监听器生命周期依旧与面板可见性绑定：show 时装、close 时拆。",
-    "preferences_activation_policy": "打开偏好设置窗口前把 NSApp.activationPolicy 切到 .regular（App 短暂获得 Dock 图标与完整键盘焦点），关闭偏好后切回 .accessory。原因：LSUIElement=true 的菜单栏 App 默认不接受标准键盘输入焦点，KeyboardShortcuts.Recorder 等需要录制键盘的控件在 .accessory 下会失灵。切换时机：PreferencesWindowController.show() 之前切 .regular；windowWillClose 通知到达时切回 .accessory。",
+    "preferences_activation_policy": "打开偏好设置窗口前把 NSApp.activationPolicy 切到 .regular（App 短暂获得 Dock 图标与完整键盘焦点），关闭偏好后切回 .accessory。原因：LSUIElement=true 的菜单栏 App 默认不接受标准键盘输入焦点，KeyboardShortcuts.Recorder 等需要录制键盘的控件在 .accessory 下会失灵。切换时机：PreferencesWindowController.show() 之前切 .regular；windowWillClose 通知到达时切回 .accessory。 S86: 从设置直接交接到历史面板时，先卸载设置内容但保留现有 activation policy，等历史面板真正关闭后再恢复 accessory；若返回设置则取消这次恢复。已隐藏的设置窗口不重复切换 policy，避免撤销搜索键盘焦点。",
     "no_menu_bar_icon": "**不放菜单栏图标**——LSUIElement=true 的纯后台 App 依赖全局快捷键（⌥⌘V）作为唯一入口。首启引导窗口（OnboardingController.showIfFirstRun）承担『告知用户默认快捷键』的任务。次级操作（Preferences / Pause / Clear / About / Quit）全部从 HistoryPanel 内部的键盘路径或从 Preferences 窗口内部到达——见下。回退路径：`applicationShouldHandleReopen(_:hasVisibleWindows:)` 在用户再次从 Finder / Dock / Spotlight 启动已运行的 App 时打开 Preferences 窗口，避免『装完不见了』的困惑。",
     "single_instance": "**同一时刻只允许一个 Clipboard 进程运行**——无菜单栏图标意味着用户不会发现已经有一份在跑，同时开两份会出现两个 Monitor 并发读 pasteboard / 两份 store 竞争同一份 history.json / blobs 目录的混乱。启动流程：main.swift 在创建 NSApplication 之前用 NSRunningApplication.runningApplications(withBundleIdentifier:) 过滤掉自身 pid，若仍有实例：(1) activate 那个既有实例；(2) 通过 DistributedNotificationCenter 广播 'com.clipboard.app.reopen' 通知；(3) exit(0) 终止当前进程。既有实例的 AppDelegate 在 applicationDidFinishLaunching 里订阅同名通知，收到时等价于执行 applicationShouldHandleReopen——打开 Preferences，给用户一个清晰的『你以为启动的那份其实是唤起旧的』反馈。开发时可通过环境变量 CLIPBOARD_ALLOW_MULTIPLE=1 跳过检查，避免 Xcode Run 与已运行实例冲突。",
     "panel_cmd_comma_opens_prefs": "HistoryPanel 可见时按 ⌘, 关闭面板并打开 Preferences 窗口。实现：panel 里一个隐藏的 .keyboardShortcut(',', modifiers: .command) 按钮触发 onShowPreferences 回调；回调先 panel.suppressNextCloseCommit=true（避免焦点切换误提交选中条目），再调 panel.close()，再让 AppDelegate 走它原有的 openPreferences 路径（会再次尊重 S4 的窗口互斥约束）。",
     "panel_hosts_arrow_keys": "HistoryPanel 可见时，**无论焦点在哪**（搜索框 / 列表 / 按钮），↑↓ 都只做条目选择——不做文本框光标移动。实现：panel 在 show 时装一个 NSEvent.addLocalMonitorForEvents(.keyDown) 的监听，keyCode 125（Down）/ 126（Up）时调 viewModel.selectNext/selectPrevious 并返回 nil 吞掉事件；其他键直接返回事件让它继续走正常响应链。监听器生命周期与 outsideClickMonitor 一致——show 装、close 拆。这是 macOS 13 的折中方案（macOS 14+ 有 .onKeyPress，但我们目标 13）。",
     "activate_bumps_to_top": "用户选中并激活（click / ↵ / close-commit）一条历史时，该条目应**立即**移到队首，不依赖 Monitor→Store 的 poll 循环。AppWiring.activate 除了 PasteboardWriter.write 还需调 ClipStore.bumpToTop(id:)——同步更新 createdAt、移到数组首、发出 .updated 事件、触发防抖写盘。（Monitor 随后对新的 pasteboard 状态也会触发一次 insert，但因 sha256 去重命中，会无副作用地再 bump 一次 createdAt。）",
     "tab_switch_resets_selection": "切换 All / Pinned 标签时，若原 selectedID 已不在 filteredItems 里，键盘 ↑↓ 无法继续工作——必须把 selectedID 重新指向新列表的首行。实现：HistoryPanelView 的 .onChange(of: viewModel.currentTab) 回调里调 viewModel.resetSelection()——也顺便把列表滚到顶端，和面板开启路径一致。",
-    "panel_keyboard_shortcuts": "HistoryPanel 可见时的键盘快捷键规范（**活约定**，取代 S9/S25 等历史 slice 中的旧描述 ⌘1–9 快速激活）。(1) ↵ 激活当前选中（写剪贴板 + 关面板）；(2) ↑↓ 行间移动选择（见 panel_hosts_arrow_keys）；(3) Esc 关闭面板；(4) ⌘⌫ 删除当前选中；(5) ⌘P 切换选中 pin；(6) ⌘, 关面板并打开 Preferences（见 panel_cmd_comma_opens_prefs）；(7) ⌘⇧[ / ⌘⇧] 在 HistoryPanelTab.allCases 里循环切换（两端 wrap），遵循 macOS 通用『上/下一 tab』约定——两 tab 下等价 toggle，实现走 viewModel.cycleTab(forward:) 以便日后扩展；(8) ⌘1–⌘6 直达 Kind 过滤，顺序与 KindChipBar 一致：⌘1=All(nil)、⌘2=Text、⌘3=Image、⌘4=File、⌘5=Rich(rtf)、⌘6=Mixed；按同键不 toggle（清空过滤走 ⌘1）。实现统一走 HistoryPanelView.keyboardShortcutButtons 里的隐藏 .keyboardShortcut Button，与 @FocusState 搜索框焦点共存（SwiftUI 在字符写入 TextField 之前拦截这些组合）。注意坑：SwiftUI `.keyboardShortcut` 对 shift+digit 的字符匹配不可靠（按 ⇧1 实际产生 `!`，不会匹配 KeyEquivalent(\"1\")）——本表刻意避开 ⌘⇧+数字组合；若将来必须加，改用 NSEvent.addLocalMonitorForEvents 按 keyCode 识别（风格与 panel_hosts_arrow_keys 一致），别用字形变体（! @ # $ % ^，非 US 键盘会失效）。"
+    "panel_keyboard_shortcuts": "HistoryPanel 可见时的键盘快捷键规范（**活约定**，取代 S9/S25 等历史 slice 中的旧描述 ⌘1–9 快速激活）。(1) ↵ 激活当前选中（写剪贴板 + 关面板）；(2) ↑↓ 行间移动选择（见 panel_hosts_arrow_keys）；(3) Esc 关闭面板；(4) ⌘⌫ 删除当前选中；(5) ⌘P 切换选中 pin；(6) ⌘, 关面板并打开 Preferences（见 panel_cmd_comma_opens_prefs）；(7) ⌘⇧[ / ⌘⇧] 在 HistoryPanelTab.allCases 里循环切换（两端 wrap），遵循 macOS 通用『上/下一 tab』约定——两 tab 下等价 toggle，实现走 viewModel.cycleTab(forward:) 以便日后扩展；(8) ⌘1–⌘6 直达 Kind 过滤，顺序与 KindChipBar 一致：⌘1=All(nil)、⌘2=Text、⌘3=Image、⌘4=File、⌘5=Rich(rtf)、⌘6=Mixed；按同键不 toggle（清空过滤走 ⌘1）。实现统一走 HistoryPanelView.keyboardShortcutButtons 里的隐藏 .keyboardShortcut Button，与 @FocusState 搜索框焦点共存（SwiftUI 在字符写入 TextField 之前拦截这些组合）。注意坑：SwiftUI `.keyboardShortcut` 对 shift+digit 的字符匹配不可靠（按 ⇧1 实际产生 `!`，不会匹配 KeyEquivalent(\"1\")）——本表刻意避开 ⌘⇧+数字组合；若将来必须加，改用 NSEvent.addLocalMonitorForEvents 按 keyCode 识别（风格与 panel_hosts_arrow_keys 一致），别用字形变体（! @ # $ % ^，非 US 键盘会失效）。",
+    "native_appearance": "S85: both history and preferences use one native NSGlassEffectView (.regular) on macOS 26+, targeting Spotlight-like frosted legibility instead of S84 clear glass. Both use NSVisualEffectView (.popover, behindWindow) on older systems. No opaque full-size SwiftUI canvas or nested glass. Accessibility Reduce Transparency/Increase Contrast still selects an opaque surface; hidden surfaces/observers/constraints are released. No shaders, new timers, or looping animations. S88: normal history appearance relies on native glass for its edge and AppKit for its shadow; no additional full-window SwiftUI stroke. Retain a 1pt outline only for Increase Contrast accessibility. S90 supersedes S89: retain the original borderless nonactivating history panel after the user reported loss of real keyboard input following the titled-frame experiment. Keep native glass corners and no normal custom outline; do not change window style or safe-area behavior solely to soften the contour. S91: on macOS 26+, history renders its single regular glass 1pt outside a continuous rounded viewport and offsets the hosted foreground back by 1pt so its bounds stay exactly aligned. This crops the native rim without changing NSPanel style, activation, focus, opacity or the material style. The viewport and glass are both removed on hide. Settings, legacy material and opaque accessibility paths retain their existing structure.",
+    "preferences_toolbar": "S85: retain the five-item native preference toolbar, but extend one regular glass surface through the full-size titlebar and body with titlebarAppearsTransparent. A transparent content canvas hosts the 560×440 form, constrained to NSWindow.contentLayoutGuide so toolbar space is computed by AppKit. Fit the unobscured body after native chrome layout while preserving the saved top-left position. No fixed-height titlebar spacer and no second body material. Native grouped-form cards retain their structure; the form canvas stays transparent.",
+    "hidden_ui_lifecycle": "S84: HistoryPanel.close/orderOut and PreferencesWindowController.hide/windowWillClose unmount hosted SwiftUI content and deactivate NativeWindowSurfaceController, removing native backdrop views/buffers and the accessibility-display notification observer. Window carriers and Core state remain reusable. One surface is rebuilt on show or a display accessibility change; no polling is added. S98: application willHide suspends native surfaces/constraints/accessibility observers and history keyboard/outside-click monitors; didUnhide restores a single surface and history monitoring. Preferences minimize/deminiaturize uses the same surface suspension. Temporary hiding retains the hosting root, selected settings page and unsaved drafts; explicit close/orderOut still empties the root and removes lifecycle observers. Showing minimized/hidden settings resumes existing content rather than rebuilding its identity. Hiding never commits the selected clip. Resume mounts history content before restoring its responder, with no delayed focus retries.",
+    "panel_search_controls": "S92: retain the SwiftUI TextField/FocusState, Cmd+F, Clear search and Return behavior. In addition to S86 activation-policy handoff, HistoryPanel resolves the mounted editable search field after layout on presentation/becomeKey, then sets initialFirstResponder and makeFirstResponder only when it is not already editing. Identify history-search explicitly, falling back only when exactly one editable field exists. Guard visible/key state and preserve existing field editors/IME. No timers, delayed retries, application activation or keyboard synthesis. Set becomesKeyOnlyIfNeeded=false: the search panel must take key status without a preliminary click after a Settings handoff. S99: prepare selection, final screen size, hidden hosting layout and initialFirstResponder before ordering the panel front. Remove SwiftUI onAppear automatic focus, keep FocusState for Cmd+F/Clear and native visible/key recovery. Disable the history window appearance animation and remove AppDelegate’s duplicate per-open selection reset. No delayed focus requests or placeholder replacement.",
+    "appearance_preference": "S87: General preferences offers Follow System / Light / Dark in a native segmented picker. Default and unknown saved values use system. Save the appearance choice and immediately set NSApplication.appearance (nil / aqua / darkAqua); apply the saved choice before constructing launch UI. Both windows inherit this appearance without rebuilding the monitor or adding timers. Accessibility solid surfaces refresh their resolved background CGColor in viewDidChangeEffectiveAppearance. S97: use a native AppearancePicker with explicit segment widths measured from localized labels so repeated Form/layout updates cannot redistribute its width. Selecting an already-active preferences toolbar tab is a no-op.",
+    "preferences_placement": "S93: AppDelegate captures the visible history panel screen before closing it and passes it to PreferencesWindowController.show(on:). Without a visible panel, choose the screen containing NSEvent.mouseLocation, then main/first screen fallback. Preserve an existing position on the target screen; center on a different screen and clamp to visibleFrame after toolbar layout. Positioning never changes history style, activation handoff or search responder handling. No screen polling or per-screen storage is added.",
+    "shortcut_discovery": "S96: while history is visible/key, observe Command flags through the existing local key monitor and pass events through. Hold Command to replace kind counts with ⌘1–⌘6 and All/Pinned counts with their individual cycle shortcuts inside fixed-width native segments. Each All/Pinned segment tooltip contains only its own shortcut (⌘⇧[ or ⌘⇧]); no slash-separated combination or extra explanation. Kind hover help retains label plus shortcut. Clear on resignKey/close/orderOut, sample current flags on opening/key entry, deduplicate UI state, and remove the monitor on hide. No binding, focus, timer or animation changes.",
+    "history_screen_fit": "S98: on each history opening choose the cursor screen (or explicitly supplied source screen), cap the preferred 760×520 content size by that screen.visibleFrame in both axes, update both native controller preferred sizes, then center. SwiftUI fills the actual carrier instead of imposing 760×520. Wide displays restore the preferred size; preserve the borderless nonactivating carrier and 1pt compensated glass crop.",
+    "preferences_login_state": "S100: reconcile the OS login-item status on every preferences show, visible-window becomeKey/deminiaturize, and app didUnhide/didBecomeActive while a settings session is visible. Publish only the live startup field via PreferencesSystemState without changing the hosting root identity or selected tab. Before saving any retained preference snapshot, merge that live startup value so another edit cannot overwrite it. Read-only reconciliation does not register/unregister a login item or restart the monitor. Explicit switch actions retain existing error handling and refresh the actual status after success. Injectable read/apply closures let native tests simulate external OS changes without modifying real registration. No polling."
   },
   "filtering": {
     "pipeline_order": [
@@ -1843,6 +1857,420 @@
         "Per-clip summary state (`generating` / `failed` + retry button) shown in preview pane while engine waterfall runs; deliberate skips (sensitive / concealed / disabled toggles / unsupported ext) stay silent. In-flight guard prevents double network requests when user clicks Retry while original attempt is still running."
       ],
       "commit_message": "feat: OpenAI-compatible remote AI summary engine (text + images)"
+    },
+    {
+      "id": "S83",
+      "title": "Native macOS interface and availability-gated Liquid Glass",
+      "goal": "Polish the history panel and settings using native macOS conventions, preserve macOS 13 compatibility, and avoid adding persistent UI rendering work.",
+      "deliverables": [
+        "App/NativeAppearance.swift: shared window metrics and one accessibility-aware search material; compiler >=6.2 and macOS >=26 gate for Liquid Glass, regularMaterial fallback, opaque Reduce Transparency/Increase Contrast fallback.",
+        "History panel: 760×520 matching SwiftUI/AppKit dimensions, 440pt list and wider opaque preview; native selected-content row color, compact kind filters, clear-search and settings buttons, Cmd+F shortcut documented in settings; existing selection, copy, pin, delete, and close semantics preserved.",
+        "Preferences: native five-item NSToolbar in preference style, standard titlebar, 560×440 grouped-form content; no manual 28pt titlebar padding or full-window blur. Preserve saved top-left position while migrating old window sizes.",
+        "Release hosted UI trees when history or preferences windows hide; reuse stable-size carriers. No new dependencies, timers, monitor polling changes, shaders, or looping animations.",
+        "Localize Clear search in all seven shipped languages."
+      ],
+      "acceptance": [
+        "Build the app with deployment target macOS 13; run existing Core tests and strict formatting checks.",
+        "On macOS 26+, inspect light/dark history and native settings toolbar; check opaque accessibility fallback and old-system material path. Verify actual macOS 13/15 runtime separately before release if those hosts are unavailable.",
+        "Search, clear, Cmd+F, arrow selection, tabs, kind filters, pin/delete, settings gear, and existing activation paths keep working.",
+        "Repeat history and settings show/hide cycles: fixed size and saved origin remain stable, close commit happens once per visible session, explicit settings transition suppresses it, and all five toolbar sections stay accessible.",
+        "Hidden UI has no retained rendered history/form tree. Measure UI preview idle CPU and memory separately from real clipboard monitoring; do not claim whole-app savings without a baseline."
+      ],
+      "commit_message": "feat: native macOS interface with compatible Liquid Glass",
+      "validation": {
+        "build": "Debug/Release passed; release binary minos 13.0.",
+        "tests": "148 existing Core tests, 1 existing skip, 0 failures; strict lint and seven localization files passed.",
+        "ui": "35 isolated fixture checks passed; reviewed layout snapshots of light/dark, search/empty, opaque/legacy branches, and all five settings sections.",
+        "remaining_manual_validation": "Real keyboard/mouse smoke test (computer-use connection unavailable), live Liquid Glass composition, and actual macOS 13/15/26 runtime appearance. Host used macOS 27.0.1 / Xcode 27.1.",
+        "resources": "No new rendering loops or timers; hidden views unmount. Short fixture CPU sampling is not a whole-app memory/performance baseline."
+      }
+    },
+    {
+      "id": "S84",
+      "title": "Restore actual window translucency and native Liquid Glass backdrop",
+      "goal": "Fix the confirmed S83 opacity regression: the search-only glass sampled an opaque SwiftUI windowBackgroundColor canvas and the preview painted another solid plate, so the panel looked white and could not reveal the desktop.",
+      "deliverables": [
+        "App/NativeWindowSurfaceController.swift: one AppKit NSGlassEffectView clear surface for history on macOS 26+, using the documented contentView slot; native NSVisualEffectView behindWindow fallback for older systems and settings; opaque accessibility fallback.",
+        "Remove full-size opaque SwiftUI backgrounds from history and settings. Keep only a 10% preview tint and a cheap non-glass search control fill. Keep the window carrier non-opaque and clear.",
+        "Instantiate native surfaces and subscribe to accessibility display-change notifications only while visible; destroy both on hide. Preserve S83 stable window sizes, focus, shortcuts, and single-close-commit behavior.",
+        "Log the selected material backend once on surface installation, without content or identifiers. Update runtime checks to assert native glass class/style, hosting content placement, foreground alpha, native fallback, and teardown."
+      ],
+      "acceptance": [
+        "Verify system Reduce Transparency/Increase Contrast state without changing user settings. Confirm macOS 26+ runtime actually installs NSGlassEffectView (.clear).",
+        "Verify a foreground-only render has transparent background pixels, and use synthetic red/blue backdrops in an isolated fixture to check compositor output when existing screen-capture access permits it. Capture only fixture windows.",
+        "Repeat search, filters, selection, settings toolbar, show/hide and close-commit checks; verify hidden controllers contain no native surface.",
+        "Build with macOS 13 deployment target, run strict lint and existing tests; keep actual old-system runtime validation explicit if unavailable."
+      ],
+      "commit_message": "fix: remove opaque plates blocking native window glass",
+      "validation": {
+        "build": "Debug and Release passed; release minos 13.0. Strict lint passed.",
+        "core_tests": "148 executed, 1 existing skip, 0 failures.",
+        "ui": "45 isolated fixture checks passed, including native glass class/clear style, hosting contentView, transparent foreground alpha 0.0, behindWindow legacy fallback, accessibility fallback and surface teardown.",
+        "compositor": "Captured only owned synthetic preview/backdrop windows; observed and measured red/blue background colors through the panel (RGB channel-difference sum 1.556). Capture clipped by portrait test display; no real clipboard content captured.",
+        "system_settings": "Reduce Transparency=false, Increase Contrast=false, Reduce Motion=false; no system preferences changed.",
+        "limits": "Actual macOS 13/15/26 runtime appearance remains untested; host macOS 27.0.1. Native surfaces exist only while visible; no new rendering loops/timers and no whole-app savings claim."
+      }
+    },
+    {
+      "id": "S85",
+      "title": "Unified Spotlight-like frosted material for history and settings",
+      "goal": "Address the user-confirmed S84 mismatch: clear history glass was too transparent, while settings used a different, visually opaque body material under a transparent titlebar. Use one consistent frosted material and preserve readable content.",
+      "deliverables": [
+        "Use NSGlassEffectView.Style.regular for both windows on macOS 26+, with the same popover behindWindow fallback on older systems. Keep accessibility fallback and hidden-surface teardown.",
+        "Extend settings glass behind the native titlebar/toolbar using fullSizeContentView and titlebarAppearsTransparent. Host the transparent form in a separate canvas constrained to NSWindow.contentLayoutGuide.",
+        "Fit the 560×440 unobscured settings body after native toolbar layout while preserving the saved top-left position; do not assume a 28pt titlebar or put controls under the toolbar.",
+        "Check all five settings sections for transparent form canvas, consistent native surface, guide-aligned body, stable reopen sizing, and native toolbar interaction. Retain search/filter/selection/close-commit regressions.",
+        "Keep one system surface per visible window; no custom shaders, polling or looping animations. Spotlight is a visual reference; no claim of identical private system material parameters."
+      ],
+      "acceptance": [
+        "Build with macOS 13 minimum deployment and run strict lint.",
+        "On the available host, verify regular-style native glass for both windows and inspect light/dark layouts and owned-window compositor captures.",
+        "Verify the settings surface fills titlebar and body, the form canvas is transparent, each section stays below the real toolbar, body height stays 440pt, and repeated show/hide preserves frame position.",
+        "Verify fallback and hidden-surface release still work. Keep actual older-system runtime and exact Spotlight visual matching limitations explicit."
+      ],
+      "commit_message": "fix: unify window glass with Spotlight-like frosted material",
+      "validation": {
+        "build": "Debug/Release and strict lint passed; release minimum deployment 13.0.",
+        "ui": "70 isolated fixture checks passed. Both windows use regular native glass; all five forms have transparent canvas pixels, exactly 440pt body height, correct toolbar boundary and stable reopen geometry. Hidden surfaces are released.",
+        "visual": "Inspected only owned fixture windows in red/blue compositor captures: settings body/titlebar material is continuous. No real clipboard content or unrelated windows captured.",
+        "limits": "Spotlight-like visual target, no claim of identical private Spotlight material parameters. Actual macOS 13/15/26 runtime appearance remains untested; available host macOS 27.0.1."
+      }
+    },
+    {
+      "id": "S86",
+      "title": "Restore search input focus during Settings-to-history handoff",
+      "goal": "Fix the reproduced regression: hiding Settings immediately switches the app to accessory mode and subsequently revokes the history panel key window. Its one-shot SwiftUI search focus has already run, leaving a visible panel that cannot accept typing.",
+      "deliverables": [
+        "PreferencesWindowController.hideForHistory releases hidden UI but preserves the existing activation policy until history closes. Hidden Settings is a no-op. finishHistoryHandoff restores accessory; cancelHistoryHandoff avoids a policy flip when reopening Settings.",
+        "HistoryPanel.onDidClose fires exactly once per visible session across close/orderOut reentrancy. AppDelegate coordinates handoff completion and cancellation, including the no-panel failure path.",
+        "Retain the existing SwiftUI search field, FocusState, clear button, Cmd+F and Return wiring. Do not replace the input control or add focus retry loops/delays.",
+        "Use an isolated LSUIElement fixture to compare direct opens and Settings-to-history transitions. Verify actual search field-editor focus, direct text insertion, marked-text composition through a parent update, and accessory policy restoration after close.",
+        "No automatic paste, synthetic keyboard events, new timers or explicit application activation calls."
+      ],
+      "acceptance": [
+        "Record the pre-fix failure when hiding Settings immediately before opening history; inspect keyWindow and actual field editor rather than just panel visibility.",
+        "After the fix, direct/repeated openings and Settings handoffs focus the search input without a click; direct typing and Chinese marked-text composition still work.",
+        "Keep existing material/layout/search/filter/close regressions green; run strict lint and macOS 13 deployment builds. Restart the built app for review."
+      ],
+      "commit_message": "fix: preserve search focus across settings handoff",
+      "validation": {
+        "focus": "10/10 direct and Settings-handoff cases passed actual search field-editor focus, direct typing, explicit refocus, Chinese marked-text preservation, Return exactly once and accessory restoration after close.",
+        "ui": "70 existing isolated window/material/layout/search/filter checks passed.",
+        "core": "148 tests, 1 existing skip, 0 failures.",
+        "build": "Release targeting macOS 13 passed; strict lint and diff whitespace checks passed.",
+        "scope": "Owned fixture windows and synthetic history only. Actual global hotkey dispatch and older-system runtime were not automated. Original SwiftUI input field retained; no focus retry timers or extra app activation."
+      }
+    },
+    {
+      "id": "S87",
+      "title": "Add a persistent system, light and dark appearance preference",
+      "goal": "Expose the previously implicit system appearance behavior and let users choose a fixed light or dark theme with immediate feedback.",
+      "deliverables": [
+        "Core AppAppearance enum and backward-compatible PreferencesStore persistence, reset and invalid-value fallback.",
+        "Localized native appearance picker in General preferences; persist and apply directly without restarting the clipboard monitor or rebuilding the window.",
+        "Apply saved appearance at startup. Keep the system option live by clearing NSApplication.appearance; let native window materials and SwiftUI semantic colors inherit it.",
+        "Resolve accessibility fallback background colors again when effective appearance changes. No additional observers, timers or render loops."
+      ],
+      "acceptance": [
+        "Verify native picker actions save each mode and immediately update the visible settings and subsequently opened history window.",
+        "Verify system mode clears the override, reopening preserves window dimensions, and solid accessibility fallback switches color between light and dark.",
+        "Run Core tests and strict lint; build Debug and Release with macOS 13 deployment target and restart the resulting application."
+      ],
+      "commit_message": "feat: add persistent native appearance preferences",
+      "validation": {
+        "core": "150 tests executed, 1 existing skip, 0 failures; new persistence/reset/default/unknown-value tests passed.",
+        "ui": "12/12 native-picker checks passed on the regular material path; 13/13 passed with fixture-only opaque accessibility fallback, including live solid color refresh. Used isolated preferences and empty history.",
+        "build": "Debug and Release builds passed; strict lint, localization completeness and diff whitespace checks passed. Release minos 13.0.",
+        "limits": "Available host macOS 27.0.1. Actual older-system runtime and automatic scheduled system theme changes were not exercised; system option verified to clear the application override."
+      }
+    },
+    {
+      "id": "S88",
+      "title": "Remove redundant history window outline",
+      "goal": "Remove the confirmed extra 0.5pt SwiftUI outline layered over the native glass edge in normal appearance.",
+      "deliverables": [
+        "Show the existing 1pt high-contrast outline only when colorSchemeContrast is increased. Preserve native glass, shadow, clipping and window geometry."
+      ],
+      "acceptance": [
+        "Build Release and pass strict lint. Check existing owned-window layout/material/search/lifecycle checks and inspect light/dark fixture renders."
+      ],
+      "commit_message": "fix: remove redundant outline around native glass window",
+      "validation": {
+        "build": "Release targeting macOS 13 and strict lint passed; diff whitespace clean.",
+        "ui": "70 existing owned-window material/layout/search/lifecycle checks passed. Inspected the light render after removing the normal outline. Native glass edge remains.",
+        "scope": "Visual-only change; Core unchanged. High-contrast outline retained. Actual older-system runtime not exercised.",
+        "native_edge_followup": "User still sees an edge after restart. Confirmed running instance was built after S88; an isolated empty NSGlassEffectView also draws a thin contour over a white owned backdrop. S88 only removes the extra SwiftUI outline; native glass contour remains. NSGlassEffectView SDK has no separate public outline property. No further production UI changes made."
+      }
+    },
+    {
+      "id": "S89",
+      "title": "Use system-managed rounded frame for history glass",
+      "goal": "Address the confirmed borderless-vs-titled corner compositing difference that makes the history glass contour more exposed than Settings.",
+      "deliverables": [
+        "Keep nonactivating NSPanel behavior and canBecomeMain=false, adding titled/fullSizeContentView solely for native rounded window masking. Hide native title and buttons; use a transparent titlebar with no separator.",
+        "Fill the frame with the existing history view using ignoresSafeArea; preserve 760×520 sizing and all search/focus/close behavior. Keep the same one-layer regular glass and hidden-resource teardown."
+      ],
+      "acceptance": [
+        "Compare identical empty glass in borderless and titled carriers over an owned white backdrop, distinguishing main/key state from frame behavior.",
+        "Verify layout/material/search/lifecycle and actual input focus with synthetic fixtures. Build Release targeting macOS 13 and pass strict lint."
+      ],
+      "commit_message": "fix: compose history glass in a native rounded window frame",
+      "validation": {
+        "comparison": "Identical empty regular-glass carriers over white: toggling canBecomeMain, shadow or floating level produced identical captured pixels in the borderless fixture; titled-vs-borderless changes rounded-corner pixels. At the most different inspected corner pixel, normalized red is 0.8011 borderless vs 0.8668 titled. This establishes a native frame contribution, not complete elimination of the glass contour.",
+        "ui": "70/70 existing owned-window material/layout/search/lifecycle checks passed after adopting the native frame. History remains 760×520; inspected light render has no visible title/buttons and no added titlebar gap.",
+        "focus": "10/10 direct and Settings-handoff cases passed actual search editor focus, typing, explicit focus, marked-text composition, single Return action and accessory restoration.",
+        "build": "Release build, strict lint and diff whitespace checks passed; no Core changes in S89.",
+        "limits": "Native glass still has a subtle contour; no claim of completely removing it. Available runtime macOS 27.0.1; actual older-system runtime unavailable. Only synthetic fixture windows captured."
+      }
+    },
+    {
+      "id": "S90",
+      "title": "Restore borderless panel after reported keyboard regression",
+      "goal": "Prioritize reliable hotkey input after the user reports that S89 can no longer receive typing. Revert the immediately preceding frame-style and safe-area experiment rather than treating isolated direct text insertion as proof of system keyboard routing.",
+      "deliverables": [
+        "Restore the exact pre-S89 borderless nonactivating panel and remove the full-size titlebar/ignoresSafeArea wrapper. Preserve S86 Settings handoff, system SwiftUI input, native glass, appearance preferences and S88 extra-outline removal.",
+        "Log only the first delivered key-down per visible session and whether the responder is an editable field. Never log key codes, characters or search contents. No timers, focus retries or keyboard synthesis.",
+        "Use an independently activated foreground fixture and macOS normal app launch in tests, and distinguish programmatic text insertion from real hotkey-to-keyboard delivery."
+      ],
+      "acceptance": [
+        "Check current isolated focus behavior without claiming to reproduce the user’s physical-keyboard failure. Compare the restored carrier with the reported regression.",
+        "Build Release for macOS 13, pass strict lint, restart the real app, and verify physical shortcut input with the user or first-key routing evidence."
+      ],
+      "commit_message": "fix: restore background search panel keyboard behavior",
+      "validation": {
+        "user_verification": "After restarting the restored carrier, the user explicitly confirmed that invoking the real shortcut while in another app and typing without a click now works.",
+        "ui": "10/10 isolated foreground-app direct and Settings-handoff cases passed key/editor focus, programmatic typing, marked-text preservation, single Return and accessory restoration. These checks also passed before rollback, so they did not reproduce the physical keyboard regression and are not its verification.",
+        "build": "Release build and strict lint passed. Core unchanged. No keyboard synthesis, polling or focus-retry timers added.",
+        "scope": "Reverted S89 titled/fullSizeContentView and ignoresSafeArea carrier changes only, retaining S86 handoff, S87 appearance controls and S88 normal extra-outline removal. Native glass contour remains."
+      }
+    },
+    {
+      "id": "S91",
+      "title": "Crop the native glass rim independently of the keyboard window",
+      "goal": "Resolve the remaining visible history contour while preserving the borderless panel whose real hotkey typing was confirmed in S90.",
+      "deliverables": [
+        "Use one rounded layer-backed viewport around the history glass on macOS 26+, with 1pt glass overscan and compensated foreground position. Keep one native glass surface and no opaque plate, custom shader, timer or focus changes.",
+        "Retain Settings and fallback paths; release the viewport with the material when hidden.",
+        "Compare before/after owned-window compositing on white/blue backdrops and light/dark appearance; verify geometry, input focus and lifecycle."
+      ],
+      "acceptance": [
+        "Thin high-contrast native rim is removed in fixture captures while the glass interior still samples the background.",
+        "History remains 760×520 with foreground exactly matching its bounds and borderless nonactivating style unchanged. Hidden controller contains no surface/crop view.",
+        "Build Release and pass strict lint. Restart the real app and validate both visual edge and physical shortcut typing together."
+      ],
+      "commit_message": "fix: crop glass rim without changing background panel focus",
+      "validation": {
+        "visual": "Owned empty-glass before/after captures inspected in light/dark and white/blue backdrops. At the sampled rim pixel on white, RGB changed from 0.8011 to 1.0 (background); light interior remained 0.9969, dark interior 0.5519 and blue-backdrop interior RGB 0.6445/0.8465/1.0, unchanged. This isolates removal of the perimeter from material opacity.",
+        "ui": "74/74 owned-window layout/material/search/lifecycle checks passed, including exact foreground/window coordinate match, 760×520 size, unchanged borderless/nonactivating style, 1pt glass overscan and removal of the viewport/material on hide.",
+        "focus": "10/10 isolated direct and Settings-handoff input/editor/composition checks passed with an independent foreground fixture. Real physical shortcut verification requested after restarting the actual app; programmatic insertText is not treated as proof of that path.",
+        "build": "Release for macOS 13, strict lint and diff whitespace checks passed. Core unchanged.",
+        "limits": "Available host macOS 27.0.1. Actual macOS 13/26 runtime and whole-app performance baselines were not measured. One lightweight layer-backed crop view surrounds the one glass surface only while shown; no timers, animations, shaders or focus changes.",
+        "physical_verification": "User confirmed normal edge and direct typing after restart, then reported input failure after history→Preferences→history round trips. S92 handles that input lifecycle separately; S91 crop remains unchanged."
+      }
+    },
+    {
+      "id": "S92",
+      "title": "Establish search first responder on panel presentation and key entry",
+      "goal": "Fix the user-reproduced history→Preferences→history input failure. The real-app first-key diagnostic confirmed events arrived with textFieldFocused=false, so visible/key window state and one-shot SwiftUI onAppear were insufficient.",
+      "deliverables": [
+        "Set an accessibility identifier on the existing SwiftUI search field. Resolve the mounted native NSTextField after layout, set initialFirstResponder, and explicitly make it first responder when the visible panel becomes key or finishes presenting.",
+        "Disable becomesKeyOnlyIfNeeded for the search panel: repeated Settings round trips reproduced both a keyless panel and a key panel with no field responder. Preserve nonactivating style and canBecomeMain=false.",
+        "Do nothing if the same field editor is already active, preserving marked text and current edits. Do not alter nonactivating style, activation-policy handoff or glass-edge cropping.",
+        "Test exact repeated Settings round trips without manually refocusing each iteration, plus a mounted-view key recovery case and existing Chinese composition/Return checks. Verify the actual shortcut path with user input after restart."
+      ],
+      "acceptance": [
+        "A mounted panel that lost its field responder focuses search again on key-window reentry. Exact history/settings loops retain a real editable field responder.",
+        "Existing IME composition and Return behavior pass; no focus timers or retry loops and no synthetic keyboard events.",
+        "Build Release, pass strict lint, restart and validate several physical history→Settings→history cycles while retaining corrected edge appearance."
+      ],
+      "commit_message": "fix: restore search first responder after preferences round trips",
+      "validation": {
+        "baseline": "Real app log recorded first delivered keys with textFieldFocused=false in the user-reported history→Settings→history path. Isolated old-code mounted-key-recovery case also had keyWindow=true but no editable field responder. Some early loop samples had keyWindow=false without visibility metadata; they are not sufficient to distinguish focus loss from external-click dismissal.",
+        "regression": "After both changes, 3 full runs ×21 cases =63 passed: each has 5 direct opens, 15 Settings round trips, and one mounted-view responder recovery. All snapshots now include visibility; all were visible/key with a real field editor.",
+        "input": "10/10 independent foreground-app cases passed native editor focus, programmatic insertion, explicit refocus, Chinese marked-text preservation, Return exactly once and accessory restoration. Physical keyboard delivery additionally confirmed by the user across repeated Settings round trips.",
+        "build": "Release and strict lint passed, diff whitespace clean. Core unchanged. Native glass edge crop and borderless/nonactivating style retained.",
+        "limits": "No physical key events were synthesized. Real keyboard validation came from the user; automated native insertions remain separate evidence. Actual older-system runtime unavailable.",
+        "physical_verification": "After restart, the user explicitly confirmed several consecutive real shortcut→history→gear/Preferences→shortcut cycles accept typing without clicking the search field, and the window edge remains normal."
+      }
+    },
+    {
+      "id": "S93",
+      "title": "Place preferences on the invocation screen",
+      "goal": "Fix the confirmed multi-display bug: preferences only restored its saved frame and could reopen on a fixed display unrelated to the invoking history panel or cursor.",
+      "deliverables": [
+        "Capture the visible panel screen before closing it; show preferences on that screen. When no panel is visible, select the cursor screen with standard main/first fallbacks.",
+        "Keep same-screen user positions, recenter only when changing displays, and clamp the full preferences frame into the target visible area. Handle native toolbar size finalization before and after ordering the window.",
+        "Do not change native materials, keyboard focus/handoff, window dimensions or add timers/observers."
+      ],
+      "acceptance": [
+        "On connected displays, preferences follows the invoking history panel and remains within visibleFrame, preserving its 440pt body height.",
+        "Reopening on the same display preserves a valid moved position; a partially offscreen frame is clamped. Without a visible panel, use the cursor display.",
+        "Release build and strict lint pass; repeat settings/history focus round trips after the positioning change and restart for user verification."
+      ],
+      "commit_message": "fix: open preferences on the current invocation screen",
+      "validation": {
+        "placement": "19/19 checks passed on all 3 connected screens (including negative coordinates and a portrait display): history-source screen matches, preferences fully within visibleFrame, 440pt body, same-screen position preserved, partial overflow corrected, cursor-screen fallback correct.",
+        "focus": "21/21 settings/history and mounted responder recovery checks passed after the placement change. No focus/handoff code changed.",
+        "build": "Release and strict lint passed; diff whitespace checks clean. Core unchanged.",
+        "limits": "Native window geometry verified on the available macOS 27.0.1 host. Actual older-system runtime and separate full-screen Space behavior were not exercised."
+      }
+    },
+    {
+      "id": "S94",
+      "title": "Reveal tab shortcuts on Command hold and hover",
+      "goal": "Make both tab cycling and kind-filter keyboard shortcuts discoverable without a permanent help row.",
+      "deliverables": [
+        "Use the existing visible-panel local key monitor for modifier changes; deliver state to the UI model without consuming modifier events or changing existing shortcut bindings.",
+        "Show kind shortcuts in stable count slots; reserve invisible tab-cycle hints on either side of the native segmented picker. Compact chip padding to accommodate shortcut width.",
+        "Add native localized tooltip help for the tab group and each kind, with accessibility hints. Keep hover help usable without holding Command.",
+        "Clear modifier hint state when the panel hides or loses key focus; reuse actual current modifier flags on opening/key entry. No timers or continuous animation."
+      ],
+      "acceptance": [
+        "Holding Command reveals and releasing restores labels without chip/tab movement or panel resizing. Hover help lists the actual existing shortcuts.",
+        "Hint visibility changes preserve the same search field editor and Chinese marked text; existing input and Return work. Closed panel clears hints and removes the local event monitor.",
+        "Release and strict lint pass; inspect light/dark synthetic renders and restart the real application for physical modifier/hover verification."
+      ],
+      "commit_message": "feat: reveal history tab shortcuts on command hold and hover",
+      "validation": {
+        "ui": "11/11 checks passed: unchanged panel/tab/chip geometry (counts 0, 9, 1000), same native search editor during reveal, marked-text preservation while toggling, hint state cleared on close and surface release. Inspected light/dark and count/reveal/restored renders; all six kind hints fit the list column.",
+        "input": "10/10 foreground-app and Settings-handoff cases passed native focus, programmatic typing, explicit focus, Chinese marked-text preservation while hints toggle, single Return and accessory restoration.",
+        "build": "Release and strict lint passed, localization key present once in all seven locales, diff whitespace clean. Core unchanged.",
+        "limits": "Physical behavior verified by the user; no synthetic keyboard events used. Existing shortcuts remain unchanged. Actual older-system runtime was not exercised.",
+        "physical_verification": "After restarting the real app, the user confirmed Command hold/release hints and native hover tips both work, and direct search input remains normal."
+      }
+    },
+    {
+      "id": "S95",
+      "title": "Place All/Pinned shortcut hints inside their segments",
+      "goal": "Apply the user correction: the top-level tab shortcuts should replace the counts inside the buttons just like the kind-filter hints, rather than appearing beside the tab group.",
+      "deliverables": [
+        "Remove the two external hint labels. Render All ⌘⇧[ / Pinned ⌘⇧] while Command is held and restore counts on release.",
+        "Use a native NSSegmentedControl bridge with explicit segment widths reserved for the widest localized count or shortcut label. This avoids SwiftUI Picker ignoring proposed width. Preserve selection bindings and clarify that existing shortcuts cycle tabs; do not rebind them.",
+        "App/HistoryTabPicker.swift owns native segment labels, widths, selection action and localized tooltip; no focus or modifier-listener changes."
+      ],
+      "acceptance": [
+        "Inspect normal/revealed light and dark layouts; native picker position/size stays stable and hints sit inside the segments.",
+        "Existing focused editor, marked-text and hide/reset checks pass. Build Release, strict lint and restart."
+      ],
+      "commit_message": "fix: display tab shortcuts in the count positions",
+      "validation": {
+        "ui": "14/14 checks passed: inline labels contain the two shortcut hints, native segmented control geometry stays fixed, native actions update the tab model and model changes update selection, search editor and Chinese marked text preserved, hide/reset behavior passes. Inspected revealed light layout and generated count/restored/dark renders.",
+        "build": "Release and strict lint passed, diff whitespace checks clean. Core and modifier monitoring unchanged.",
+        "scope": "Added a native NSSegmentedControl bridge because SwiftUI Picker kept its intrinsic width despite a fixed proposed frame. Existing shortcuts still cycle previous/next; tooltip clarifies that behavior. No key rebinding or focus changes."
+      }
+    },
+    {
+      "id": "S96",
+      "title": "Simplify tab hover hints to individual shortcuts",
+      "goal": "Apply the user annotation: remove the slash-separated combined shortcut explanation and give each All/Pinned button only its own shortcut tooltip.",
+      "deliverables": [
+        "Use native per-segment tooltips ⌘⇧[ and ⌘⇧], retaining the existing inline hints and count replacement.",
+        "Remove the unused combined-tooltip localization entry from all seven locales."
+      ],
+      "acceptance": [
+        "Release build, strict lint and diff whitespace checks pass; restart the application."
+      ],
+      "commit_message": "fix: simplify individual tab shortcut tooltips",
+      "validation": {
+        "build": "Release, strict lint and diff whitespace checks passed. Visual-only native tooltip change; no new tests for this reversible change.",
+        "scope": "Only per-segment tooltip strings and obsolete combined localization entries changed; key bindings, button labels, geometry and focus remain unchanged."
+      }
+    },
+    {
+      "id": "S97",
+      "title": "Keep appearance picker width stable across preferences refreshes",
+      "goal": "Fix the reproduced mismatch between initial and refreshed appearance-picker widths (228pt vs 204pt) despite an unchanged preferences window.",
+      "deliverables": [
+        "App/AppearancePicker.swift: native NSSegmentedControl with explicit localized-label-measured widths inside an intrinsic-size NSView container. The container keeps Form/native alignment insets from being reapplied on theme changes. Preserve existing immediate apply/save binding. SwiftUI fixedSize alone did not keep initial and returned-page widths equal.",
+        "Avoid publishing a redundant navigation change when clicking the currently selected settings toolbar item. Keep appearance persistence, native material and keyboard focus unchanged."
+      ],
+      "acceptance": [
+        "Record actual native control widths on initial show, repeated General clicks, returns from every other preferences page, reopening and all appearance modes; widths must match.",
+        "Release build, strict lint and diff whitespace pass; restart the application."
+      ],
+      "commit_message": "fix: keep appearance picker width stable on repeated general selection",
+      "validation": {
+        "baseline": "Reproduced native appearance-control width changing between 228pt and 204pt on initial display versus General/page refreshes, with constant window frame. SwiftUI fixedSize plus redundant-selection guard alone still varied after page switches. Explicit segments without a container still varied on theme changes due to native sizing/alignment updates.",
+        "geometry": "15/15 native-width samples are exactly 204pt after the container fix: initial, 6 repeated General clicks, returns from all other 4 pages, reopen, and light/dark/system changes.",
+        "behavior": "12/12 existing native appearance selection/persistence/immediate application/inheritance checks passed.",
+        "build": "Release, strict lint and diff whitespace passed. Core and history focus code unchanged. No new timers, polling or animations."
+      }
+    },
+    {
+      "id": "S98",
+      "title": "Fit portrait screens and suspend hidden native windows",
+      "goal": "Fix the two confirmed audit findings without regressing native search focus or losing unsaved settings drafts.",
+      "deliverables": [
+        "Bound history carrier size to the invocation screen visible area and let its SwiftUI content fill the resulting size.",
+        "Suspend native material, constraints and accessibility-display observation for app hide and preferences minimization; restore once on unhide/deminiaturize. Pause history event monitors while the app is hidden.",
+        "Keep hosting roots during temporary suspension, preserve settings drafts/tab when shown from hidden or minimized state, and keep full teardown on explicit close.",
+        "Add just test-windows: isolated native UI regression fixture using synthetic history and an unsaved draft, all connected screens, real hide/minimize notifications and no synthesized keyboard events."
+      ],
+      "acceptance": [
+        "The complete history frame fits each connected display, including the actual 720pt-wide portrait screen; native foreground matches the carrier and normal screens restore 760×520.",
+        "Repeated hide/unhide and minimize/restore cycles have zero hidden material surfaces and one visible surface; hidden accessibility notifications cannot rebuild surfaces.",
+        "Hidden history event monitors are removed, search and unsaved settings draft survive restoration, and hiding never invokes clipboard commit.",
+        "Native focus/IME/hints regression checks, Core tests, Release build and strict lint pass; restart the real app."
+      ],
+      "commit_message": "fix: fit portrait displays and suspend hidden window surfaces",
+      "validation": {
+        "baseline": "Audit reproduced 20pt overflow on each side of the actual 720pt-wide portrait display, retained native surfaces after NSApp.hide and settings minimization, and retained history event monitors while hidden.",
+        "windows": "54/54 permanent native window regression checks passed on all three connected screens, including portrait fitting and foreground alignment, repeated hide/unhide and minimize/restore, zero hidden/one visible surface, paused history event monitors, no hidden accessibility rebuild, preserved search/settings draft/tab, hidden cross-screen invocation and Finder/Dock-style reopen after system unhide.",
+        "regression": "21/21 history/settings native focus cases, 10/10 native editor insertion/IME/Return cases, 14/14 shortcut-hint geometry/editor cases, and 74/74 material/layout/search/close-lifecycle checks passed. Updated the old material fixture fixed-size expectation to adaptive screen bounds. Native editor tests wait for search results rather than assuming a fixed debounce completion time.",
+        "build": "Core: 150 executed, 1 existing skip, 0 failures. Final Apple Silicon and Intel Release builds, strict lint, shell syntax and diff whitespace checks passed. just test-windows is retained in tools/ for repeatable checks.",
+        "limits": "Runtime verification used macOS 27.0.1; actual macOS 13/15/26 execution was unavailable. No keyboard events were synthesized; native field editor checks do not substitute for physical hotkey input. Resource checks observe teardown and restoration of views/constraints/monitors; no whole-app CPU or memory benchmark was performed."
+      }
+    },
+    {
+      "id": "S99",
+      "title": "Prepare search before presenting the history panel",
+      "goal": "Address the user-reported short Search placeholder flicker immediately after hotkey invocation, preserving actual keyboard routing and IME behavior.",
+      "deliverables": [
+        "Resolve cursor-screen size and reset session selection before mounting content; lay out the native search field and set initialFirstResponder before ordering the window front.",
+        "Use native presentation/key-window focus as the automatic-focus owner, removing the redundant SwiftUI onAppear request. Preserve FocusState for explicit Cmd+F/Clear and preserve an existing field editor.",
+        "Disable the panel appearance animation and remove the duplicate AppDelegate selection reset. Keep the original native input control, placeholder, nonactivating style and glass.",
+        "Extend the permanent native fixture to verify session preparation runs before first display."
+      ],
+      "acceptance": [
+        "Native input, IME, Return, shortcut hints and repeated settings handoffs remain functional.",
+        "New-session callbacks run before the panel is visible; native initial responder is resolved during hidden layout.",
+        "Restart the actual app and ask the user whether the brief post-hotkey placeholder flicker has stopped."
+      ],
+      "commit_message": "fix: prepare search layout and focus before showing history",
+      "validation": {
+        "status": "Automated checks passed; updated Release restarted and physical user verification passed.",
+        "baseline": "User reports placeholder flicker only briefly after hotkey invocation. Diagnostic native field identity/focus stayed stable in 600 samples and 45 cached native-field images were identical once presented, so repeated field destruction/focus loss was not established. Code shows duplicate SwiftUI/AppKit automatic-focus paths and visible-session reset; changes consolidate initial presentation. ScreenCaptureKit compositor-frame diagnostics were unavailable without pre-existing permission; no permission prompt was initiated.",
+        "regression": "55/55 permanent native window checks passed, including new preparation-before-display behavior. Diagnostic final-source editor identity/focus remained stable in 600/600 samples across 5 opens. Settings round trips 21/21, native insertion/IME/Return 10/10, shortcut hints/editor preservation 14/14 passed.",
+        "build": "Apple Silicon and Intel Release builds, strict lint and diff whitespace passed. Core: 150 executed, 1 existing skip, 0 failures. No new timers, polling, dependencies, native input replacement or material changes.",
+        "limits": "Host macOS 27.0.1; actual macOS 13/15/26 execution unavailable. Automated native editor checks remain separate from physical keyboard and visual confirmation, which the user supplied after restart.",
+        "physical_verification": "After restarting the actual app, the user confirmed repeated hotkey invocation from another application no longer flickers the Search placeholder and accepts typing without clicking the field."
+      }
+    },
+    {
+      "id": "S100",
+      "title": "Refresh login-item state when resuming preferences",
+      "goal": "Fix the audited stale Start at Login switch while retaining unsaved input and the selected settings page.",
+      "deliverables": [
+        "Read login-item status for fresh and resumed settings and on visible restore/activation events.",
+        "Keep live launchAtLogin in a small observable UI state; update only that field and preserve the mounted form and input draft.",
+        "Merge the reconciled live field into every preferences save; do not re-register login items or restart clipboard monitoring during refresh.",
+        "Extend native window tests with injected system status and registration actions, UI switch state, restoration routes, draft identity and another preference save."
+      ],
+      "acceptance": [
+        "Simulated external login enable/disable updates the stored value and actual native switch on show, minimize restore, unhide and reactivation.",
+        "The current settings tab, native draft field identity and unsaved text survive system-state refresh.",
+        "Saving another option cannot restore the stale startup field; only an explicit switch action invokes system registration.",
+        "Native focus/restore checks, Core tests, Release builds and strict lint pass; restart the fixed app."
+      ],
+      "commit_message": "fix: refresh system login state without rebuilding preferences",
+      "validation": {
+        "baseline": "Isolated audit reproduced system=false/stored=true after showing or restoring an existing settings session; close/reopen corrected it.",
+        "status": "Fixed; native regression checks and Release builds passed.",
+        "native": "68/68 native window checks passed: external enable/disable reflected by the actual switch and store on show, Dock-style deminiaturize, unhide without show and key-window return; reconciliation invoked no registration; explicit action applied status; synthetic registration failure retained prior UI/store values; tab, draft text and native draft field identity survived; another option save retained the refreshed login status. Actual system registration was replaced by injected read/apply closures in the fixture.",
+        "focus": "21/21 native history/settings round-trip focus cases passed. No search field, window style or glass changes in this slice.",
+        "build": "Core: 150 executed, 1 existing skip, 0 failures. Apple Silicon and Intel Release builds, strict app/Core/tool lint, shell syntax and diff whitespace checks passed.",
+        "limits": "Runtime checks used macOS 27.0.1; actual macOS 13/15/26 execution unavailable. Native editor checks do not replace physical hotkey delivery verification; the history focus implementation was unchanged."
+      }
     }
   ],
   "slice_rhythm": [
@@ -2023,7 +2451,25 @@
       "S79",
       "S80",
       "S81",
-      "S82"
+      "S82",
+      "S83",
+      "S84",
+      "S85",
+      "S86",
+      "S87",
+      "S88",
+      "S89",
+      "S90",
+      "S91",
+      "S92",
+      "S93",
+      "S94",
+      "S95",
+      "S96",
+      "S97",
+      "S98",
+      "S99",
+      "S100"
     ]
   },
   "open_questions": [

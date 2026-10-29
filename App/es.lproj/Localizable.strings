@@ -172,3 +172,14 @@
 "summary.state.generating" = "Resumiendo…";
 "summary.state.failed" = "No se pudo generar el resumen";
 "summary.state.retry" = "Reintentar";
+
+/* History search toolbar */
+"Clear search" = "Borrar búsqueda";
+
+"Appearance" = "Apariencia";
+
+"Follow System" = "Sistema";
+
+"Light" = "Claro";
+
+"Dark" = "Oscuro";

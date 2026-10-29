@@ -173,3 +173,14 @@
 "summary.state.generating" = "生成中…";
 "summary.state.failed" = "无法生成摘要";
 "summary.state.retry" = "重试";
+
+/* History search toolbar */
+"Clear search" = "清除搜索";
+
+"Appearance" = "外观";
+
+"Follow System" = "跟随系统";
+
+"Light" = "浅色";
+
+"Dark" = "深色";

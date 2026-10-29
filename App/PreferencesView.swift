@@ -2,21 +2,55 @@ import AppKit
 import ClipboardCore
 import SwiftUI
 
+enum PreferencesTab: String, CaseIterable {
+  case general, shortcuts, ai, privacy, data
+
+  var title: String {
+    switch self {
+    case .general: return String(localized: "General")
+    case .shortcuts: return String(localized: "Shortcuts")
+    case .ai: return String(localized: "AI")
+    case .privacy: return String(localized: "Privacy")
+    case .data: return String(localized: "Data")
+    }
+  }
+
+  var symbol: String {
+    switch self {
+    case .general: return "gearshape"
+    case .shortcuts: return "keyboard"
+    case .ai: return "sparkles"
+    case .privacy: return "hand.raised"
+    case .data: return "externaldrive"
+    }
+  }
+}
+
+@MainActor
+final class PreferencesNavigation: ObservableObject {
+  @Published var selectedTab: PreferencesTab = .general
+}
+
+@MainActor
+final class PreferencesSystemState: ObservableObject {
+  @Published var launchAtLogin = false
+}
+
 struct PreferencesView: View {
   @State var prefs: Preferences
+  @ObservedObject var navigation: PreferencesNavigation
+  @ObservedObject var systemState: PreferencesSystemState
   var onSave: (Preferences) -> Void
   var onClearHistory: () -> Void
   var onExportHistory: () -> Void
   var onImportHistory: () -> Void = {}
-  /// Returns true on success. Failure path tells the view to roll
-  /// back the local `prefs.launchAtLogin` value.
+  /// Updates systemState on success; a failure leaves the switch unchanged.
   var onApplyLaunchAtLogin: (Bool) -> Bool = { _ in true }
   var onApplyLanguage: (String?) -> Void = { _ in }
+  var onApplyAppearance: (AppAppearance) -> Void = { _ in }
   var onCheckForUpdates: () -> Void = {}
   var canCheckForUpdates: Bool = false
   var hotkeyMissing: Bool = false
-
-  @State private var selectedTab: PreferencesTab = .general
 
   // Remote AI tab — API key local UI state. The key itself never
   // leaves the SecureField; on Save we hand it to Keychain and clear
@@ -40,10 +74,6 @@ struct PreferencesView: View {
     case serverError(code: Int, detail: String?)
     case network
     case badResponse
-  }
-
-  private enum PreferencesTab: Hashable {
-    case general, shortcuts, ai, privacy, data
   }
 
   private let languageOptions: [(tag: String, label: String)] = [
@@ -70,6 +100,7 @@ struct PreferencesView: View {
     ("⌘P", "Pin"),
     ("⌘⌫", "Delete"),
     ("⌘,", "Preferences"),
+    ("⌘F", "Search history"),
     ("⌘⇧[", "Previous tab"),
     ("⌘⇧]", "Next tab"),
     ("⌘1", "All"),
@@ -81,42 +112,32 @@ struct PreferencesView: View {
   ]
 
   var body: some View {
-    TabView(selection: $selectedTab) {
-      general
-        .tabItem { Label("General", systemImage: "gear") }
-        .tag(PreferencesTab.general)
-      shortcuts
-        .tabItem { Label("Shortcuts", systemImage: "keyboard") }
-        .tag(PreferencesTab.shortcuts)
-      ai
-        .tabItem { Label("AI", systemImage: "sparkles") }
-        .tag(PreferencesTab.ai)
-      privacy
-        .tabItem { Label("Privacy", systemImage: "lock") }
-        .tag(PreferencesTab.privacy)
-      data
-        .tabItem { Label("Data", systemImage: "tray.and.arrow.up") }
-        .tag(PreferencesTab.data)
+    Group {
+      switch navigation.selectedTab {
+      case .general: general
+      case .shortcuts: shortcuts
+      case .ai: ai
+      case .privacy: privacy
+      case .data: data
+      }
     }
-    // Reserve the 28pt title bar area with padding so interactive
-    // content stays below it. A Color.clear spacer (used previously)
-    // was suspected of interfering with the NSPopUpButton hit-test
-    // under SwiftUI Picker, which is why we use padding instead.
-    .padding(.top, 28)
-    .frame(width: 520, height: 408)
-    .background(.regularMaterial)
-    .overlay(alignment: .top) {
-      Divider().padding(.top, 28)
-    }
-    .onAppear {
-      // Land users on Shortcuts tab when no global hotkey is bound,
-      // so the recorder + warning are visible without an extra click.
-      if hotkeyMissing { selectedTab = .shortcuts }
-    }
+    .frame(width: PreferencesLayout.width, height: PreferencesLayout.height)
   }
 
   private var general: some View {
     Form {
+      Section("Appearance") {
+        AppearancePicker(
+          selection: Binding(
+            get: { prefs.appearance },
+            set: { appearance in
+              prefs.appearance = appearance
+              onApplyAppearance(appearance)
+            }
+          )
+        )
+        .fixedSize(horizontal: true, vertical: false)
+      }
       Section("Language") {
         Picker(
           "Language",
@@ -140,7 +161,11 @@ struct PreferencesView: View {
           )
         ) {
           ForEach(languageOptions, id: \.tag) { option in
-            Text(option.label).tag(option.tag)
+            if option.tag == "system" {
+              Text("System").tag(option.tag)
+            } else {
+              Text(verbatim: option.label).tag(option.tag)
+            }
           }
         }
         .labelsHidden()
@@ -152,19 +177,15 @@ struct PreferencesView: View {
         Toggle(
           "Start at Login",
           isOn: Binding(
-            get: { prefs.launchAtLogin },
+            get: { systemState.launchAtLogin },
             set: { newValue in
-              let old = prefs.launchAtLogin
-              prefs.launchAtLogin = newValue
-              if !onApplyLaunchAtLogin(newValue) {
-                // Roll back the UI if the system rejected the change.
-                prefs.launchAtLogin = old
-                return
-              }
+              guard onApplyLaunchAtLogin(newValue) else { return }
+              prefs.launchAtLogin = systemState.launchAtLogin
               onSave(prefs)
             }
           )
         )
+        .accessibilityIdentifier("launch-at-login")
         Text("Clipboard launches in the background when you log in.")
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -387,6 +408,8 @@ struct PreferencesView: View {
             ),
             prompt: Text("remoteAI.baseURL.placeholder")
           )
+          .labelsHidden()
+          .multilineTextAlignment(.leading)
           .textFieldStyle(.roundedBorder)
           .overlay(
             RoundedRectangle(cornerRadius: 6)
@@ -415,6 +438,8 @@ struct PreferencesView: View {
             ),
             prompt: Text("remoteAI.model.placeholder")
           )
+          .labelsHidden()
+          .multilineTextAlignment(.leading)
           .textFieldStyle(.roundedBorder)
         }
         .disabled(!remoteEnabled)
@@ -477,6 +502,8 @@ struct PreferencesView: View {
             text: $apiKeyDraft,
             prompt: Text("remoteAI.apiKey.label")
           )
+          .labelsHidden()
+          .multilineTextAlignment(.leading)
           .textFieldStyle(.roundedBorder)
           Button("Save") {
             saveAPIKey(validatedURL: validatedURL)

@@ -1,5 +1,11 @@
 import Foundation
 
+public enum AppAppearance: String, CaseIterable, Sendable {
+  case system
+  case light
+  case dark
+}
+
 public struct Preferences: Sendable, Equatable {
   public var maxClipSizeBytes: Int
   public var skipSensitive: Bool
@@ -10,6 +16,7 @@ public struct Preferences: Sendable, Equatable {
   /// nil = follow system; otherwise an Apple-recognised language
   /// code matching one of the shipped `.lproj` folders.
   public var languageOverride: String?
+  public var appearance: AppAppearance
   /// Master switch for the on-device AI summary pipeline. Individual
   /// `allow…Summaries` toggles below act as sub-filters when this is
   /// true; all summarization is off when this is false.
@@ -32,6 +39,7 @@ public struct Preferences: Sendable, Equatable {
     blockedBundleIDs: [String] = Array(BlocklistFilter.defaults).sorted(),
     launchAtLogin: Bool = false,
     languageOverride: String? = nil,
+    appearance: AppAppearance = .system,
     summariesEnabled: Bool = true,
     allowImageSummaries: Bool = true,
     allowTextSummaries: Bool = true,
@@ -50,6 +58,7 @@ public struct Preferences: Sendable, Equatable {
     self.blockedBundleIDs = blockedBundleIDs
     self.launchAtLogin = launchAtLogin
     self.languageOverride = languageOverride
+    self.appearance = appearance
     self.summariesEnabled = summariesEnabled
     self.allowImageSummaries = allowImageSummaries
     self.allowTextSummaries = allowTextSummaries
@@ -75,6 +84,7 @@ public final class PreferencesStore: @unchecked Sendable {
     static let blockedBundleIDs = "blockedBundleIDs"
     static let launchAtLogin = "launchAtLogin"
     static let languageOverride = "languageOverride"
+    static let appearance = "appearance"
     static let summariesEnabled = "summariesEnabled"
     static let allowImageSummaries = "allowImageSummaries"
     static let allowTextSummaries = "allowTextSummaries"
@@ -106,6 +116,8 @@ public final class PreferencesStore: @unchecked Sendable {
       launchAtLogin: defaults.object(forKey: Keys.launchAtLogin) as? Bool
         ?? defaultsValue.launchAtLogin,
       languageOverride: defaults.string(forKey: Keys.languageOverride),
+      appearance: defaults.string(forKey: Keys.appearance).flatMap(AppAppearance.init(rawValue:))
+        ?? .system,
       summariesEnabled: defaults.object(forKey: Keys.summariesEnabled) as? Bool
         ?? defaultsValue.summariesEnabled,
       allowImageSummaries: defaults.object(forKey: Keys.allowImageSummaries) as? Bool
@@ -141,6 +153,7 @@ public final class PreferencesStore: @unchecked Sendable {
     defaults.set(prefs.blocklistEnabled, forKey: Keys.blocklistEnabled)
     defaults.set(prefs.blockedBundleIDs, forKey: Keys.blockedBundleIDs)
     defaults.set(prefs.launchAtLogin, forKey: Keys.launchAtLogin)
+    defaults.set(prefs.appearance.rawValue, forKey: Keys.appearance)
     if let lang = prefs.languageOverride {
       defaults.set(lang, forKey: Keys.languageOverride)
     } else {
@@ -176,6 +189,7 @@ public final class PreferencesStore: @unchecked Sendable {
     defaults.removeObject(forKey: Keys.blockedBundleIDs)
     defaults.removeObject(forKey: Keys.launchAtLogin)
     defaults.removeObject(forKey: Keys.languageOverride)
+    defaults.removeObject(forKey: Keys.appearance)
     defaults.removeObject(forKey: Keys.summariesEnabled)
     defaults.removeObject(forKey: Keys.allowImageSummaries)
     defaults.removeObject(forKey: Keys.allowTextSummaries)
