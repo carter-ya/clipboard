@@ -95,10 +95,13 @@ The GitHub Actions workflow, `.github/workflows/swift-portability.yml`,
 runs only on pushes of `codex/verify-swift-cross-platform` (or manual dispatch
 after GitHub registers the workflow on the default branch). It prepares Ubuntu
 22.04 and Windows Server 2022 x64 with Swift 6.1.3, runs Core
-unit tests and the synthetic scenario, and uploads xUnit results. Only Core and
+unit tests and the synthetic scenario, and uploads toolchain, test and scenario logs. Only Core and
 workflow changes trigger push runs; report-only updates do not rerun tests.
-The first remote run is pending; its Windows job and toolchain installation
-are not yet verified. A native Windows
+The first remote run is in progress. Its Ubuntu job passed 133 tests and the
+scenario, but selected preinstalled Swift 6.4.1 instead of the requested 6.1.3.
+The workflow now verifies the compiler version, selects the extracted Ubuntu
+toolchain explicitly, and saves logs regardless of test success. Windows
+results and the corrected run are still pending. A native Windows
 Swift installation can execute the same three commands directly. No Windows
 build success is claimed before that run finishes.
 
