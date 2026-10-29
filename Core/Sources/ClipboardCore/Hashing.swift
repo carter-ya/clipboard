@@ -1,5 +1,10 @@
-import CryptoKit
 import Foundation
+
+#if canImport(CryptoKit)
+  import CryptoKit
+#else
+  import Crypto
+#endif
 
 enum Hashing {
   /// Types considered "primary content" — if any of these exist in a
