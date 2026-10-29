@@ -24,21 +24,52 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Install Swift 6.1.3
+      - name: Install Swift 6.1.3 on Windows
+        if: runner.os == 'Windows'
         uses: compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7
         with:
           swift-version: swift-6.1.3-release
           swift-build: 6.1.3-RELEASE
-      - name: Show toolchain
-        run: swift --version
+      - name: Install Swift 6.1.3 on Ubuntu
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift_dir="$RUNNER_TEMP/swift-6.1.3"
+          mkdir -p "$swift_dir"
+          curl --fail --location --retry 3 \
+            https://download.swift.org/swift-6.1.3-release/ubuntu2204/swift-6.1.3-RELEASE/swift-6.1.3-RELEASE-ubuntu22.04.tar.gz \
+            --output "$RUNNER_TEMP/swift.tar.gz"
+          tar -xzf "$RUNNER_TEMP/swift.tar.gz" --strip-components=1 -C "$swift_dir"
+          test -x "$swift_dir/usr/bin/swift"
+          echo "$swift_dir/usr/bin" >> "$GITHUB_PATH"
+      - name: Verify selected toolchain
+        shell: pwsh
+        run: |
+          (Get-Command swift).Source | Tee-Object -FilePath toolchain.log
+          $SwiftVersionOutput = & swift --version 2>&1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $SwiftVersionOutput | Tee-Object -FilePath toolchain.log -Append
+          if (($SwiftVersionOutput -join "`n") -notmatch 'Swift version 6\.1\.3(?:\s|$)') {
+            throw "Expected Swift 6.1.3; the selected toolchain does not match."
+          }
       - name: Test real core sources
-        run: swift test --package-path Core --xunit-output core-tests.xml
+        shell: pwsh
+        run: |
+          & swift test --package-path Core 2>&1 | Tee-Object -FilePath core-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Run synthetic clipboard scenario
-        run: swift run --package-path Core scenario-runner rich-types
+        shell: pwsh
+        run: |
+          & swift run --package-path Core scenario-runner rich-types 2>&1 | Tee-Object -FilePath scenario.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload core test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: core-tests-${{ matrix.os }}
-          path: core-tests.xml
+          path: |
+            toolchain.log
+            core-tests.log
+            scenario.log
           if-no-files-found: ignore
