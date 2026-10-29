@@ -7,6 +7,7 @@ build-x86_64/
 DerivedData/
 .build/
 dist
+__pycache__/
 
 # Swift Package Manager local state
 .swiftpm/

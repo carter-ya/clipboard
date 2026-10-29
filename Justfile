@@ -72,6 +72,10 @@ test:
 test-windows:
     bash tools/check-window-regressions.sh
 
+# Process ownership and cancellation checks; does not open GUI applications.
+test-window-runner:
+    python3 -m unittest discover -s tools -p test_window_regression_runner.py -v
+
 lint:
     swift-format lint --strict --recursive Core/Sources Core/Tests App
 

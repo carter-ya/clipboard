@@ -1,6 +1,14 @@
 import AppKit
 import ClipboardCore
+import QuartzCore
 import SwiftUI
+
+/// Explicit OS state keeps policy tests independent of compositor timing
+/// and desktop placement of same-app overlay windows.
+@MainActor private final class OcclusionFixtureWindow: NSWindow {
+  var reportsVisible = true
+  override var occlusionState: NSWindow.OcclusionState { reportsVisible ? [.visible] : [] }
+}
 
 @MainActor final class WindowRegressionProbe: NSObject, NSApplicationDelegate {
   var panel: HistoryPanel!
@@ -44,6 +52,258 @@ import SwiftUI
   func draft() -> String? {
     descendants(settings.window!.contentView!).compactMap { $0 as? NSSecureTextField }.first?
       .stringValue
+  }
+  func layers(_ layer: CALayer) -> [CALayer] {
+    [layer] + (layer.sublayers ?? []).flatMap(layers)
+  }
+  func animationCount(_ view: NSView) -> Int {
+    guard let layer = view.layer else { return 0 }
+    return layers(layer).reduce(0) { count, layer in
+      count + (layer.animationKeys() ?? []).filter { $0.hasPrefix("ai.") }.count
+    }
+  }
+  func waitForAnimation(_ view: NSView, count: Int) async {
+    for _ in 0..<40 {
+      if animationCount(view) == count { return }
+      try? await Task.sleep(nanoseconds: 25_000_000)
+    }
+  }
+  func mouseEvent(
+    _ type: NSEvent.EventType, at point: NSPoint, in window: NSWindow,
+    modifiers: NSEvent.ModifierFlags = []
+  ) {
+    let event = NSEvent.mouseEvent(
+      with: type, location: point, modifierFlags: modifiers,
+      timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+      context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1)!
+    NSApp.postEvent(event, atStart: false)
+  }
+  func click(
+    _ point: NSPoint, in window: NSWindow, releasingAt end: NSPoint? = nil,
+    modifiers: NSEvent.ModifierFlags = []
+  ) async {
+    mouseEvent(.leftMouseDown, at: point, in: window, modifiers: modifiers)
+    if let end { mouseEvent(.leftMouseDragged, at: end, in: window, modifiers: modifiers) }
+    mouseEvent(.leftMouseUp, at: end ?? point, in: window, modifiers: modifiers)
+    await pause()
+  }
+  func monitorsToolbarClicks(_ button: AISparkleToolbarButton) -> Bool {
+    guard
+      let value = Mirror(reflecting: button).children.first(where: {
+        $0.label == "clickMonitor"
+      })?.value
+    else { return false }
+    return !Mirror(reflecting: value).children.isEmpty
+  }
+  func checkAIAnimation() async {
+    settings.show()
+    // Keep this synthetic fixture exposed even if another app is active.
+    // Production correctly suspends an entirely occluded toolbar.
+    settings.window!.level = .floating
+    settings.window!.collectionBehavior.insert(.moveToActiveSpace)
+    settings.window!.orderFrontRegardless()
+    await pause()
+    guard
+      let button = settings.window!.toolbar!.items.first(where: {
+        $0.itemIdentifier.rawValue == "ai"
+      })?.view as? AISparkleToolbarButton
+    else {
+      check(false, "AI uses an accessible animated native button")
+      return
+    }
+    let expected = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : 7
+    let frame = settings.window!.frame
+    let iconFrame = button.convert(button.bounds, to: nil)
+    let primaryStar = button.layer?.sublayers?.first { $0.name == "ai.primary" }
+    check(
+      primaryStar?.position == NSPoint(x: button.bounds.midX, y: button.bounds.midY),
+      "AI primary star is centered over its native toolbar label")
+    let labelPoint = NSPoint(x: iconFrame.midX, y: iconFrame.minY - 10)
+    if let container = button.superview {
+      let tile = container.convert(container.bounds, to: nil)
+      for y in [tile.minY + 10, tile.midY, tile.maxY - 4] {
+        for x in [tile.minX + 1, tile.midX, tile.maxX - 1] {
+          select("general")
+          await click(NSPoint(x: x, y: y), in: settings.window!)
+          check(
+            settings.window!.toolbar!.selectedItemIdentifier?.rawValue == "ai",
+            "AI tile coordinate click opens AI at \(x),\(y)")
+        }
+      }
+    } else {
+      check(false, "AI toolbar tile is mounted")
+    }
+    select("general")
+    await click(labelPoint, in: settings.window!)
+    check(
+      settings.window!.toolbar!.selectedItemIdentifier?.rawValue == "ai",
+      "clicking native AI label opens AI")
+    for point in [
+      labelPoint,
+      NSPoint(x: iconFrame.minX - 1, y: iconFrame.midY),
+      NSPoint(x: iconFrame.midX, y: iconFrame.midY),
+    ] {
+      select("general")
+      await click(point, in: settings.window!, modifiers: .control)
+      check(
+        settings.window!.toolbar!.selectedItemIdentifier?.rawValue == "general",
+        "Control-click does not select AI at \(point)")
+    }
+    await click(labelPoint, in: settings.window!)
+    check(
+      settings.window!.toolbar!.selectedItemIdentifier?.rawValue == "ai",
+      "ordinary label click still works after Control-click")
+    select("general")
+    let outside = NSPoint(x: iconFrame.minX - 15, y: labelPoint.y)
+    await click(labelPoint, in: settings.window!, releasingAt: outside)
+    check(
+      settings.window!.toolbar!.selectedItemIdentifier?.rawValue == "general",
+      "dragging out of AI label cancels selection")
+    mouseEvent(.leftMouseDown, at: labelPoint, in: settings.window!)
+    await pause()
+    // Simulate a release outside this app: the next fresh press must work.
+    await click(NSPoint(x: iconFrame.midX - 56, y: iconFrame.midY), in: settings.window!)
+    check(
+      settings.window!.toolbar!.selectedItemIdentifier?.rawValue == "shortcuts",
+      "a stale AI padding gesture does not swallow the next toolbar click")
+    button.isEnabled = false
+    await click(labelPoint, in: settings.window!)
+    check(
+      settings.window!.toolbar!.selectedItemIdentifier?.rawValue == "shortcuts",
+      "disabled AI control does not activate through its label")
+    button.isEnabled = true
+    for tab in ["general", "shortcuts", "privacy", "data", "ai"] {
+      select(tab)
+      await pause()
+      check(animationCount(button) == expected, "AI animation persists on \(tab) without hover")
+      check(
+        settings.window!.frame == frame && abs(settings.window!.contentLayoutRect.height - 440) < 1,
+        "animated toolbar retains native form geometry on \(tab)")
+    }
+    select("general")
+    button.performClick(nil)
+    await pause()
+    check(
+      settings.window!.toolbar!.selectedItemIdentifier?.rawValue == "ai",
+      "native animated button selects AI")
+    settings.window!.miniaturize(nil)
+    await pause()
+    check(animationCount(button) == 0, "minimized toolbar has no animation tracks")
+    check(!monitorsToolbarClicks(button), "minimized toolbar releases its click monitor")
+    settings.window!.deminiaturize(nil)
+    await pause()
+    check(animationCount(button) == expected, "restored toolbar resumes once")
+    check(monitorsToolbarClicks(button), "restored toolbar resumes label clicks")
+    NSApp.hide(nil)
+    await pause()
+    check(animationCount(button) == 0, "hidden app has no toolbar animation tracks")
+    check(!monitorsToolbarClicks(button), "hidden app releases its toolbar click monitor")
+    NSApp.unhide(nil)
+    settings.window!.orderFrontRegardless()
+    await waitForAnimation(button, count: expected)
+    check(
+      animationCount(button) == expected,
+      "unhidden toolbar resumes once (tracks=\(animationCount(button)), visible=\(settings.window!.isVisible), occlusion=\(settings.window!.occlusionState.rawValue), hidden=\(button.isHiddenOrHasHiddenAncestor))"
+    )
+    settings.hide()
+    await pause()
+    check(animationCount(button) == 0, "settings handoff removes toolbar animation")
+    check(!monitorsToolbarClicks(button), "settings handoff releases its toolbar click monitor")
+    settings.show()
+    await pause()
+    settings.window!.close()
+    await pause()
+    check(animationCount(button) == 0, "window close removes toolbar animation")
+    check(!monitorsToolbarClicks(button), "closed toolbar releases its click monitor")
+    settings.show()
+    await pause()
+    check(animationCount(button) == expected, "closed toolbar resumes after reopening")
+    select("general")
+    let reopened = button.convert(button.bounds, to: nil)
+    await click(NSPoint(x: reopened.midX, y: reopened.minY - 10), in: settings.window!)
+    check(
+      settings.window!.toolbar!.selectedItemIdentifier?.rawValue == "ai",
+      "AI label is clickable after closing and reopening settings")
+    settings.hide()
+
+    var reducedMotion = false
+    let icon = AISparkleToolbarButton(reduceMotion: { reducedMotion })
+    let window = OcclusionFixtureWindow(
+      contentRect: NSRect(x: 100, y: 150, width: 160, height: 100),
+      styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.level = .floating
+    window.collectionBehavior.insert(.moveToActiveSpace)
+    icon.frame.origin = NSPoint(x: 60, y: 30)
+    window.contentView!.addSubview(icon)
+    window.makeKeyAndOrderFront(nil)
+    window.orderFrontRegardless()
+    icon.allowsAnimation = true
+    await pause()
+    let satellites = (icon.layer?.sublayers ?? []).filter {
+      $0.animation(forKey: "ai.twinkle") != nil
+    }
+    let primary = icon.layer?.sublayers?.first { $0.name == "ai.primary" }
+    let flipped = icon.layer?.isGeometryFlipped ?? icon.isFlipped
+    check(
+      primary != nil && satellites.count == 7
+        && satellites.prefix(2).allSatisfy {
+          $0.position.x < primary!.position.x
+            && (flipped ? $0.position.y < primary!.position.y : $0.position.y > primary!.position.y)
+        }, "original satellite pair stays visually above and left of the main star")
+    var brightness = [[Float]](repeating: [], count: satellites.count)
+    var locations = [[CGPoint]](repeating: [], count: satellites.count)
+    var primaryStayedSteady = primary != nil
+    for _ in 0..<24 {
+      if let visible = primary?.presentation(), let primary {
+        primaryStayedSteady =
+          primaryStayedSteady && visible.position == primary.position
+          && CATransform3DIsIdentity(visible.transform) && visible.opacity == 1
+      } else {
+        primaryStayedSteady = false
+      }
+      for (index, layer) in satellites.enumerated() {
+        if let visible = layer.presentation() {
+          brightness[index].append(visible.opacity)
+          locations[index].append(visible.position)
+        }
+      }
+      await pause()
+    }
+    check(satellites.count == 7, "all seven small stars have independent animation")
+    check(primaryStayedSteady, "primary star stays steady while surrounding glints animate")
+    check(
+      satellites.count == 7
+        && brightness.allSatisfy {
+          ($0.max() ?? 0) - ($0.min() ?? 0) > 0.2
+        }, "every small star, including the upper-left pair, visibly twinkles")
+    check(
+      satellites.count == 7
+        && locations.allSatisfy { points in
+          guard let first = points.first else { return false }
+          return points.contains { hypot($0.x - first.x, $0.y - first.y) > 0.3 }
+        }, "every small star, including the upper-left pair, gently drifts")
+    window.reportsVisible = false
+    NotificationCenter.default.post(
+      name: NSWindow.didChangeOcclusionStateNotification, object: window)
+    await pause()
+    check(animationCount(icon) == 0, "OS-reported full occlusion removes all animation tracks")
+    window.reportsVisible = true
+    NotificationCenter.default.post(
+      name: NSWindow.didChangeOcclusionStateNotification, object: window)
+    await pause()
+    check(animationCount(icon) == 7, "OS-reported exposure restores animation once")
+    reducedMotion = true
+    displayChange()
+    await pause()
+    check(animationCount(icon) == 0, "Reduce Motion presents a static golden icon")
+    reducedMotion = false
+    displayChange()
+    await pause()
+    check(animationCount(icon) == 7, "disabling Reduce Motion resumes exactly seven tracks")
+    icon.allowsAnimation = false
+    check(animationCount(icon) == 0, "explicit suspension removes all icon tracks")
+    window.orderOut(nil)
   }
   func applicationDidFinishLaunching(_ notification: Notification) {
     Task { @MainActor in
@@ -180,6 +440,7 @@ import SwiftUI
         styleMask: [.titled], backing: .buffered, defer: false)
       other.isReleasedWhenClosed = false
       NSApp.activate(ignoringOtherApps: true)
+      await pause()
       other.makeKeyAndOrderFront(nil)
       await pause()
       systemLoginEnabled = true
@@ -316,6 +577,7 @@ import SwiftUI
       check(
         surfaceCount(panel) == 0 && surfaceCount(settings.window!) == 0,
         "closed windows stay detached after display change")
+      await checkAIAnimation()
       defaults.removePersistentDomain(forName: domain)
       let report: [String: Any] = [
         "checks": checks, "failures": checks.filter { ($0["pass"] as? Bool) != true }.count,
@@ -326,6 +588,12 @@ import SwiftUI
         to: URL(
           fileURLWithPath: CommandLine.arguments.dropFirst().first
             ?? "/tmp/clipboard-ui-qa/window-regression-results.json"))
+      // Production preferences briefly promote the app to regular. Let
+      // Launch Services and Dock process the return to accessory before
+      // exiting this test process, so transient Dock tiles don't linger.
+      NSApp.setActivationPolicy(.accessory)
+      await pause()
+      await pause()
       NSApp.terminate(nil)
     }
   }

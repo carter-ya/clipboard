@@ -28,6 +28,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate, N
   private var contentRevision = 0
   private var handingOffToHistory = false
   private var hasOpenSession = false
+  private weak var aiToolbarButton: AISparkleToolbarButton?
 
   init(
     store: PreferencesStore,
@@ -143,6 +144,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate, N
     // any other control in tab order) doesn't show a focus ring on
     // first open. The user can still click or tab into any control.
     window?.makeFirstResponder(nil)
+    aiToolbarButton?.allowsAnimation = true
   }
 
   private func position(on screen: NSScreen?) {
@@ -253,6 +255,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate, N
   }
 
   private func releaseContent(restoringAccessoryPolicy: Bool = true) {
+    aiToolbarButton?.allowsAnimation = false
     // Cancels view-scoped work (including the connection probe) and
     // releases the form while keeping the inexpensive window carrier.
     hostingController.rootView = AnyView(EmptyView())
@@ -340,16 +343,34 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate, N
     item.label = tab.title
     item.paletteLabel = tab.title
     item.toolTip = tab.title
-    item.image = NSImage(systemSymbolName: tab.symbol, accessibilityDescription: tab.title)
     item.target = self
     item.action = #selector(selectTab(_:))
+    if tab == .ai {
+      let button = AISparkleToolbarButton()
+      button.target = self
+      button.action = #selector(selectTab(_:))
+      item.view = button
+      aiToolbarButton = button
+      button.allowsAnimation = hasOpenSession
+    } else {
+      item.image = NSImage(systemSymbolName: tab.symbol, accessibilityDescription: tab.title)
+    }
     return item
   }
 
-  @objc private func selectTab(_ sender: NSToolbarItem) {
-    guard let tab = PreferencesTab(rawValue: sender.itemIdentifier.rawValue) else { return }
+  @objc private func selectTab(_ sender: AnyObject) {
+    let tab: PreferencesTab
+    if let item = sender as? NSToolbarItem,
+      let itemTab = PreferencesTab(rawValue: item.itemIdentifier.rawValue)
+    {
+      tab = itemTab
+    } else if sender is AISparkleToolbarButton {
+      tab = .ai
+    } else {
+      return
+    }
     guard tab != navigation.selectedTab else { return }
-    window?.toolbar?.selectedItemIdentifier = sender.itemIdentifier
+    window?.toolbar?.selectedItemIdentifier = NSToolbarItem.Identifier(tab.rawValue)
     navigation.selectedTab = tab
   }
 
