@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <title>Clipboard 1.0.6</title>
+  <style>
+    body { font: 13px -apple-system, BlinkMacSystemFont, "PingFang TC", "Helvetica Neue", sans-serif; color: #1c1c1e; margin: 16px; line-height: 1.6; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    h2 { font-size: 11px; margin: 12px 0 4px; color: #6e6e73; letter-spacing: 0.4px; }
+    ul { margin: 4px 0 0; padding-left: 20px; }
+    li { margin: 2px 0; }
+    @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: transparent; } h2 { color: #98989d; } }
+  </style>
+</head>
+<body>
+  <h1>Clipboard 1.0.6</h1>
+  <h2>新增</h2>
+  <ul>
+    <li>新增跟隨系統、淺色和深色外觀選項，儲存後立即生效。</li>
+    <li>按住 ⌘ 或將游標停留在標籤上，即可查看類型篩選及「全部／釘選」標籤的快速鍵。</li>
+    <li>偏好設定的 AI 入口加入柔和金色星光，支援「減少動態效果」；視窗隱藏、最小化或完全被遮住時暫停動效。</li>
+  </ul>
+  <h2>改進</h2>
+  <ul>
+    <li>主視窗與偏好設定採用更原生的 macOS 介面；macOS 26 及以上使用 Liquid Glass，舊系統保留相容材質。</li>
+    <li>改善多螢幕定位和小螢幕版面：主視窗在游標所在螢幕喚醒，偏好設定優先與主視窗顯示在同一螢幕。</li>
+    <li>減少隱藏視窗的繪製負擔，暫時隱藏或最小化偏好設定時保留尚未儲存的編輯。</li>
+  </ul>
+  <h2>修正</h2>
+  <ul>
+    <li>修正快速鍵喚醒及從偏好設定返回後的搜尋焦點問題，消除搜尋預留文字閃爍。</li>
+    <li>修正反覆進入設定頁面後外觀選擇器寬度改變的問題。</li>
+    <li>修正登入時啟動開關與系統實際狀態不同步的問題。</li>
+    <li>修正 AI 標籤文字和留白點擊無回應的問題，保留 Control 點擊的系統行為。</li>
+  </ul>
+  <h2>下載</h2>
+  <ul>
+    <li>繼續分別提供 Apple Silicon（arm64）與 Intel（x86_64）的獨立下載及 SHA-256 校驗檔，需使用 macOS 13 或更新版本；自動更新會依架構選擇對應版本。</li>
+  </ul>
+</body>
+</html>

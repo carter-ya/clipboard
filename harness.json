@@ -6,7 +6,7 @@
     "name": "Clipboard",
     "one_liner": "macOS 的 Alfred 风格剪贴板历史——常驻菜单栏，支持全局快捷键、快速搜索；选中条目会写回系统剪贴板（由用户手动 Cmd+V 粘贴）。",
     "platform": "macOS 13.0+（部署目标）",
-    "distribution": "直接分发未签名 .dmg（ad-hoc 签名 CODE_SIGN_IDENTITY=\"-\"）。自 v1.0.5 起按 CPU 架构分发两个单架构 DMG（Clipboard-<ver>-arm64.dmg / Clipboard-<ver>-x86_64.dmg，非 universal，每个下载更轻；feed URL 由 SU_FEED_URL 构建变量按架构注入 Info.plist，just package 一次产出两架构）；v1.0.4 及更早是单个 arch-less arm64 DMG。用户首次安装需 xattr -cr 解除 Gatekeeper 隔离标记；docs/install.sh 提供一键脚本（curl | bash：按 uname -m 选对架构 DMG，Rosetta 下回退 arm64，老 release 缺架构包时回退 legacy 名 → 校验 SHA-256 → 退出正在运行的 Clipboard → 拷到 /Applications → xattr -cr），随 docs/ 走 GitHub Pages 暴露为 https://carter-ya.github.io/clipboard/install.sh。Sparkle 通过 EdDSA 校验后续自动更新，按架构走三条 feed：新装的 arm64 走 docs/appcast-arm64.xml、x86_64 走 docs/appcast-x86_64.xml（各只登自家架构 item）；docs/appcast.xml 保留为融合 feed（含全部架构 item），供 v1.0.4 及更早只认 appcast.xml 的老 arm64 安装继续轮询。融合 feed 里 arm64 item 带 <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements> 且排在同版本 x86_64 item 之前——依据 Sparkle 选包算法（bestItemFromAppcastItems：版本最高者胜，同版本取 feed 中靠前者；filterSupportedAppcast：arm64 硬件要求对原生 Intel 过滤、Rosetta 下保留、保持顺序），原生 Intel 命中 x86_64、Apple Silicon 命中靠前的 arm64。CI（release.yml）的 emit_item 仅给 arm64 item 注入 hwreq；publish 步骤把 arm64/x86_64 item 各自写入对应单架构 feed，并按 arm64→x86_64 顺序追加进融合 feed。release.yml 分两个 job：build（macos-26 arm64：构建两架构、签名、传 artifact）→ release（macos-13 Intel：先原生启动 x86_64 DMG 冒烟测试——因为 x86_64 切片在 arm64 runner 上交叉编译、否则从不执行——通过后才创建 GitHub Release 并发布 appcast，构成发布门控）。暂不上 Mac App Store，暂不走 Apple Developer ID + 公证（$99/年预算未动）；如果用户量起来或收到 Gatekeeper 投诉再重新评估。",
+    "distribution": "直接分发未签名 .dmg（ad-hoc 签名 CODE_SIGN_IDENTITY=\"-\"）。自 v1.0.5 起按 CPU 架构分发两个单架构 DMG（Clipboard-<ver>-arm64.dmg / Clipboard-<ver>-x86_64.dmg，非 universal，每个下载更轻；feed URL 由 SU_FEED_URL 构建变量按架构注入 Info.plist，just package 一次产出两架构）；v1.0.4 及更早是单个 arch-less arm64 DMG。用户首次安装需 xattr -cr 解除 Gatekeeper 隔离标记；docs/install.sh 提供一键脚本（curl | bash：按 uname -m 选对架构 DMG，Rosetta 下回退 arm64，老 release 缺架构包时回退 legacy 名 → 校验 SHA-256 → 退出正在运行的 Clipboard → 拷到 /Applications → xattr -cr），随 docs/ 走 GitHub Pages 暴露为 https://carter-ya.github.io/clipboard/install.sh。Sparkle 通过 EdDSA 校验后续自动更新，按架构走三条 feed：新装的 arm64 走 docs/appcast-arm64.xml、x86_64 走 docs/appcast-x86_64.xml（各只登自家架构 item）；docs/appcast.xml 保留为融合 feed（含全部架构 item），供 v1.0.4 及更早只认 appcast.xml 的老 arm64 安装继续轮询。融合 feed 里 arm64 item 带 <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements> 且排在同版本 x86_64 item 之前——依据 Sparkle 选包算法（bestItemFromAppcastItems：版本最高者胜，同版本取 feed 中靠前者；filterSupportedAppcast：arm64 硬件要求对原生 Intel 过滤、Rosetta 下保留、保持顺序），原生 Intel 命中 x86_64、Apple Silicon 命中靠前的 arm64。CI（release.yml）的 emit_item 仅给 arm64 item 注入 hwreq；publish 步骤把 arm64/x86_64 item 各自写入对应单架构 feed，并按 arm64→x86_64 顺序追加进融合 feed。release.yml 分两个 job：build（macos-26 arm64：构建两架构、签名、传 artifact）→ release（macos-15-intel：先原生启动 x86_64 DMG 冒烟测试——因为 x86_64 切片在 arm64 runner 上交叉编译、否则从不执行——通过后才创建 GitHub Release 并发布 appcast，构成发布门控）。暂不上 Mac App Store，暂不走 Apple Developer ID + 公证（$99/年预算未动）；如果用户量起来或收到 Gatekeeper 投诉再重新评估。",
     "language_locale": "UI 文案双语 zh-Hans + en（跟随系统语言，可在偏好设置中显式覆盖）；代码、注释、commit 信息一律使用英文。"
   },
   "non_goals": [
@@ -2303,6 +2303,31 @@
         "resources": "Seven fixed Core Animation tracks and one small primary shadow with explicit shadowPath; a single visible-item local mouse monitor bridges label/padding clicks and is removed on suspension. No global event monitor; no timers, emitters, display links or per-frame AppKit/SwiftUI drawing. Hidden/minimized/closed or OS-reported fully occluded windows remove tracks; Reduce Motion stays static.",
         "limits": "Runtime host macOS 27.0.1. Actual macOS 13/26 execution and whole-app/WindowServer energy benchmarks unavailable."
       }
+    },
+    {
+      "id": "S102",
+      "title": "Prepare 1.0.6 release information and per-architecture packages",
+      "goal": "Prepare reviewable 1.0.6/build 8 release material and separate Apple Silicon/Intel installers without publishing a tag or update feed.",
+      "deliverables": [
+        "Set project.yml to 1.0.6/build 8; add a 2026-10-29 changelog entry covering native appearance/Liquid Glass compatibility, theme controls, shortcut hints, focus, multi-display placement, login state and AI toolbar behavior.",
+        "Provide release notes in en, zh-Hans, zh-Hant, ja, ko, de and es, each describing both arm64 and x86_64 downloads and macOS 13 minimum support.",
+        "Update the GitHub release template with per-architecture DMG/SHA-256 links and verification instructions matching checksum files that contain dist/ paths. Insert changelog content into its unique template marker; fail generation for a missing changelog section or invalid marker count.",
+        "Retain architecture-specific Sparkle feeds and the native macos-15-intel launch gate. Generate local arm64/x86_64 DMGs and verify actual embedded architecture, version/build, minimum system, feed URL, ad-hoc signature integrity and SHA-256. Leave published appcasts unchanged until CI produces signed update items."
+      ],
+      "acceptance": [
+        "All seven localized notes pass presence/HTML structure checks and use the 1.0.6 version and correct architecture descriptions.",
+        "Execute the CI release-note generation block locally; verify feature notes precede download/install sections, all asset names include an architecture, and a nonexistent changelog version is rejected.",
+        "Both packaged apps are thin binaries for their advertised architecture with version 1.0.6/build 8 and macOS 13 minimum; checksums and deep signature verification pass.",
+        "Core tests and lint pass; generated package/preview artifacts remain outside source control."
+      ],
+      "commit_message": "chore: prepare 1.0.6 release for Apple Silicon and Intel",
+      "validation": {
+        "notes": "7/7 localized pages passed presence and HTML structure checks (11 list items and four sections each). Verified application label terminology against localization files. Executed the actual CI extraction/rendering block for 1.0.6 and confirmed it rejects version 99.0.0 with no changelog section.",
+        "packages": "just package produced Clipboard-1.0.6-arm64.dmg (4906507 bytes) and Clipboard-1.0.6-x86_64.dmg (4960531 bytes), each with .sha256. Read-only mounted each; lipo, version/build, LSMinimumSystemVersion=13.0, architecture-specific SUFeedURL, codesign --verify --deep --strict and SHA-256 all passed; both images were detached.",
+        "checks": "Core: 150 tests executed, one existing skip, zero failures. Strict Core/App lint and diff whitespace checks passed.",
+        "limits": "Packaged on Apple Silicon with macOS 27.0.1. Intel native launch validation remains in the release workflow on macos-15-intel; no local native Intel or macOS 13 runtime result is claimed.",
+        "publication": "Preparation only: no new git tag, remote push, GitHub Release or appcast item was published."
+      }
     }
   ],
   "slice_rhythm": [
@@ -2502,7 +2527,8 @@
       "S98",
       "S99",
       "S100",
-      "S101"
+      "S101",
+      "S102"
     ]
   },
   "open_questions": [

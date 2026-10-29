@@ -4,6 +4,31 @@
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-10-29
+
+### 新增
+
+- 外观支持跟随系统、浅色和深色模式，保存后立即生效。
+- 按住 ⌘ 或悬停即可查看类型筛选及“全部／置顶”标签的快捷键。
+- 偏好设置的 AI 入口加入柔和金色星光，支持“减少动态效果”；隐藏、最小化或完全遮挡时暂停动效。
+
+### 优化
+
+- 主窗口与偏好设置采用更原生的 macOS 界面；macOS 26 及以上使用 Liquid Glass，旧系统保留兼容材质，最低支持 macOS 13。
+- 优化多屏定位和小屏布局：主窗口在鼠标所在屏幕唤醒，偏好设置优先与主窗口同屏显示。
+- 减少隐藏窗口的渲染开销，临时隐藏或最小化偏好设置时保留未保存的编辑。
+
+### 修复
+
+- 修复快捷键唤醒及偏好设置往返后的搜索焦点问题，消除搜索占位文字闪烁。
+- 修复反复进入设置页后外观选择器宽度变化的问题。
+- 修复开机启动开关与系统实际状态不一致的问题。
+- 修复 AI 标签文字和留白点击不响应的问题，保留 Control 点击的系统行为。
+
+### 分发
+
+- 继续分别提供 Apple Silicon（arm64）与 Intel（x86_64）的独立 DMG 和 SHA-256 校验文件；自动更新按架构选择对应版本。
+
 ## [1.0.5] - 2026-06-26
 
 ### 新增
@@ -105,7 +130,8 @@
 - 直接分发未签名 DMG；首次安装需用户 `xattr -cr` 解除 Gatekeeper 隔离标记
 - 不上 Mac App Store、不启用 App Sandbox
 
-[Unreleased]: https://github.com/carter-ya/clipboard/compare/v1.0.5...HEAD
+[Unreleased]: https://github.com/carter-ya/clipboard/compare/v1.0.6...HEAD
+[1.0.6]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.6
 [1.0.5]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.5
 [1.0.4]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.4
 [1.0.3]: https://github.com/carter-ya/clipboard/releases/tag/v1.0.3

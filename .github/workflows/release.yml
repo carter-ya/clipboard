@@ -134,9 +134,17 @@ jobs:
             flag && /^\[[^]]+\]:/ {exit}
             flag {print}
           ' CHANGELOG.md > dist/release-notes.md
-          cat .github/RELEASE_TEMPLATE.md dist/release-notes.md > dist/final-notes.md
-          # Replace X.Y.Z placeholders in the template body
-          sed -i '' "s/X\\.Y\\.Z/${VERSION}/g" dist/final-notes.md
+          python3 - "$VERSION" <<'PY'
+          from pathlib import Path
+          import sys
+          template = Path(".github/RELEASE_TEMPLATE.md").read_text()
+          changes = Path("dist/release-notes.md").read_text().strip()
+          marker = "<!-- RELEASE_NOTES -->"
+          if not changes or template.count(marker) != 1:
+              raise SystemExit("Missing changelog section or unique release-notes marker")
+          body = template.replace(marker, changes).replace("X.Y.Z", sys.argv[1])
+          Path("dist/final-notes.md").write_text(body)
+          PY
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Clipboard 1.0.6</title>
+  <style>
+    body { font: 13px -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue", sans-serif; color: #1c1c1e; margin: 16px; line-height: 1.6; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    h2 { font-size: 11px; margin: 12px 0 4px; color: #6e6e73; letter-spacing: 0.4px; }
+    ul { margin: 4px 0 0; padding-left: 20px; }
+    li { margin: 2px 0; }
+    @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: transparent; } h2 { color: #98989d; } }
+  </style>
+</head>
+<body>
+  <h1>Clipboard 1.0.6</h1>
+  <h2>新機能</h2>
+  <ul>
+    <li>外観をシステム設定に合わせる・ライト・ダークから選択でき、変更はすぐに反映されます。</li>
+    <li>⌘ キーを押し続けるか、ポインタを重ねると、種類フィルタと「すべて／ピン留め」タブのショートカットを確認できます。</li>
+    <li>AI 設定のアイコンに柔らかな金色のきらめきを追加しました。「視差効果を減らす」に対応し、ウインドウの非表示・最小化・完全に隠れた状態ではアニメーションを停止します。</li>
+  </ul>
+  <h2>改善</h2>
+  <ul>
+    <li>履歴と環境設定を、より macOS らしいインターフェイスに刷新しました。macOS 26 以降では Liquid Glass、旧バージョンでは互換性のあるマテリアルを使用します。</li>
+    <li>複数ディスプレイでの配置と小さな画面でのレイアウトを改善しました。履歴はポインタのある画面に表示され、環境設定も履歴と同じ画面を優先します。</li>
+    <li>非表示ウインドウの描画処理を減らし、環境設定を一時的に非表示または最小化しても未保存の編集内容を保持します。</li>
+  </ul>
+  <h2>修正</h2>
+  <ul>
+    <li>ホットキーで表示したときや環境設定から戻ったときの検索フォーカスを修正し、検索プレースホルダのちらつきを解消しました。</li>
+    <li>設定ページを開き直すと外観セレクタの幅が変わる問題を修正しました。</li>
+    <li>ログイン時に起動するスイッチとシステム設定の状態が一致しない問題を修正しました。</li>
+    <li>AI タブの文字や余白をクリックしても反応しない問題を修正しました。Control クリックは標準の動作を維持します。</li>
+  </ul>
+  <h2>ダウンロード</h2>
+  <ul>
+    <li>Apple Silicon（arm64）と Intel（x86_64）向けの個別ダウンロードと SHA-256 ファイルを引き続き提供します。macOS 13 以降が必要です。自動更新では対応するアーキテクチャが選択されます。</li>
+  </ul>
+</body>
+</html>

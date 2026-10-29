@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Clipboard 1.0.6</title>
+  <style>
+    body { font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; color: #1c1c1e; margin: 16px; line-height: 1.5; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    h2 { font-size: 11px; margin: 12px 0 4px; color: #6e6e73; text-transform: uppercase; letter-spacing: 0.4px; }
+    ul { margin: 4px 0 0; padding-left: 20px; }
+    li { margin: 2px 0; }
+    @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: transparent; } h2 { color: #98989d; } }
+  </style>
+</head>
+<body>
+  <h1>Clipboard 1.0.6</h1>
+  <h2>Neu</h2>
+  <ul>
+    <li>Die Darstellung kann dem System folgen oder auf Hell bzw. Dunkel gestellt werden. Änderungen werden sofort übernommen.</li>
+    <li>Halte ⌘ gedrückt oder bewege den Zeiger über einen Tab, um die Kurzbefehle der Typfilter und der Tabs Alle/Angeheftet anzuzeigen.</li>
+    <li>Der KI-Eintrag in den Einstellungen erhält sanfte goldene Funkeleffekte. „Bewegung reduzieren“ wird berücksichtigt; bei ausgeblendetem, minimiertem oder vollständig verdecktem Fenster pausiert die Animation.</li>
+  </ul>
+  <h2>Verbesserungen</h2>
+  <ul>
+    <li>Verlauf und Einstellungen verwenden eine stärker an macOS angepasste Oberfläche: Liquid Glass ab macOS 26, kompatible Materialien auf älteren Systemen.</li>
+    <li>Verbesserte Platzierung auf mehreren Displays und auf kleinen Bildschirmen. Der Verlauf öffnet sich auf dem Display des Zeigers; die Einstellungen bevorzugen dasselbe Display wie der Verlauf.</li>
+    <li>Weniger Rendering-Arbeit für ausgeblendete Fenster. Ungespeicherte Änderungen bleiben beim vorübergehenden Ausblenden oder Minimieren der Einstellungen erhalten.</li>
+  </ul>
+  <h2>Fehlerbehebungen</h2>
+  <ul>
+    <li>Der Suchfokus nach dem Aufrufen per Kurzbefehl und beim Zurückkehren aus den Einstellungen wurde korrigiert; der Suchplatzhalter flackert nicht mehr.</li>
+    <li>Die Breite der Darstellungsauswahl bleibt beim erneuten Öffnen von Einstellungsseiten stabil.</li>
+    <li>Der Schalter zum Starten bei der Anmeldung wird wieder mit dem tatsächlichen Systemstatus synchronisiert.</li>
+    <li>Klicks auf Beschriftung und Freiflächen des KI-Tabs funktionieren zuverlässig; Control-Klicks behalten ihr natives Verhalten.</li>
+  </ul>
+  <h2>Downloads</h2>
+  <ul>
+    <li>Separate Downloads für Apple Silicon (arm64) und Intel (x86_64) mit jeweils einer SHA-256-Datei bleiben verfügbar. Erfordert macOS 13 oder neuer. Die automatische Aktualisierung wählt die passende Architektur.</li>
+  </ul>
+</body>
+</html>

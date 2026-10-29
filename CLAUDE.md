@@ -54,6 +54,8 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - 原生窗口测试使用合成内容；退出前切回 accessory 并给 Dock 留出处理时间。测试入口 exec Python 监督进程，同一用户的原生窗口测试通过持有文件锁排队（锁文件不删除）；每次在 build/window-regressions/run-*/ 内独立生成应用和 results.json。直接启动并持有子进程及独立进程组，不扫描全局进程列表。构建失败、SIGINT／SIGTERM 和 120 秒测试超时只清理本次子进程及应用，锁保留到清理结束，结果留在各自目录；不能删除旧运行目录、清理真实 Clipboard 或重置 Dock。just test-window-runner 用无界面的隔离子进程覆盖这些边界。
 
+- GitHub 发版正文将 CHANGELOG 对应版本段落注入模板中唯一的 `<!-- RELEASE_NOTES -->` 标记，缺失说明即失败。下载和校验说明分别列出 arm64／x86_64 文件名；校验文件第二列含 `dist/`，直接比对哈希。发布前的准备不提前写入尚未生成签名的 appcast 条目；正式更新条目由现有 CI 生成发布。
+
 ## Slice 节奏
 
 见 `harness.json` 的 `slices[]` 与 `slice_rhythm`。每个 slice 以绿色、可运行、可提交的状态结束。
