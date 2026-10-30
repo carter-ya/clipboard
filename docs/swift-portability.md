@@ -292,3 +292,5 @@ regression is not a multi-day soak. The separate verified runtime source workflo
 41042501729 is green. Windows GTK controls still fail after the scheduler patch;
 the next native run includes content-free action diagnostics, an MTA UIA client,
 default-priority AccessKit input dispatch and editable SetValue support.
+
+The optimized installed Linux package also passes rich image/file capture and copy, real Tesseract OCR, and separate OCR-result copy with an independent native peer. The peer uses only the installed runtime libraries; the app loader path remains unmodified. See Desktop/TESTING.md for the remaining interactive release gates.

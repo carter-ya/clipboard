@@ -149,3 +149,5 @@ platform release.
 The reviewed GTK main-loop patch also releases one-shot callback contexts and
 prevents zero-delay timer starvation of AccessKit idle actions. Native Windows
 focus/value/button behavior remains a hard CI gate.
+
+The automated and interactive acceptance checklist is in [TESTING.md](TESTING.md).

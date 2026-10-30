@@ -128,10 +128,11 @@
         "acceptance": "Installation and smoke gates pass on supported targets; physical IME/focus/DPI verification is recorded before platform release readiness.",
         "status": "in_progress",
         "evidence": [
-          "Optimized Linux arm64 package passes installed native GUI with no Swift SDK/network, running-installation guards, upgrade history/startup preservation, selective uninstall and corrupted-package rejection.",
+          "Optimized Linux arm64 package passes 62 installed native GUI/lifecycle checks including independent image/file capture-copy, real Tesseract OCR and result copy, without a Swift SDK/network; eight installer/upgrade/uninstall checks also pass.",
           "100% and 200% virtual display tests pass at 640x480 logical size, preserving search/editor and native pointer Copy Unicode readback.",
           "Twenty measured hide/reopen cycles after warmup preserve search/focus; descriptors stay at 27 and RSS grows 1564 KiB. This is a bounded lifecycle regression, not a multi-day soak.",
-          "Verified GTK dependency source archive CI 41042501729 is green. Windows GUI subsystem, recursive DLL closure and installer remain native CI gates; physical IME/shortcut focus/multi-monitor DPI remain open."
+          "Verified GTK dependency source archive CI 41042501729 is green. Windows GUI subsystem, recursive DLL closure and installer remain native CI gates; physical IME/shortcut focus/multi-monitor DPI remain open.",
+          "Interactive acceptance instructions are recorded in Desktop/TESTING.md; no physical IME/focus/DPI or multi-day soak is claimed."
         ]
       }
     ],
