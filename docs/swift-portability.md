@@ -195,3 +195,6 @@ CP2 promotes these adapters onto the latest-main delivery stack. The native chec
 are rerun on PRs; previous experiment results are historical rather than proof
 for the new branch. Clipboard capture/readback and sensitive-memory-only behavior
 remain required on both Windows and Linux.
+
+CP2 local macOS regression: 159 Core tests, one existing Keychain skip, zero
+failures; strict Core/App lint passed. Fresh native CI results are pending.
