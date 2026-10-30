@@ -75,11 +75,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $VersionOutput
           if (($VersionOutput -join "`n") -notmatch 'Swift version 6\.3\.3(?:\s|$)') { throw 'Unexpected Swift toolchain' }
+      - name: Restore compiled UI dependencies
+        id: ui-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: UIPrototype/.build
+          key: crossui-${{ runner.os }}-swift6.3.3-${{ hashFiles('UIPrototype/Package.resolved', 'Core/Package.resolved') }}
       - name: Build SwiftCrossUI preview
         shell: pwsh
         run: |
           & swift build --package-path UIPrototype --jobs 2 --product ClipboardPreview 2>&1 | Tee-Object -FilePath ui-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save compiled UI dependencies
+        if: steps.ui-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: UIPrototype/.build
+          key: ${{ steps.ui-cache.outputs.cache-primary-key }}
       - name: Exercise GTK window and capture screenshots
         if: runner.os == 'Linux'
         shell: bash

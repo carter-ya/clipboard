@@ -33,6 +33,7 @@ $Executable = [IO.Path]::GetFullPath($Executable)
 $checks = [Collections.Generic.List[object]]::new()
 $application = $null
 $window = $null
+$probeStarted = Get-Date
 
 function Add-Check([string]$Name, [bool]$Passed) {
   $script:checks.Add(@{ name = $Name; passed = $Passed })
@@ -41,7 +42,7 @@ function Add-Check([string]$Name, [bool]$Passed) {
 function Wait-For([scriptblock]$Predicate, [string]$Name) {
   $deadline = [DateTime]::UtcNow.AddSeconds(40)
   while ([DateTime]::UtcNow -lt $deadline) {
-    if ($script:application -and $script:application.HasExited) { throw 'application_exited' }
+    if ($script:application -and $script:application.HasExited) { throw ('application_exited_code_' + $script:application.ExitCode) }
     try { $value = & $Predicate; if ($value) { return $value } } catch { }
     Start-Sleep -Milliseconds 150
   }
@@ -135,6 +136,15 @@ try {
   Add-Check 'store_persistence_matches_ui' ($history.items.Count -eq 2)
 } catch {
   $checks.Add(@{ name = 'ui_probe'; passed = $false; detail = $_.Exception.Message })
+  $_ | Format-List * -Force | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'probe-error.log')
+  # Keep crash evidence from this isolated CI desktop without changing machine settings.
+  try {
+    Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = $probeStarted } -ErrorAction Stop |
+      Where-Object { $_.Id -in @(1000, 1001, 1026) -and $_.Message -match 'ClipboardPreview|Microsoft.UI.Xaml' } |
+      Select-Object TimeCreated, Id, Message | Format-List |
+      Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'application-events.log')
+  } catch { $_.Exception.Message | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'event-query.log') }
+
   try { if ($window) { Save-Screenshot 'failure.png' } } catch { }
 } finally {
   if ($application -and !$application.HasExited) { Stop-Process -Id $application.Id -Force }
