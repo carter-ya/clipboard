@@ -19,7 +19,17 @@ public static class PreviewNative {
     EnumWindows((hwnd, _) => {
       uint owner;
       GetWindowThreadProcessId(hwnd, out owner);
-      if (owner == processId && IsWindowVisible(hwnd)) { found = hwnd; return false; }
+      if (owner == processId && IsWindowVisible(hwnd)) {
+        var title = new System.Text.StringBuilder(256);
+        var windowClass = new System.Text.StringBuilder(256);
+        GetWindowText(hwnd, title, title.Capacity);
+        GetClassName(hwnd, windowClass, windowClass.Capacity);
+        // SwiftPM's console subsystem can create a visible console HWND first.
+        // Only the actual GTK application window is an accessibility target.
+        if (title.ToString() == "Clipboard" && windowClass.ToString() != "ConsoleWindowClass") {
+          found = hwnd; return false;
+        }
+      }
       return true;
     }, IntPtr.Zero);
     return found;
