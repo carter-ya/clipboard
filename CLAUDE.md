@@ -93,3 +93,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Native UI probes wait for exact restored editor values after asynchronous view reconstruction, retaining the bounded timeout and value assertion. Failure diagnostics expose lengths/control metadata, never text contents.
 
 - Plain GTK text inputs expose their actual GtkEditable value rather than aggregating decorative/placeholder children. Password/protected widgets must never enter this plaintext-value override.
+
+- Installed Windows lifecycle probes bound repeated private hide/reopen cycles and record process private bytes/handles after warmup, keeping physical focus/IME and multi-day soak gates separate.

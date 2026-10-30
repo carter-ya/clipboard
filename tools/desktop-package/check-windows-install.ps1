@@ -71,7 +71,7 @@ try {
       $HiddenResources[$Hidden] = $_.FullName
     }
     & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
-      -ClipboardPeer $ClipboardPeer -OCRFixture $OCRFixture -OutputDirectory (Join-Path $Output 'ui')
+      -ClipboardPeer $ClipboardPeer -OCRFixture $OCRFixture -LifecycleCycles 20 -OutputDirectory (Join-Path $Output 'ui')
     Check 'installed_gui_and_services_pass_with_bundled_runtime' ($LASTEXITCODE -eq 0)
   } finally {
     foreach ($Hidden in $HiddenResources.Keys) {
