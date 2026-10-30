@@ -107,7 +107,13 @@
         "base": "codex/cross-platform-services",
         "scope": "Wayland clipboard and shortcuts on explicitly supported compositors/portals, with accurate capability reporting for restricted desktops.",
         "acceptance": "Real compositor integration tests pass for each advertised session; no XWayland success is presented as native Wayland support.",
-        "status": "planned"
+        "status": "in_progress",
+        "evidence": [
+          "Native Sway Wayland clipboard integration: 23 rich transport checks, independent wl-clipboard Unicode interoperability, and native GTK controls.",
+          "Sway full UI and pointer-only GTK copy fallback each pass 32 checks. No XWayland or synthesized keyboard events.",
+          "Private DBus portal fixture covers explicit permission, denial/retry, session closure, application identity and one-shot activation tokens; real compositor shortcut/IME remains a manual gate.",
+          "Weston headless confirms unavailable background capture. Its AT-SPI UI fixture did not register a tree, so no Weston UI pass is claimed."
+        ]
       },
       {
         "id": "CP8",

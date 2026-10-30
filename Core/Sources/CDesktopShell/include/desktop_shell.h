@@ -15,6 +15,10 @@ uint32_t clipboard_shell_activation_time(clipboard_shell *shell);
 void clipboard_shell_set_language(clipboard_shell *shell, int chinese);
 void clipboard_shell_set_recording(clipboard_shell *shell, int recording);
 void clipboard_shell_destroy(clipboard_shell *shell);
+unsigned clipboard_shell_shortcut_status(clipboard_shell *shell);
+void clipboard_shell_request_shortcut(clipboard_shell *shell);
+int clipboard_shell_take_activation_token(clipboard_shell *shell, char *buffer,
+                                          unsigned capacity);
 #endif
 
 #ifndef CLIPBOARD_DESKTOP_INSTANCE_H

@@ -83,12 +83,21 @@ public enum DesktopShellAction: Int32, Sendable {
   case capabilitiesChanged = 6
 }
 
+public enum DesktopShortcutPortalStatus: UInt32, Sendable {
+  case notApplicable = 0
+  case pending, permissionRequired, active, denied, unavailable
+}
+
 public struct DesktopShellCapabilities: Sendable, Equatable {
   public let tray: Bool
   public let globalShortcut: Bool
-  public init(tray: Bool, globalShortcut: Bool) {
+  public let shortcutPortal: DesktopShortcutPortalStatus
+  public init(
+    tray: Bool, globalShortcut: Bool, shortcutPortal: DesktopShortcutPortalStatus = .notApplicable
+  ) {
     self.tray = tray
     self.globalShortcut = globalShortcut
+    self.shortcutPortal = shortcutPortal
   }
 }
 
@@ -100,6 +109,8 @@ public protocol DesktopShellAccess: AnyObject, Sendable {
   var capabilities: DesktopShellCapabilities { get }
   var activationTimestamp: UInt32 { get }
   func start(shortcut: DesktopShortcut?, recording: Bool) throws
+  func requestShortcutPermission()
+  func takeActivationToken() -> String?
   func updateLanguage(_ tag: String)
   func updateRecording(_ enabled: Bool)
   func stop()
@@ -107,6 +118,8 @@ public protocol DesktopShellAccess: AnyObject, Sendable {
 
 extension DesktopShellAccess {
   public var activationTimestamp: UInt32 { 0 }
+  public func requestShortcutPermission() {}
+  public func takeActivationToken() -> String? { nil }
 }
 
 public final class FakeDesktopShell: DesktopShellAccess, @unchecked Sendable {

@@ -3,7 +3,7 @@
   import ClipboardCore
   import Foundation
 
-  /// Native rich clipboard adapter. X11 ownership is served by a socket read
+  /// Native rich clipboard adapter. X11/Wayland ownership is served by a socket read
   /// source, including while capture is paused. It does not launch xclip or
   /// synthesize keyboard input. Callers must keep this object alive to own X11 data.
   public final class SystemRichClipboard: RichClipboardAccess, @unchecked Sendable {
@@ -14,15 +14,24 @@
     private var source: DispatchSourceRead?
 
     public init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
+      var error = Int32(CB_UNAVAILABLE)
+      let session: OpaquePointer?
       #if os(Linux)
-        guard environment["WAYLAND_DISPLAY"] == nil else {
-          throw TextClipboardError.unsupportedSession
+        if let wayland = environment["WAYLAND_DISPLAY"], !wayland.isEmpty {
+          session = wayland.withCString { cb_open_rich($0, &error) }
+        } else {
+          guard let display = environment["DISPLAY"], !display.isEmpty else {
+            throw TextClipboardError.unavailable
+          }
+          session = cb_open_rich(nil, &error)
         }
-        guard let display = environment["DISPLAY"], !display.isEmpty else {
-          throw TextClipboardError.unavailable
-        }
+      #else
+        session = cb_open_rich(nil, &error)
       #endif
-      guard let session = cb_open() else { throw TextClipboardError.unavailable }
+      guard let session else {
+        if error == CB_UNSUPPORTED { throw TextClipboardError.unsupportedSession }
+        throw TextClipboardError.unavailable
+      }
       self.session = session
       queue.setSpecific(key: queueKey, value: true)
       let fd = cb_connection_fd(session)
@@ -39,6 +48,10 @@
 
     private func pump() {
       cb_pump(session)
+      if cb_connection_fd(session) < 0 {
+        source?.cancel()
+        source = nil
+      }
       if cb_pending_transfers(session) != 0 && transferTimer == nil {
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + 1, repeating: 1, leeway: .milliseconds(100))
@@ -49,6 +62,14 @@
         transferTimer?.cancel()
         transferTimer = nil
       }
+    }
+
+    public var canMonitor: Bool {
+      #if os(Linux)
+        return sync { cb_connection_fd(session) >= 0 }
+      #else
+        return true
+      #endif
     }
 
     public func revision() -> UInt64 { sync { cb_revision(session) } }

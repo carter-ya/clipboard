@@ -269,6 +269,7 @@ void clipboard_shell_destroy(clipboard_shell *s) {
 }
 #elif defined(__linux__)
 /* Linux implementation follows below. */
+#include "desktop_portal.h"
 #include <X11/XKBlib.h>
 #include <X11/Xlib.h>
 #include <X11/Xproto.h>
@@ -293,6 +294,7 @@ struct clipboard_shell {
   unsigned keycode, modifiers, num_lock;
   int pressed, detectable_repeat;
   DBusConnection *bus;
+  clipboard_portal *portal;
   dbus_uint32_t menu_revision;
   char key[32];
   clipboard_shell_callback callback;
@@ -943,6 +945,10 @@ static void *shell_thread(void *value) {
   clipboard_shell *s = value;
   int shortcut_error = bind_x11(s, s->modifiers);
   connect_bus(s);
+  if (getenv("WAYLAND_DISPLAY") && s->key[0]) {
+    s->portal = cp_create(s->key, s->modifiers, s->callback, s->context);
+    shortcut_error = s->portal ? 0 : 1;
+  }
   s->error = shortcut_error;
   pthread_mutex_lock(&s->lock);
   s->ready = 1;
@@ -1052,7 +1058,9 @@ clipboard_shell *clipboard_shell_create(const char *key, uint32_t modifiers,
   return s;
 }
 uint32_t clipboard_shell_capabilities(clipboard_shell *s) {
-  return s ? atomic_load(&s->capabilities) : 0;
+  return s ? atomic_load(&s->capabilities) |
+                 (s->portal && cp_status(s->portal) == 3 ? 2U : 0U)
+           : 0;
 }
 uint32_t clipboard_shell_activation_time(clipboard_shell *s) {
   return s ? atomic_load(&s->activation_time) : 0;
@@ -1083,6 +1091,7 @@ void clipboard_shell_destroy(clipboard_shell *s) {
   atomic_store(&s->stopping, 1);
   wake_shell(s);
   pthread_join(s->thread, NULL);
+  cp_destroy(s->portal);
   close(s->wake[0]);
   close(s->wake[1]);
   pthread_cond_destroy(&s->ready_condition);
@@ -1124,3 +1133,37 @@ void clipboard_shell_set_recording(clipboard_shell *s, int recording) {
 }
 void clipboard_shell_destroy(clipboard_shell *s) { (void)s; }
 #endif
+
+unsigned clipboard_shell_shortcut_status(clipboard_shell *s) {
+#if defined(__linux__)
+  return s && s->portal ? cp_status(s->portal) : 0;
+#else
+  (void)s;
+  return 0;
+#endif
+}
+void clipboard_shell_request_shortcut(clipboard_shell *s) {
+#if defined(__linux__)
+  if (!s || !s->portal)
+    return;
+  unsigned state = cp_status(s->portal);
+  if (state == 3 || state == 4 || state == 5) {
+    cp_destroy(s->portal);
+    s->portal = cp_create(s->key, s->modifiers, s->callback, s->context);
+  }
+  cp_request(s->portal);
+#else
+  (void)s;
+#endif
+}
+int clipboard_shell_take_activation_token(clipboard_shell *s, char *buffer,
+                                          unsigned capacity) {
+#if defined(__linux__)
+  return s ? cp_take_token(s->portal, buffer, capacity) : 0;
+#else
+  (void)s;
+  (void)buffer;
+  (void)capacity;
+  return 0;
+#endif
+}

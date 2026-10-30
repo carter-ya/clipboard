@@ -36,6 +36,32 @@ import Foundation
     }
   }
 
+  func runPortalPeer() throws {
+    guard ProcessInfo.processInfo.environment["CLIPBOARD_PRIVATE_PORTAL_TEST"] == "1" else {
+      throw DesktopShellError.unavailable
+    }
+    let shell = NativeDesktopShell()
+    try shell.start(shortcut: DesktopShortcut(parsing: "Ctrl+Alt+F12"), recording: false)
+    defer { shell.stop() }
+    let task = Task.detached {
+      for await action in shell.actions where action == .showHistory {
+        let expected = shell.takeActivationToken() == "synthetic-activation-token"
+        let consumed = shell.takeActivationToken() == nil
+        FileHandle.standardOutput.write(Data("activated:\(expected && consumed)\n".utf8))
+      }
+    }
+    defer { task.cancel() }
+    while let command = readLine() {
+      if command == "quit" { break }
+      if command == "request" { shell.requestShortcutPermission() }
+      if command == "status" {
+        let caps = shell.capabilities
+        FileHandle.standardOutput.write(
+          Data("status:\(caps.shortcutPortal.rawValue):\(caps.globalShortcut)\n".utf8))
+      }
+    }
+  }
+
   func runPlatformShell() async -> Report {
     let watchdog = DispatchSource.makeTimerSource(queue: .global())
     watchdog.schedule(deadline: .now() + 30)

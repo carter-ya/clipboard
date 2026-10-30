@@ -63,6 +63,7 @@ final class HistoryModel: ObservableObject {
   private var monitor: RichClipboardMonitor?
   private var shell: NativeDesktopShell?
   private var captureTask: Task<Void, Never>?
+  private var captureSkipsTask: Task<Void, Never>?
   private var eventsTask: Task<Void, Never>?
   private var shellTask: Task<Void, Never>?
   private var activationTask: Task<Void, Never>?
@@ -311,6 +312,7 @@ final class HistoryModel: ObservableObject {
       for await action in actions {
         guard !Task.isCancelled, let self else { break }
         self.nativeWindow?.activationTimestamp = shell.activationTimestamp
+        self.nativeWindow?.activationToken = shell.takeActivationToken()
         switch action {
         case .toggleHistory:
           if self.nativeWindow?.isVisible == true && !self.showsSettings {
@@ -330,6 +332,18 @@ final class HistoryModel: ObservableObject {
   @MainActor private func reconcileShellCapabilities() {
     guard let shell else { return }
     let capabilities = shell.capabilities
+    switch capabilities.shortcutPortal {
+    case .pending: shellStatus = "Waiting for the desktop shortcut portal."
+    case .permissionRequired:
+      shellStatus = "Apply the shortcut to request permission from your desktop."
+    case .denied: shellStatus = "Shortcut permission was declined. Apply again to retry."
+    case .unavailable:
+      shellStatus = "The global shortcut portal is unavailable on this Wayland desktop."
+    case .active:
+      shellStatus =
+        "The desktop manages this shortcut. Its assigned keys may differ from the preference."
+    case .notApplicable: break
+    }
     canHide = capabilities.tray || capabilities.globalShortcut
     if !capabilities.tray && shellStatus.isEmpty {
       shellStatus =
@@ -391,6 +405,16 @@ final class HistoryModel: ObservableObject {
 
   @MainActor private func nativeClipboard() async throws -> any RichClipboardAccess {
     if let clipboard { return clipboard }
+    #if os(Linux)
+      // This branch is reachable only in a synthetic, separately owned profile.
+      if CommandLine.arguments.contains("--smoke-root")
+        && CommandLine.arguments.contains("--smoke-copy-only")
+      {
+        let fallback = GtkCopyOnlyClipboard()
+        clipboard = fallback
+        return fallback
+      }
+    #endif
     if clipboardTask == nil {
       clipboardTask = Task.detached { try SystemRichClipboard() as any RichClipboardAccess }
     }
@@ -398,9 +422,17 @@ final class HistoryModel: ObservableObject {
     do {
       let clipboard = try await task.value
       self.clipboard = clipboard
+      clipboardTask = nil
       return clipboard
     } catch {
       clipboardTask = nil
+      #if os(Linux)
+        if ProcessInfo.processInfo.environment["WAYLAND_DISPLAY"] != nil {
+          let fallback = GtkCopyOnlyClipboard()
+          clipboard = fallback
+          return fallback
+        }
+      #endif
       throw error
     }
   }
@@ -420,16 +452,16 @@ final class HistoryModel: ObservableObject {
     recordingTransition = true
     defer { recordingTransition = false }
     if !enabled {
-      let old = monitor
-      monitor = nil
-      captureTask?.cancel()
-      captureTask = nil
-      await Task.detached { old?.stop() }.value
-      recording = false
+      await stopCapture()
       status = "Recording paused"
     } else {
       do {
         let clipboard = try await nativeClipboard()
+        guard clipboard.canMonitor else {
+          status =
+            "Clipboard capture is unavailable on this Wayland desktop. Copy remains available."
+          return
+        }
         let preferences = settings
         let monitor = await Task.detached {
           RichClipboardMonitor(
@@ -450,13 +482,39 @@ final class HistoryModel: ObservableObject {
             await store.insert(raw)
           }
         }
-        await Task.detached { monitor.start() }.value
+        let skips = monitor.skips
+        captureSkipsTask = Task { @MainActor [weak self] in
+          for await skip in skips {
+            guard !Task.isCancelled, let self else { break }
+            if skip.reason == "unsupportedSession" {
+              await self.stopCapture()
+              self.clipboard = nil
+              self.clipboardTask = nil
+              self.shell?.updateRecording(false)
+              self.status =
+                "Clipboard capture is unavailable on this Wayland desktop. Copy remains available."
+              break
+            }
+          }
+        }
         recording = true
         status = "Recording clipboard"
+        await Task.detached { monitor.start() }.value
       } catch { status = "Clipboard is unavailable in this session." }
     }
     let value = recording
     if let shell { await Task.detached { shell.updateRecording(value) }.value }
+  }
+
+  @MainActor private func stopCapture() async {
+    let old = monitor
+    monitor = nil
+    recording = false
+    captureTask?.cancel()
+    captureTask = nil
+    captureSkipsTask?.cancel()
+    captureSkipsTask = nil
+    await Task.detached { old?.stop() }.value
   }
 
   @MainActor func applyShortcut() async {
@@ -479,6 +537,7 @@ final class HistoryModel: ObservableObject {
         throw error
       }
       settings = next
+      await Task.detached { shell.requestShortcutPermission() }.value
       shellStatus = ""
       reconcileShellCapabilities()
       status = "Shortcut saved"
@@ -705,6 +764,7 @@ final class HistoryModel: ObservableObject {
     shuttingDown = true
     analysisTask?.cancel()
     captureTask?.cancel()
+    captureSkipsTask?.cancel()
     shellTask?.cancel()
     activationTask?.cancel()
     eventsTask?.cancel()
@@ -725,6 +785,7 @@ final class HistoryModel: ObservableObject {
     monitor?.stop()
     shell?.stop()
     captureTask?.cancel()
+    captureSkipsTask?.cancel()
     eventsTask?.cancel()
     shellTask?.cancel()
     activationTask?.cancel()

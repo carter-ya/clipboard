@@ -16,9 +16,14 @@ public struct RichClipboardSnapshot: Sendable, Equatable {
 }
 
 public protocol RichClipboardAccess: AnyObject, Sendable {
+  var canMonitor: Bool { get }
   func revision() -> UInt64
   func read(maxBytes: Int) throws -> RichClipboardSnapshot?
   func write(payloads: [RawPayload], sensitive: Bool) throws
+}
+
+extension RichClipboardAccess {
+  public var canMonitor: Bool { true }
 }
 
 public final class FakeRichClipboard: RichClipboardAccess, @unchecked Sendable {
@@ -106,7 +111,15 @@ public final class RichClipboardMonitor: ClipboardMonitoring, @unchecked Sendabl
   public func start() {
     sync {
       guard timer == nil else { return }
+      guard clipboard.canMonitor else {
+        emitSkip("unsupportedSession", bytes: 0, source: nil)
+        return
+      }
       lastRevision = clipboard.revision()
+      guard clipboard.canMonitor else {
+        emitSkip("unsupportedSession", bytes: 0, source: nil)
+        return
+      }
       let timer = DispatchSource.makeTimerSource(queue: queue)
       timer.schedule(deadline: .now() + interval, repeating: interval, leeway: .milliseconds(20))
       timer.setEventHandler { [weak self] in self?.tick() }
@@ -122,6 +135,12 @@ public final class RichClipboardMonitor: ClipboardMonitoring, @unchecked Sendabl
   }
   public func pulse() { sync { tick() } }
   private func tick() {
+    guard clipboard.canMonitor else {
+      timer?.cancel()
+      timer = nil
+      emitSkip("unsupportedSession", bytes: 0, source: nil)
+      return
+    }
     let revision = clipboard.revision()
     guard revision != lastRevision else { return }
     do {
@@ -165,6 +184,10 @@ public final class RichClipboardMonitor: ClipboardMonitoring, @unchecked Sendabl
     } catch TextClipboardError.tooLarge(let size) {
       lastRevision = revision
       emitSkip("tooLarge", bytes: size, source: nil)
+    } catch TextClipboardError.unsupportedSession {
+      timer?.cancel()
+      timer = nil
+      emitSkip("unsupportedSession", bytes: 0, source: nil)
     } catch {
       // Transient native contention retries without logging content.
     }

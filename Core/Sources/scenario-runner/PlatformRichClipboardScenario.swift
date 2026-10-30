@@ -49,7 +49,29 @@ import Foundation
   }
   func runRichClipboardPeer() throws {
     let args = CommandLine.arguments
+    if args.count > 2 && args[2] == "probe-restricted" {
+      guard ProcessInfo.processInfo.environment["CLIPBOARD_PRIVATE_WAYLAND_TEST"] == "1" else {
+        throw TextClipboardError.unavailable
+      }
+      do {
+        _ = try SystemRichClipboard()
+        throw TextClipboardError.invalidText
+      } catch TextClipboardError.unsupportedSession {
+        FileHandle.standardOutput.write(Data("restricted-ok\n".utf8))
+        return
+      }
+    }
     let clipboard = try SystemRichClipboard()
+    if args.count > 2 && args[2] == "read-text" {
+      guard let snapshot = try clipboard.read(maxBytes: 1024),
+        snapshot.payloads.contains(
+          .init(pasteboardType: "public.utf8-plain-text", data: Data("Independent Wayland 中文".utf8))
+        ),
+        snapshot.sourceAppID == nil, !snapshot.sensitive
+      else { throw TextClipboardError.invalidText }
+      FileHandle.standardOutput.write(Data("readback-ok\n".utf8))
+      return
+    }
     if args.count > 2 && args[2] == "read" {
       guard let value = try clipboard.read(maxBytes: 16 * 1024 * 1024),
         value.payloads == richFixtures("large")
@@ -113,7 +135,9 @@ import Foundation
         #if os(Linux)
           check(
             "independent_\(fixture)_source_owner_identity",
-            snapshot.sourceAppID == "linux:ClipboardDesktop", into: &checks)
+            (ProcessInfo.processInfo.environment["WAYLAND_DISPLAY"] == nil
+              ? snapshot.sourceAppID == "linux:ClipboardDesktop" : snapshot.sourceAppID == nil),
+            into: &checks)
         #endif
         if fixture == "large" {
           var rejected = false

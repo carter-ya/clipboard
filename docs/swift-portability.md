@@ -7,9 +7,9 @@ regression checks now run on PRs and main rather than an experiment-only branch.
 
 The findings below retain the original 2026-10-29 experiment evidence (base
 `b4ac516`, branch `codex/verify-swift-cross-platform`). They are not a claim of
-completed desktop UI support. Current CP1 validation: local macOS Core 153 tests,
+completed desktop UI support. Initial local CP1 validation: local macOS Core 153 tests,
 one existing Keychain skip, zero failures; strict Core/App lint, five synthetic scenario checks and the full macOS Debug
-application build passed. Native Windows/Linux PR checks are pending.
+application build passed. Subsequent three-platform CP1 CI passed (run 40998982090).
 
 ## Finding
 
@@ -202,3 +202,54 @@ failures; strict Core/App lint passed. Fresh native CI results are pending.
 Windows CP6 service CI confirms credential and startup checks, but OCR fails. The fixture wrapper reports only fixed OCR stage codes to distinguish WinRT, language, decode and recognition failures without logging content. Linux CP6 services and 32 GTK UI checks pass.
 
 Windows OCR failure was traced to case-sensitive lookup of `SystemRoot` in a copied environment whose key is `SYSTEMROOT`. The native adapter now resolves it case-insensitively; the Python fixture uses Windows' case-insensitive environment mapping. Runtime OCR is rechecked by CI rather than skipped.
+
+
+## CP6 current result and CP7 Wayland implementation
+
+CP6 Core/services CI [41030210039](https://github.com/carter-ya/clipboard/actions/runs/41030210039)
+is green on Windows, Ubuntu and macOS, including real Windows OCR, secure
+credential/startup fixtures, and the existing macOS application build. The
+case-sensitive `SystemRoot` lookup was corrected. Windows GTK with AccessKit
+now compiles; the UI application still awaits native UI Automation validation.
+SwiftPM 6.3 misparses drive-letter `.pc` variable assignments because it treats
+any colon-containing line as a field; CP3 normalizes these variables to
+`${pcfiledir}` relative paths without changing their resolved locations.
+
+CP7 adds native `wlr-data-control-unstable-v1` capture/copy with a bounded,
+event-driven Wayland client. Each read/write is capped at 16 MiB and pipe I/O
+has a two-second deadline. The adapter watches the display socket while idle,
+serves owned bytes while recording is paused, preserves rich MIME formats and
+sensitive hints, and stops capture on compositor/session loss. It selects the
+first advertised seat and does not capture the primary selection. Protocol
+source, revision, license and generation instructions are in `Core/Protocols/`.
+Wayland exposes no source application ID here; the UI explicitly explains that
+app exclusions cannot identify unknown sources. Sensitive hints still apply.
+
+On restricted compositors the GTK adapter can copy history but cannot monitor
+other applications. It never starts a polling capture loop or reports recording
+active. Ordinary GTK Wayland copy requires a user-input serial: its private
+Sway fixture creates a pointer-only device and clicks the accessible Copy
+button, then checks bytes using an independent `wl-paste` process. No keyboard
+device/event, automatic paste, XWayland, host clipboard or user data is used.
+Only an explicit `--smoke-root` profile can force this fallback for testing.
+
+The global-shortcut adapter uses the official
+[GlobalShortcuts portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.GlobalShortcuts.html)
+and [host Registry](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.host.portal.Registry.html).
+New permissions require Apply shortcut; startup may restore a previously
+approved binding. Pending, denied and unavailable states never advertise an
+active shortcut. Closing a session or losing its portal owner removes the
+capability. Activation tokens are consumed once and forwarded to GTK before
+window presentation. The compositor controls the actual assigned keys.
+
+Local evidence: Sway native rich transport passes 23 checks, and full native
+Wayland UI plus the GTK copy-only UI fixture each pass 32 aggregate checks.
+The private DBus fixture verifies portal request signatures and lifecycle,
+including application identity, denial/retry and activation tokens. This is
+protocol evidence, not a physical shortcut/keyboard/IME pass. Weston confirms
+that absent data control is reported unsupported; its headless GTK AT-SPI tree
+did not register, so Weston UI is not marked passed. GNOME/KDE physical focus,
+IME, multi-seat and multi-monitor/DPI remain platform release gates. No broad
+RemoteDesktop permission is requested to bypass clipboard restrictions.
+
+CP7 final local regression: macOS 182 Core tests (one existing Keychain skip), Linux 163 Core tests, X11 rich transport 23 checks, X11 GTK UI 32 checks, Sway GTK UI 32 checks, GTK copy-only fallback 32 aggregate checks, private portal protocol 13 checks, and Weston restricted-capability check all pass. Strict Swift formatting is clean.

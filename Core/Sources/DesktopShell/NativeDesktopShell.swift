@@ -29,7 +29,10 @@ public final class NativeDesktopShell: DesktopShellAccess, @unchecked Sendable {
   public var capabilities: DesktopShellCapabilities {
     queue.sync {
       let flags = clipboard_shell_capabilities(handle)
-      return .init(tray: flags & 1 != 0, globalShortcut: flags & 2 != 0)
+      return .init(
+        tray: flags & 1 != 0, globalShortcut: flags & 2 != 0,
+        shortcutPortal: DesktopShortcutPortalStatus(
+          rawValue: clipboard_shell_shortcut_status(handle)) ?? .unavailable)
     }
   }
 
@@ -66,6 +69,19 @@ public final class NativeDesktopShell: DesktopShellAccess, @unchecked Sendable {
       if error != 0 {
         throw error == 2 ? DesktopShellError.shortcutConflict : DesktopShellError.unavailable
       }
+    }
+  }
+
+  public func requestShortcutPermission() {
+    queue.sync { clipboard_shell_request_shortcut(handle) }
+  }
+  public func takeActivationToken() -> String? {
+    queue.sync {
+      var bytes = [CChar](repeating: 0, count: 4096)
+      guard clipboard_shell_take_activation_token(handle, &bytes, UInt32(bytes.count)) != 0 else {
+        return nil
+      }
+      return String(cString: bytes)
     }
   }
 
