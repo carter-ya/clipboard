@@ -240,6 +240,16 @@ try {
   }
 } catch {
   $checks.Add(@{ name = 'ui_probe'; passed = $false; detail = $_.Exception.Message })
+  try {
+    if ($window) {
+      $controls = $window.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition)
+      $controls | ForEach-Object {
+        @{ type=$_.Current.ControlType.ProgrammaticName; class=$_.Current.ClassName;
+           focusable=$_.Current.IsKeyboardFocusable; focused=$_.Current.HasKeyboardFocus;
+           enabled=$_.Current.IsEnabled; runtimeID=($_.GetRuntimeId() -join ',') }
+      } | ConvertTo-Json -Depth 5 | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'control-state.json')
+    }
+  } catch { }
   $_ | Format-List * -Force | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'probe-error.log')
   # Keep crash evidence from this isolated CI desktop without changing machine settings.
   try {

@@ -74,3 +74,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Desktop shell adapters use Windows tray/hotkey APIs or Linux SNI/dbusmenu/X11. Single-instance ownership is acquired before opening a profile; activation IPC carries no clipboard data. GTK hidden editors preserve drafts without adding UI polling. Persisted recording-on-start is distinct from runtime pause. Native shell tests use private Xvfb/DBus sessions and synthetic profile identities.
 - The pinned SwiftCrossUI GTK main-loop patch releases one-shot callback contexts and prevents zero-delay timeouts from starving AccessKit idle actions. Keep native accessibility focus/button checks as hard gates; a visible tree alone is insufficient.
+
+- The pinned GTK AccessKit patch handles editable SetValue with native sensitivity/editability checks and schedules accessibility input at default priority. Optional CI diagnostics contain action/target IDs only, never text. UI Automation clients run MTA; native focus/action success remains required.
