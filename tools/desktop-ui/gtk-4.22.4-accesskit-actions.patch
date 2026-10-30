@@ -78,6 +78,39 @@
  }
  
  #if defined(GDK_WINDOWING_WAYLAND) || defined(GDK_WINDOWING_X11)
+@@ -418,9 +427,32 @@
+ GtkAccessKitRoot *
+ gtk_accesskit_root_new (GtkRoot *root_widget)
+ {
++#if defined(GDK_WINDOWING_WIN32)
++  GdkSurface *surface = gtk_native_get_surface (GTK_NATIVE (root_widget));
++  GtkAccessKitRoot *root = g_object_get_data (G_OBJECT (surface),
++                                              "gtk-accesskit-root");
++
++  /* Hiding a GTK widget unrealizes its accessible contexts, but preserves the
++   * native HWND. AccessKit permits exactly one subclassing adapter per HWND.
++   * Keep that adapter with the native surface and rebuild its tree on reuse. */
++  if (root)
++    {
++      root->did_initial_update = FALSE;
++      root->requested_initial_tree = TRUE;
++      g_clear_pointer (&root->update_queue, g_array_unref);
++      return g_object_ref (root);
++    }
++  root = g_object_new (GTK_TYPE_ACCESSKIT_ROOT,
++                        "root-widget", root_widget,
++                        NULL);
++  g_object_set_data_full (G_OBJECT (surface), "gtk-accesskit-root",
++                          g_object_ref (root), g_object_unref);
++  return root;
++#else
+   return g_object_new (GTK_TYPE_ACCESSKIT_ROOT,
+                        "root-widget", root_widget,
+                        NULL);
++#endif
+ }
+ 
+ static void
 --- a/gtk/gtklabel.c
 +++ b/gtk/gtklabel.c
 @@ -3263,8 +3263,18 @@
