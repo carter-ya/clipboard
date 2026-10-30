@@ -86,3 +86,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Native UI probes wait for exact restored editor values after asynchronous view reconstruction, retaining the bounded timeout and value assertion. Failure diagnostics expose lengths/control metadata, never text contents.
 
 - Plain GTK text inputs expose their actual GtkEditable value rather than aggregating decorative/placeholder children. Password/protected widgets must never enter this plaintext-value override.
+
+- Windows GTK keeps one AccessKit root/subclassing adapter per native GdkSurface across hide/reopen, rebuilds the tree on reuse, and releases it with that surface. Recreating adapters for a surviving HWND causes an abort. Hidden editor preservation and lifecycle/resource checks remain hard gates.
