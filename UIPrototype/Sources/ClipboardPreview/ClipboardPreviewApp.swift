@@ -1,12 +1,17 @@
 import ClipboardCore
 import DefaultBackend
+import Foundation
 import SwiftCrossUI
 
 @main
 struct ClipboardPreviewApp: App {
   var body: some Scene {
     WindowGroup("Clipboard Preview") {
-      HistoryView()
+      if CommandLine.arguments.contains("--ui-baseline") {
+        BaselineView()
+      } else {
+        HistoryView()
+      }
     }
     .defaultSize(width: 960, height: 640)
   }
@@ -111,5 +116,18 @@ struct HistoryView: View {
         .disabled(!model.ready)
       Button("Back to history") { model.showsSettings = false }
     }.frame(maxWidth: .infinity, minHeight: 380, alignment: .topLeading)
+  }
+}
+
+/// Isolates backend/window/control startup from asynchronous Core history updates.
+struct BaselineView: View {
+  @State var count = 0
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Text("SwiftCrossUI baseline").font(.system(size: 24))
+      Text("Counter: \(count)")
+      Button("Increment") { count += 1 }
+    }.padding(24)
   }
 }

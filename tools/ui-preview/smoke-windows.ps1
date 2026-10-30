@@ -1,5 +1,6 @@
 ﻿param([Parameter(Mandatory=$true)][string]$Executable,
-      [Parameter(Mandatory=$true)][string]$OutputDirectory)
+      [Parameter(Mandatory=$true)][string]$OutputDirectory,
+      [switch]$Baseline)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -9,6 +10,20 @@ using System;
 using System.Runtime.InteropServices;
 public static class PreviewNative {
   [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+  private delegate bool EnumWindowProc(IntPtr hwnd, IntPtr parameter);
+  [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowProc callback, IntPtr parameter);
+  [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hwnd);
+  [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+  public static IntPtr FindWindow(uint processId) {
+    IntPtr found = IntPtr.Zero;
+    EnumWindows((hwnd, _) => {
+      uint owner;
+      GetWindowThreadProcessId(hwnd, out owner);
+      if (owner == processId && IsWindowVisible(hwnd)) { found = hwnd; return false; }
+      return true;
+    }, IntPtr.Zero);
+    return found;
+  }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool OpenClipboard(IntPtr hwnd);
@@ -33,6 +48,7 @@ $Executable = [IO.Path]::GetFullPath($Executable)
 $checks = [Collections.Generic.List[object]]::new()
 $application = $null
 $window = $null
+$nativeWindowHandle = [IntPtr]::Zero
 $probeStarted = Get-Date
 
 function Add-Check([string]$Name, [bool]$Passed) {
@@ -47,12 +63,6 @@ function Wait-For([scriptblock]$Predicate, [string]$Name) {
     Start-Sleep -Milliseconds 150
   }
   throw $Name
-}
-function Get-Window {
-  $condition = [Windows.Automation.PropertyCondition]::new(
-    [Windows.Automation.AutomationElement]::ProcessIdProperty, [int]$script:application.Id)
-  return [Windows.Automation.AutomationElement]::RootElement.FindFirst(
-    [Windows.Automation.TreeScope]::Children, $condition)
 }
 function Find-Named([string]$Name) {
   $condition = [Windows.Automation.PropertyCondition]::new(
@@ -82,7 +92,7 @@ function Set-Search([string]$Text) {
 }
 function Save-Screenshot([string]$Name) {
   $rect = New-Object PreviewNative+Rect
-  $handle = [IntPtr]$script:window.Current.NativeWindowHandle
+  $handle = $script:nativeWindowHandle
   if (![PreviewNative]::GetWindowRect($handle, [ref]$rect)) { throw 'window_bounds' }
   $bitmap = New-Object Drawing.Bitmap ($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top)
   $graphics = [Drawing.Graphics]::FromImage($bitmap)
@@ -94,46 +104,65 @@ function Save-Screenshot([string]$Name) {
 
 try {
   $historyRoot = Join-Path $OutputDirectory ('history-' + [Guid]::NewGuid().ToString('N'))
+  $launchArguments = @('--smoke-root', ('"' + $historyRoot + '"'))
+  if ($Baseline) { $launchArguments += '--ui-baseline' }
   $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
-    -ArgumentList @('--smoke-root', ('"' + $historyRoot + '"')) -PassThru `
+    -ArgumentList $launchArguments -PassThru `
     -RedirectStandardOutput (Join-Path $OutputDirectory 'application.stdout.log') `
     -RedirectStandardError (Join-Path $OutputDirectory 'application.stderr.log')
-  $window = Wait-For { Get-Window } 'native_window'
-  [PreviewNative]::SetForegroundWindow([IntPtr]$window.Current.NativeWindowHandle) | Out-Null
-  Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'initial_history' | Out-Null
-  Add-Check 'native_window_and_history_visible' $true
-  Save-Screenshot 'history.png'
-  $edit = Wait-For { Get-Editor } 'search_control'
-  $edit.SetFocus()
-  Wait-For { (Get-Editor).Current.HasKeyboardFocus } 'programmatic_search_focus' | Out-Null
-  Add-Check 'native_search_control_focus' $true
-  Invoke-Button 'Copy'
-  Wait-For { Find-Named 'Copied to clipboard' } 'copy_status' | Out-Null
-  Add-Check 'copy_button_writes_native_clipboard' ([PreviewNative]::ReadClipboard() -eq 'Release checklist · build, test, publish')
-  Set-Search '中文'
-  Wait-For { (Find-Named '1 items') -and (Find-Named '中文笔记 · 设计评审与输入测试') } 'unicode_search_results' | Out-Null
-  Add-Check 'native_unicode_search_updates_list' $true
-  Save-Screenshot 'unicode-search.png'
-  Invoke-Button 'Pin / unpin'
-  Wait-For { Find-Named 'Item pinned' } 'pin_status' | Out-Null
-  Invoke-Button 'Pinned'
-  Wait-For { Find-Named '1 items' } 'pinned_filter' | Out-Null
-  Add-Check 'pin_and_pinned_filter' $true
-  Invoke-Button 'Settings'
-  Wait-For { Find-Named 'Preferences' } 'settings_view' | Out-Null
-  Save-Screenshot 'settings.png'
-  Invoke-Button 'Back to history'
-  Wait-For { (Find-Named '1 items') -and (Get-Editor) } 'history_restored' | Out-Null
-  $value = (Get-Editor).GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
-  Add-Check 'settings_round_trip_preserves_search' ($value -eq '中文')
-  Invoke-Button 'Delete'
-  Wait-For { (Find-Named 'Item deleted') -and (Find-Named '0 items') } 'delete_updates_list' | Out-Null
-  Add-Check 'delete_updates_real_store' $true
-  Invoke-Button 'All'
-  Set-Search ''
-  Wait-For { Find-Named '2 items' } 'remaining_history' | Out-Null
-  $history = Get-Content -Raw -Encoding UTF8 (Join-Path $historyRoot 'history.json') | ConvertFrom-Json
-  Add-Check 'store_persistence_matches_ui' ($history.items.Count -eq 2)
+  $nativeWindowHandle = Wait-For {
+    $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
+    if ($handle -ne [IntPtr]::Zero) { $handle }
+  } 'native_window_without_automation'
+  [PreviewNative]::SetForegroundWindow($nativeWindowHandle) | Out-Null
+  Start-Sleep -Seconds 2
+  Add-Check 'native_window_survives_without_ui_automation' (!$application.HasExited)
+  Save-Screenshot 'startup-without-uia.png'
+  # Start accessibility traversal only after retaining ordinary-window evidence.
+  $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+  if ($Baseline) {
+    Wait-For { Find-Named 'SwiftCrossUI baseline' } 'baseline_window' | Out-Null
+    Add-Check 'baseline_window_visible' $true
+    Invoke-Button 'Increment'
+    Wait-For { Find-Named 'Counter: 1' } 'baseline_state_update' | Out-Null
+    Add-Check 'baseline_button_updates_state' $true
+    Save-Screenshot 'baseline.png'
+  } else {
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'initial_history' | Out-Null
+    Add-Check 'native_window_and_history_visible' $true
+    Save-Screenshot 'history.png'
+    $edit = Wait-For { Get-Editor } 'search_control'
+    $edit.SetFocus()
+    Wait-For { (Get-Editor).Current.HasKeyboardFocus } 'programmatic_search_focus' | Out-Null
+    Add-Check 'native_search_control_focus' $true
+    Invoke-Button 'Copy'
+    Wait-For { Find-Named 'Copied to clipboard' } 'copy_status' | Out-Null
+    Add-Check 'copy_button_writes_native_clipboard' ([PreviewNative]::ReadClipboard() -eq 'Release checklist · build, test, publish')
+    Set-Search '中文'
+    Wait-For { (Find-Named '1 items') -and (Find-Named '中文笔记 · 设计评审与输入测试') } 'unicode_search_results' | Out-Null
+    Add-Check 'native_unicode_search_updates_list' $true
+    Save-Screenshot 'unicode-search.png'
+    Invoke-Button 'Pin / unpin'
+    Wait-For { Find-Named 'Item pinned' } 'pin_status' | Out-Null
+    Invoke-Button 'Pinned'
+    Wait-For { Find-Named '1 items' } 'pinned_filter' | Out-Null
+    Add-Check 'pin_and_pinned_filter' $true
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'settings_view' | Out-Null
+    Save-Screenshot 'settings.png'
+    Invoke-Button 'Back to history'
+    Wait-For { (Find-Named '1 items') -and (Get-Editor) } 'history_restored' | Out-Null
+    $value = (Get-Editor).GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
+    Add-Check 'settings_round_trip_preserves_search' ($value -eq '中文')
+    Invoke-Button 'Delete'
+    Wait-For { (Find-Named 'Item deleted') -and (Find-Named '0 items') } 'delete_updates_list' | Out-Null
+    Add-Check 'delete_updates_real_store' $true
+    Invoke-Button 'All'
+    Set-Search ''
+    Wait-For { Find-Named '2 items' } 'remaining_history' | Out-Null
+    $history = Get-Content -Raw -Encoding UTF8 (Join-Path $historyRoot 'history.json') | ConvertFrom-Json
+    Add-Check 'store_persistence_matches_ui' ($history.items.Count -eq 2)
+  }
 } catch {
   $checks.Add(@{ name = 'ui_probe'; passed = $false; detail = $_.Exception.Message })
   $_ | Format-List * -Force | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'probe-error.log')
@@ -145,7 +174,7 @@ try {
       Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'application-events.log')
   } catch { $_.Exception.Message | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'event-query.log') }
 
-  try { if ($window) { Save-Screenshot 'failure.png' } } catch { }
+  try { if ($nativeWindowHandle -ne [IntPtr]::Zero -and !$application.HasExited) { Save-Screenshot 'failure.png' } } catch { }
 } finally {
   if ($application -and !$application.HasExited) { Stop-Process -Id $application.Id -Force }
   $passed = $checks.Count -gt 0 -and @($checks | Where-Object { !$_.passed }).Count -eq 0
