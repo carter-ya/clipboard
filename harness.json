@@ -84,7 +84,8 @@
           "GtkLabel notifications fix native baseline, Unicode search and pin/filter (41074773874). Settings-return screenshot preserves the Chinese query; the probe now waits for the exact UIA value as Linux already does, rather than reading during widget reconstruction.",
           "The bounded value probe still fails: a visible two-character query reports a 16-character UIA value (41077272482), consistent with placeholder aggregation. Plain GtkEditable text inputs now expose gtk_editable_get_text directly; protected/password controls are excluded.",
           "Windows foundation UI passes all nine native checks in 41079032419. Higher-layer hide/reopen crashes because GTK recreates an AccessKit subclassing adapter on an existing HWND. The runtime patch caches one root/adapter per native GdkSurface and rebuilds the accessible tree on reuse; lifecycle CI remains required.",
-          "Surface-scoped adapter removes the hide/reopen abort (41083748469), but recreating the accessible root ID invalidates UIA window references. The cached Windows root now preserves its node ID across context re-realization while rebuilding descendants. Native lifecycle CI remains required."
+          "Surface-scoped adapter removes the hide/reopen abort (41083748469), but recreating the accessible root ID invalidates UIA window references. The cached Windows root now preserves its node ID across context re-realization while rebuilding descendants. Native lifecycle CI remains required.",
+          "Stable root identity passes hide/wake/close-reopen focus and query checks (41087494119). Subsequent Delete reaches a retired child ID. Windows widget identities now persist with their live accessible object using a weak root reference, preserving action targets across context recreation without retaining old windows."
         ]
       },
       {
