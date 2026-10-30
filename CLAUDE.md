@@ -96,3 +96,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Installed Windows lifecycle probes bound repeated private hide/reopen cycles and record process private bytes/handles after warmup, keeping physical focus/IME and multi-day soak gates separate.
 - Windows GTK keeps one AccessKit root/subclassing adapter per native GdkSurface across hide/reopen, rebuilds the tree on reuse, and releases it with that surface. Recreating adapters for a surviving HWND causes an abort. Hidden editor preservation and lifecycle/resource checks remain hard gates.
+
+- A surviving Windows HWND keeps its accessible root node ID across hide/reopen; rebuilding descendant contexts must not invalidate UIA window references.

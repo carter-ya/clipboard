@@ -46,7 +46,15 @@
          request->data.value.tag != ACCESSKIT_ACTION_DATA_SET_TEXT_SELECTION)
 --- a/gtk/a11y/gtkaccesskitroot.c
 +++ b/gtk/a11y/gtkaccesskitroot.c
-@@ -283,6 +283,9 @@
+@@ -47,6 +47,7 @@
+   gboolean requested_initial_tree;
+ 
+ #if defined(GDK_WINDOWING_WIN32)
++  guint32 root_id;
+   accesskit_windows_subclassing_adapter *adapter;
+ #elif defined(GDK_WINDOWING_MACOS)
+   accesskit_macos_subclassing_adapter *adapter;
+@@ -283,6 +284,9 @@
  do_action_main_thread (gpointer data_generic)
  {
    DoActionData *data = data_generic;
@@ -56,7 +64,7 @@
  
    if (data->request->target == (data->request->target & 0xffffffff))
      {
-@@ -292,6 +295,8 @@
+@@ -292,6 +296,8 @@
  
        if (accesskit_ctx)
          gtk_accesskit_context_do_action (accesskit_ctx, data->request);
@@ -65,7 +73,7 @@
      }
  
    g_object_unref (data->root);
-@@ -309,7 +314,11 @@
+@@ -309,7 +315,11 @@
  
    main_thread_data->request = request;
    main_thread_data->root = g_object_ref (root);
@@ -78,7 +86,7 @@
  }
  
  #if defined(GDK_WINDOWING_WAYLAND) || defined(GDK_WINDOWING_X11)
-@@ -418,9 +427,32 @@
+@@ -418,9 +428,32 @@
  GtkAccessKitRoot *
  gtk_accesskit_root_new (GtkRoot *root_widget)
  {
@@ -111,6 +119,29 @@
  }
  
  static void
+@@ -473,7 +506,21 @@
+ gtk_accesskit_root_add_context (GtkAccessKitRoot    *self,
+                                 GtkAccessKitContext *context)
+ {
+-  guint32 id = gtk_accesskit_root_new_id (self);
++  guint32 id;
++
++#if defined(GDK_WINDOWING_WIN32)
++  if (gtk_at_context_get_accessible (GTK_AT_CONTEXT (context)) ==
++      GTK_ACCESSIBLE (self->root_widget))
++    {
++      /* UIA associates its root provider with the surviving HWND. Preserve
++       * that root node ID when accessible contexts are realized again. */
++      if (!self->root_id)
++        self->root_id = gtk_accesskit_root_new_id (self);
++      id = self->root_id;
++    }
++  else
++#endif
++    id = gtk_accesskit_root_new_id (self);
+   g_hash_table_insert (self->contexts, GUINT_TO_POINTER (id), context);
+ 
+   if (self->did_initial_update)
 --- a/gtk/gtklabel.c
 +++ b/gtk/gtklabel.c
 @@ -3263,8 +3263,18 @@
