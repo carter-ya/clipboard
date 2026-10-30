@@ -95,3 +95,4 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Plain GTK text inputs expose their actual GtkEditable value rather than aggregating decorative/placeholder children. Password/protected widgets must never enter this plaintext-value override.
 
 - Installed Windows lifecycle probes bound repeated private hide/reopen cycles and record process private bytes/handles after warmup, keeping physical focus/IME and multi-day soak gates separate.
+- Windows GTK keeps one AccessKit root/subclassing adapter per native GdkSurface across hide/reopen, rebuilds the tree on reuse, and releases it with that surface. Recreating adapters for a surviving HWND causes an abort. Hidden editor preservation and lifecycle/resource checks remain hard gates.
