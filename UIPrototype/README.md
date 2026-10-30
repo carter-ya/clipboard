@@ -50,8 +50,20 @@ with `results.json`. Linux uses Xvfb, an isolated DBus session and Openbox.
 
 These checks do not verify physical keyboard dispatch, real Chinese IME
 composition, global hotkey activation/focus return, tray behavior, multi-monitor
-DPI, installer packaging, or native Wayland clipboard capture. Those require
-separate interactive desktop validation. Passing headless checks is not full UI
-acceptance.
+DPI, or installer packaging. Those require separate interactive desktop validation.
+The current clipboard adapter explicitly rejects Wayland sessions; native Wayland
+clipboard support still needs an implementation. Passing headless checks is not
+full UI acceptance.
 
-Status: implementation added; Windows/Linux GUI results pending.
+Status: Linux arm64 locally and Ubuntu 22.04 x86_64 in GitHub Actions passed
+seven operation checks. Windows compiled and linked, but the native accessibility
+probe crashes the app in `Microsoft.UI.Xaml.dll` (`0xc0000005`, offset `0xf59da`),
+matching [upstream issue #787](https://github.com/moreSwift/swift-cross-ui/issues/787).
+The ordinary window renders history, Chinese text and preview before UIA traversal.
+The complete Windows UI check is failing; native controls are not accepted.
+On failure CI also runs `--ui-baseline` (text/counter/button only) to separate
+ordinary backend startup from accessibility traversal; this diagnostic does not
+replace or pass the full preview test.
+Final [CI run](https://github.com/carter-ya/clipboard/actions/runs/40997209832):
+Linux passed; Windows failed at UI Automation traversal. See
+`../docs/swift-portability.md` for detailed evidence and remaining validation.

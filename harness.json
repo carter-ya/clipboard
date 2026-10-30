@@ -55,8 +55,17 @@
     "ui_prototype": {
       "dependency": "SwiftCrossUI 0.10.0 and SwiftSyntax 603.0.1 pinned in a separate UIPrototype package tested with Swift 6.3.3; default WinUI backend on Windows and GTK 4 backend on Linux. Core and the macOS product do not depend on it.",
       "scope": "Search/list/preview, pin/delete, settings navigation and native text clipboard copy; real JSONSnapshotClipStore in a separate prototype directory. Capture is opt-in and off by default.",
-      "validation": "Implementation in progress. CI must build and launch the actual GUI, exercise accessible native controls, capture screenshots and retain logs. Keyboard events must not be synthesized.",
-      "limits": "Accessibility value/invoke operations do not prove real keyboard dispatch, Chinese IME composition, global hotkey foreground activation or multi-monitor scaling. Those need interactive target desktops."
+      "validation": "Linux arm64 locally and Ubuntu 22.04 x86_64 in GitHub Actions passed seven native GUI checks with screenshots: history, copy/readback, Unicode search, pin/filter, settings round trip, delete and persistence. AT-SPI search focus is explicitly unverified. Windows WinUI compiled/linked but UI Automation traversal crashes in Microsoft.UI.Xaml.dll 3.1.5.0 (0xc0000005 at 0xf59da), matching upstream issue #787. Ordinary Windows window startup and rendering passed, with real Chinese history/preview visible before UIA traversal; a minimal scene survives but exposes no discoverable text to the probe. Windows control interaction is not accepted. No keyboard events are synthesized.",
+      "limits": "Accessibility value/invoke operations do not prove real keyboard dispatch, Chinese IME composition, global hotkey foreground activation or multi-monitor scaling. Those need interactive target desktops. Windows accessibility traversal currently triggers upstream WinUI issue #787; no successful full Windows UI result is claimed.",
+      "github_actions": {
+        "tested_commit": "0256b4027dd934485f2b94d55a461bdf094dd4dc",
+        "run_url": "https://github.com/carter-ya/clipboard/actions/runs/40997209832",
+        "conclusion": "failure",
+        "linux_job": 123872999798,
+        "linux_result": "Build and seven GUI checks passed; screenshots inspected. AT-SPI focus remains unverified.",
+        "windows_job": 123872999448,
+        "windows_result": "Build, ordinary window startup and rendering passed. UI Automation traversal crashes with exit -1073741819 (0xc0000005), Microsoft.UI.Xaml.dll offset 0xf59da. Minimal scene renders but text cannot be found through UIA; controls not accepted."
+      }
     },
     "evidence": "docs/swift-portability.md"
   },

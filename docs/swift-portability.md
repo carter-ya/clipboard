@@ -220,9 +220,64 @@ The prototype provides search, a selectable list, preview, copy, pin/delete and
 settings navigation. Data lives in its own directory; capture is off by default.
 The workflow builds the native backends, starts real windows, operates native
 accessibility controls without key injection, checks the real persisted data
-and clipboard output, and uploads screenshots and logs. Windows and Linux GUI
-results are pending. These tests do not claim interactive keyboard/IME or global
-hotkey focus handoff acceptance.
+and clipboard output, and uploads screenshots and logs.
+
+Local Linux arm64 validation with Swift 6.3.3 / GTK 4.6 passed seven checks:
+window/history, native clipboard copy, Unicode search, pin/filter, settings
+round trip preserving the search value, delete and persisted store contents.
+History, search and settings screenshots were visually inspected. AT-SPI
+Component.GrabFocus is rejected by this GTK version; search focus is explicitly
+unverified and appears in the report limitations. The composed button labels
+require locating the native button ancestor rather than invoking a text child.
+GitHub Ubuntu 22.04 x86_64 also passed all seven checks in run
+[40989864289](https://github.com/carter-ya/clipboard/actions/runs/40989864289),
+tested commit `00ad70545427c3209ddd1f71b60da4600054f797`.
+
+Windows Server 2022 x86_64 compiled and linked the full WinUI preview, but the
+accessibility probe crashed the application. Run
+[40992560628](https://github.com/carter-ya/clipboard/actions/runs/40992560628)
+retained a Windows Application Error event: `Microsoft.UI.Xaml.dll` 3.1.5.0,
+exception `0xc0000005`, offset `0xf59da`. This exactly matches the fault signature
+reported for the same SwiftCrossUI / swift-winui / Windows App Runtime versions in
+[SwiftCrossUI issue #787](https://github.com/moreSwift/swift-cross-ui/issues/787).
+The underlying WinUI accessibility problem is also tracked in
+[Microsoft issue #11028](https://github.com/microsoft/microsoft-ui-xaml/issues/11028).
+Run [40996448799](https://github.com/carter-ya/clipboard/actions/runs/40996448799),
+commit `7cd2ad6854e787e19055287700a462d100940599`, additionally proved that the
+ordinary Windows window survives before any UI Automation traversal. Its native
+screenshot visibly contains the three rows, Chinese text and preview. Traversing
+the full view then crashes with the same DLL/exception/offset. A minimal
+text/counter/button scene survives, but its text is not discoverable by the UIA
+probe, so button interaction cannot be verified there either. Both full and
+baseline diagnostic reports remain failing. The final screenshot pass repositions
+only the probe window inside the small hosted desktop to avoid off-screen crops;
+this is not a product window-placement or DPI acceptance test.
+
+CI caches compiled dependencies. Windows cache extraction can break tracked
+relative directory symlinks, so the workflow recreates only Git-tracked links
+before rebuilding. Dependencies' source contents and pinned versions are kept.
+The full Windows UI check remains a failure rather than suppressing the crash or
+skipping controls.
+
+Final combined CI evidence:
+
+- Tested commit: `0256b4027dd934485f2b94d55a461bdf094dd4dc`.
+- Run: [40997209832](https://github.com/carter-ya/clipboard/actions/runs/40997209832).
+- Ubuntu job `123872999798`: build and all seven GUI checks passed.
+- Windows job `123872999448`: build and native window startup/rendering passed;
+  UI Automation traversal failed with exit `-1073741819` (`0xc0000005`). The
+  Application Error event again names `Microsoft.UI.Xaml.dll`, offset `0xf59da`.
+- The full Windows startup screenshot was visually inspected after positioning
+  the probe inside the desktop: header, search, three rows including Chinese,
+  preview, copy/pin/delete controls, settings and Ready footer are all visible.
+  This proves rendering, not successful Windows control interactions.
+- Artifacts `swiftcrossui-ubuntu-22.04` and `swiftcrossui-windows-2022` contain
+  screenshots, `results.json`, application/build logs and Windows crash events.
+  The Windows artifact also retains the failing minimal-scene report.
+- Overall CI failed because the Windows operation probe crashes.
+
+These tests do not claim interactive keyboard/IME or global hotkey focus handoff
+acceptance.
 
 ## Remaining work
 
@@ -230,10 +285,11 @@ hotkey focus handoff acceptance.
    added. A passing core suite does not validate desktop integration.
 2. Split Apple adapters into a separate target if the experiment is adopted;
    make hotkey interfaces independent of KeyboardShortcuts types.
-3. Implement native clipboard capture/writeback and validate native format,
-   source-app and sensitivity metadata. Preserve the existing no-automatic-paste
-   and sensitive-memory-only rules.
-4. Select a UI and implement tray, focus/input-method behavior, hotkeys,
+3. Extend the validated native text clipboard slice to rich formats and
+   source-app metadata; preserve sensitive-memory-only handling and the existing
+   no-automatic-paste rule.
+4. Resolve the Windows WinUI accessibility crash before accepting the UI port.
+   Extend the SwiftCrossUI preview with tray, focus/input-method behavior, hotkeys,
    credential storage, startup, OCR and distribution for each platform.
 5. Test Linux X11 and specific Wayland desktop environments separately. A
    headless core container test makes no claim about desktop integration.
