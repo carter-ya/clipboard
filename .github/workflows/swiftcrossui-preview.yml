@@ -128,7 +128,7 @@ jobs:
           & python tools/desktop-ui/build-desktop.py --jobs 2 2>&1 | Tee-Object -FilePath ui-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Save compiled UI dependencies
-        if: steps.ui-cache.outputs.cache-hit != 'true'
+        if: always() && steps.ui-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: Desktop/.build
