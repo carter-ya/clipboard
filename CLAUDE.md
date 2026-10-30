@@ -88,3 +88,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Desktop installation/startup paths resolve the actual main executable, not argv[0], which can be a bare PATH command. The installed Linux probe launches through its private command entry.
 - The pinned GTK label patch emits accessible text removal/insertion notifications when contents change, so equal-sized updates invalidate cached text runs. Keep baseline Counter: 0 → 1 and 3 → 1 search-result checks; no UI polling or renderer-independent flush is needed.
+
+- Installed Windows OCR validation temporarily hides/restores only its isolated CI build resource bundles, so SwiftPM absolute build-path fallbacks cannot mask missing packaged scripts.

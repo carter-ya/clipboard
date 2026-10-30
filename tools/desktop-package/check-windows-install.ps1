@@ -59,9 +59,25 @@ try {
   $App.Kill()
   $App.WaitForExit()
   $App = $null
-  & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
-    -ClipboardPeer $ClipboardPeer -OCRFixture $OCRFixture -OutputDirectory (Join-Path $Output 'ui')
-  Check 'installed_gui_and_services_pass_with_bundled_runtime' ($LASTEXITCODE -eq 0)
+  # SwiftPM embeds a build-directory fallback. Hide only this CI build's own
+  # resource bundles so an omitted installed OCR script cannot pass by accident.
+  $HiddenResources = @{}
+  try {
+    Get-ChildItem (Split-Path ([IO.Path]::GetFullPath($ClipboardPeer))) -Directory | Where-Object {
+      $_.Name.EndsWith('.resources') -or $_.Name.EndsWith('.bundle')
+    } | ForEach-Object {
+      $Hidden = $_.FullName + '.fixture-hidden-' + [Guid]::NewGuid().ToString('N')
+      Move-Item -LiteralPath $_.FullName -Destination $Hidden
+      $HiddenResources[$Hidden] = $_.FullName
+    }
+    & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
+      -ClipboardPeer $ClipboardPeer -OCRFixture $OCRFixture -OutputDirectory (Join-Path $Output 'ui')
+    Check 'installed_gui_and_services_pass_with_bundled_runtime' ($LASTEXITCODE -eq 0)
+  } finally {
+    foreach ($Hidden in $HiddenResources.Keys) {
+      Move-Item -LiteralPath $Hidden -Destination $HiddenResources[$Hidden]
+    }
+  }
   $Histories = @(Get-ChildItem (Join-Path $Output 'ui') -Recurse -Filter history.json)
   Check 'installed_probe_persists_private_history' ($Histories.Count -gt 0)
   $HistoryHashes = @{}
