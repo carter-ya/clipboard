@@ -81,7 +81,10 @@ jobs:
       - name: Configure Windows GTK
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./tools/desktop-ui/install-windows-gtk.ps1 -ConfigureOnly
+        run: |
+          ./tools/desktop-ui/install-windows-gtk.ps1 -ConfigureOnly
+          python tools/desktop-ui/normalize-windows-pkgconfig.py --prefix C:/gtk-build/gtk/x64/release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Save Windows GTK runtime
         if: runner.os == 'Windows' && steps.gtk-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
