@@ -7,10 +7,12 @@ function Invoke-Checked([scriptblock]$Command) {
 }
 function Get-VerifiedFile([string]$Url, [string]$Path, [string]$SHA256) {
   Write-Host ('Downloading verified input: ' + [IO.Path]::GetFileName($Path))
-  for ($Attempt = 1; $Attempt -le 3; $Attempt++) {
-    try { Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Path -TimeoutSec 180; break }
-    catch { if ($Attempt -eq 3) { throw }; Start-Sleep -Seconds 3 }
-  }
+  # Invoke-WebRequest stalled for the entire job despite TimeoutSec. Curl has
+  # independent connect and total deadlines, and avoids PowerShell progress I/O.
+  & curl.exe --ipv4 --fail --location --silent --show-error --retry 2 --retry-delay 3 `
+    --connect-timeout 20 --max-time 180 --output $Path $Url
+  if ($LASTEXITCODE -ne 0) { throw ('Verified input download failed: ' + [IO.Path]::GetFileName($Path)) }
+  Write-Host ('Downloaded bytes: ' + (Get-Item $Path).Length)
   if ((Get-FileHash -Algorithm SHA256 $Path).Hash.ToLowerInvariant() -ne $SHA256) {
     throw 'Downloaded GTK source/runtime checksum mismatch'
   }

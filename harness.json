@@ -124,7 +124,7 @@
     "package": "Desktop (ClipboardDesktop executable), separate from the existing macOS product",
     "framework": "SwiftCrossUI 0.10.0 / GtkBackend explicitly selected on Windows and Linux; Swift 6.3.3 / SwiftSyntax 603.0.1",
     "windows_runtime": "GTK 4.22.4 rebuilt with AccessKit C 0.18.0 (0c52a8ce2357bbeb927f90dc9a1c19c8ec1bd2c3), Rust 1.87.0; fixed gvsbuild 2026.8.0 dependency archive; SHA-256 verified inputs",
-    "backend_gate": "Prior WinUI UI Automation traversal crashed with upstream issue #787. Required GTK/AccessKit native control operations remain pending; first GTK Windows runtime preparation timed out before build. Preparation now has bounded downloads and explicit stages.",
+    "backend_gate": "Prior WinUI UI Automation traversal crashed with upstream issue #787. Windows GTK runtime preparation reached the GTK source download and then stalled despite Invoke-WebRequest TimeoutSec; replaced it with curl connect/total deadlines. GTK/AccessKit controls remain pending.",
     "fixtures": "Only --smoke-root seeds synthetic content. --data-root and ordinary launches start from real/empty storage. Recording remains off until explicit UI action.",
     "scope": "History/search/preview/copy/pin/delete/settings foundation. CP4-CP8 add remaining desktop features; physical keyboard/IME/DPI gates remain open."
   },
