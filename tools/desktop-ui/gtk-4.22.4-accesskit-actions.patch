@@ -10,7 +10,21 @@
    /* TODO: other actions */
  
    set_bounds (accessible, node);
-@@ -2030,6 +2033,19 @@
+@@ -1578,6 +1581,13 @@
+                        accesskit_node_set_role_description, node);
+   set_string_property (ctx, GTK_ACCESSIBLE_PROPERTY_VALUE_TEXT,
+                        accesskit_node_set_value, node);
++
++  /* Editable values must exclude decorative children such as placeholders.
++   * Password widgets retain their protected-text representation. */
++  if (GTK_IS_EDITABLE (accessible) && role == ACCESSKIT_ROLE_TEXT_INPUT &&
++      !gtk_accessible_is_password_text (accessible))
++    accesskit_node_set_value (node,
++                              gtk_editable_get_text (GTK_EDITABLE (accessible)));
+ 
+   set_size_from_property (ctx, GTK_ACCESSIBLE_PROPERTY_LEVEL,
+                           accesskit_node_set_level, node);
+@@ -2030,6 +2040,19 @@
      gtk_widget_grab_focus (widget);
      break;
  
