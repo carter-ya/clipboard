@@ -86,3 +86,7 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - GTK archive sources retain LF; normalize reviewed patch input before applying it on Windows, and include the patch/helper in runtime cache keys. Do not normalize unrelated source files.
 
 - The pinned GTK label patch emits accessible text removal/insertion notifications when contents change, so equal-sized updates invalidate cached text runs. Keep baseline Counter: 0 → 1 and 3 → 1 search-result checks; no UI polling or renderer-independent flush is needed.
+
+- Native UI probes wait for exact restored editor values after asynchronous view reconstruction, retaining the bounded timeout and value assertion. Failure diagnostics expose lengths/control metadata, never text contents.
+
+- Plain GTK text inputs expose their actual GtkEditable value rather than aggregating decorative/placeholder children. Password/protected widgets must never enter this plaintext-value override.
