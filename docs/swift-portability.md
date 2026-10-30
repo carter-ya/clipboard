@@ -294,3 +294,5 @@ the next native run includes content-free action diagnostics, an MTA UIA client,
 default-priority AccessKit input dispatch and editable SetValue support.
 
 The optimized installed Linux package also passes rich image/file capture and copy, real Tesseract OCR, and separate OCR-result copy with an independent native peer. The peer uses only the installed runtime libraries; the app loader path remains unmodified. See Desktop/TESTING.md for the remaining interactive release gates.
+
+The final command-entry Linux package passes 63 installed GUI/lifecycle checks and eight installer checks; both scale suites pass six checks, including readable in-bounds history rows. Its latest measured lifecycle run keeps 27 descriptors and grows RSS by 1032 KiB. Bare PATH launch installation locks and localized service/privacy notes are covered.

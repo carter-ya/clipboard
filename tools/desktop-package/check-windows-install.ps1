@@ -50,6 +50,10 @@ try {
   }
   Check 'installed_application_holds_upgrade_mutex' $Running
   Check 'running_application_blocks_silent_upgrade' ((Install-Package) -ne 0)
+  $RunningUninstaller = Start-Process -FilePath (Join-Path $Installed 'unins000.exe') `
+    -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -PassThru
+  if (!$RunningUninstaller.WaitForExit(30000)) { $RunningUninstaller.Kill(); throw 'Running-app uninstall guard timeout' }
+  Check 'running_application_blocks_silent_uninstall' ($RunningUninstaller.ExitCode -ne 0 -and !$App.HasExited -and (Test-Path $Executable))
   # This process owns only an empty synthetic profile. Force exit verifies that
   # OS handle cleanup releases the installation mutex after an abrupt owner loss.
   $App.Kill()

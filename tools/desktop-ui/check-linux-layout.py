@@ -153,6 +153,9 @@ try:
         return rect.x >= 0 and rect.y >= 0 and rect.width > 0 and rect.height > 0 and rect.x + rect.width <= 640 and rect.y + rect.height <= 480
     wait_for(lambda: inside(copy), 'compact_copy_bounds')
     check('copy_toolbar_remains_inside_small_viewport', inside(copy))
+    row = wait_for(lambda: next((node for node in nodes() if node.getRole() == pyatspi.ROLE_LIST_ITEM), None), 'visible_history_row')
+    row_bounds = row.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+    check('history_row_remains_readable_inside_small_viewport', inside(row) and row_bounds.height >= 40)
     bounds = copy.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
     display = x11.XOpenDisplay(None)
     try:

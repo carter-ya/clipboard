@@ -5,6 +5,10 @@ on:
       - Desktop/Packaging/**
       - tools/desktop-package/**
       - tools/desktop-ui/install-windows-gtk.ps1
+      - tools/desktop-ui/apply-gtk-source-patch.py
+      - tools/desktop-ui/gtk-4.22.4-accesskit-actions.patch
+      - tools/desktop-ui/extract-gtk-source.py
+      - tools/desktop-ui/normalize-windows-pkgconfig.py
       - .github/workflows/desktop-runtime-sources.yml
   workflow_dispatch:
 permissions:
