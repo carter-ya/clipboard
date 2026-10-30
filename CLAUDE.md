@@ -78,3 +78,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - The pinned GTK AccessKit patch handles editable SetValue with native sensitivity/editability checks and schedules accessibility input at default priority. Optional CI diagnostics contain action/target IDs only, never text. UI Automation clients run MTA; native focus/action success remains required.
 
 - GTK archive sources retain LF; normalize reviewed patch input before applying it on Windows, and include the patch/helper in runtime cache keys. Do not normalize unrelated source files.
+
+- GTK Windows accessibility changes queue one coalesced main-context flush, independently of renderer frames. Pending callbacks hold/release the root/widget safely and skip hidden windows; no periodic UI refresh is added. Native screenshot changes alone still do not satisfy accessibility acceptance.
