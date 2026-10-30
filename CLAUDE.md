@@ -80,3 +80,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Wayland capture requires wlr data control and the first advertised seat. It has no source-app identity or primary-selection capture. Global shortcuts use the desktop portal, restore only previously approved bindings, and require an explicit settings action for new permission. Never bypass restricted capture through RemoteDesktop permissions. Preserve one-shot activation tokens only in memory. Tests own their compositor/DBus session; the fallback UI test creates only a private mouse device, never a keyboard. Real portal keyboard focus/IME remains unverified.
 - The pinned SwiftCrossUI GTK main-loop patch releases one-shot callback contexts and prevents zero-delay timeouts from starving AccessKit idle actions. Keep native accessibility focus/button checks as hard gates; a visible tree alone is insufficient.
+
+- The pinned GTK AccessKit patch handles editable SetValue with native sensitivity/editability checks and schedules accessibility input at default priority. Optional CI diagnostics contain action/target IDs only, never text. UI Automation clients run MTA; native focus/action success remains required.
