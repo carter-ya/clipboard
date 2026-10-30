@@ -16,6 +16,7 @@ function Get-VerifiedFile([string]$Url, [string]$Path, [string]$SHA256) {
   if ((Get-FileHash -Algorithm SHA256 $Path).Hash.ToLowerInvariant() -ne $SHA256) {
     throw 'Downloaded GTK source/runtime checksum mismatch'
   }
+  Write-Host ('Verified checksum: ' + [IO.Path]::GetFileName($Path))
 }
 function Enter-VisualStudioEnvironment {
   $Locator = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
@@ -76,7 +77,10 @@ if (!$ConfigureOnly) {
   Get-Command cl.exe -ErrorAction Stop | Out-Null
   $SourceArchive = Join-Path $BuildRoot 'gtk-4.22.4.tar.xz'
   Get-VerifiedFile 'https://download.gnome.org/sources/gtk/4.22/gtk-4.22.4.tar.xz' $SourceArchive '51bd9f60c7d23a665a556c7364c21fb2e4e282566b3e7e092455e8f910330893'
-  Invoke-Checked { tar -xf $SourceArchive -C $BuildRoot }
+  Write-Host 'Extracting fixed GTK source archive with Python'
+  # Windows tar stalled after downloading the source without reporting progress.
+  # Read the already verified regular-file-only archive with Python instead.
+  Invoke-Checked { python (Join-Path $PSScriptRoot 'extract-gtk-source.py') $SourceArchive $BuildRoot }
   $SourceRoot = Join-Path $BuildRoot 'gtk-4.22.4'
   $AccessKitRoot = Join-Path $SourceRoot 'subprojects/accesskit-c'
   Write-Host 'Fetching fixed AccessKit source'
