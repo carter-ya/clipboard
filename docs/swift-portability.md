@@ -1,6 +1,15 @@
-# Swift core portability experiment
+# Swift Core platform baseline
 
-Date: 2026-10-29 (Asia/Shanghai). Base: `b4ac516`. Branch: `codex/verify-swift-cross-platform`.
+The production workstream starts from main `2fd2a97` in
+`codex/cross-platform-foundation`. Its stacked delivery plan and acceptance gates
+are tracked in `harness.json.cross_platform_delivery`. Windows/Linux/macOS Core
+regression checks now run on PRs and main rather than an experiment-only branch.
+
+The findings below retain the original 2026-10-29 experiment evidence (base
+`b4ac516`, branch `codex/verify-swift-cross-platform`). They are not a claim of
+completed desktop UI support. Current CP1 validation: local macOS Core 153 tests,
+one existing Keychain skip, zero failures; strict Core/App lint, five synthetic scenario checks and the full macOS Debug
+application build passed. Native Windows/Linux PR checks are pending.
 
 ## Finding
 

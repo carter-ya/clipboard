@@ -1,12 +1,16 @@
-name: Swift core portability experiment
+name: Swift Core platforms
 
-# Validate only when the experiment branch is explicitly pushed, or manually.
-# This does not publish an application.
 on:
   push:
-    branches: [codex/verify-swift-cross-platform]
+    branches: [main]
     paths:
       - Core/**
+      - .github/workflows/swift-portability.yml
+  pull_request:
+    paths:
+      - Core/**
+      - App/**
+      - project.yml
       - .github/workflows/swift-portability.yml
   workflow_dispatch:
 
@@ -73,3 +77,25 @@ jobs:
             core-tests.log
             scenario.log
           if-no-files-found: ignore
+
+  macos:
+    name: Core and application / macOS
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test Core and synthetic scenario
+        run: |
+          set -euo pipefail
+          swift --version
+          swift test --package-path Core
+          swift run --package-path Core scenario-runner rich-types
+      - name: Build existing macOS application
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null; then
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install xcodegen
+          fi
+          xcodegen generate
+          xcodebuild -scheme ClipboardApp -destination 'platform=macOS' -configuration Debug \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
