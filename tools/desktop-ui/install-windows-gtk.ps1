@@ -83,6 +83,7 @@ if (!$ConfigureOnly) {
   # Read the already verified regular-file-only archive with Python instead.
   Invoke-Checked { python (Join-Path $PSScriptRoot 'extract-gtk-source.py') $SourceArchive $BuildRoot }
   $SourceRoot = Join-Path $BuildRoot 'gtk-4.22.4'
+  Invoke-Checked { git -C $SourceRoot apply (Join-Path $PSScriptRoot 'gtk-4.22.4-accesskit-actions.patch') }
   $AccessKitRoot = Join-Path $SourceRoot 'subprojects/accesskit-c'
   Write-Host 'Fetching fixed AccessKit source'
   $env:GIT_TERMINAL_PROMPT = '0'

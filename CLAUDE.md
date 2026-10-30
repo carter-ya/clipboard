@@ -76,3 +76,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Desktop rich capture uses Core RichClipboardAccess and a native adapter. Resolve blob bytes/decode images off UI; sensitive previews stay hidden. Desktop history archives are bounded, self-contained JSON (not macOS ZIP), exclude sensitive items and reject external blob references. Source IDs come from clipboard owner metadata, never the foreground app. INCR transfer timers exist only while outgoing transfers are active.
 - The pinned SwiftCrossUI GTK main-loop patch releases one-shot callback contexts and prevents zero-delay timeouts from starving AccessKit idle actions. Keep native accessibility focus/button checks as hard gates; a visible tree alone is insufficient.
+
+- The pinned GTK AccessKit patch handles editable SetValue with native sensitivity/editability checks and schedules accessibility input at default priority. Optional CI diagnostics contain action/target IDs only, never text. UI Automation clients run MTA; native focus/action success remains required.
