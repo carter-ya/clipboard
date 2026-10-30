@@ -80,7 +80,7 @@ try:
             if os.name == 'nt':
                 # Diagnose only a synthetic fixture and fixed stage codes. Never emit OCR output.
                 script = Path(__file__).resolve().parents[2] / 'Core/Sources/DesktopServices/Resources/WindowsOCR.ps1'
-                powershell = Path(environment['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
+                powershell = Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
                 diagnostic = subprocess.run([str(powershell), '-NoLogo', '-NoProfile', '-NonInteractive',
                                              '-ExecutionPolicy', 'Bypass', '-File', str(script), '-Language', 'en'],
                                             input=base64.b64encode(Path(args.ocr_fixture).read_bytes()),

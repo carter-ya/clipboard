@@ -150,7 +150,9 @@ public final class NativeDesktopOCR: DesktopOCRRecognizing, @unchecked Sendable 
   #if os(Windows)
     private static func windowsOCR(_ data: Data, language: String?) throws -> String {
       guard let script = Bundle.module.url(forResource: "WindowsOCR", withExtension: "ps1"),
-        let windows = ProcessInfo.processInfo.environment["SystemRoot"]
+        let windows = ProcessInfo.processInfo.environment.first(where: {
+          $0.key.caseInsensitiveCompare("SystemRoot") == .orderedSame
+        })?.value
       else { throw DesktopServiceError.unavailable }
       let process = Process()
       let input = Pipe()
