@@ -59,7 +59,7 @@
         "base": "main",
         "scope": "Portable Core compilation boundaries and permanent Windows/Linux/macOS regression CI.",
         "acceptance": "Core tests and synthetic scenario pass on all three platforms; macOS application still builds.",
-        "status": "in_progress"
+        "status": "verified"
       },
       {
         "id": "CP2",
@@ -67,7 +67,7 @@
         "base": "codex/cross-platform-foundation",
         "scope": "Native Windows/X11 text clipboard adapters, bounded reads, sensitive hints, independent-process integration tests.",
         "acceptance": "Capture and copy/readback pass using actual system APIs with synthetic fixtures.",
-        "status": "in_progress"
+        "status": "verified"
       },
       {
         "id": "CP3",
@@ -83,7 +83,7 @@
         "base": "codex/cross-platform-ui",
         "scope": "Tray, configurable global shortcut, foreground/focus handoff, window lifecycle, pause/resume and persisted preferences.",
         "acceptance": "Native shell integration and conflict/failure cases pass; hidden resources released; physical focus/IME remains an explicit manual gate.",
-        "status": "planned"
+        "status": "in_progress"
       },
       {
         "id": "CP5",
