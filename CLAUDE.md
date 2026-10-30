@@ -87,4 +87,4 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - GTK archive sources retain LF; normalize reviewed patch input before applying it on Windows, and include the patch/helper in runtime cache keys. Do not normalize unrelated source files.
 
 - Desktop installation/startup paths resolve the actual main executable, not argv[0], which can be a bare PATH command. The installed Linux probe launches through its private command entry.
-- GTK Windows accessibility changes queue one coalesced main-context flush, independently of renderer frames. Pending callbacks hold/release the root/widget safely and skip hidden windows; no periodic UI refresh is added. Native screenshot changes alone still do not satisfy accessibility acceptance.
+- The pinned GTK label patch emits accessible text removal/insertion notifications when contents change, so equal-sized updates invalidate cached text runs. Keep baseline Counter: 0 → 1 and 3 → 1 search-result checks; no UI polling or renderer-independent flush is needed.
