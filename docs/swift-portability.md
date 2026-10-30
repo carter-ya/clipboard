@@ -198,3 +198,5 @@ remain required on both Windows and Linux.
 
 CP2 local macOS regression: 159 Core tests, one existing Keychain skip, zero
 failures; strict Core/App lint passed. Fresh native CI results are pending.
+
+Windows CP6 service CI confirms credential and startup checks, but OCR fails. The fixture wrapper reports only fixed OCR stage codes to distinguish WinRT, language, decode and recognition failures without logging content. Linux CP6 services and 32 GTK UI checks pass.

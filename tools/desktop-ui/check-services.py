@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Native service checks on isolated credentials, startup entries and loopback HTTP."""
 import argparse
+import base64
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
 from pathlib import Path
@@ -76,6 +77,19 @@ try:
                     time.sleep(0.1)
                 else:
                     raise RuntimeError('Private fixture keyring did not register')
+            if os.name == 'nt':
+                # Diagnose only a synthetic fixture and fixed stage codes. Never emit OCR output.
+                script = Path(__file__).resolve().parents[2] / 'Core/Sources/DesktopServices/Resources/WindowsOCR.ps1'
+                powershell = Path(environment['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
+                diagnostic = subprocess.run([str(powershell), '-NoLogo', '-NoProfile', '-NonInteractive',
+                                             '-ExecutionPolicy', 'Bypass', '-File', str(script), '-Language', 'en'],
+                                            input=base64.b64encode(Path(args.ocr_fixture).read_bytes()),
+                                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=50)
+                stage = diagnostic.stderr.decode('ascii', errors='ignore').strip()
+                allowed = {'ocr_unavailable_' + value for value in
+                           ('runtime', 'language', 'input', 'stream', 'decode', 'bitmap', 'recognize')}
+                print('Windows OCR fixture: ' + ('passed' if diagnostic.returncode == 0 else
+                                                stage if stage in allowed else 'process_failed'), flush=True)
             result = subprocess.run([str(Path(args.executable).resolve()), 'platform-services', '--ocr-fixture',
                                      str(Path(args.ocr_fixture).resolve()), '--http-fixture',
                                      'http://127.0.0.1:' + str(server.server_port)], env=environment, timeout=125)
