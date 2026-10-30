@@ -50,6 +50,7 @@ function Set-GtkEnvironment {
   $env:Path = "$Prefix\bin;" + $env:Path
   $env:PKG_CONFIG_PATH = "$Prefix\lib\pkgconfig;$Prefix\share\pkgconfig"
   $env:LIB = "$Prefix\lib;" + $env:LIB
+  $env:INCLUDE = "$Prefix\include;" + $env:INCLUDE
   if ($env:GITHUB_PATH) { "$Prefix\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH }
   if ($env:GITHUB_ENV) {
     "PKG_CONFIG_PATH=$env:PKG_CONFIG_PATH" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
@@ -114,5 +115,8 @@ if (!$ConfigureOnly) {
   } | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $Prefix 'clipboard-runtime.json')
 }
 if (!(Test-Path (Join-Path $Prefix 'clipboard-runtime.json'))) { throw 'Verified AccessKit GTK runtime is missing' }
+# A cache hit skips the runtime build, but Swift still needs the MSVC/SDK
+# library paths before LIB is explicitly extended with the GTK prefix.
+if ($ConfigureOnly) { Enter-VisualStudioEnvironment }
 Set-GtkEnvironment
 Invoke-Checked { & (Join-Path $Prefix 'bin/pkg-config.exe') --modversion gtk4 }
