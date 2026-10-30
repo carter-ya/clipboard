@@ -82,7 +82,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: C:/gtk-build/gtk/x64/release
-          key: desktop-gtk4.22.4-accesskit0.18-${{ hashFiles('tools/desktop-ui/install-windows-gtk.ps1') }}
+          key: desktop-gtk4.22.4-accesskit0.18-${{ hashFiles('tools/desktop-ui/install-windows-gtk.ps1', 'tools/desktop-ui/apply-gtk-source-patch.py', 'tools/desktop-ui/gtk-4.22.4-accesskit-actions.patch') }}
       - name: Build Windows GTK with native accessibility
         if: runner.os == 'Windows' && steps.gtk-cache.outputs.cache-hit != 'true'
         shell: pwsh

@@ -83,3 +83,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - CP8 preview packages bundle Swift runtime plus notices, record file hashes, and install per user. Linux declares Ubuntu 22.04 native runtime dependencies; Windows includes a verified GTK/DLL closure and uses the GUI subsystem. Keep installed bundles locked while running, preserve history/credentials through upgrade and uninstall, and remove only owned shortcuts/startup entries/files. Package probes use private profiles and a runtime-only Linux image or isolated Windows Actions runner. Virtual scale/lifecycle evidence does not close physical IME/DPI/focus gates.
 - The pinned GTK AccessKit patch handles editable SetValue with native sensitivity/editability checks and schedules accessibility input at default priority. Optional CI diagnostics contain action/target IDs only, never text. UI Automation clients run MTA; native focus/action success remains required.
+
+- GTK archive sources retain LF; normalize reviewed patch input before applying it on Windows, and include the patch/helper in runtime cache keys. Do not normalize unrelated source files.
