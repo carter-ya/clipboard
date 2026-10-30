@@ -1,5 +1,6 @@
 ﻿param([Parameter(Mandatory=$true)][string]$Executable,
       [Parameter(Mandatory=$true)][string]$OutputDirectory,
+      [string]$ClipboardPeer,
       [switch]$Baseline)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
@@ -31,6 +32,18 @@ public static class PreviewNative {
   [DllImport("user32.dll")] public static extern bool OpenClipboard(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool CloseClipboard();
   [DllImport("user32.dll")] public static extern IntPtr GetClipboardData(uint format);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern uint RegisterClipboardFormat(string name);
+  [DllImport("shell32.dll", CharSet=CharSet.Unicode)] public static extern uint DragQueryFile(IntPtr drop, uint index, System.Text.StringBuilder path, uint length);
+  public static bool HasPngClipboard() {
+    if (!OpenClipboard(IntPtr.Zero)) return false;
+    try { return GetClipboardData(RegisterClipboardFormat("PNG")) != IntPtr.Zero; }
+    finally { CloseClipboard(); }
+  }
+  public static uint ClipboardFileCount() {
+    if (!OpenClipboard(IntPtr.Zero)) return 0;
+    try { return DragQueryFile(GetClipboardData(15), 0xffffffff, null, 0); }
+    finally { CloseClipboard(); }
+  }
   [DllImport("kernel32.dll")] public static extern IntPtr GlobalLock(IntPtr handle);
   [DllImport("kernel32.dll")] public static extern bool GlobalUnlock(IntPtr handle);
   public static string ReadClipboard() {
@@ -195,6 +208,50 @@ try {
     Wait-For { Find-Named '2 items' } 'remaining_history' | Out-Null
     $history = Get-Content -Raw -Encoding UTF8 (Join-Path $historyRoot 'history.json') | ConvertFrom-Json
     Add-Check 'store_persistence_matches_ui' ($history.items.Count -eq 2)
+    if ($ClipboardPeer) {
+      Invoke-Button 'Start recording'
+      Wait-For { Find-Named 'Recording clipboard' } 'rich_recording_enabled' | Out-Null
+      foreach ($fixture in @('rich', 'files')) {
+        $peerInfo = New-Object Diagnostics.ProcessStartInfo
+        $peerInfo.FileName = [IO.Path]::GetFullPath($ClipboardPeer)
+        $peerInfo.Arguments = 'rich-clipboard-peer ' + $fixture
+        $peerInfo.UseShellExecute = $false
+        $peerInfo.RedirectStandardInput = $true
+        $peerInfo.RedirectStandardOutput = $true
+        $peer = [Diagnostics.Process]::Start($peerInfo)
+        try {
+          $line = $peer.StandardOutput.ReadLineAsync()
+          if (!$line.Wait(10000) -or $line.Result -ne 'ready') { throw 'rich_peer_startup' }
+          $kind = if ($fixture -eq 'rich') { 'Image' } else { 'File' }
+          Invoke-Button $kind
+          Wait-For { Find-Named '1 items' } ('capture_native_' + $fixture) | Out-Null
+          Add-Check ('native_' + $fixture + '_capture_reaches_type_filter_and_preview') $true
+          if ($fixture -eq 'rich') {
+            $imageCondition = [Windows.Automation.PropertyCondition]::new(
+              [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Image)
+            Wait-For { $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $imageCondition) } 'native_image_preview' | Out-Null
+            Add-Check 'image_preview_has_native_picture' $true
+            Save-Screenshot 'image-preview.png'
+            Invoke-Button 'Copy'
+            Wait-For { Find-Named 'Copied to clipboard' } 'copy_image_status' | Out-Null
+            Add-Check 'image_copy_keeps_original_native_png' ([PreviewNative]::HasPngClipboard())
+          } else {
+            Invoke-Button 'Copy'
+            Wait-For { Find-Named 'Copied to clipboard' } 'copy_files_status' | Out-Null
+            Add-Check 'file_copy_keeps_both_native_paths' ([PreviewNative]::ClipboardFileCount() -eq 2)
+          }
+        } finally {
+          $peer.StandardInput.Close()
+          if (!$peer.WaitForExit(5000)) { $peer.Kill(); $peer.WaitForExit() }
+          $peer.Dispose()
+        }
+      }
+      Invoke-Button 'Pause recording'
+      Wait-For { Find-Named 'Recording paused' } 'rich_recording_paused' | Out-Null
+      Add-Check 'recording_can_pause_after_native_rich_capture' $true
+      Invoke-Button 'All types'
+      Wait-For { Find-Named '4 items' } 'all_content_restored' | Out-Null
+    }
     Invoke-Button 'Settings'
     Wait-For { Find-Named 'Preferences' } 'preferences_for_save' | Out-Null
     Invoke-Button 'Save behavior'

@@ -10,6 +10,7 @@
     private let queue = DispatchQueue(label: "com.clipboard.native.text")
     private let queueKey = DispatchSpecificKey<Bool>()
     private let session: OpaquePointer
+    private var transferTimer: DispatchSourceTimer?
     private var source: DispatchSourceRead?
 
     public init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
@@ -29,10 +30,24 @@
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
         source.setEventHandler { [weak self] in
           guard let self else { return }
-          cb_pump(self.session)
+          self.pump()
         }
         self.source = source
         source.resume()
+      }
+    }
+
+    private func pump() {
+      cb_pump(session)
+      if cb_pending_transfers(session) != 0 && transferTimer == nil {
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + 1, repeating: 1, leeway: .milliseconds(100))
+        timer.setEventHandler { [weak self] in self?.pump() }
+        transferTimer = timer
+        timer.resume()
+      } else if cb_pending_transfers(session) == 0 {
+        transferTimer?.cancel()
+        transferTimer = nil
       }
     }
 
@@ -104,6 +119,7 @@
     }
 
     deinit {
+      transferTimer?.cancel()
       source?.cancel()
       let session = session
       if DispatchQueue.getSpecific(key: queueKey) != nil {

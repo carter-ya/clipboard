@@ -30,6 +30,8 @@ struct ClipboardDesktopApp: App {
 
 struct HistoryView: View {
   @State var model = HistoryModel()
+  @Environment(\.chooseFile) var chooseFile
+  @Environment(\.chooseFileSaveDestination) var chooseSaveDestination
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -85,6 +87,20 @@ struct HistoryView: View {
         Spacer()
         Text("\(model.items.count) items").foregroundColor(.gray)
       }
+      HStack(spacing: 8) {
+        Button("All types") {
+          model.kindFilter = nil
+          Task { @MainActor in await model.refresh() }
+        }
+        ForEach(ClipKind.allCases.filter { $0 != .mixed }, id: \.self) { kind in
+          Button(kind.rawValue.capitalized) {
+            model.kindFilter = kind
+            Task { @MainActor in await model.refresh() }
+          }
+        }
+      }
+      TextField("Source app ID (optional)", text: $model.sourceFilter)
+        .onChange(of: model.sourceFilter) { Task { @MainActor in await model.refresh() } }
       Divider()
       HStack(alignment: .top, spacing: 20) {
         ScrollView {
@@ -92,13 +108,13 @@ struct HistoryView: View {
             VStack(alignment: .leading, spacing: 7) {
               Text(item.sensitive ? "Sensitive content" : item.preview)
                 .lineLimit(2)
-              Text(item.pinned ? "Pinned · Text" : "Text")
+              Text((item.pinned ? "Pinned · " : "") + item.kind.rawValue.capitalized)
                 .font(.system(size: 12)).foregroundColor(.gray)
             }.padding(10)
           }
-        }.frame(minWidth: 300, maxWidth: 340, minHeight: 350)
+        }.frame(minWidth: 300, maxWidth: 340, minHeight: 280)
         Divider()
-        preview.frame(minWidth: 340, maxWidth: .infinity, minHeight: 350)
+        preview.frame(minWidth: 340, maxWidth: .infinity, minHeight: 280)
       }
     }
   }
@@ -106,10 +122,18 @@ struct HistoryView: View {
   var preview: some View {
     VStack(alignment: .leading, spacing: 18) {
       Text("Preview").font(.system(size: 18))
+      if let source = model.selected?.sourceBundleID {
+        Text("Source: " + source).font(.system(size: 12)).foregroundColor(.gray)
+      }
       ScrollView {
-        Text(model.previewText)
-          .frame(maxWidth: .infinity, alignment: .leading)
-      }.frame(minHeight: 220)
+        VStack(alignment: .leading, spacing: 12) {
+          if let image = model.previewImage {
+            DesktopImagePreview(image: image).frame(
+              minWidth: 250, maxWidth: .infinity, minHeight: 180, maxHeight: 240)
+          }
+          Text(model.previewText).frame(maxWidth: .infinity, alignment: .leading)
+        }
+      }.frame(minHeight: 180, maxHeight: 220)
       HStack(spacing: 10) {
         Button("Copy") { Task { @MainActor in await model.copySelected() } }.disabled(
           model.selected == nil)
@@ -123,6 +147,45 @@ struct HistoryView: View {
     }
   }
 
+  var contentSettings: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text("History capacity (1–5000)")
+      TextField("100", text: $model.capacityDraft)
+      Text("Maximum clipboard item (MiB, 1–16)")
+      TextField("10", text: $model.maxSizeDraft)
+      Toggle("Mark blocked source apps as sensitive", isOn: $model.blocklistEnabledDraft)
+      TextField("Blocked app IDs, separated by commas", text: $model.blockedAppsDraft)
+      Button("Save content settings") {
+        Task { @MainActor in await model.applyContentSettings() }
+      }
+      Button("Export history") {
+        Task { @MainActor in
+          if let destination = await chooseSaveDestination(
+            title: "Export history", defaultFileName: "clipboard-history.clipboard.json")
+          {
+            await model.exportHistory(to: destination)
+          }
+        }
+      }
+      if model.confirmsClearHistory {
+        Text("Delete all history, including pinned items?")
+        HStack {
+          Button("Delete all history") { Task { @MainActor in await model.clearHistory() } }
+          Button("Cancel") { model.confirmsClearHistory = false }
+        }
+      } else {
+        Button("Clear history") { model.confirmsClearHistory = true }
+      }
+      Button("Import history") {
+        Task { @MainActor in
+          if let source = await chooseFile(title: "Import history") {
+            await model.importHistory(from: source)
+          }
+        }
+      }
+    }
+  }
+
   var settings: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
@@ -133,7 +196,7 @@ struct HistoryView: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 16) {
           Text("History stays on this device. Sensitive items stay in memory.")
-          Text("History capacity: 100 items")
+          contentSettings
           Text("Recording: \(model.recording ? "On" : "Paused")")
           Toggle("Enable global shortcut", isOn: $model.shortcutEnabledDraft)
           TextField("Ctrl+Alt+V", text: $model.shortcutDraft)

@@ -36,11 +36,22 @@ public struct BlocklistFilter: ClipFilter {
     return .accept
   }
 
-  public static let defaults: Set<String> = [
-    "com.1password.1password",
-    "com.1password.1password7",
-    "com.agilebits.onepassword7",
-    "com.bitwarden.desktop",
-    "com.apple.keychainaccess",
-  ]
+  public static let defaults: Set<String> = {
+    let apple: Set<String> = [
+      "com.1password.1password", "com.1password.1password7", "com.agilebits.onepassword7",
+      "com.bitwarden.desktop", "com.apple.keychainaccess",
+    ]
+    #if os(Windows)
+      return apple.union([
+        "windows:1password.exe", "windows:bitwarden.exe", "windows:keepass.exe",
+        "windows:keepassxc.exe",
+      ])
+    #elseif os(Linux)
+      return apple.union([
+        "linux:1Password", "linux:Bitwarden", "linux:KeePassXC", "linux:keepassxc",
+      ])
+    #else
+      return apple
+    #endif
+  }()
 }

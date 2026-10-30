@@ -130,6 +130,11 @@ jobs:
         with:
           path: Desktop/.build
           key: ${{ steps.ui-cache.outputs.cache-primary-key }}
+      - name: Build independent native clipboard peer
+        shell: pwsh
+        run: |
+          & swift build --package-path Core --scratch-path Desktop/.build --jobs 2 --product scenario-runner 2>&1 | Tee-Object -FilePath clipboard-peer-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Exercise GTK window and capture screenshots
         if: runner.os == 'Linux'
         shell: bash
@@ -138,7 +143,7 @@ jobs:
           binary_dir=$(swift build --package-path Desktop --show-bin-path)
           dbus-run-session -- xvfb-run --auto-servernum \
             /usr/bin/python3 tools/desktop-ui/smoke-linux.py \
-            --executable "$binary_dir/ClipboardDesktop" --output ui-artifacts
+            --executable "$binary_dir/ClipboardDesktop" --clipboard-peer "$binary_dir/scenario-runner" --output ui-artifacts
       - name: Exercise Windows GTK window and capture screenshots
         if: runner.os == 'Windows'
         shell: pwsh
@@ -146,7 +151,7 @@ jobs:
           $BinaryDirectory = (& swift build --package-path Desktop --show-bin-path).Trim()
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
-            -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -OutputDirectory ui-artifacts
+            -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OutputDirectory ui-artifacts
           $UiExitCode = $LASTEXITCODE
           if ($UiExitCode -ne 0) {
             # Diagnose a minimal native scene, preserving the full preview's failure.
@@ -161,5 +166,6 @@ jobs:
           name: swiftcrossui-${{ matrix.os }}
           path: |
             ui-build.log
+            clipboard-peer-build.log
             ui-artifacts
           if-no-files-found: ignore

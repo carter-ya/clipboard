@@ -84,6 +84,15 @@ jobs:
             & swift run --package-path Core scenario-runner platform-clipboard 2>&1 | Tee-Object -FilePath platform-clipboard.log
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify native rich formats and bounded large transfers
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_OS -eq 'Linux') {
+            & xvfb-run --auto-servernum swift run --package-path Core scenario-runner platform-rich-clipboard 2>&1 | Tee-Object -FilePath platform-rich.log
+          } else {
+            & swift run --package-path Core scenario-runner platform-rich-clipboard 2>&1 | Tee-Object -FilePath platform-rich.log
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify native single-instance activation and owner recovery
         shell: pwsh
         run: |
@@ -115,6 +124,7 @@ jobs:
             core-tests.log
             scenario.log
             platform-clipboard.log
+            platform-rich.log
             platform-instance.log
             platform-shell.log
             platform-tray.json

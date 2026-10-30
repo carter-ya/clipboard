@@ -54,6 +54,10 @@ enum PreviewBuilder {
           return attrib.string
         }
       }
+    #else
+      if let rtf = payloads.first(where: { $0.pasteboardType == "public.rtf" }) {
+        return RichTextPreview.text(from: [rtf], limit: limit)
+      }
     #endif
     return ""
   }
@@ -76,9 +80,10 @@ enum PreviewBuilder {
       }
       return String(data: data, encoding: .utf8) ?? ""
     #else
-      // Rich-text decoding requires a platform adapter. Keep the original
-      // bytes in payloads, but do not expose raw HTML as a text preview.
-      return ""
+      guard let html = payloads.first(where: { $0.pasteboardType == "public.html" }) else {
+        return ""
+      }
+      return RichTextPreview.text(from: [html], limit: limit)
     #endif
   }
 
@@ -86,7 +91,7 @@ enum PreviewBuilder {
     guard let payload = payloads.first(where: { $0.pasteboardType == "public.file-url" }),
       let urlString = String(data: payload.data, encoding: .utf8)
     else { return nil }
-    if let url = URL(string: urlString) {
+    if let url = URL(string: urlString.components(separatedBy: .newlines).first ?? urlString) {
       return url.lastPathComponent
     }
     return urlString
