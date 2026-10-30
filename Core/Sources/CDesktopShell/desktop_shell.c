@@ -7,8 +7,9 @@
 #define _WIN32_WINNT 0x0601
 #endif
 #define WIN32_LEAN_AND_MEAN
-#include <shellapi.h>
 #include <windows.h>
+
+#include <shellapi.h>
 
 #define SHELL_NOTIFY (WM_APP + 320)
 #define SHELL_RECORDING (WM_APP + 321)

@@ -2658,7 +2658,7 @@
     "validation": {
       "macOS": "166 Core tests, one existing Keychain skip, zero failures; DesktopShell stub target builds; strict Swift formatting passes.",
       "linux_arm64": "6 independent-process instance checks; 7 native shortcut checks; 10 private-bus tray checks; 18 real GTK control/window/persistence/lifecycle checks passed in Swift 6.3.3 container.",
-      "windows": "Native shell/instance and full UI lifecycle checks added to CI; results pending. Physical keyboard, IME and DPI gates remain open."
+      "windows": "Initial native build exposed Windows SDK header order; fixed by including windows.h before shellapi.h. Native shell/instance and full UI lifecycle CI results pending; physical keyboard, IME and DPI remain open."
     }
   }
 }
