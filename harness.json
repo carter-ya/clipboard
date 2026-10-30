@@ -75,7 +75,10 @@
         "base": "codex/cross-platform-clipboard",
         "scope": "SwiftCrossUI production UI foundation and Windows accessibility blocker resolution; history, search, selection, previews, pin/delete and settings.",
         "acceptance": "Native controls are discoverable and operable without crashing; actual window screenshots inspected; keyboard/IME evidence tracked separately.",
-        "status": "in_progress"
+        "status": "in_progress",
+        "evidence": [
+          "Windows GTK 4.22.4/AccessKit renders the actual history window and exposes its tree. Native focus/action checks still fail; pinned scheduler fairness/context cleanup fix awaits CI."
+        ]
       },
       {
         "id": "CP4",
