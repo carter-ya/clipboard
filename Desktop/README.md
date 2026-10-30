@@ -11,7 +11,8 @@ Swift 6.3.3 and SwiftSyntax 603.0.1 are pinned. Linux requires GTK 4 development
 packages, pkg-config, libX11 and libXfixes. Run:
 
 ```sh
-swift run --package-path Desktop ClipboardDesktop
+python3 tools/desktop-ui/build-desktop.py
+swift run --package-path Desktop --skip-build ClipboardDesktop
 ```
 
 On Windows, run `tools/desktop-ui/install-windows-gtk.ps1` in the Swift/Visual
@@ -41,3 +42,5 @@ content, system services, Wayland and installer delivery are subsequent layers
 tracked in harness.json.cross_platform_delivery. Real keyboard/IME, focus
 handoff and multi-monitor DPI acceptance remain separate interactive gates.
 Windows GTK/AccessKit build and native control results are pending.
+
+SwiftCrossUI 0.10.0 hard-codes Unix C integer widths in four GTK wrapper calls. Windows uses `gulong=UInt32` and `gsize=UInt64`, so the reviewed patch in `Desktop/Patches/` uses the actual C typedefs. The build helper verifies the pinned revision, applies this patch idempotently and then builds. Use this helper for native builds; the application does not change its dependency revision or bypass native UI checks.

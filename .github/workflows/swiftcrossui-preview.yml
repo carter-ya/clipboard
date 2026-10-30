@@ -125,7 +125,7 @@ jobs:
       - name: Build Desktop UI
         shell: pwsh
         run: |
-          & swift build --package-path Desktop --jobs 2 --product ClipboardDesktop 2>&1 | Tee-Object -FilePath ui-build.log
+          & python tools/desktop-ui/build-desktop.py --jobs 2 2>&1 | Tee-Object -FilePath ui-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Save compiled UI dependencies
         if: steps.ui-cache.outputs.cache-hit != 'true'
