@@ -78,7 +78,8 @@
         "status": "in_progress",
         "evidence": [
           "Windows GTK renders the actual history window and exposes its tree. Native focus/button checks still failed after the SwiftCrossUI scheduler fix (41042025041).",
-          "Reviewed GTK patch dispatches accessibility input at default priority and implements editable SetValue; content-free action/target diagnostics and an MTA UIA client await native CI."
+          "Reviewed GTK patch dispatches accessibility input at default priority and implements editable SetValue; content-free action/target diagnostics and an MTA UIA client await native CI.",
+          "Windows CRLF patch checkout against LF GTK tar sources reproduced a patch-application failure; the source patch helper normalizes its input and keys the runtime cache on the patch/helper."
         ]
       },
       {
