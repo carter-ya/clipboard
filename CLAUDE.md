@@ -90,3 +90,6 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - The pinned GTK label patch emits accessible text removal/insertion notifications when contents change, so equal-sized updates invalidate cached text runs. Keep baseline Counter: 0 → 1 and 3 → 1 search-result checks; no UI polling or renderer-independent flush is needed.
 
 - Installed Windows OCR validation temporarily hides/restores only its isolated CI build resource bundles, so SwiftPM absolute build-path fallbacks cannot mask missing packaged scripts.
+- Native UI probes wait for exact restored editor values after asynchronous view reconstruction, retaining the bounded timeout and value assertion. Failure diagnostics expose lengths/control metadata, never text contents.
+
+- Plain GTK text inputs expose their actual GtkEditable value rather than aggregating decorative/placeholder children. Password/protected widgets must never enter this plaintext-value override.
