@@ -2,7 +2,8 @@
       [Parameter(Mandatory=$true)][string]$OutputDirectory,
       [string]$ClipboardPeer,
       [string]$OCRFixture,
-      [switch]$Baseline)
+      [switch]$Baseline,
+      [switch]$ValidateOnly)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -15,13 +16,25 @@ public static class PreviewNative {
   private delegate bool EnumWindowProc(IntPtr hwnd, IntPtr parameter);
   [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowProc callback, IntPtr parameter);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetWindowText(IntPtr hwnd, System.Text.StringBuilder text, int max);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder text, int max);
   [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
   public static IntPtr FindWindow(uint processId) {
     IntPtr found = IntPtr.Zero;
     EnumWindows((hwnd, _) => {
       uint owner;
       GetWindowThreadProcessId(hwnd, out owner);
-      if (owner == processId && IsWindowVisible(hwnd)) { found = hwnd; return false; }
+      if (owner == processId && IsWindowVisible(hwnd)) {
+        var title = new System.Text.StringBuilder(256);
+        var windowClass = new System.Text.StringBuilder(256);
+        GetWindowText(hwnd, title, title.Capacity);
+        GetClassName(hwnd, windowClass, windowClass.Capacity);
+        // SwiftPM's console subsystem can create a visible console HWND first.
+        // Only the actual GTK application window is an accessibility target.
+        if (title.ToString() == "Clipboard" && windowClass.ToString() != "ConsoleWindowClass") {
+          found = hwnd; return false;
+        }
+      }
       return true;
     }, IntPtr.Zero);
     return found;
@@ -58,6 +71,7 @@ public static class PreviewNative {
   }
 }
 '@
+if ($ValidateOnly) { exit 0 }
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
 $Executable = [IO.Path]::GetFullPath($Executable)

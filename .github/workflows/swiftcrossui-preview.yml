@@ -67,6 +67,12 @@ jobs:
             --output "$RUNNER_TEMP/swift.tar.gz"
           tar -xzf "$RUNNER_TEMP/swift.tar.gz" --strip-components=1 -C "$swift_dir"
           echo "$swift_dir/usr/bin" >> "$GITHUB_PATH"
+      - name: Validate native Windows probe definitions
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 -Executable unused -OutputDirectory unused -ValidateOnly
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Restore Windows GTK runtime
         if: runner.os == 'Windows'
         id: gtk-cache
