@@ -11,6 +11,19 @@ function Get-VerifiedFile([string]$Url, [string]$Path, [string]$SHA256) {
     throw 'Downloaded GTK source/runtime checksum mismatch'
   }
 }
+function Enter-VisualStudioEnvironment {
+  $Locator = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+  $Installation = (& $Locator -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath).Trim()
+  if (!$Installation) { throw 'Visual Studio C++ tools are required' }
+  $DeveloperCommand = Join-Path $Installation 'Common7/Tools/VsDevCmd.bat'
+  $DeveloperEnvironment = & $env:ComSpec /s /c "`"$DeveloperCommand`" -no_logo -arch=x64 -host_arch=x64 && set"
+  if ($LASTEXITCODE -ne 0) { throw 'Could not initialize Visual Studio tools' }
+  foreach ($Line in $DeveloperEnvironment) {
+    if ($Line -match '^([^=]+)=(.*)$') {
+      [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
+    }
+  }
+}
 function Set-GtkEnvironment {
   $env:Path = "$Prefix\bin;" + $env:Path
   $env:PKG_CONFIG_PATH = "$Prefix\lib\pkgconfig;$Prefix\share\pkgconfig"
@@ -32,6 +45,8 @@ if (!$ConfigureOnly) {
   Invoke-Checked { python -m pip install meson==1.9.1 ninja==1.13.0 }
   Invoke-Checked { rustup toolchain install 1.87.0 --profile minimal }
   $env:RUSTUP_TOOLCHAIN = '1.87.0'
+  Enter-VisualStudioEnvironment
+  Set-GtkEnvironment
   $env:CC = 'cl'
   $env:CXX = 'cl'
   Get-Command cl.exe -ErrorAction Stop | Out-Null
