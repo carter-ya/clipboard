@@ -41,6 +41,7 @@ static int bundle_add(cb_bundle *bundle, int format, const unsigned char *bytes,
 
 #include <limits.h>
 #include <shellapi.h>
+#include <shlobj.h>
 #include <wchar.h>
 
 struct cb_session {

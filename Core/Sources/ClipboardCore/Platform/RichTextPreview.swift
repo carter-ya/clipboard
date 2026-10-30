@@ -3,6 +3,7 @@ import Foundation
 /// Plain previews only: no HTML engine, remote resource loading or embedded RTF objects.
 public enum RichTextPreview {
   public static func text(from payloads: [RawPayload], limit: Int = 8000) -> String {
+    let limit = min(16000, max(0, limit))
     for type in ["public.utf8-plain-text", "public.plain-text", "public.string"] {
       if let data = payloads.first(where: { $0.pasteboardType == type })?.data,
         let text = String(data: data, encoding: .utf8), !text.isEmpty

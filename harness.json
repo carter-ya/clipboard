@@ -2670,7 +2670,7 @@
     "validation": {
       "macOS": "175 Core tests passed; one existing Keychain skip; strict Swift formatting passes.",
       "linux_arm64": "156 Core tests, 23 independent native format/sensitivity/INCR checks (including TIFF), and 24 GTK control/lifecycle/rich-capture checks passed.",
-      "windows": "Native rich-format and UI image/file-capture checks added to CI; results pending."
+      "windows": "First native build exposed a missing DROPFILES declaration; added the Windows Shell object header. Rich-format and UI image/file-capture CI results remain pending."
     }
   }
 }
