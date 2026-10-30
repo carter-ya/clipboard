@@ -98,9 +98,14 @@ public enum DesktopShellError: Error { case unavailable, shortcutConflict, inval
 public protocol DesktopShellAccess: AnyObject, Sendable {
   var actions: AsyncStream<DesktopShellAction> { get }
   var capabilities: DesktopShellCapabilities { get }
+  var activationTimestamp: UInt32 { get }
   func start(shortcut: DesktopShortcut?, recording: Bool) throws
   func updateRecording(_ enabled: Bool)
   func stop()
+}
+
+extension DesktopShellAccess {
+  public var activationTimestamp: UInt32 { 0 }
 }
 
 public final class FakeDesktopShell: DesktopShellAccess, @unchecked Sendable {

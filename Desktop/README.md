@@ -3,12 +3,13 @@
 Windows/Linux desktop application built with SwiftCrossUI 0.10.0 and GTK 4.
 The existing macOS SwiftUI/AppKit application remains independent. This package
 uses the real Core store and native text clipboard adapter; normal launches do
-not insert sample history. Recording starts only after an explicit UI action.
+not insert sample history. Recording starts paused unless the user explicitly saves
+record-on-start behavior. Runtime pause does not change that startup preference.
 
 ## Build
 
 Swift 6.3.3 and SwiftSyntax 603.0.1 are pinned. Linux requires GTK 4 development
-packages, pkg-config, libX11 and libXfixes. Run:
+packages, pkg-config, libX11, libXfixes and libdbus-1 development headers. Run:
 
 ```sh
 swift run --package-path Desktop ClipboardDesktop
@@ -36,8 +37,18 @@ screenshots are retained even when a probe fails. The `--smoke-root PATH` option
 isolates synthetic fixtures; `--data-root PATH` selects an empty/real store
 without seeding. Normal app data is stored under the OS Clipboard support root.
 
-This PR is the UI foundation layer CP3. Tray/shortcuts/window lifecycle, rich
-content, system services, Wayland and installer delivery are subsequent layers
+CP4 adds a native tray, configurable global shortcut, per-profile single-instance
+activation, close-to-tray/reopen, explicit quit and atomic desktop settings. A
+missing tray is reported, shortcut conflicts retain the previous binding, and
+closing quits when neither tray nor shortcut can reopen the window. Windows uses
+Shell_NotifyIcon/RegisterHotKey; Linux uses StatusNotifierItem/dbusmenu and XGrabKey.
+Wayland global shortcuts are not advertised through XWayland. The IPC channel
+exchanges activation only and never clipboard payloads. Rich content, system
+services, Wayland and installer delivery remain subsequent layers
 tracked in harness.json.cross_platform_delivery. Real keyboard/IME, focus
 handoff and multi-monitor DPI acceptance remain separate interactive gates.
 Windows GTK/AccessKit build and native control results are pending.
+
+Local CP4 evidence: 166 macOS Core tests (one existing Keychain skip), Linux
+6 native instance checks, 7 shortcut ownership checks, 10 private-session tray
+checks and 18 GTK UI/lifecycle checks. Native Windows results remain pending.

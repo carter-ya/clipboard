@@ -12,7 +12,7 @@ public static class PreviewNative {
   [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
   private delegate bool EnumWindowProc(IntPtr hwnd, IntPtr parameter);
   [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowProc callback, IntPtr parameter);
-  [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
   [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
   public static IntPtr FindWindow(uint processId) {
     IntPtr found = IntPtr.Zero;
@@ -24,6 +24,7 @@ public static class PreviewNative {
     }, IntPtr.Zero);
     return found;
   }
+  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wparam, IntPtr lparam);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
@@ -90,6 +91,18 @@ function Set-Search([string]$Text) {
   $element = Wait-For { Get-Editor } 'search_control'
   $pattern = $element.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
   $pattern.SetValue($Text)
+}
+function Wake-Existing {
+  $peer = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+    -ArgumentList @('--data-root', ('"' + $historyRoot + '"')) -PassThru
+  if (!$peer.WaitForExit(15000)) { $peer.Kill(); throw 'secondary_launch_timeout' }
+  Add-Check 'secondary_launch_exits_without_new_store_owner' ($peer.ExitCode -eq 0 -and !$application.HasExited)
+  $script:nativeWindowHandle = Wait-For {
+    $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
+    if ($handle -ne [IntPtr]::Zero) { $handle }
+  } 'existing_window_reopened'
+  $script:window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+  Wait-For { Get-Editor } 'reopened_search_control' | Out-Null
 }
 function Save-Screenshot([string]$Name) {
   $rect = New-Object PreviewNative+Rect
@@ -160,6 +173,20 @@ try {
     Wait-For { (Find-Named '1 items') -and (Get-Editor) } 'history_restored' | Out-Null
     $value = (Get-Editor).GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
     Add-Check 'settings_round_trip_preserves_search' ($value -eq '中文')
+    Wait-For { (Get-Editor).Current.HasKeyboardFocus } 'settings_return_focus' | Out-Null
+    Add-Check 'settings_return_focuses_native_search' $true
+    Invoke-Button 'Hide'
+    Wait-For { ![PreviewNative]::IsWindowVisible($nativeWindowHandle) } 'window_hidden' | Out-Null
+    Wake-Existing
+    $value = (Get-Editor).GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
+    Wait-For { (Get-Editor).Current.HasKeyboardFocus } 'wake_search_focus' | Out-Null
+    Add-Check 'hide_and_secondary_launch_preserve_search_and_focus' ($value -eq '中文')
+    if (![PreviewNative]::PostMessage($nativeWindowHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)) { throw 'native_close_request' }
+    Wait-For { ![PreviewNative]::IsWindowVisible($nativeWindowHandle) } 'close_hides_window' | Out-Null
+    Add-Check 'native_close_keeps_existing_process_alive' (!$application.HasExited)
+    Wake-Existing
+    $value = (Get-Editor).GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
+    Add-Check 'native_close_reopen_preserves_query' ($value -eq '中文')
     Invoke-Button 'Delete'
     Wait-For { (Find-Named 'Item deleted') -and (Find-Named '0 items') } 'delete_updates_list' | Out-Null
     Add-Check 'delete_updates_real_store' $true
@@ -168,6 +195,34 @@ try {
     Wait-For { Find-Named '2 items' } 'remaining_history' | Out-Null
     $history = Get-Content -Raw -Encoding UTF8 (Join-Path $historyRoot 'history.json') | ConvertFrom-Json
     Add-Check 'store_persistence_matches_ui' ($history.items.Count -eq 2)
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'preferences_for_save' | Out-Null
+    Invoke-Button 'Save behavior'
+    $settingsFile = Join-Path $historyRoot 'desktop-settings.json'
+    Wait-For { Test-Path $settingsFile } 'saved_settings_file' | Out-Null
+    $saved = Get-Content -Raw -Encoding UTF8 $settingsFile | ConvertFrom-Json
+    Add-Check 'behavior_saved_without_enabling_recording' (!$saved.recordingEnabled -and $saved.closeToTray)
+    Invoke-Button 'Quit Clipboard'
+    if (!$application.WaitForExit(10000)) { throw 'explicit_quit_timeout' }
+    Add-Check 'explicit_quit_flushes_and_exits' ($application.ExitCode -eq 0)
+    $historyRoot = Join-Path $OutputDirectory ('production-empty-' + [Guid]::NewGuid().ToString('N'))
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+      -ArgumentList @('--data-root', ('"' + $historyRoot + '"')) -PassThru `
+      -RedirectStandardOutput (Join-Path $OutputDirectory 'production.stdout.log') `
+      -RedirectStandardError (Join-Path $OutputDirectory 'production.stderr.log')
+    $null = $application.Handle
+    $nativeWindowHandle = Wait-For {
+      $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
+      if ($handle -ne [IntPtr]::Zero) { $handle }
+    } 'fresh_production_window'
+    $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '0 items') } 'fresh_production_history' | Out-Null
+    Add-Check 'normal_launch_has_no_sample_history_and_starts_paused' ($null -ne (Find-Named 'Start recording'))
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'fresh_settings' | Out-Null
+    Invoke-Button 'Quit Clipboard'
+    if (!$application.WaitForExit(10000)) { throw 'normal_quit_timeout' }
+    Add-Check 'normal_launch_quits_cleanly' ($application.ExitCode -eq 0)
   }
 } catch {
   $checks.Add(@{ name = 'ui_probe'; passed = $false; detail = $_.Exception.Message })

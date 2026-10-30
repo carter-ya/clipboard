@@ -5,12 +5,14 @@ on:
     branches: [main]
     paths:
       - Core/**
+      - tools/desktop-ui/check-linux-*
       - .github/workflows/swift-portability.yml
   pull_request:
     paths:
       - Core/**
       - App/**
       - project.yml
+      - tools/desktop-ui/check-linux-*
       - .github/workflows/swift-portability.yml
   workflow_dispatch:
 
@@ -33,7 +35,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libx11-dev libxfixes-dev xvfb xauth
+          sudo apt-get install -y --no-install-recommends libx11-dev libxfixes-dev libdbus-1-dev xvfb xauth dbus-x11 python3-dbus python3-gi
       - name: Install Swift 6.1.3 on Windows
         if: runner.os == 'Windows'
         uses: compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7
@@ -82,6 +84,27 @@ jobs:
             & swift run --package-path Core scenario-runner platform-clipboard 2>&1 | Tee-Object -FilePath platform-clipboard.log
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify native single-instance activation and owner recovery
+        shell: pwsh
+        run: |
+          & swift run --package-path Core scenario-runner platform-instance 2>&1 | Tee-Object -FilePath platform-instance.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify native shortcut ownership and conflict cleanup
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_OS -eq 'Linux') {
+            & dbus-run-session -- xvfb-run --auto-servernum swift run --package-path Core scenario-runner platform-shell 2>&1 | Tee-Object -FilePath platform-shell.log
+          } else {
+            & swift run --package-path Core scenario-runner platform-shell 2>&1 | Tee-Object -FilePath platform-shell.log
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify Linux tray protocol and actions in a private desktop
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary_dir=$(swift build --package-path Core --show-bin-path)
+          bash tools/desktop-ui/check-linux-shell.sh --executable "$binary_dir/scenario-runner" --output platform-tray.json
       - name: Upload core test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -92,6 +115,9 @@ jobs:
             core-tests.log
             scenario.log
             platform-clipboard.log
+            platform-instance.log
+            platform-shell.log
+            platform-tray.json
           if-no-files-found: ignore
 
   macos:

@@ -2648,5 +2648,17 @@
   "open_questions": [
     "macOS 最低版本：保持 13.0 底线——已决，不用数据库，没理由再抬高",
     "默认 cap=100 是否仍需调整——v1 定为 100（同类产品多为 200+，此值偏保守），S8 偏好中滑块量程给足，必要时按用户反馈再改默认"
-  ]
+  ],
+  "desktop_shell": {
+    "scope": "CP4: Windows Shell_NotifyIcon/RegisterHotKey, Linux StatusNotifierItem/dbusmenu and XGrabKey; native per-profile single instance, GTK hide/close/reopen, persisted desktop behavior.",
+    "boundaries": "Portable DesktopShellAccess/DesktopWindowControlling/DesktopSettingsPersisting/DesktopInstanceAccess contracts and fakes in Core; system calls in DesktopShell/CDesktopShell; native UI presentation in Desktop.",
+    "dependencies": "Windows User32/Shell32; Linux libX11 and libdbus-1 development packages. No native XWayland hotkey claim.",
+    "privacy": "Instance IPC exchanges activation only; profile paths are SHA-256 namespaced. Recording starts paused unless explicitly saved otherwise; runtime pause does not change the startup preference. No input synthesis.",
+    "lifecycle": "Hidden native editor retains its draft; store UI refresh is suspended while hidden and resumes before presentation. Missing tray/hotkey capabilities keep the window reachable; closing quits when no reopening mechanism exists. Explicit quit stops monitor/shell/instance and flushes store.",
+    "validation": {
+      "macOS": "166 Core tests, one existing Keychain skip, zero failures; DesktopShell stub target builds; strict Swift formatting passes.",
+      "linux_arm64": "6 independent-process instance checks; 7 native shortcut checks; 10 private-bus tray checks; 18 real GTK control/window/persistence/lifecycle checks passed in Swift 6.3.3 container.",
+      "windows": "Native shell/instance and full UI lifecycle checks added to CI; results pending. Physical keyboard, IME and DPI gates remain open."
+    }
+  }
 }

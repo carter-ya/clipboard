@@ -48,7 +48,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-4-dev pkg-config libx11-dev libxfixes-dev xvfb xauth xclip python3-pyatspi python3-gi at-spi2-core dbus-x11 openbox imagemagick x11-utils fonts-noto-cjk fonts-noto-color-emoji
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev pkg-config libx11-dev libxfixes-dev libdbus-1-dev xvfb xauth xclip python3-pyatspi python3-gi at-spi2-core dbus-x11 openbox imagemagick x11-utils fonts-noto-cjk fonts-noto-color-emoji
       - name: Install Swift 6.3.3 on Windows
         if: runner.os == 'Windows'
         uses: compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7
