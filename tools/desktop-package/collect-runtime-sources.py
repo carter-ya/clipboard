@@ -65,7 +65,7 @@ for name, source, revision in [('gvsbuild', gvsbuild, GVSBUILD), ('accesskit-c',
                        stdout=target, check=True)
 recipes = root / 'clipboard-build-recipes'
 recipes.mkdir(exist_ok=True)
-for name in ['install-windows-gtk.ps1', 'extract-gtk-source.py', 'normalize-windows-pkgconfig.py']:
+for name in ['install-windows-gtk.ps1', 'extract-gtk-source.py', 'normalize-windows-pkgconfig.py', 'gtk-4.22.4-accesskit-actions.patch']:
     shutil.copy2(repo / 'tools/desktop-ui' / name, recipes / name)
 manifest = {'gvsbuildCommit': GVSBUILD, 'accesskitCommit': ACCESSKIT, 'gtkVersion': '4.22.4', 'files': {}}
 for file in sorted(root.rglob('*')):

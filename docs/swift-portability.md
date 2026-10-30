@@ -281,3 +281,14 @@ adds a dispatch gap and releases callback contexts. The repair must pass native
 controls in CI before Windows UI acceptance. Screenshot/tree evidence alone is
 not a functional pass. Physical IME, shortcut focus and multi-monitor DPI gates
 remain open even after virtual scaling tests succeed.
+
+
+CP8 optimized Linux arm64 package acceptance passed in the runtime-only image
+with networking disabled: installed GUI, application lifetime upgrade/uninstall
+guards, eight install/upgrade/uninstall checks, and five layout checks at each
+100%/200% scale. Twenty measured hide/reopen cycles after warmup preserve query
+and focus: file descriptors remain 27; RSS changes 243576→245140 KiB. This bounded
+regression is not a multi-day soak. The separate verified runtime source workflow
+41042501729 is green. Windows GTK controls still fail after the scheduler patch;
+the next native run includes content-free action diagnostics, an MTA UIA client,
+default-priority AccessKit input dispatch and editable SetValue support.

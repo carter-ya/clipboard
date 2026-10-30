@@ -55,7 +55,7 @@ try {
   $App.Kill()
   $App.WaitForExit()
   $App = $null
-  & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
+  & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
     -ClipboardPeer $ClipboardPeer -OCRFixture $OCRFixture -OutputDirectory (Join-Path $Output 'ui')
   Check 'installed_gui_and_services_pass_with_bundled_runtime' ($LASTEXITCODE -eq 0)
   $Histories = @(Get-ChildItem (Join-Path $Output 'ui') -Recurse -Filter history.json)
