@@ -50,6 +50,7 @@ function Set-GtkEnvironment {
   $env:Path = "$Prefix\bin;" + $env:Path
   $env:PKG_CONFIG_PATH = "$Prefix\lib\pkgconfig;$Prefix\share\pkgconfig"
   $env:LIB = "$Prefix\lib;" + $env:LIB
+  $env:INCLUDE = "$Prefix\include;" + $env:INCLUDE
   if ($env:GITHUB_PATH) { "$Prefix\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH }
   if ($env:GITHUB_ENV) {
     "PKG_CONFIG_PATH=$env:PKG_CONFIG_PATH" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
