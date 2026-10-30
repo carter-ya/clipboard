@@ -13,6 +13,9 @@ enum DesktopLocalization {
     return chinese[value] ?? value
   }
   private static let chinese: [String: String] = [
+    "Clipboard could not safely open this profile.": "无法安全打开此配置。",
+    "Close another instance or check the desktop session, then try again.": "请关闭其他实例或检查桌面会话后重试。",
+    "Quit": "退出",
     "Clipboard capture is unavailable on this Wayland desktop. Copy remains available.":
       "此 Wayland 桌面不支持后台读取剪贴板，仍可复制历史内容。",
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.":

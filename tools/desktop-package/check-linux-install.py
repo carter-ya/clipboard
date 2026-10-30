@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import shlex
@@ -46,7 +47,7 @@ try:
         dependencies = subprocess.check_output(['ldd', str(executable)], text=True)
         check('installed_runtime_has_complete_library_closure', 'not found' not in dependencies)
         probe_command = ['dbus-run-session', '--', 'xvfb-run', '-a', '/usr/bin/python3', args.probe,
-                         '--executable', str(executable), '--install-package', str(package),
+                         '--executable', str(executable), '--launch-command', 'clipboard-desktop', '--install-package', str(package),
                          '--lifecycle-cycles', '20', '--output', str(output / 'ui')]
         if args.clipboard_peer:
             # The reference peer is test-only. Its runtime comes from the installed
@@ -58,7 +59,9 @@ try:
             probe_command += ['--clipboard-peer', str(wrapper)]
             if args.ocr_fixture:
                 probe_command += ['--ocr-fixture', str(Path(args.ocr_fixture).resolve())]
-        probe = subprocess.run(probe_command, timeout=300)
+        probe_environment = os.environ.copy()
+        probe_environment['PATH'] = str(root / 'commands') + os.pathsep + probe_environment.get('PATH', '')
+        probe = subprocess.run(probe_command, env=probe_environment, timeout=300)
         check('installed_application_passes_native_ui_probe', probe.returncode == 0)
         history_files = list((output / 'ui').glob('history-*/history.json'))
         check('private_history_was_persisted', bool(history_files))

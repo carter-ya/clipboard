@@ -4,6 +4,10 @@ import Foundation
 import SwiftCrossUI
 
 @MainActor enum DesktopApplicationContext {
+  static var executableURL: URL {
+    (Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0]))
+      .standardizedFileURL.resolvingSymlinksInPath()
+  }
   static var installationLock: NativeDesktopInstallationLock?
   static var instance: (any DesktopInstanceAccess)?
   static var profile = "production"
@@ -15,8 +19,7 @@ import SwiftCrossUI
   @MainActor static func main() {
     let arguments = CommandLine.arguments
     do {
-      let executable = URL(fileURLWithPath: arguments[0]).standardizedFileURL
-        .resolvingSymlinksInPath()
+      let executable = DesktopApplicationContext.executableURL
       let bundleRoot = executable.deletingLastPathComponent().deletingLastPathComponent()
       if FileManager.default.fileExists(
         atPath: bundleRoot.appendingPathComponent("package-manifest.json").path)

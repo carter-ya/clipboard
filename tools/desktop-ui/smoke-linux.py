@@ -16,6 +16,7 @@ import pyatspi
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--executable', required=True)
+parser.add_argument('--launch-command', help='Resolve the installed menu/command entry through PATH')
 parser.add_argument('--output', required=True)
 parser.add_argument('--clipboard-peer')
 parser.add_argument('--ocr-fixture')
@@ -198,7 +199,7 @@ def screenshot(name):
 
 try:
     wm = subprocess.Popen(['openbox', '--sm-disable'], stdout=log, stderr=log)
-    app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root)],
+    app = subprocess.Popen([args.launch_command or str(Path(args.executable).resolve()), '--smoke-root', str(history_root)],
                            stdout=log, stderr=log, start_new_session=True)
     wait_for(lambda: has_text('Ready') and has_text('3 items'), 'initial_history')
     check('native_window_and_history_visible', True)
@@ -367,6 +368,9 @@ try:
     click('简体中文')
     wait_for(lambda: has_text('偏好设置') and has_text('语言已保存'), 'localized_settings')
     check('language_switch_updates_native_controls', bool(button('返回历史')) and bool(button('保存行为设置')))
+    check('localized_service_privacy_and_capability_notes',
+          has_text('本地 OCR 使用已安装的语言包，此平台不提供 Apple 专属模型。') and
+          has_text('远程 AI 默认关闭。启用后，符合条件的内容会发送到指定服务。'))
     screenshot('settings-chinese.png')
     click('返回历史')
     wait_for(lambda: editor() and has_text('设置'), 'localized_history')

@@ -14,9 +14,14 @@ struct ClipboardDesktopApp: App {
     WindowGroup("Clipboard") {
       if DesktopApplicationContext.startupFailed {
         VStack(spacing: 16) {
-          Text("Clipboard could not safely open this profile.")
-          Text("Close another instance or check the desktop session, then try again.")
-          Button("Quit") { exit(1) }
+          Text(
+            DesktopLocalization.text("Clipboard could not safely open this profile.", language: nil)
+          )
+          Text(
+            DesktopLocalization.text(
+              "Close another instance or check the desktop session, then try again.", language: nil)
+          )
+          Button(DesktopLocalization.text("Quit", language: nil)) { exit(1) }
         }.padding(24)
       } else if CommandLine.arguments.contains("--ui-baseline") {
         BaselineView()
@@ -292,10 +297,14 @@ struct HistoryView: View {
         Task { @MainActor in await model.toggleStartup() }
       }.disabled(!model.startupAvailable)
       Text(
-        "Local OCR uses installed system language packs. Apple-only models are unavailable here.")
+        model.t(
+          "Local OCR uses installed system language packs. Apple-only models are unavailable here.")
+      )
       Toggle(model.t("Automatically recognize images"), isOn: $model.automaticOCRDraft)
       Text(
-        "Remote AI is off by default. Enabling it sends eligible content to your chosen endpoint.")
+        model.t(
+          "Remote AI is off by default. Enabling it sends eligible content to your chosen endpoint."
+        ))
       Toggle(model.t("Enable remote AI"), isOn: $model.aiEnabledDraft)
       Toggle(model.t("Allow image uploads"), isOn: $model.aiImagesDraft)
       Toggle(model.t("Automatically summarize new items"), isOn: $model.automaticSummariesDraft)

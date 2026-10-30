@@ -229,7 +229,7 @@ final class HistoryModel: ObservableObject {
       automaticOCRDraft = settings.automaticOCR
       if DesktopApplicationContext.profile == "production" {
         startup = try? NativeDesktopStartup(
-          executable: URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL)
+          executable: DesktopApplicationContext.executableURL)
         startupAvailable = startup != nil
       }
       capacityDraft = String(settings.historyCapacity)
