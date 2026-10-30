@@ -80,7 +80,8 @@
           "Windows GTK renders the actual history window and exposes its tree. Native focus/button checks still failed after the SwiftCrossUI scheduler fix (41042025041).",
           "Reviewed GTK patch dispatches accessibility input at default priority and implements editable SetValue; content-free action/target diagnostics and an MTA UIA client await native CI.",
           "Windows CRLF patch checkout against LF GTK tar sources reproduced a patch-application failure; the source patch helper normalizes its input and keys the runtime cache on the patch/helper.",
-          "Native focus/copy and visible Unicode search pass, but UIA reads stale equal-sized text (41045014535). GTK GtkLabel omits accessible contents notifications, leaving AccessKit text-run caches intact. The label patch emits remove/insert events and removes the ineffective renderer-independent flush; native CI remains required."
+          "Native focus/copy and visible Unicode search pass, but UIA reads stale equal-sized text (41045014535). GTK GtkLabel omits accessible contents notifications, leaving AccessKit text-run caches intact. The label patch emits remove/insert events and removes the ineffective renderer-independent flush; native CI remains required.",
+          "GtkLabel notifications fix native baseline, Unicode search and pin/filter (41074773874). Settings-return screenshot preserves the Chinese query; the probe now waits for the exact UIA value as Linux already does, rather than reading during widget reconstruction."
         ]
       },
       {

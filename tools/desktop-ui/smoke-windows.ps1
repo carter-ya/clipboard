@@ -172,8 +172,8 @@ try {
     Save-Screenshot 'settings.png'
     Invoke-Button 'Back to history'
     Wait-For { (Find-Named '1 items') -and (Get-Editor) } 'history_restored' | Out-Null
-    $value = (Get-Editor).GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
-    Add-Check 'settings_round_trip_preserves_search' ($value -eq '中文')
+    Wait-For { (Get-Editor).GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -eq '中文' } 'restored_search_value' | Out-Null
+    Add-Check 'settings_round_trip_preserves_search' $true
     Invoke-Button 'Delete'
     Wait-For { (Find-Named 'Item deleted') -and (Find-Named '0 items') } 'delete_updates_list' | Out-Null
     Add-Check 'delete_updates_real_store' $true
@@ -191,7 +191,8 @@ try {
       $controls | ForEach-Object {
         @{ type=$_.Current.ControlType.ProgrammaticName; class=$_.Current.ClassName;
            focusable=$_.Current.IsKeyboardFocusable; focused=$_.Current.HasKeyboardFocus;
-           enabled=$_.Current.IsEnabled; runtimeID=($_.GetRuntimeId() -join ',') }
+           enabled=$_.Current.IsEnabled; runtimeID=($_.GetRuntimeId() -join ',');
+           valueLength=$(try { $_.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value.Length } catch { -1 }) }
       } | ConvertTo-Json -Depth 5 | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'control-state.json')
     }
   } catch { }
