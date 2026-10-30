@@ -75,7 +75,7 @@
         "base": "codex/cross-platform-clipboard",
         "scope": "SwiftCrossUI production UI foundation and Windows accessibility blocker resolution; history, search, selection, previews, pin/delete and settings.",
         "acceptance": "Native controls are discoverable and operable without crashing; actual window screenshots inspected; keyboard/IME evidence tracked separately.",
-        "status": "planned"
+        "status": "in_progress"
       },
       {
         "id": "CP4",
@@ -120,7 +120,16 @@
     ],
     "completion_rule": "A created PR or passing build is not functional completion. Each stack layer retains implementation and verification evidence; unresolved manual/runtime gates remain open. No automatic main merge or public release is implied."
   },
+  "desktop_ui": {
+    "package": "Desktop (ClipboardDesktop executable), separate from the existing macOS product",
+    "framework": "SwiftCrossUI 0.10.0 / GtkBackend explicitly selected on Windows and Linux; Swift 6.3.3 / SwiftSyntax 603.0.1",
+    "windows_runtime": "GTK 4.22.4 rebuilt with AccessKit C 0.18.0 (0c52a8ce2357bbeb927f90dc9a1c19c8ec1bd2c3), Rust 1.87.0; fixed gvsbuild 2026.8.0 dependency archive; SHA-256 verified inputs",
+    "backend_gate": "Prior WinUI UI Automation traversal crashed with upstream issue #787. GTK/AccessKit is evaluated by the same required native control operations, not by disabling accessibility. Results pending.",
+    "fixtures": "Only --smoke-root seeds synthetic content. --data-root and ordinary launches start from real/empty storage. Recording remains off until explicit UI action.",
+    "scope": "History/search/preview/copy/pin/delete/settings foundation. CP4-CP8 add remaining desktop features; physical keyboard/IME/DPI gates remain open."
+  },
   "tech_stack": {
+    "desktop_ui_dependency": "SwiftCrossUI 0.10.0, SwiftSyntax 603.0.1, GTK 4; Windows runtime pins are recorded in desktop_ui and tools/desktop-ui/install-windows-gtk.ps1.",
     "native_clipboard_experiment": "CDesktopClipboard C shim links User32 on Windows and X11/Xfixes on Linux; Xvfb is test-only.",
     "language": "Swift 5.9+",
     "portability_validation_dependency": "apple/swift-crypto 3.12.3 for Linux/Windows SHA-256; resolved transitive swift-asn1 1.7.3 requires Swift 6.1. This experiment was tested with Swift 6.1.3 and 6.4; oldest-toolchain compatibility is not established.",

@@ -69,3 +69,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Cross-platform delivery uses stacked PRs: each layer targets the preceding branch, with implementation and native-test evidence. Do not mark untested keyboard/IME/DPI or unsupported Wayland capabilities as complete. The WinUI accessibility crash reproduced in the prior experiment must be resolved before accepting Windows UI controls.
 
 - Native text clipboard adapters live in `DesktopClipboard` plus a C system shim. Windows uses Unicode clipboard APIs; Linux X11 uses XFixes notifications and an event-driven selection owner. Wayland is explicitly unsupported until CP7. Native tests exchange synthetic text with an independent process in the CI clipboard or isolated Xvfb; no user desktop clipboard is used locally.
+
+- `Desktop/` is the Windows/Linux SwiftCrossUI application package. It explicitly uses GtkBackend; Windows GTK must include AccessKit and pass native UI Automation controls. The historical WinUI crash is not accepted as a successful port. Normal launches never seed sample history; only --smoke-root may inject synthetic fixtures. Keep GTK/Win32/X11 dependencies out of portable Core contracts.
