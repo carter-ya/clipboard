@@ -78,3 +78,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - DesktopServices owns OS credential/startup/OCR and bounded AI transport adapters. No plaintext credential fallback, keys in JSON or payloads in command arguments. Explicit remote/image/automatic opt-ins are separate; sensitive/concealed items fail before resolution or networking. Linux service tests run on a fresh DBus session with private keyring/config directories; Windows uses distinct synthetic credential/startup identities. GTK theme and language updates must preserve editors and require no UI polling.
 - The pinned SwiftCrossUI GTK main-loop patch releases one-shot callback contexts and prevents zero-delay timeouts from starving AccessKit idle actions. Keep native accessibility focus/button checks as hard gates; a visible tree alone is insufficient.
+
+- The pinned GTK AccessKit patch handles editable SetValue with native sensitivity/editability checks and schedules accessibility input at default priority. Optional CI diagnostics contain action/target IDs only, never text. UI Automation clients run MTA; native focus/action success remains required.

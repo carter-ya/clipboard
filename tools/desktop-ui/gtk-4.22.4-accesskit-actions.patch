@@ -1,0 +1,66 @@
+--- a/gtk/a11y/gtkaccesskitcontext.c
++++ b/gtk/a11y/gtkaccesskitcontext.c
+@@ -1496,6 +1496,9 @@
+       GTK_IS_SWITCH (accessible) ||
+       GTK_IS_EXPANDER (accessible))
+     accesskit_node_add_action (node, ACCESSKIT_ACTION_CLICK);
++  if (GTK_IS_EDITABLE (accessible) &&
++      gtk_editable_get_editable (GTK_EDITABLE (accessible)))
++    accesskit_node_add_action (node, ACCESSKIT_ACTION_SET_VALUE);
+   /* TODO: other actions */
+ 
+   set_bounds (accessible, node);
+@@ -2030,6 +2033,19 @@
+     gtk_widget_grab_focus (widget);
+     break;
+ 
++  case ACCESSKIT_ACTION_SET_VALUE:
++    if (!request->data.has_value ||
++        request->data.value.tag != ACCESSKIT_ACTION_DATA_VALUE ||
++        !request->data.value.value || !GTK_IS_EDITABLE (accessible))
++      return;
++    if (!GTK_IS_WIDGET (accessible) ||
++        !gtk_widget_is_sensitive (GTK_WIDGET (accessible)) ||
++        !gtk_widget_is_visible (GTK_WIDGET (accessible)) ||
++        !gtk_editable_get_editable (GTK_EDITABLE (accessible)))
++      return;
++    gtk_editable_set_text (GTK_EDITABLE (accessible), request->data.value.value);
++    break;
++
+   case ACCESSKIT_ACTION_SET_TEXT_SELECTION:
+     if (!request->data.has_value ||
+         request->data.value.tag != ACCESSKIT_ACTION_DATA_SET_TEXT_SELECTION)
+--- a/gtk/a11y/gtkaccesskitroot.c
++++ b/gtk/a11y/gtkaccesskitroot.c
+@@ -283,6 +283,9 @@
+ do_action_main_thread (gpointer data_generic)
+ {
+   DoActionData *data = data_generic;
++  if (g_getenv ("CLIPBOARD_UI_DIAGNOSTICS"))
++    g_printerr ("clipboard-a11y: dispatch action=%u target=%" G_GUINT64_FORMAT "\n",
++                data->request->action, data->request->target);
+ 
+   if (data->request->target == (data->request->target & 0xffffffff))
+     {
+@@ -292,6 +295,8 @@
+ 
+       if (accesskit_ctx)
+         gtk_accesskit_context_do_action (accesskit_ctx, data->request);
++      else if (g_getenv ("CLIPBOARD_UI_DIAGNOSTICS"))
++        g_printerr ("clipboard-a11y: missing target context\n");
+     }
+ 
+   g_object_unref (data->root);
+@@ -309,7 +314,11 @@
+ 
+   main_thread_data->request = request;
+   main_thread_data->root = g_object_ref (root);
+-  g_idle_add (do_action_main_thread, main_thread_data);
++  if (g_getenv ("CLIPBOARD_UI_DIAGNOSTICS"))
++    g_printerr ("clipboard-a11y: received action=%u target=%" G_GUINT64_FORMAT "\n",
++                request->action, request->target);
++  /* Accessibility actions are input, and must not wait behind idle work. */
++  g_idle_add_full (G_PRIORITY_DEFAULT, do_action_main_thread, main_thread_data, NULL);
+ }
+ 
+ #if defined(GDK_WINDOWING_WAYLAND) || defined(GDK_WINDOWING_X11)
