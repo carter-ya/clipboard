@@ -42,9 +42,10 @@ application on Windows Server 2022 and Ubuntu 22.04. The test scripts create
 unique synthetic history directories and use native accessibility interfaces:
 AT-SPI on GTK; UI Automation on Windows. No key events are synthesized.
 
-They check window/data appearance, programmatic search-control focus, native
-clipboard output from Copy, Chinese-text search, pin/filter, settings round trip,
-delete, and persisted state. Screenshots and application/build logs are uploaded
+They check window/data appearance, native clipboard output from Copy, Chinese-text
+search, pin/filter, settings round trip, delete, and persisted state. Search focus
+is probed separately: GTK 4.6 on Ubuntu 22.04 rejects the AT-SPI GrabFocus call,
+so that result is recorded explicitly as unverified in the report limitations. Screenshots and application/build logs are uploaded
 with `results.json`. Linux uses Xvfb, an isolated DBus session and Openbox.
 
 These checks do not verify physical keyboard dispatch, real Chinese IME

@@ -65,6 +65,12 @@ function Get-Editor {
 }
 function Invoke-Button([string]$Label) {
   $element = Wait-For { Find-Named $Label } ('button_' + $Label)
+  # A SwiftCrossUI Button wraps a composed label; UIA may name its Text child.
+  for ($depth = 0; $depth -lt 10 -and $element; $depth++) {
+    if ($element.Current.ControlType -eq [Windows.Automation.ControlType]::Button) { break }
+    $element = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($element)
+  }
+  if (!$element -or $element.Current.ControlType -ne [Windows.Automation.ControlType]::Button) { throw ('button_ancestor_' + $Label) }
   $pattern = $element.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
   $pattern.Invoke()
 }
