@@ -200,8 +200,8 @@ jobs:
           package_name=$(basename "$package_dir")
           docker build -t clipboard-runtime-fixture -f tools/desktop-package/linux-runtime.Dockerfile .
           mkdir -p ui-artifacts/package
-          docker run --rm --init --network none -v "$PWD/dist:/packages:ro" -v "$PWD/tools/desktop-ui:/probes:ro" -v "$PWD/tools/desktop-package:/checks:ro" -v "$PWD/ui-artifacts/package:/reports" clipboard-runtime-fixture \
-            /usr/bin/python3 /checks/check-linux-install.py --package "/packages/$package_name" --probe /probes/smoke-linux.py --output /reports/installation
+          docker run --rm --init --network none -v "$PWD/dist:/packages:ro" -v "$PWD/tools/desktop-ui:/probes:ro" -v "$PWD/tools/desktop-package:/checks:ro" -v "$PWD/ui-artifacts/package:/reports" -v "$binary_dir/scenario-runner:/reference-peer:ro" -v "$PWD/Core/Fixtures/ocr.png:/ocr-fixture.png:ro" clipboard-runtime-fixture \
+            /usr/bin/python3 /checks/check-linux-install.py --package "/packages/$package_name" --probe /probes/smoke-linux.py --clipboard-peer /reference-peer --ocr-fixture /ocr-fixture.png --output /reports/installation
           for scale in 1 2; do
             docker run --rm --init --network none -v "$PWD/dist:/packages:ro" -v "$PWD/tools/desktop-ui:/probes:ro" -v "$PWD/ui-artifacts/package:/reports" clipboard-runtime-fixture \
               dbus-run-session -- xvfb-run -a -s '-screen 0 1920x1440x24' /usr/bin/python3 /probes/check-linux-layout.py \

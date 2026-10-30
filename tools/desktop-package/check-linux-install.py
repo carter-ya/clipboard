@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import tempfile
 
@@ -12,6 +13,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--package', required=True)
 parser.add_argument('--probe', required=True)
 parser.add_argument('--output', required=True)
+parser.add_argument('--clipboard-peer')
+parser.add_argument('--ocr-fixture')
 args = parser.parse_args()
 if shutil.which('swift') is not None:
     raise RuntimeError('Use the runtime-only image; the Swift SDK must not mask missing dependencies')
@@ -42,9 +45,20 @@ try:
               and (root / 'commands/clipboard-desktop').resolve() == executable.resolve())
         dependencies = subprocess.check_output(['ldd', str(executable)], text=True)
         check('installed_runtime_has_complete_library_closure', 'not found' not in dependencies)
-        probe = subprocess.run(['dbus-run-session', '--', 'xvfb-run', '-a', '/usr/bin/python3', args.probe,
-                                '--executable', str(executable), '--install-package', str(package), '--lifecycle-cycles', '20',
-                                '--output', str(output / 'ui')], timeout=240)
+        probe_command = ['dbus-run-session', '--', 'xvfb-run', '-a', '/usr/bin/python3', args.probe,
+                         '--executable', str(executable), '--install-package', str(package),
+                         '--lifecycle-cycles', '20', '--output', str(output / 'ui')]
+        if args.clipboard_peer:
+            # The reference peer is test-only. Its runtime comes from the installed
+            # package too; the application's own loader search path stays untouched.
+            wrapper = root / 'reference-peer'
+            wrapper.write_text('#!/bin/sh\nLD_LIBRARY_PATH=' + shlex.quote(str(installed / 'lib')) +
+                               ' exec ' + shlex.quote(str(Path(args.clipboard_peer).resolve())) + ' "$@"\n')
+            wrapper.chmod(0o755)
+            probe_command += ['--clipboard-peer', str(wrapper)]
+            if args.ocr_fixture:
+                probe_command += ['--ocr-fixture', str(Path(args.ocr_fixture).resolve())]
+        probe = subprocess.run(probe_command, timeout=300)
         check('installed_application_passes_native_ui_probe', probe.returncode == 0)
         history_files = list((output / 'ui').glob('history-*/history.json'))
         check('private_history_was_persisted', bool(history_files))
