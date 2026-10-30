@@ -1,6 +1,7 @@
 ﻿param([Parameter(Mandatory=$true)][string]$Executable,
       [Parameter(Mandatory=$true)][string]$OutputDirectory,
-      [switch]$Baseline)
+      [switch]$Baseline,
+      [switch]$ValidateOnly)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -13,6 +14,8 @@ public static class PreviewNative {
   private delegate bool EnumWindowProc(IntPtr hwnd, IntPtr parameter);
   [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowProc callback, IntPtr parameter);
   [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hwnd);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetWindowText(IntPtr hwnd, System.Text.StringBuilder text, int max);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder text, int max);
   [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
   public static IntPtr FindWindow(uint processId) {
     IntPtr found = IntPtr.Zero;
@@ -53,6 +56,7 @@ public static class PreviewNative {
   }
 }
 '@
+if ($ValidateOnly) { exit 0 }
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
 $Executable = [IO.Path]::GetFullPath($Executable)
