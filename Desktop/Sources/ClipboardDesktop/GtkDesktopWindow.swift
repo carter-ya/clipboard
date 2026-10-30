@@ -51,6 +51,30 @@ private final class GtkActionBox: @unchecked Sendable {
     }
   }
 
+  func observeAppearance(_ action: @escaping @MainActor @Sendable (String) -> Void) {
+    guard let settings = gtk_settings_get_default() else { return }
+    let object = UnsafeMutableRawPointer(settings)
+    for name in ["notify::gtk-application-prefer-dark-theme", "notify::gtk-theme-name"] {
+      let context = Unmanaged.passRetained(GtkActionBox { action(name) }).toOpaque()
+      let callback:
+        @convention(c) (UnsafeMutableRawPointer?, OpaquePointer?, UnsafeMutableRawPointer?) -> Void =
+          { _, _, context in
+            guard let context else { return }
+            // GtkSettings notifications run synchronously on the GTK main context.
+            // Preserve that ordering to distinguish our override from system changes.
+            MainActor.assumeIsolated {
+              guard !DesktopAppearance.applying else { return }
+              Unmanaged<GtkActionBox>.fromOpaque(context).takeUnretainedValue().action()
+            }
+          }
+      let id = g_signal_connect_data(
+        object, name, unsafeBitCast(callback, to: GCallback.self), context,
+        { context, _ in if let context { Unmanaged<GtkActionBox>.fromOpaque(context).release() } },
+        GConnectFlags(rawValue: 0))
+      signals.append((object, id))
+    }
+  }
+
   func attachSearch(_ entry: Gtk.Entry) {
     search = entry
     if focusRequested { focusSearch() }

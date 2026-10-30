@@ -48,7 +48,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-4-dev pkg-config libx11-dev libxfixes-dev libdbus-1-dev xvfb xauth xclip python3-pyatspi python3-gi at-spi2-core dbus-x11 openbox imagemagick x11-utils fonts-noto-cjk fonts-noto-color-emoji
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev pkg-config libx11-dev libxfixes-dev libdbus-1-dev libsecret-1-dev libtesseract-dev libleptonica-dev tesseract-ocr-eng tesseract-ocr-chi-sim gnome-keyring xvfb xauth xclip python3-pyatspi python3-gi at-spi2-core dbus-x11 openbox imagemagick x11-utils fonts-noto-cjk fonts-noto-color-emoji
       - name: Install Swift 6.3.3 on Windows
         if: runner.os == 'Windows'
         uses: compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7
@@ -143,7 +143,7 @@ jobs:
           binary_dir=$(swift build --package-path Desktop --show-bin-path)
           dbus-run-session -- xvfb-run --auto-servernum \
             /usr/bin/python3 tools/desktop-ui/smoke-linux.py \
-            --executable "$binary_dir/ClipboardDesktop" --clipboard-peer "$binary_dir/scenario-runner" --output ui-artifacts
+            --executable "$binary_dir/ClipboardDesktop" --clipboard-peer "$binary_dir/scenario-runner" --ocr-fixture Core/Fixtures/ocr.png --output ui-artifacts
       - name: Exercise Windows GTK window and capture screenshots
         if: runner.os == 'Windows'
         shell: pwsh
@@ -151,7 +151,7 @@ jobs:
           $BinaryDirectory = (& swift build --package-path Desktop --show-bin-path).Trim()
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
-            -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OutputDirectory ui-artifacts
+            -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png -OutputDirectory ui-artifacts
           $UiExitCode = $LASTEXITCODE
           if ($UiExitCode -ne 0) {
             # Diagnose a minimal native scene, preserving the full preview's failure.

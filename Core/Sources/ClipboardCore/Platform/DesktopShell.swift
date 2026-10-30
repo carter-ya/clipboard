@@ -100,6 +100,7 @@ public protocol DesktopShellAccess: AnyObject, Sendable {
   var capabilities: DesktopShellCapabilities { get }
   var activationTimestamp: UInt32 { get }
   func start(shortcut: DesktopShortcut?, recording: Bool) throws
+  func updateLanguage(_ tag: String)
   func updateRecording(_ enabled: Bool)
   func stop()
 }
@@ -126,6 +127,7 @@ public final class FakeDesktopShell: DesktopShellAccess, @unchecked Sendable {
       self.recording = recording
     }
   }
+  public func updateLanguage(_ tag: String) {}
   public func updateRecording(_ enabled: Bool) { lock.withLock { recording = enabled } }
   public func stop() { lock.withLock { running = false } }
   public func send(_ action: DesktopShellAction) {

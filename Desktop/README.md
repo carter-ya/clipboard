@@ -73,3 +73,28 @@ Local CP5 evidence: 175 macOS Core tests (one existing Keychain skip), 156 Linux
 Core tests and 24 GTK UI/rich-capture/lifecycle checks passed. Native format,
 sensitivity, aggregate limits and large INCR transfers use independent peers.
 Windows rich transport and UI results remain pending in CI.
+
+## System services
+
+CP6 adds Windows Credential Manager / Linux Secret Service credentials, per-user
+startup integration and local OCR (WinRT on Windows, Tesseract on Linux). Linux
+builds additionally need libsecret, Tesseract and leptonica development packages;
+OCR needs installed language data (`eng`, plus `chi_sim` for Chinese). Credentials
+have no plaintext fallback and remain separate from JSON settings. Private
+profiles use distinct credential namespaces and cannot change the normal
+profile's startup entry. The startup command uses `--background`; another launch
+reopens the same process safely.
+
+Remote OpenAI-compatible AI is disabled initially. Enable it explicitly and save
+a model/endpoint; image uploads and automatic analysis have separate switches.
+Requests use memory-only sessions, refuse redirects and bound responses while
+receiving. Sensitive/concealed items never enter OCR or the network pipeline.
+Remote file-content summaries and Apple-only models are not offered here. OCR
+results can be copied separately without changing the original history item.
+
+English/Simplified Chinese labels and native tray menus update live. System,
+light and dark appearance synchronize GTK controls and SwiftCrossUI foregrounds
+using notifications. Global-shortcut keyboard/IME/DPI still need interactive
+acceptance. Local CP6: 181 macOS Core tests (one existing skip), full macOS app
+build, 162 Linux Core tests, 12 native service checks, 12 tray checks and 32 GTK
+UI checks passed. Native Windows service/UI results remain pending.

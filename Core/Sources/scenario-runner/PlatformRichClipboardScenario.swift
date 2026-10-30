@@ -58,7 +58,13 @@ import Foundation
       return
     }
     let fixture = args.count > 2 ? args[2] : "rich"
-    try clipboard.write(payloads: richFixtures(fixture), sensitive: fixture == "secret")
+    if fixture == "ocr", args.count > 3 {
+      let data = try Data(contentsOf: URL(fileURLWithPath: args[3]))
+      try clipboard.write(
+        payloads: [.init(pasteboardType: "public.png", data: data)], sensitive: false)
+    } else {
+      try clipboard.write(payloads: richFixtures(fixture), sensitive: fixture == "secret")
+    }
     FileHandle.standardOutput.write(Data("ready\n".utf8))
     _ = readLine()
   }
