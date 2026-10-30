@@ -26,6 +26,7 @@ public static class PreviewNative {
   }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
   [DllImport("user32.dll")] public static extern bool OpenClipboard(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool CloseClipboard();
   [DllImport("user32.dll")] public static extern IntPtr GetClipboardData(uint format);
@@ -110,10 +111,15 @@ try {
     -ArgumentList $launchArguments -PassThru `
     -RedirectStandardOutput (Join-Path $OutputDirectory 'application.stdout.log') `
     -RedirectStandardError (Join-Path $OutputDirectory 'application.stderr.log')
+  # Retain the process handle so ExitCode remains available after an early crash.
+  $null = $application.Handle
   $nativeWindowHandle = Wait-For {
     $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
     if ($handle -ne [IntPtr]::Zero) { $handle }
   } 'native_window_without_automation'
+  # The hosted desktop is 1024x768; cascading default placement clips the window.
+  # Move only this probe's own window, keeping its original dimensions.
+  if (![PreviewNative]::SetWindowPos($nativeWindowHandle, [IntPtr]::Zero, 16, 16, 0, 0, 0x0005)) { throw 'position_probe_window' }
   [PreviewNative]::SetForegroundWindow($nativeWindowHandle) | Out-Null
   Start-Sleep -Seconds 2
   Add-Check 'native_window_survives_without_ui_automation' (!$application.HasExited)
