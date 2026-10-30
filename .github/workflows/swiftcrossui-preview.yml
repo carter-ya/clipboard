@@ -81,6 +81,24 @@ jobs:
         with:
           path: UIPrototype/.build
           key: crossui-${{ runner.os }}-swift6.3.3-${{ hashFiles('UIPrototype/Package.resolved', 'Core/Package.resolved') }}
+      - name: Restore dependency symbolic links on Windows
+        if: runner.os == 'Windows' && steps.ui-cache.outputs.cache-hit == 'true'
+        shell: pwsh
+        run: |
+          # Windows cache extraction can leave relative directory links unresolved.
+          # Recreate only tracked links from Git, retaining original dependency sources.
+          Get-ChildItem UIPrototype/.build/checkouts -Directory | ForEach-Object {
+            $CheckoutDirectory = $_.FullName
+            $TrackedEntries = & git -C $CheckoutDirectory ls-files --stage
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            foreach ($Entry in $TrackedEntries) {
+              if ($Entry -match '^120000 [0-9a-f]+ 0\t(.+)$') {
+                $LinkPath = $Matches[1]
+                & git -C $CheckoutDirectory -c core.symlinks=true checkout-index --force -- $LinkPath
+                if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              }
+            }
+          }
       - name: Build SwiftCrossUI preview
         shell: pwsh
         run: |
