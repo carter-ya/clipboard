@@ -31,3 +31,13 @@ clipboard_instance *clipboard_instance_create(const char *identity,
                                               void *context, int *status);
 void clipboard_instance_destroy(clipboard_instance *instance);
 #endif
+
+#ifndef CLIPBOARD_DESKTOP_INSTALLATION_H
+#define CLIPBOARD_DESKTOP_INSTALLATION_H
+typedef struct clipboard_installation_lock clipboard_installation_lock;
+/* Shared lock for running applications; installers must not replace open files.
+ */
+clipboard_installation_lock *
+clipboard_installation_lock_create(const char *directory);
+void clipboard_installation_lock_destroy(clipboard_installation_lock *value);
+#endif

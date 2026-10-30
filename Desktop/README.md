@@ -9,7 +9,8 @@ record-on-start behavior. Runtime pause does not change that startup preference.
 ## Build
 
 Swift 6.3.3 and SwiftSyntax 603.0.1 are pinned. Linux requires GTK 4 development
-packages, pkg-config, libX11, libXfixes and libdbus-1 development headers. Run:
+packages, pkg-config, libX11, libXfixes, libdbus-1, libwayland, libsecret,
+Tesseract and leptonica development headers. Run:
 
 ```sh
 python3 tools/desktop-ui/build-desktop.py
@@ -44,8 +45,8 @@ missing tray is reported, shortcut conflicts retain the previous binding, and
 closing quits when neither tray nor shortcut can reopen the window. Windows uses
 Shell_NotifyIcon/RegisterHotKey; Linux uses StatusNotifierItem/dbusmenu and XGrabKey.
 Wayland global shortcuts are not advertised through XWayland. The IPC channel
-exchanges activation only and never clipboard payloads. System services, Wayland and installer delivery remain subsequent layers
-tracked in harness.json.cross_platform_delivery. Real keyboard/IME, focus
+exchanges activation only and never clipboard payloads. System services, Wayland and installer delivery are implemented in subsequent stack
+layers tracked in harness.json.cross_platform_delivery. Real keyboard/IME, focus
 handoff and multi-monitor DPI acceptance remain separate interactive gates.
 Windows GTK/AccessKit build and native control results are pending.
 
@@ -73,7 +74,7 @@ legacy RTF code pages may need the source application's plain-text sidecar.
 Local CP5 evidence: 175 macOS Core tests (one existing Keychain skip), 156 Linux
 Core tests and 24 GTK UI/rich-capture/lifecycle checks passed. Native format,
 sensitivity, aggregate limits and large INCR transfers use independent peers.
-Windows rich transport and UI results remain pending in CI.
+Windows rich transport passed native CI; the full UI gate remains open.
 
 ## System services
 
@@ -101,3 +102,50 @@ build, 162 Linux Core tests, 12 native service checks, 12 tray checks and 32 GTK
 UI checks passed. Native Windows services passed Actions run 41030210039; the native Windows UI gate remains open.
 
 SwiftCrossUI 0.10.0 hard-codes Unix C integer widths in four GTK wrapper calls. Windows uses `gulong=UInt32` and `gsize=UInt64`, so the reviewed patch in `Desktop/Patches/` uses the actual C typedefs. The build helper verifies the pinned revision, applies this patch idempotently and then builds. Use this helper for native builds; the application does not change its dependency revision or bypass native UI checks.
+
+
+## Native Wayland
+
+CP7 uses wlr data control on supported compositors (native Sway rich capture and
+GTK controls verified). It does not use XWayland for capture. Restricted Wayland
+sessions offer GTK copy-only history and accurately report unavailable recording.
+Wayland provides no source application identity here. Global shortcuts require
+the desktop portal and explicit approval; activation tokens are one-shot.
+Private compositor/protocol fixtures do not prove physical keyboard/IME focus.
+
+## Installable previews
+
+CP8 uses `Desktop/VERSION`, independently from the macOS release. CI builds
+optimized executables and uploads preview archives, installers, checksums, native
+UI reports and a separate verified GTK dependency source bundle. These are
+unsigned preview artifacts; no public release or automatic update is performed.
+
+Linux (Ubuntu 22.04 x64/arm64):
+
+```sh
+python3 tools/desktop-ui/build-desktop.py --configuration release
+python3 tools/desktop-package/package-desktop.py --binary Desktop/.build/release/ClipboardDesktop --platform linux --output dist
+```
+
+Extract the archive and run `python3 install.py`; see its README for system
+runtime packages and upgrade/uninstall instructions. Swift runtime libraries,
+resource bundles and dependency notices travel with the app. The installer does
+not require administrator privileges and preserves user history/credentials.
+
+Windows x64: after configuring the verified GTK environment and building release,
+run `tools/desktop-package/build-windows-installer.ps1 -Binary PATH -Output dist`.
+It verifies the GUI subsystem and recursive DLL imports before invoking Inno
+Setup 6. The resulting per-user installer includes GTK, Swift and MSVC runtime
+libraries. Quit all profiles before upgrading/uninstalling. Startup removal is
+limited to this installation's own command; history and credentials remain.
+
+CI tests install/upgrade/uninstall in a Unicode/spaced private directory. Linux
+checks run with no Swift SDK and no network. Native pointer tests verify Copy
+in a 640×480 logical viewport at 100%/200%; bounded hide/reopen loops check query,
+focus, memory and file descriptors. Physical multi-monitor scaling, real IME
+composition and shortcut focus still require interactive acceptance before a
+platform release.
+
+The reviewed GTK main-loop patch also releases one-shot callback contexts and
+prevents zero-delay timer starvation of AccessKit idle actions. Native Windows
+focus/value/button behavior remains a hard CI gate.

@@ -24,6 +24,11 @@ let package = Package(
         .product(name: "Gtk", package: "swift-cross-ui"),
         .product(name: "SwiftCrossUI", package: "swift-cross-ui"),
         .product(name: "GtkBackend", package: "swift-cross-ui"),
+      ],
+      linkerSettings: [
+        .unsafeFlags(
+          ["-Xlinker", "/SUBSYSTEM:WINDOWS", "-Xlinker", "/ENTRY:mainCRTStartup"],
+          .when(platforms: [.windows]))
       ]
     )
   ]

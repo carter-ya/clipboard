@@ -124,7 +124,12 @@
         "base": "codex/cross-platform-wayland",
         "scope": "Windows/Linux installable artifacts, upgrades/uninstall, multi-monitor/DPI and long-running lifecycle checks.",
         "acceptance": "Installation and smoke gates pass on supported targets; physical IME/focus/DPI verification is recorded before platform release readiness.",
-        "status": "planned"
+        "status": "in_progress",
+        "evidence": [
+          "Linux arm64 debug package installed and ran without a Swift SDK: full native UI probe, running-process upgrade/uninstall guards, upgrade preservation, selective uninstall, and corrupt archive rejection passed.",
+          "Optimized Linux package, repeated lifecycle resource checks, and 100%/200% virtual display layout are being validated. Windows GUI subsystem, DLL closure and user installer remain native CI gates.",
+          "Third-party GTK source archives are hash-verified and collected with pinned build recipes. No physical multi-monitor DPI, IME or global shortcut focus pass is claimed."
+        ]
       }
     ],
     "completion_rule": "A created PR or passing build is not functional completion. Each stack layer retains implementation and verification evidence; unresolved manual/runtime gates remain open. No automatic main merge or public release is implied."

@@ -4,6 +4,7 @@ import Foundation
 import SwiftCrossUI
 
 @MainActor enum DesktopApplicationContext {
+  static var installationLock: NativeDesktopInstallationLock?
   static var instance: (any DesktopInstanceAccess)?
   static var profile = "production"
   static var dataRoot: URL?
@@ -14,6 +15,15 @@ import SwiftCrossUI
   @MainActor static func main() {
     let arguments = CommandLine.arguments
     do {
+      let executable = URL(fileURLWithPath: arguments[0]).standardizedFileURL
+        .resolvingSymlinksInPath()
+      let bundleRoot = executable.deletingLastPathComponent().deletingLastPathComponent()
+      if FileManager.default.fileExists(
+        atPath: bundleRoot.appendingPathComponent("package-manifest.json").path)
+      {
+        DesktopApplicationContext.installationLock = try NativeDesktopInstallationLock(
+          directory: bundleRoot)
+      }
       let defaultRoot = try AppPaths.defaultStoreLocation().standardizedFileURL
         .resolvingSymlinksInPath()
       var root = defaultRoot
