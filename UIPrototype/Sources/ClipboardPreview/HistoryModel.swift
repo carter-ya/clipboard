@@ -16,6 +16,7 @@ final class HistoryModel: ObservableObject {
   @Published var status = "Loading history"
   @Published var recording = false
   @Published var ready = false
+  @Published var previewText = "Choose an item to preview its content."
 
   private var store: JSONSnapshotClipStore?
   private var root: URL?
@@ -23,6 +24,7 @@ final class HistoryModel: ObservableObject {
   private var monitor: TextClipboardMonitor?
   private var captureTask: Task<Void, Never>?
   private var eventsTask: Task<Void, Never>?
+  private var loadedPreviewID: UUID?
 
   static let fixtures = [
     "Welcome to Clipboard Preview",
@@ -31,17 +33,32 @@ final class HistoryModel: ObservableObject {
   ]
 
   var selected: ClipItem? { items.first { $0.id == selectedID } }
-  var selectedText: String {
-    guard let selected else { return "Choose an item to preview its content." }
-    guard !selected.sensitive else { return "Sensitive content is hidden." }
-    guard
-      let payload = selected.payloads.first(where: { $0.pasteboardType == "public.utf8-plain-text" }
-      ),
-      let bytes = try? PayloadResolver(blobRoot: root?.appendingPathComponent("blobs")).data(
-        for: payload),
-      let text = String(data: bytes, encoding: .utf8)
-    else { return selected.preview }
-    return text
+  @MainActor func loadPreview() async {
+    guard let selected else {
+      loadedPreviewID = nil
+      previewText = "Choose an item to preview its content."
+      return
+    }
+    guard loadedPreviewID != selected.id else { return }
+    loadedPreviewID = selected.id
+    if selected.sensitive {
+      previewText = "Sensitive content is hidden."
+      return
+    }
+    previewText = "Loading preview…"
+    let resolver = PayloadResolver(blobRoot: root?.appendingPathComponent("blobs"))
+    let text = await Task.detached(priority: .userInitiated) {
+      guard
+        let payload = selected.payloads.first(where: {
+          $0.pasteboardType == "public.utf8-plain-text"
+        }),
+        let bytes = try? resolver.data(for: payload),
+        let text = String(data: bytes, encoding: .utf8)
+      else { return selected.preview }
+      return String(text.prefix(8000))
+    }.value
+    guard selectedID == selected.id else { return }
+    previewText = text
   }
 
   @MainActor func load() async {
@@ -52,7 +69,9 @@ final class HistoryModel: ObservableObject {
       if let position = args.firstIndex(of: "--smoke-root"), position + 1 < args.count {
         directory = URL(fileURLWithPath: args[position + 1], isDirectory: true)
       } else {
-        directory = try AppPaths.defaultStoreRoot(directoryName: "ClipboardCrossUIPrototype")
+        directory = try await Task.detached {
+          try AppPaths.defaultStoreRoot(directoryName: "ClipboardCrossUIPrototype")
+        }.value
       }
       root = directory
       let store = try await JSONSnapshotClipStore(root: directory)
@@ -89,6 +108,7 @@ final class HistoryModel: ObservableObject {
     guard query == requestedQuery, onlyPinned == requestedPinned else { return }
     items = requestedPinned ? found.filter(\.pinned) : found
     if !items.contains(where: { $0.id == selectedID }) { selectedID = items.first?.id }
+    await loadPreview()
   }
 
   @MainActor func togglePin() async {
@@ -119,13 +139,12 @@ final class HistoryModel: ObservableObject {
     #endif
   }
 
-  @MainActor func copySelected() {
+  @MainActor func copySelected() async {
     guard let selected else { return }
     do {
-      try TextPasteboardWriter(
-        clipboard: nativeClipboard(), blobRoot: root?.appendingPathComponent("blobs")
-      )
-      .write(selected)
+      let writer = try TextPasteboardWriter(
+        clipboard: nativeClipboard(), blobRoot: root?.appendingPathComponent("blobs"))
+      try await Task.detached(priority: .userInitiated) { try writer.write(selected) }.value
       status = "Copied to clipboard"
     } catch { status = "Clipboard is unavailable in this session." }
   }

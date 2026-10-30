@@ -65,7 +65,9 @@ jobs:
           Invoke-WebRequest -Uri 'https://aka.ms/windowsappsdk/1.5/1.5.250108004/windowsappruntimeinstall-x64.exe' -OutFile $InstallerPath
           $InstallerProcess = Start-Process -FilePath $InstallerPath -ArgumentList '--quiet' -Wait -PassThru
           if ($InstallerProcess.ExitCode -ne 0) { throw "Windows App Runtime install failed: $($InstallerProcess.ExitCode)" }
-          Get-AppxPackage Microsoft.WindowsAppRuntime.1.5 | Select-Object Name, Version, Architecture
+          # Appx is a Windows PowerShell module and cannot load in PowerShell 7.
+          & powershell.exe -NoProfile -Command 'Get-AppxPackage Microsoft.WindowsAppRuntime.1.5 | Select-Object Name, Version, Architecture'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify toolchain
         shell: pwsh
         run: |

@@ -33,6 +33,7 @@ struct HistoryView: View {
     }
     .padding(24)
     .task { await model.load() }
+    .onChange(of: model.selectedID) { Task { @MainActor in await model.loadPreview() } }
   }
 
   var header: some View {
@@ -84,11 +85,12 @@ struct HistoryView: View {
     VStack(alignment: .leading, spacing: 18) {
       Text("Preview").font(.system(size: 18))
       ScrollView {
-        Text(model.selectedText)
+        Text(model.previewText)
           .frame(maxWidth: .infinity, alignment: .leading)
       }.frame(minHeight: 220)
       HStack(spacing: 10) {
-        Button("Copy") { model.copySelected() }.disabled(model.selected == nil)
+        Button("Copy") { Task { @MainActor in await model.copySelected() } }.disabled(
+          model.selected == nil)
         Button("Pin / unpin") { Task { @MainActor in await model.togglePin() } }
           .disabled(model.selected == nil)
         Button("Delete") { Task { @MainActor in await model.deleteSelected() } }
