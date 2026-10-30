@@ -73,3 +73,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - `Desktop/` is the Windows/Linux SwiftCrossUI application package. It explicitly uses GtkBackend; Windows GTK must include AccessKit and pass native UI Automation controls. The historical WinUI crash is not accepted as a successful port. Normal launches never seed sample history; only --smoke-root may inject synthetic fixtures. Keep GTK/Win32/X11 dependencies out of portable Core contracts.
 
 - The pinned SwiftCrossUI GTK main-loop patch releases one-shot callback contexts and prevents zero-delay timeouts from starving AccessKit idle actions. Keep native accessibility focus/button checks as hard gates; a visible tree alone is insufficient.
+
+- The pinned GTK AccessKit patch handles editable SetValue with native sensitivity/editability checks and schedules accessibility input at default priority. Optional CI diagnostics contain action/target IDs only, never text. UI Automation clients run MTA; native focus/action success remains required.
