@@ -1,0 +1,107 @@
+name: SwiftCrossUI preview
+
+on:
+  push:
+    branches: [codex/verify-swift-cross-platform]
+    paths:
+      - UIPrototype/**
+      - Core/**
+      - tools/ui-preview/**
+      - .github/workflows/swiftcrossui-preview.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    name: UI / ${{ matrix.os }} / ${{ matrix.backend }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            backend: GtkBackend
+          - os: windows-2022
+            backend: WinUIBackend
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      SCUI_DEFAULT_BACKEND: ${{ matrix.backend }}
+      GDK_BACKEND: x11
+      GSK_RENDERER: cairo
+      GTK_A11Y: atspi
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GTK and isolated desktop test tools
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev pkg-config libx11-dev libxfixes-dev xvfb xauth xclip python3-pyatspi python3-gi at-spi2-core dbus-x11 openbox imagemagick x11-utils fonts-noto-cjk fonts-noto-color-emoji
+      - name: Install Swift 6.3.3 on Windows
+        if: runner.os == 'Windows'
+        uses: compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7
+        with:
+          swift-version: swift-6.3.3-release
+          swift-build: 6.3.3-RELEASE
+      - name: Install Swift 6.3.3 on Ubuntu
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift_dir="$RUNNER_TEMP/swift-6.3.3"
+          mkdir -p "$swift_dir"
+          curl --fail --location --retry 3 \
+            https://download.swift.org/swift-6.3.3-release/ubuntu2204/swift-6.3.3-RELEASE/swift-6.3.3-RELEASE-ubuntu22.04.tar.gz \
+            --output "$RUNNER_TEMP/swift.tar.gz"
+          tar -xzf "$RUNNER_TEMP/swift.tar.gz" --strip-components=1 -C "$swift_dir"
+          echo "$swift_dir/usr/bin" >> "$GITHUB_PATH"
+      - name: Install matching Windows App Runtime
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $InstallerPath = Join-Path $env:RUNNER_TEMP 'WindowsAppRuntimeInstall.exe'
+          Invoke-WebRequest -Uri 'https://aka.ms/windowsappsdk/1.5/1.5.250108004/windowsappruntimeinstall-x64.exe' -OutFile $InstallerPath
+          $InstallerProcess = Start-Process -FilePath $InstallerPath -ArgumentList '--quiet' -Wait -PassThru
+          if ($InstallerProcess.ExitCode -ne 0) { throw "Windows App Runtime install failed: $($InstallerProcess.ExitCode)" }
+          Get-AppxPackage Microsoft.WindowsAppRuntime.1.5 | Select-Object Name, Version, Architecture
+      - name: Verify toolchain
+        shell: pwsh
+        run: |
+          $VersionOutput = & swift --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $VersionOutput
+          if (($VersionOutput -join "`n") -notmatch 'Swift version 6\.3\.3(?:\s|$)') { throw 'Unexpected Swift toolchain' }
+      - name: Build SwiftCrossUI preview
+        shell: pwsh
+        run: |
+          & swift build --package-path UIPrototype --jobs 2 --product ClipboardPreview 2>&1 | Tee-Object -FilePath ui-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Exercise GTK window and capture screenshots
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary_dir=$(swift build --package-path UIPrototype --show-bin-path)
+          dbus-run-session -- xvfb-run --auto-servernum \
+            /usr/bin/python3 tools/ui-preview/smoke-linux.py \
+            --executable "$binary_dir/ClipboardPreview" --output ui-artifacts
+      - name: Exercise WinUI window and capture screenshots
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $BinaryDirectory = (& swift build --package-path UIPrototype --show-bin-path).Trim()
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File tools/ui-preview/smoke-windows.ps1 `
+            -Executable (Join-Path $BinaryDirectory 'ClipboardPreview.exe') -OutputDirectory ui-artifacts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload screenshots and UI test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swiftcrossui-${{ matrix.os }}
+          path: |
+            ui-build.log
+            ui-artifacts
+          if-no-files-found: ignore

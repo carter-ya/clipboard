@@ -205,6 +205,25 @@ Oversized X11 reads can report a conservative byte-count lower bound. Clipboard
 contention and changed owners are retried by the monitor, not logged. This is a
 prototype, not a production-hardened desktop adapter.
 
+## SwiftCrossUI UI slice
+
+`UIPrototype/` is an independent Swift package using SwiftCrossUI 0.10.0 with
+WinUI on Windows and GTK 4 on Linux. It consumes the real Core history store and
+native text clipboard writer; Core and the existing macOS product do not import
+the UI framework. See `UIPrototype/README.md` for build instructions and limits.
+
+The first Linux build with Swift 6.1.3 compiled the application but failed at
+link time in the toolchain's Observation runtime. The UI slice now tests Swift
+6.3.3 with SwiftSyntax 603.0.1. The existing core/native workflow stays on 6.1.3.
+
+The prototype provides search, a selectable list, preview, copy, pin/delete and
+settings navigation. Data lives in its own directory; capture is off by default.
+The workflow builds the native backends, starts real windows, operates native
+accessibility controls without key injection, checks the real persisted data
+and clipboard output, and uploads screenshots and logs. Windows and Linux GUI
+results are pending. These tests do not claim interactive keyboard/IME or global
+hotkey focus handoff acceptance.
+
 ## Remaining work
 
 1. Keep native Windows and Linux core tests running as platform adapters are

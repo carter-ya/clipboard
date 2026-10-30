@@ -18,7 +18,7 @@
     "v1.x 不做 AI 功能（摘要 / 翻译 / 改写）"
   ],
   "portability_experiment": {
-    "scope": "Independent-worktree Core and native text clipboard feasibility experiment only; not a complete Windows/Linux desktop port or finalized module split.",
+    "scope": "Independent-worktree Core, native text clipboard and SwiftCrossUI feasibility experiment only; not a complete Windows/Linux desktop port or finalized module split.",
     "dependency": "apple/swift-crypto 3.12.3, pinned for reproducibility; Crypto target enabled only for Linux/Windows. CryptoKit remains on macOS.",
     "platform_boundary": "Apple clipboard, hotkey, Keychain and image encoder implementations/tests are guarded with os(macOS). PasteboardWriting is declared in a Foundation-only file. WorkspaceProvider and its stub remain portable.",
     "preview_limit": "Non-macOS preserves original RTF/HTML payloads but does not decode them for previews; a plain-text sidecar still supplies a preview.",
@@ -52,10 +52,17 @@
         "linux_job": 123414764276
       }
     },
+    "ui_prototype": {
+      "dependency": "SwiftCrossUI 0.10.0 and SwiftSyntax 603.0.1 pinned in a separate UIPrototype package tested with Swift 6.3.3; default WinUI backend on Windows and GTK 4 backend on Linux. Core and the macOS product do not depend on it.",
+      "scope": "Search/list/preview, pin/delete, settings navigation and native text clipboard copy; real JSONSnapshotClipStore in a separate prototype directory. Capture is opt-in and off by default.",
+      "validation": "Implementation in progress. CI must build and launch the actual GUI, exercise accessible native controls, capture screenshots and retain logs. Keyboard events must not be synthesized.",
+      "limits": "Accessibility value/invoke operations do not prove real keyboard dispatch, Chinese IME composition, global hotkey foreground activation or multi-monitor scaling. Those need interactive target desktops."
+    },
     "evidence": "docs/swift-portability.md"
   },
   "tech_stack": {
     "language": "Swift 5.9+",
+    "ui_prototype_dependency": "Separate UIPrototype package uses SwiftCrossUI 0.10.0 with GTK 4 / WinUI 3; UI target tests use Swift 6.3.3 to avoid the Swift 6.1 Linux Observation linker bug; Core tests remain 6.1.3. Existing macOS product remains SwiftUI/AppKit.",
     "portability_validation_dependency": "apple/swift-crypto 3.12.3 for Linux/Windows SHA-256; resolved transitive swift-asn1 1.7.3 requires Swift 6.1. This experiment was tested with Swift 6.1.3 and 6.4; oldest-toolchain compatibility is not established.",
     "native_clipboard_experiment": "CDesktopClipboard C shim links User32 on Windows and X11/Xfixes on Linux; Xvfb is test-only.",
     "ui_framework": "视图用 SwiftUI；NSStatusItem + NSPanel 外壳用 AppKit",
