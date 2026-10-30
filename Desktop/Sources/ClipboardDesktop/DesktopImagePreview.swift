@@ -44,7 +44,7 @@ final class DesktopPreviewImage: @unchecked Sendable {
     defer { if let error { g_error_free(error) } }
     let written = data.withUnsafeBytes { bytes in
       gdk_pixbuf_loader_write(
-        loader, bytes.bindMemory(to: UInt8.self).baseAddress, UInt(bytes.count), &error)
+        loader, bytes.bindMemory(to: UInt8.self).baseAddress, gsize(bytes.count), &error)
     }
     guard written != 0 else { return nil }
     guard gdk_pixbuf_loader_close(loader, &error) != 0, !bounds.rejected,
