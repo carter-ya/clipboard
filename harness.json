@@ -77,7 +77,8 @@
         "acceptance": "Native controls are discoverable and operable without crashing; actual window screenshots inspected; keyboard/IME evidence tracked separately.",
         "status": "in_progress",
         "evidence": [
-          "Windows GTK 4.22.4/AccessKit renders the actual history window and exposes its tree. Native focus/action checks still fail; pinned scheduler fairness/context cleanup fix awaits CI."
+          "Windows GTK renders the actual history window and exposes its tree. Native focus/button checks still failed after the SwiftCrossUI scheduler fix (41042025041).",
+          "Reviewed GTK patch dispatches accessibility input at default priority and implements editable SetValue; content-free action/target diagnostics and an MTA UIA client await native CI."
         ]
       },
       {

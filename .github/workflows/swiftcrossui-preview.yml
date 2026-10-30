@@ -43,6 +43,7 @@ jobs:
       GDK_BACKEND: ${{ matrix.display }}
       GSK_RENDERER: cairo
       GTK_A11Y: ${{ matrix.accessibility }}
+      CLIPBOARD_UI_DIAGNOSTICS: '1'
     steps:
       - uses: actions/checkout@v4
       - name: Install GTK and isolated desktop test tools
@@ -73,7 +74,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 -Executable unused -OutputDirectory unused -ValidateOnly
+          & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 -Executable unused -OutputDirectory unused -ValidateOnly
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Restore Windows GTK runtime
         if: runner.os == 'Windows'
@@ -171,12 +172,12 @@ jobs:
         run: |
           $BinaryDirectory = (& swift build --package-path Desktop --show-bin-path).Trim()
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
+          & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
             -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png -OutputDirectory ui-artifacts
           $UiExitCode = $LASTEXITCODE
           if ($UiExitCode -ne 0) {
             # Diagnose a minimal native scene, preserving the full preview's failure.
-            & powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
+            & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
               -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -OutputDirectory ui-artifacts/baseline -Baseline
             exit $UiExitCode
           }
