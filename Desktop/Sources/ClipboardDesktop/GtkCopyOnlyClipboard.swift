@@ -42,7 +42,7 @@ final class GtkCopyOnlyClipboard: RichClipboardAccess, @unchecked Sendable {
     func append(_ mime: String, _ data: Data) {
       guard seen.insert(mime).inserted else { return }
       data.withUnsafeBytes { bytes in
-        guard let value = g_bytes_new(bytes.baseAddress, UInt(bytes.count)) else { return }
+        guard let value = g_bytes_new(bytes.baseAddress, gsize(bytes.count)) else { return }
         defer { g_bytes_unref(value) }
         if let provider = gdk_content_provider_new_for_bytes(mime, value) {
           providers.append(provider)
@@ -58,7 +58,7 @@ final class GtkCopyOnlyClipboard: RichClipboardAccess, @unchecked Sendable {
     // new_union takes ownership of all provider references and copies the array.
     guard
       let union = providers.withUnsafeMutableBufferPointer({
-        gdk_content_provider_new_union($0.baseAddress, UInt($0.count))
+        gdk_content_provider_new_union($0.baseAddress, gsize($0.count))
       })
     else {
       for case let provider? in providers { g_object_unref(UnsafeMutableRawPointer(provider)) }
