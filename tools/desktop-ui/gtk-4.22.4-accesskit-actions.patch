@@ -119,7 +119,26 @@
  }
  
  static void
-@@ -473,7 +506,21 @@
+@@ -469,11 +502,60 @@
+   return ++self->next_id;
+ }
+ 
++#if defined(GDK_WINDOWING_WIN32)
++typedef struct {
++  GWeakRef root;
++  guint32 id;
++} WidgetIdentity;
++
++static void
++free_widget_identity (gpointer data)
++{
++  WidgetIdentity *identity = data;
++  g_weak_ref_clear (&identity->root);
++  g_free (identity);
++}
++#endif
++
+ guint32
  gtk_accesskit_root_add_context (GtkAccessKitRoot    *self,
                                  GtkAccessKitContext *context)
  {
@@ -127,18 +146,38 @@
 +  guint32 id;
 +
 +#if defined(GDK_WINDOWING_WIN32)
-+  if (gtk_at_context_get_accessible (GTK_AT_CONTEXT (context)) ==
-+      GTK_ACCESSIBLE (self->root_widget))
++  GtkAccessible *accessible = gtk_at_context_get_accessible (GTK_AT_CONTEXT (context));
++  WidgetIdentity *identity = g_object_get_data (G_OBJECT (accessible),
++                                                "gtk-accesskit-widget-identity");
++  GtkAccessKitRoot *previous = identity ? g_weak_ref_get (&identity->root) : NULL;
++
++  /* Unmapping may recreate contexts while their widgets and HWND survive.
++   * Existing UIA providers must continue to address those same live widgets. */
++  if (previous == self)
++    id = identity->id;
++  else if (accessible == GTK_ACCESSIBLE (self->root_widget))
 +    {
-+      /* UIA associates its root provider with the surviving HWND. Preserve
-+       * that root node ID when accessible contexts are realized again. */
 +      if (!self->root_id)
 +        self->root_id = gtk_accesskit_root_new_id (self);
 +      id = self->root_id;
 +    }
 +  else
-+#endif
 +    id = gtk_accesskit_root_new_id (self);
++  g_clear_object (&previous);
++
++  if (!identity)
++    {
++      identity = g_new0 (WidgetIdentity, 1);
++      g_weak_ref_init (&identity->root, self);
++      g_object_set_data_full (G_OBJECT (accessible), "gtk-accesskit-widget-identity",
++                              identity, free_widget_identity);
++    }
++  else
++    g_weak_ref_set (&identity->root, self);
++  identity->id = id;
++#else
++  id = gtk_accesskit_root_new_id (self);
++#endif
    g_hash_table_insert (self->contexts, GUINT_TO_POINTER (id), context);
  
    if (self->did_initial_update)
