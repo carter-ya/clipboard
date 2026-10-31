@@ -92,3 +92,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - A surviving Windows HWND keeps its accessible root node ID across hide/reopen; rebuilding descendant contexts must not invalidate UIA window references.
 
 - Surviving Windows widgets keep their accessible node IDs through context recreation. Their identity records use weak root references and are released with the widget; reparenting to another root receives a new ID.
+
+- Windows rich UI tests pause after each capture before Copy, then require a new clipboard revision owned by the application and a fresh status transition. An old Copied label or the fixture peer owning identical bytes cannot acknowledge a new asynchronous Copy.
