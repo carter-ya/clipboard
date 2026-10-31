@@ -2,10 +2,12 @@
       [Parameter(Mandatory=$true)][string]$OutputDirectory,
       [string]$ClipboardPeer,
       [string]$OCRFixture,
+      [string]$FixturePython,
       [switch]$Baseline,
       [switch]$ValidateOnly,
       [int]$LifecycleCycles = 0)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'private-fixture-python.ps1')
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 # GTK has server-side AccessKit providers; native common-dialog controls use
@@ -1162,7 +1164,7 @@ try {
       Wait-For { Find-Named 'Enter a capacity of 1–5000 and a size of 0–16 MiB.' } 'negative_size_preference_rejected' | Out-Null
       Add-Check 'invalid_size_does_not_replace_disabled_preference' ((Read-SharedJson $settingsFile).maxClipSizeBytes -eq 0)
       $serverInfo = New-Object Diagnostics.ProcessStartInfo
-      $serverInfo.FileName = (Get-Command python).Source
+      $serverInfo.FileName = (Resolve-PrivateFixturePython $FixturePython)
       $serverInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'ai-probe-server.py') + '"'
       $serverInfo.UseShellExecute = $false
       $serverInfo.RedirectStandardInput = $true
