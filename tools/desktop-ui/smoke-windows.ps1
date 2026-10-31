@@ -2,10 +2,12 @@
       [Parameter(Mandatory=$true)][string]$OutputDirectory,
       [string]$ClipboardPeer,
       [string]$OCRFixture,
+      [string]$FixturePython,
       [switch]$Baseline,
       [switch]$ValidateOnly,
       [int]$LifecycleCycles = 0)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'private-fixture-python.ps1')
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 # GTK has server-side AccessKit providers; native common-dialog controls use
@@ -1256,7 +1258,7 @@ try {
       Wait-For { (Read-SharedJson $settingsFile).ai.allowText -eq $true } 'text_summary_opt_in_restored' | Out-Null
       Add-Check 'text_summary_permission_round_trips_through_native_settings' $true
       $serverInfo = New-Object Diagnostics.ProcessStartInfo
-      $serverInfo.FileName = (Get-Command python).Source
+      $serverInfo.FileName = (Resolve-PrivateFixturePython $FixturePython)
       $serverInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'ai-probe-server.py') + '"'
       $serverInfo.UseShellExecute = $false
       $serverInfo.RedirectStandardInput = $true
@@ -1336,7 +1338,7 @@ try {
 
     if ($ClipboardPeer) {
       $serverInfo = New-Object Diagnostics.ProcessStartInfo
-      $serverInfo.FileName = (Get-Command python).Source
+      $serverInfo.FileName = (Resolve-PrivateFixturePython $FixturePython)
       $serverInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'ai-probe-server.py') + '"'
       $serverInfo.UseShellExecute = $false
       $serverInfo.RedirectStandardInput = $true
@@ -1531,7 +1533,7 @@ try {
 
     # Separate private profile: per-item progress/failure/retry, never real history.
     $serverInfo = New-Object Diagnostics.ProcessStartInfo
-    $serverInfo.FileName = (Get-Command python).Source
+    $serverInfo.FileName = (Resolve-PrivateFixturePython $FixturePython)
     $serverInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'ai-probe-server.py') + '"'
     $serverInfo.UseShellExecute = $false
     $serverInfo.RedirectStandardInput = $true
