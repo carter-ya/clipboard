@@ -7,3 +7,9 @@ function Resolve-PrivateFixturePython([string]$ExplicitPath) {
   }
   return [IO.Path]::GetFullPath($ExplicitPath)
 }
+
+function Set-PrivateFixtureInputEncoding([Diagnostics.ProcessStartInfo]$Info) {
+  # The owned fixture accepts ASCII line commands. Console encodings on Windows
+  # can prepend a UTF-8 BOM to StreamWriter's first command; specify no preamble.
+  $Info.StandardInputEncoding = [Text.UTF8Encoding]::new($false)
+}
