@@ -338,7 +338,7 @@ try {
         $CopyRevision = [PreviewNative]::GetClipboardSequenceNumber()
         Invoke-Button 'Copy'
         Wait-For { (Find-Named 'Copied to clipboard') -and [PreviewNative]::GetClipboardSequenceNumber() -ne $CopyRevision } 'long_preview_copied' | Out-Null
-        $expected = ("Long preview fixture 中文😀`n" * 4096) + 'end-of-full-preview-fixture'
+        $expected = ("Long preview fixture 中文😀`r`n" * 4096) + 'end-of-full-preview-fixture'
         Add-Check 'truncated_preview_copy_keeps_full_unicode_payload' ([PreviewNative]::ReadClipboard() -ceq $expected)
       } finally {
         $peer.StandardInput.Close()
