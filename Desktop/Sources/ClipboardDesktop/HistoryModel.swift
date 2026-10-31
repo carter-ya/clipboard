@@ -129,6 +129,10 @@ final class HistoryModel: ObservableObject {
     await loadPreview()
   }
 
+  @MainActor func responsiveWidth(proposed: Double) -> Double {
+    nativeWindow?.responsiveWidth(fallback: proposed) ?? proposed
+  }
+
   @MainActor func attachWindow(_ window: Gtk.Window) {
     if nativeWindow == nil {
       let presenter = GtkDesktopWindow()
