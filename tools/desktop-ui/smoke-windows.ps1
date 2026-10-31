@@ -1020,7 +1020,10 @@ try {
         Wait-For { (Find-Named '1 items') -and (Find-Named $activationTarget) } 'activation_single_row' | Out-Null
         Add-Check 'filter_selection_does_not_copy_or_hide_history' ([PreviewNative]::GetClipboardSequenceNumber() -eq $revision -and [PreviewNative]::FindWindow([uint32]$application.Id) -ne [IntPtr]::Zero)
         Set-Search 'Release checklist'
-        Wait-For { Find-Named '1 items' } 'activation_select_other_item' | Out-Null
+        Wait-For {
+          $selectedRow = Get-PublicHistoryRow 'Release checklist · build, test, publish'
+          (Find-Named '1 items') -and $selectedRow.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected
+        } 'activation_select_other_item' | Out-Null
         Set-Search 'e'
         Wait-For { Find-Named '2 items' } 'activation_two_rows' | Out-Null
         Wait-For {
