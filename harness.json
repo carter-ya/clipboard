@@ -134,6 +134,7 @@
         "acceptance": "Installation and smoke gates pass on supported targets; physical IME/focus/DPI verification is recorded before platform release readiness.",
         "status": "in_progress",
         "evidence": [
+          "Wide and compact layouts keep primary item actions outside the scroll viewport. Windows full-layer run 41091760650 exposes a clipped preview-owned toolbar and retired Delete target after reopen; native regression must pass before accepting the repair.",
           "Optimized Linux arm64 package passes 63 installed native GUI/lifecycle checks including independent image/file capture-copy, real Tesseract OCR and result copy, without a Swift SDK/network; eight installer/upgrade/uninstall checks also pass.",
           "100% and 200% virtual display tests each pass six checks at 640x480 logical size, preserving search/editor, a readable history row and native pointer Copy Unicode readback.",
           "Latest optimized command-entry build: twenty measured hide/reopen cycles after warmup preserve search/focus; descriptors stay at 27 and RSS grows 1032 KiB. This is a bounded lifecycle regression, not a multi-day soak.",

@@ -51,7 +51,7 @@ struct HistoryView: View {
             history(compact: compact)
           }
         }.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-        if compact && !model.showsSettings { itemActions }
+        if !model.showsSettings { itemActions }
         Divider()
         HStack {
           Text(model.t(model.status)).foregroundColor(.gray)
@@ -160,13 +160,13 @@ struct HistoryView: View {
         VStack(alignment: .leading, spacing: 16) {
           historyItems.frame(maxWidth: .infinity, minHeight: 180, maxHeight: 220)
           Divider()
-          preview(compact: true).frame(maxWidth: .infinity, minHeight: 200, maxHeight: 300)
+          preview.frame(maxWidth: .infinity, minHeight: 200, maxHeight: 300)
         }
       } else {
         HStack(alignment: .top, spacing: 20) {
           historyItems.frame(minWidth: 300, maxWidth: 340, minHeight: 280, maxHeight: 360)
           Divider()
-          preview(compact: false).frame(
+          preview.frame(
             minWidth: 340, maxWidth: .infinity, minHeight: 280, maxHeight: 360)
         }
       }
@@ -198,7 +198,7 @@ struct HistoryView: View {
     }
   }
 
-  func preview(compact: Bool) -> some View {
+  var preview: some View {
     VStack(alignment: .leading, spacing: 12) {
       Text(model.t("Preview")).font(.system(size: 18))
       if let source = model.selected?.sourceBundleID {
@@ -220,7 +220,6 @@ struct HistoryView: View {
           }
         }
       }.frame(minHeight: 100, maxHeight: 180)
-      if !compact { itemActions }
       Text(model.t("Copy here, then paste in your app."))
         .font(.system(size: 12)).foregroundColor(.gray)
     }
