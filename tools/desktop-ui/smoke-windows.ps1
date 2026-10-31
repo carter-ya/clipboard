@@ -437,11 +437,43 @@ try {
     Wait-For { Find-Named '偏好设置' } 'localized_settings_return' | Out-Null
     Invoke-Button 'English'
     Wait-For { (Find-Named 'Preferences') -and (Find-Named 'Language saved') } 'english_restored' | Out-Null
+    function Find-PublicEndpointEditor([string]$Value) {
+      $editCondition = [Windows.Automation.PropertyCondition]::new(
+        [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)
+      foreach ($candidate in $script:window.FindAll([Windows.Automation.TreeScope]::Descendants, $editCondition)) {
+        if ($candidate.Current.IsPassword) { continue }
+        try {
+          $pattern = $candidate.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
+          if ($pattern.Current.Value -ceq $Value) { return $candidate }
+        } catch { }
+      }
+    }
+    $draftValue = 'https://fixture.invalid/localized-draft'
+    $draftEditor = Wait-For { Find-PublicEndpointEditor 'https://api.openai.com/v1' } 'public_endpoint_editor'
+    $draftID = ($draftEditor.GetRuntimeId() -join ',')
+    $draftEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue($draftValue)
+    $languageCases = @(
+      @{ tag = 'zh-Hant'; label = '繁體中文'; preferences = '偏好設定'; saved = '語言已保存'; behavior = '保存行為設定'; ocr = '本地 OCR 使用已安裝的語言包，此平台不提供 Apple 專屬模型。'; ai = '遠端 AI 預設關閉。啓用後，符合條件的內容會發送到指定服務。' },
+      @{ tag = 'ja'; label = '日本語'; preferences = '環境設定'; saved = '言語を保存しました'; behavior = '動作設定を保存'; ocr = 'ローカル OCR はインストール済みのシステム言語パックを使用します。Apple 専用モデルは利用できません。'; ai = 'リモート AI は初期状態で無効です。有効にすると、対象の内容が指定した接続先に送信されます。' },
+      @{ tag = 'ko'; label = '한국어'; preferences = '환경설정'; saved = '언어를 저장했습니다'; behavior = '동작 설정 저장'; ocr = '로컬 OCR은 설치된 시스템 언어 팩을 사용합니다. Apple 전용 모델은 사용할 수 없습니다.'; ai = '원격 AI는 기본적으로 꺼져 있습니다. 켜면 조건에 맞는 콘텐츠가 지정한 엔드포인트로 전송됩니다.' },
+      @{ tag = 'de'; label = 'Deutsch'; preferences = 'Einstellungen'; saved = 'Sprache gespeichert'; behavior = 'Verhalten speichern'; ocr = 'Lokale OCR nutzt installierte Systemsprachpakete. Apple-exklusive Modelle sind hier nicht verfügbar.'; ai = 'Remote-KI ist standardmäßig deaktiviert. Bei Aktivierung werden geeignete Inhalte an deinen gewählten Endpunkt gesendet.' },
+      @{ tag = 'es'; label = 'Español'; preferences = 'Preferencias'; saved = 'Idioma guardado'; behavior = 'Guardar comportamiento'; ocr = 'El OCR local usa los paquetes de idioma del sistema instalados. Los modelos exclusivos de Apple no están disponibles aquí.'; ai = 'La IA remota está desactivada por defecto. Al activarla, el contenido permitido se envía al destino elegido.' })
+    foreach ($case in $languageCases) {
+      Invoke-Button $case.label
+      Wait-For { (Find-Named $case.preferences) -and (Find-Named $case.saved) -and (Find-Named $case.behavior) } ('localized_controls_' + $case.tag) | Out-Null
+      Add-Check ('language_' + $case.tag + '_updates_controls_and_privacy_notes') ((Find-Named $case.ocr) -and (Find-Named $case.ai))
+      $currentEditor = Find-PublicEndpointEditor $draftValue
+      Add-Check ('language_' + $case.tag + '_preserves_editor_draft') ($currentEditor -and ($currentEditor.GetRuntimeId() -join ',') -eq $draftID)
+      Save-Screenshot ('settings-' + $case.tag + '.png')
+    }
+    Invoke-Button 'English'
+    Wait-For { (Find-Named 'Preferences') -and (Find-Named 'Language saved') } 'english_after_all_languages' | Out-Null
     Invoke-Button 'Save behavior'
     $settingsFile = Join-Path $historyRoot 'desktop-settings.json'
     Wait-For { Test-Path $settingsFile } 'saved_settings_file' | Out-Null
     $saved = Get-Content -Raw -Encoding UTF8 $settingsFile | ConvertFrom-Json
     Add-Check 'behavior_saved_without_enabling_recording' (!$saved.recordingEnabled -and $saved.closeToTray)
+    Add-Check 'language_switches_keep_remote_AI_disabled_and_endpoint_draft_unsaved' (!$saved.ai.enabled -and $saved.ai.endpoint -ceq 'https://api.openai.com/v1' -and $saved.languageOverride -ceq 'en')
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'explicit_quit_timeout' }
     Add-Check 'explicit_quit_flushes_and_exits' ($application.ExitCode -eq 0)

@@ -45,6 +45,7 @@ final class HistoryModel: ObservableObject {
   @Published var recordingTransition = false
   @Published var ready = false
   @Published var previewText = "Choose an item to preview its content."
+  @Published var previewMessage: String? = "Choose an item to preview its content."
   @Published var previewImage: DesktopPreviewImage?
   @Published var previewTruncated = false
   @Published var kindFilter: ClipKind?
@@ -121,6 +122,7 @@ final class HistoryModel: ObservableObject {
       previewText =
         selected?.sensitive == true
         ? "Sensitive content is hidden." : "Choose an item to preview its content."
+      previewMessage = previewText
     }
   }
   @MainActor func revealSensitivePreview() async {
@@ -182,6 +184,7 @@ final class HistoryModel: ObservableObject {
       previewImage = nil
       previewTruncated = false
       previewText = "Choose an item to preview its content."
+      previewMessage = previewText
       return
     }
     guard loadedPreviewID != selected.id else { return }
@@ -190,28 +193,31 @@ final class HistoryModel: ObservableObject {
     previewTruncated = false
     if selected.sensitive && revealedSensitiveID != selected.id {
       previewText = "Sensitive content is hidden."
+      previewMessage = previewText
       return
     }
     previewText = "Loading preview…"
+    previewMessage = previewText
     let generation = previewGeneration
     let resolver = PayloadResolver(
       blobRoot: selected.sensitive ? nil : root?.appendingPathComponent("blobs"))
     let result = await Task.detached(priority: .userInitiated) {
-      () -> (String, DesktopPreviewImage?, Bool) in
+      () -> (String, DesktopPreviewImage?, Bool, String?) in
       if selected.kind == .image,
         let payload = selected.payloads.first(where: {
           ClipKind.imagePayloadTypes.contains($0.pasteboardType)
         }),
         let bytes = try? resolver.data(for: payload)
       {
-        return ("Image · \(selected.sizeBytes) bytes", DesktopPreviewImage.decode(bytes), false)
+        let message = "Image · \(selected.sizeBytes) bytes"
+        return (message, DesktopPreviewImage.decode(bytes), false, message)
       }
       if selected.kind == .file,
         let payload = selected.payloads.first(where: { $0.pasteboardType == "public.file-url" }),
         let bytes = try? resolver.data(for: payload),
         let urls = try? ClipboardFormats.fileURLs(from: bytes)
       {
-        return (urls.map(\.path).joined(separator: "\n"), nil, false)
+        return (urls.map(\.path).joined(separator: "\n"), nil, false, nil)
       }
       if let payload = selected.payloads.first(where: {
         ["public.utf8-plain-text", "public.plain-text", "public.string"].contains($0.pasteboardType)
@@ -220,7 +226,7 @@ final class HistoryModel: ObservableObject {
         let text = String(data: bytes, encoding: .utf8)
       {
         let preview = DesktopTextPreview(text)
-        return (preview.text, nil, preview.isTruncated)
+        return (preview.text, nil, preview.isTruncated, nil)
       }
       let rich = selected.payloads.compactMap { payload -> RawPayload? in
         guard ["public.html", "public.rtf"].contains(payload.pasteboardType),
@@ -230,11 +236,11 @@ final class HistoryModel: ObservableObject {
       }
       let preview = RichTextPreview.preview(from: rich)
       let text = preview.text
+      let fallback = "Rich content · copy to use its original formatting."
+      let message = text.isEmpty && selected.preview.isEmpty ? fallback : nil
       return (
-        text.isEmpty
-          ? (selected.preview.isEmpty
-            ? "Rich content · copy to use its original formatting." : selected.preview) : text, nil,
-        preview.isTruncated
+        text.isEmpty ? (selected.preview.isEmpty ? fallback : selected.preview) : text,
+        nil, preview.isTruncated, message
       )
     }.value
     guard selectedID == selected.id, generation == previewGeneration,
@@ -243,6 +249,7 @@ final class HistoryModel: ObservableObject {
     previewText = result.0
     previewImage = result.1
     previewTruncated = result.2
+    previewMessage = result.3
   }
 
   @MainActor func load() async {
@@ -365,7 +372,7 @@ final class HistoryModel: ObservableObject {
     } catch DesktopShellError.shortcutConflict {
       shellStatus = "The global shortcut is already in use. Choose another in Settings."
     } catch { shellStatus = "The global shortcut is unavailable in this desktop session." }
-    shell.updateLanguage(settings.languageOverride ?? Locale.preferredLanguages.first ?? "en")
+    shell.updateLanguage(DesktopUILanguage.resolve(override: settings.languageOverride).rawValue)
     reconcileShellCapabilities()
     let actions = shell.actions
     if let instance = DesktopApplicationContext.instance {
@@ -853,7 +860,7 @@ final class HistoryModel: ObservableObject {
       try await settingsStore.save(next)
       settings = next
       uiLanguage = value
-      shell?.updateLanguage(value ?? Locale.preferredLanguages.first ?? "en")
+      shell?.updateLanguage(DesktopUILanguage.resolve(override: value).rawValue)
       status = "Language saved"
     } catch { status = "Settings could not be saved." }
   }

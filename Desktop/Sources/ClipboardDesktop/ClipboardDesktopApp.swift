@@ -226,7 +226,8 @@ struct HistoryView: View {
           }
           DesktopTextPreviewView(
             text: model.canRevealSensitivePreview
-              ? model.t("Sensitive content is hidden.") : model.previewText
+              ? model.t("Sensitive content is hidden.")
+              : (model.previewMessage.map { model.t($0) } ?? model.previewText)
           )
           .frame(maxWidth: .infinity, alignment: .leading)
           if model.canRevealSensitivePreview {
@@ -356,9 +357,22 @@ struct HistoryView: View {
       Text(model.t("Language")).font(.system(size: 18))
       HStack {
         Button(model.t("System language")) { Task { @MainActor in await model.setLanguage(nil) } }
-        Button(model.t("English")) { Task { @MainActor in await model.setLanguage("en") } }
-        Button(model.t("简体中文")) { Task { @MainActor in await model.setLanguage("zh-Hans") } }
+        languageButton(.english)
+        languageButton(.simplifiedChinese)
+        languageButton(.traditionalChinese)
       }
+      HStack {
+        languageButton(.japanese)
+        languageButton(.korean)
+        languageButton(.german)
+        languageButton(.spanish)
+      }
+    }
+  }
+
+  func languageButton(_ language: DesktopUILanguage) -> some View {
+    Button(language.nativeName) {
+      Task { @MainActor in await model.setLanguage(language.rawValue) }
     }
   }
 

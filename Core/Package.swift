@@ -74,7 +74,8 @@ let package = Package(
           name: "Crypto", package: "swift-crypto",
           condition: .when(platforms: [.linux, .windows])
         ),
-      ]
+      ],
+      resources: [.copy("Resources/DesktopStrings.json")]
     ),
     .executableTarget(
       name: "scenario-runner",

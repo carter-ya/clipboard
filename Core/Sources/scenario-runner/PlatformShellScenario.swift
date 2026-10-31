@@ -29,8 +29,10 @@ import Foundation
     FileHandle.standardOutput.write(Data("ready\n".utf8))
     while let command = readLine() {
       if command == "quit" { break }
-      if command == "language:zh" { shell.updateLanguage("zh-Hans") }
-      if command == "language:en" { shell.updateLanguage("en") }
+      if command.hasPrefix("language:") {
+        let tag = String(command.dropFirst("language:".count))
+        shell.updateLanguage(tag == "zh" ? "zh-Hans" : tag)
+      }
       if command == "recording:on" { shell.updateRecording(true) }
       if command == "recording:off" { shell.updateRecording(false) }
     }
