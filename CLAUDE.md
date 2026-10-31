@@ -110,3 +110,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Wayland activation tokens belong to immutable shell events. Copy the borrowed native callback string into its matching showHistory event; unrelated or delayed actions must not consume a shared token slot. Keep the delayed-consumer, two-distinct-activations portal regression.
 - Every whole-settings save, including appearance and language, must await the same MainActor FIFO save gate before reading the latest settings, retain its lease through persistence and in-memory update, and release it with defer. Do not drop rapid presentation actions or restore stale AI/privacy opt-outs. Pending writers must skip work during shutdown.
+
+- Wayland receive pipes must keep the descriptor sent to an external producer blocking. Apply O_NONBLOCK only to the local reader, retain CLOEXEC, and test the actual helper with a complete large transfer from an independent blocking writer.
