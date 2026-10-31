@@ -52,6 +52,14 @@ enum DesktopZIPHistoryArchive {
       copy.kind = ClipKind.infer(from: raw)
       copy.preview = PreviewBuilder.build(for: raw)
       copy.sensitivityReason = nil
+      // Current Mac releases decode only these four source names. Preserve the
+      // summary itself, but omit newer desktop engine tags rather than making
+      // the entire history snapshot undecodable or claiming an Apple engine.
+      if let source = copy.summarySource,
+        !["vision", "naturalLanguage", "foundationModels", "remoteOpenAI"].contains(source.rawValue)
+      {
+        copy.summarySource = nil
+      }
       let encoded = try encoder.encode(copy)
       guard encoded.count + 3 <= DesktopHistoryArchive.maxBytes - total - history.count else {
         throw Failure.tooLarge
