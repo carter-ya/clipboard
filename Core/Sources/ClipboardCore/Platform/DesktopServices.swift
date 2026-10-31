@@ -6,7 +6,7 @@ import Foundation
 
 public enum DesktopServiceError: Error, Equatable {
   case unavailable, locked, invalidValue, tooLarge, cancelled, networkFailure, disabled,
-    sensitiveContent, startupConflict
+    sensitiveContent, startupConflict, fileUnavailable
 }
 
 public protocol DesktopCredentialStoring: Sendable {
@@ -50,13 +50,15 @@ public struct DesktopAISettings: Codable, Equatable, Sendable {
   public var enabled = false
   public var allowImages = false
   public var allowText = true
+  public var allowFiles = false
   public var usesCredential = false
   public var endpoint = "https://api.openai.com/v1"
   public var model = ""
   public var timeoutSeconds = 60
   public init() {}
   private enum CodingKeys: String, CodingKey {
-    case enabled, allowImages, allowText, usesCredential, endpoint, model, timeoutSeconds
+    case enabled, allowImages, allowText, allowFiles, usesCredential, endpoint, model,
+      timeoutSeconds
   }
   public init(from decoder: any Decoder) throws {
     let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -66,6 +68,8 @@ public struct DesktopAISettings: Codable, Equatable, Sendable {
     allowImages = try values.decode(Bool.self, forKey: .allowImages)
     allowText =
       values.contains(.allowText) ? try values.decode(Bool.self, forKey: .allowText) : true
+    allowFiles =
+      values.contains(.allowFiles) ? try values.decode(Bool.self, forKey: .allowFiles) : false
     usesCredential = try values.decode(Bool.self, forKey: .usesCredential)
     endpoint = try values.decode(String.self, forKey: .endpoint)
     model = try values.decode(String.self, forKey: .model)
@@ -76,7 +80,7 @@ public struct DesktopAISettings: Codable, Equatable, Sendable {
     switch kind {
     case .image: return allowImages
     case .text, .rtf, .mixed: return allowText
-    case .file: return false
+    case .file: return allowFiles
     }
   }
   public func validate() throws {
@@ -136,13 +140,16 @@ public struct DesktopAnalysis: Sendable {
   private let transport: any DesktopAITransport
   private let ocr: any DesktopOCRRecognizing
   private let resolver: PayloadResolver
+  private let fileReader: (any DesktopFileTextReading)?
   public init(
     credentials: any DesktopCredentialStoring, transport: any DesktopAITransport,
-    ocr: any DesktopOCRRecognizing, blobRoot: URL?
+    ocr: any DesktopOCRRecognizing, blobRoot: URL?,
+    fileReader: (any DesktopFileTextReading)? = nil
   ) {
     self.credentials = credentials
     self.transport = transport
     self.ocr = ocr
+    self.fileReader = fileReader
     resolver = .init(blobRoot: blobRoot)
   }
   private func allow(_ item: ClipItem) throws {
@@ -164,14 +171,48 @@ public struct DesktopAnalysis: Sendable {
   }
   public func summarizeLocally(_ item: ClipItem) async throws -> String {
     try allow(item)
-    guard [.text, .rtf, .mixed].contains(item.kind) else { throw DesktopServiceError.disabled }
+    guard [.text, .rtf, .mixed, .file].contains(item.kind) else {
+      throw DesktopServiceError.disabled
+    }
     try Task.checkCancellation()
-    let text = try await resolvedText(item)
+    let text = try await (item.kind == .file ? resolvedFileText(item) : resolvedText(item))
     try Task.checkCancellation()
     guard let result = DesktopLocalTextSummary.summarize(text) else {
       throw DesktopServiceError.invalidValue
     }
     return result
+  }
+  private func resolvedFileText(_ item: ClipItem) async throws -> String {
+    guard let payload = item.payloads.first(where: { $0.pasteboardType == "public.file-url" })
+    else {
+      throw DesktopServiceError.invalidValue
+    }
+    let resolver = resolver
+    let data: Data
+    do { data = try await Task.detached { try resolver.data(for: payload) }.value } catch {
+      try Task.checkCancellation()
+      throw DesktopServiceError.fileUnavailable
+    }
+    let file: URL
+    do {
+      guard let first = try ClipboardFormats.fileURLs(from: data).first else {
+        throw DesktopServiceError.invalidValue
+      }
+      file = first
+    } catch { throw DesktopServiceError.invalidValue }
+    try DesktopFileTextPolicy.validate(file)
+    try Task.checkCancellation()
+    guard let fileReader else { throw DesktopServiceError.fileUnavailable }
+    let text = try await fileReader.text(from: file, maxBytes: DesktopFileTextPolicy.maximumBytes)
+    try Task.checkCancellation()
+    guard text.utf8.count <= DesktopFileTextPolicy.maximumBytes else {
+      throw DesktopServiceError.tooLarge
+    }
+    guard !text.contains("\0"), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+      throw DesktopServiceError.invalidValue
+    }
+    return text
   }
   private func resolvedText(_ item: ClipItem) async throws -> String {
     let resolver = resolver
@@ -210,9 +251,8 @@ public struct DesktopAnalysis: Sendable {
         data, mime: payload.pasteboardType == "public.png" ? "image/png" : "image/jpeg",
         responseLanguage: language)
     } else if item.kind == .file {
-      // File contents require a separate explicit user selection; clipboard paths
-      // alone must never cause arbitrary files to leave the device.
-      throw DesktopServiceError.disabled
+      let text = try await resolvedFileText(item)
+      messages = buildRemoteOpenAITextMessages(text, responseLanguage: language)
     } else {
       let text = try await resolvedText(item)
       guard !text.isEmpty else { throw DesktopServiceError.invalidValue }
@@ -227,9 +267,12 @@ public struct DesktopAnalysis: Sendable {
       else { throw DesktopServiceError.unavailable }
       request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
     }
+    try Task.checkCancellation()
     request.httpBody = try JSONEncoder().encode(
       RemoteOpenAIRequest(model: settings.model, messages: messages, temperature: 0.2))
+    try Task.checkCancellation()
     let response = try await transport.send(request, maxResponseBytes: 64 * 1024)
+    try Task.checkCancellation()
     guard response.status == 200 else { throw DesktopServiceError.networkFailure }
     return String(try decodeRemoteOpenAIResponse(response.data).prefix(200))
   }

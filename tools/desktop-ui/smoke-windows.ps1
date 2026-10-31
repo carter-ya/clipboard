@@ -1222,6 +1222,136 @@ try {
     }
 
     if ($ClipboardPeer) {
+      $serverInfo = New-Object Diagnostics.ProcessStartInfo
+      $serverInfo.FileName = (Get-Command python).Source
+      $serverInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'ai-probe-server.py') + '"'
+      $serverInfo.UseShellExecute = $false
+      $serverInfo.RedirectStandardInput = $true
+      $serverInfo.RedirectStandardOutput = $true
+      $serverInfo.RedirectStandardError = $true
+      $serverInfo.EnvironmentVariables['CLIPBOARD_PRIVATE_AI_TEST'] = '1'
+      $serverInfo.EnvironmentVariables['CLIPBOARD_PRIVATE_AI_MODE'] = 'file'
+      $probeServer = [Diagnostics.Process]::Start($serverInfo)
+      $peer = $null
+      try {
+        $ready = $probeServer.StandardOutput.ReadLineAsync()
+        if (!$ready.Wait(10000) -or $ready.Result -notmatch '^ready:([0-9]+)$') { throw 'file_summary_server_ready' }
+        $endpoint = 'http://127.0.0.1:' + $Matches[1] + '/v1'
+        $historyRoot = Join-Path $OutputDirectory ('file-summary-' + [Guid]::NewGuid().ToString('N'))
+        [IO.Directory]::CreateDirectory($historyRoot) | Out-Null
+        $target = Join-Path $historyRoot 'private-upload-name 中文.txt'
+        $localLead = 'This synthetic file summary stays on this device.'
+        [IO.File]::WriteAllText($target, ($localLead + (' Private local context.' * 10)), [Text.UTF8Encoding]::new($false))
+        $settingsFile = Join-Path $historyRoot 'desktop-settings.json'
+        $configuration = @{ ai = @{ enabled = $true; allowText = $true; allowImages = $false; allowFiles = $false; usesCredential = $false; endpoint = $endpoint; model = 'fixture-model'; timeoutSeconds = 60 } }
+        [IO.File]::WriteAllText($settingsFile, ($configuration | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+        $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+          -ArgumentList @('--smoke-root', ('"' + $historyRoot + '"')) -PassThru `
+          -RedirectStandardOutput (Join-Path $OutputDirectory 'file-summary.stdout.log') `
+          -RedirectStandardError (Join-Path $OutputDirectory 'file-summary.stderr.log')
+        $null = $application.Handle
+        $nativeWindowHandle = Wait-For { $h = [PreviewNative]::FindWindow([uint32]$application.Id); if ($h -ne [IntPtr]::Zero) { $h } } 'file_summary_window'
+        [PreviewNative]::SetWindowPos($nativeWindowHandle, [IntPtr]::Zero, 16, 16, 0, 0, 0x0005) | Out-Null
+        $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+        Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'file_summary_profile_ready' | Out-Null
+        Invoke-Button 'Start recording'
+        Wait-For { Find-Named 'Recording clipboard' } 'file_capture_enabled' | Out-Null
+        Invoke-Button 'File'
+        $peerInfo = New-Object Diagnostics.ProcessStartInfo
+        $peerInfo.FileName = [IO.Path]::GetFullPath($ClipboardPeer)
+        $peerInfo.Arguments = 'rich-clipboard-peer file-summary "' + $target + '"'
+        $peerInfo.UseShellExecute = $false
+        $peerInfo.RedirectStandardInput = $true
+        $peerInfo.RedirectStandardOutput = $true
+        $peer = [Diagnostics.Process]::Start($peerInfo)
+        $ready = $peer.StandardOutput.ReadLineAsync()
+        if (!$ready.Wait(10000) -or $ready.Result -ne 'ready') { throw 'file_summary_peer_ready' }
+        Wait-For { (Find-Named '1 items') -and (Find-Named 'private-upload-name 中文.txt') } 'file_summary_native_capture' | Out-Null
+        Invoke-Button 'Pause recording'
+        $snapshot = Read-SharedJson (Join-Path $historyRoot 'history.json')
+        Add-Check 'file_summary_defaults_do_not_analyze_copied_files' (@($snapshot.items | Where-Object { $_.summary }).Count -eq 0 -and !(Find-Named 'Summarize'))
+        Invoke-Button 'Settings'
+        Wait-For { Find-Named 'Preferences' } 'file_summary_preferences' | Out-Null
+        Invoke-VisibleConnectionButton 'Enable local file excerpts'
+        Invoke-VisibleConnectionButton 'Save AI settings'
+        Wait-For { (Read-SharedJson $settingsFile).localFileSummariesEnabled -eq $true } 'local_file_permission_saved' | Out-Null
+        Add-Check 'local_file_opt_in_does_not_enable_file_uploads' (!(Read-SharedJson $settingsFile).ai.allowFiles)
+        Invoke-Button 'Back to history'
+        Wait-For { Find-Named 'Summarize locally' } 'local_file_action_available' | Out-Null
+        Invoke-Button 'Summarize locally'
+        Wait-For { (Find-Named 'Summary ready') -and (Find-Named 'Local excerpt') -and (Find-Named $localLead) } 'local_file_excerpt_ready' | Out-Null
+        Add-Check 'local_file_excerpt_reaches_the_selected_file' $true
+        Save-Screenshot 'local-file-summary.png'
+        $remoteBody = 'This synthetic remote file summary uses the current body. ' + ('Private file body context. ' * 10)
+        [IO.File]::WriteAllText($target, $remoteBody, [Text.UTF8Encoding]::new($false))
+        Invoke-Button 'Settings'
+        Wait-For { Find-Named 'Preferences' } 'remote_file_preferences' | Out-Null
+        Invoke-VisibleConnectionButton 'Allow file text uploads'
+        Invoke-VisibleConnectionButton 'Save AI settings'
+        Wait-For { (Read-SharedJson $settingsFile).ai.allowFiles -eq $true } 'remote_file_permission_saved' | Out-Null
+        Invoke-Button 'Back to history'
+        Invoke-Button 'Summarize'
+        Wait-For { (Find-Named 'Summary ready') -and (Find-Named 'Private file summary fixture') } 'remote_file_summary_ready' | Out-Null
+        $snapshot = Read-SharedJson (Join-Path $historyRoot 'history.json')
+        Add-Check 'remote_file_summary_reads_current_body_and_updates_the_selected_file' (@($snapshot.items | Where-Object { $_.summary -ceq 'Private file summary fixture' -and $_.summarySource -ceq 'remoteOpenAI' }).Count -eq 1)
+        Invoke-Button 'Summarize'
+        Wait-For { Find-Named 'Generating summary…' } 'file_inflight_progress' | Out-Null
+        $blocked = $probeServer.StandardOutput.ReadLineAsync()
+        if (!$blocked.Wait(10000) -or $blocked.Result -ne 'blocked') { throw 'file_inflight_request_not_active' }
+        Invoke-Button 'Settings'
+        Wait-For { Find-Named 'Preferences' } 'file_permission_revoke_preferences' | Out-Null
+        Invoke-VisibleConnectionButton 'Allow file text uploads'
+        Invoke-VisibleConnectionButton 'Automatically summarize files locally'
+        Invoke-VisibleConnectionButton 'Automatically summarize new items'
+        Invoke-VisibleConnectionButton 'Save AI settings'
+        Wait-For { !(Read-SharedJson $settingsFile).ai.allowFiles -and (Read-SharedJson $settingsFile).automaticLocalFileSummaries } 'file_permissions_updated' | Out-Null
+        Invoke-Button 'Back to history'
+        Wait-For {
+          $control = Find-Named 'Summarize'
+          for ($depth = 0; $depth -lt 10 -and $control -and $control.Current.ControlType -ne [Windows.Automation.ControlType]::Button; $depth++) {
+            $control = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($control)
+          }
+          $control -and !$control.Current.IsEnabled
+        } 'remote_file_permission_revoked' | Out-Null
+        Add-Check 'revoking_file_uploads_disables_remote_action_but_keeps_local_available' ($null -ne (Find-Named 'Summarize locally'))
+        Add-Check 'revoking_file_permission_cancels_inflight_remote_work' (!(Find-Named 'Generating summary…') -and !(Find-Named 'Could not generate a summary.'))
+        $peer.StandardInput.Close()
+        if (!$peer.WaitForExit(5000)) { $peer.Kill(); $peer.WaitForExit() }
+        $peer.Dispose(); $peer = $null
+        $automatic = Join-Path $historyRoot 'automatic-file.txt'
+        $automaticLead = 'This synthetic automatic file excerpt stays local.'
+        [IO.File]::WriteAllText($automatic, ($automaticLead + (' Automatic local context.' * 10)), [Text.UTF8Encoding]::new($false))
+        Invoke-Button 'Start recording'
+        Wait-For { Find-Named 'Recording clipboard' } 'automatic_file_capture_enabled' | Out-Null
+        $peerInfo.Arguments = 'rich-clipboard-peer file-summary "' + $automatic + '"'
+        $peer = [Diagnostics.Process]::Start($peerInfo)
+        $ready = $peer.StandardOutput.ReadLineAsync()
+        if (!$ready.Wait(10000) -or $ready.Result -ne 'ready') { throw 'automatic_file_peer_ready' }
+        Wait-For { @((Read-SharedJson (Join-Path $historyRoot 'history.json')).items | Where-Object { $_.summary -ceq $automaticLead -and $_.summarySource -ceq 'localExtractive' }).Count -eq 1 } 'automatic_local_file_excerpt_ready' | Out-Null
+        Add-Check 'automatic_file_excerpt_runs_locally_after_upload_permission_is_revoked' $true
+        Invoke-Button 'Pause recording'
+        Invoke-Button 'Settings'
+        Wait-For { Find-Named 'Preferences' } 'file_summary_quit_preferences' | Out-Null
+        Invoke-Button 'Quit Clipboard'
+        if (!$application.WaitForExit(10000)) { throw 'file_summary_quit_timeout' }
+        Add-Check 'file_summary_private_profile_quits_cleanly' ($application.ExitCode -eq 0)
+      } finally {
+        if ($peer) {
+          $peer.StandardInput.Close()
+          if (!$peer.WaitForExit(5000)) { $peer.Kill(); $peer.WaitForExit() }
+          $peer.Dispose()
+        }
+        $probeServer.StandardInput.Close()
+        if (!$probeServer.WaitForExit(10000)) { $probeServer.Kill(); $probeServer.WaitForExit() }
+      }
+      $reportRead = $probeServer.StandardOutput.ReadLineAsync()
+      if (!$reportRead.Wait(5000)) { throw 'file_summary_server_report' }
+      $fixtureReport = $reportRead.Result | ConvertFrom-Json
+      Add-Check 'only_explicit_current_file_bodies_are_uploaded_without_paths_keys_or_cookies' ($fixtureReport.requests -eq 2 -and $fixtureReport.fixedTestsOnly -and $fixtureReport.noAuthorization -and $fixtureReport.noCookies)
+      $probeServer.Dispose()
+    }
+
+    if ($ClipboardPeer) {
       $historyRoot = Join-Path $OutputDirectory ('local-summary-' + [Guid]::NewGuid().ToString('N'))
       [IO.Directory]::CreateDirectory($historyRoot) | Out-Null
       $manualLead = 'Manual local summary fixture begins with a useful sentence.'

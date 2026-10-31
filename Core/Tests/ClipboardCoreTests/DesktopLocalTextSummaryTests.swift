@@ -67,7 +67,7 @@ final class DesktopLocalTextSummaryTests: XCTestCase {
         XCTFail("Private content was resolved")
       } catch { XCTAssertEqual(error as? DesktopServiceError, .sensitiveContent) }
     }
-    for kind in [ClipKind.image, .file] {
+    for kind in [ClipKind.image] {
       let item = ClipItem(
         createdAt: Date(), kind: kind, preview: "", sha256: "fixture", sizeBytes: 1)
       do {

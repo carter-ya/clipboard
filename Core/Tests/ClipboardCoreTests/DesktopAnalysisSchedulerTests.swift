@@ -45,6 +45,43 @@ final class DesktopAnalysisSchedulerTests: XCTestCase {
     XCTAssertEqual(busyStates, [true, false])
   }
 
+  @MainActor func testCancellingOneItemDropsItsQueueEntryAndDrainsOtherAllowedWork() async {
+    let started = expectation(description: "active request suspended")
+    let drained = expectation(description: "retained queue drained")
+    let first = UUID()
+    let removed = UUID()
+    let retained = UUID()
+    var release: CheckedContinuation<Void, Never>?
+    var order: [UUID] = []
+    let scheduler = DesktopAnalysisScheduler(
+      busyChanged: { if !$0 { drained.fulfill() } },
+      perform: { request in
+        order.append(request.id)
+        if request.id == first {
+          await withCheckedContinuation {
+            release = $0
+            started.fulfill()
+          }
+          XCTAssertTrue(Task.isCancelled)
+        } else {
+          XCTAssertFalse(Task.isCancelled)
+        }
+      })
+    scheduler.submit(.init(id: first, remote: true, automatic: true))
+    await fulfillment(of: [started], timeout: 3)
+    scheduler.submit(.init(id: removed, remote: true, automatic: true))
+    scheduler.submit(.init(id: retained, remote: true, automatic: true))
+    scheduler.cancel(id: removed)
+    XCTAssertEqual(scheduler.pendingCount, 1)
+    scheduler.cancel(id: first)
+    release?.resume()
+    await fulfillment(of: [drained], timeout: 3)
+    XCTAssertEqual(order, [first, retained])
+    XCTAssertNil(scheduler.currentRequest)
+    XCTAssertFalse(scheduler.isBusy)
+    XCTAssertEqual(scheduler.pendingCount, 0)
+  }
+
   @MainActor func testStopCancelsActiveWorkAndDiscardsPendingRequests() async {
     let started = expectation(description: "active")
     let stopped = expectation(description: "active observes cancellation")
