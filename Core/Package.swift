@@ -33,6 +33,8 @@ let package = Package(
     .target(
       name: "DesktopServices", dependencies: ["ClipboardCore", "CDesktopServices"],
       resources: [.copy("Resources/WindowsOCR.ps1")]),
+    .systemLibrary(
+      name: "CWayland", pkgConfig: "wayland-client", providers: [.apt(["libwayland-dev"])]),
     .systemLibrary(name: "CDBus", pkgConfig: "dbus-1", providers: [.apt(["libdbus-1-dev"])]),
     .target(
       name: "CDesktopShell",
@@ -46,6 +48,7 @@ let package = Package(
     .target(name: "DesktopShell", dependencies: ["ClipboardCore", "CDesktopShell"]),
     .target(
       name: "CDesktopClipboard",
+      dependencies: [.target(name: "CWayland", condition: .when(platforms: [.linux]))],
       linkerSettings: [
         .linkedLibrary("user32", .when(platforms: [.windows])),
         .linkedLibrary("shell32", .when(platforms: [.windows])),

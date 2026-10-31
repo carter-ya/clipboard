@@ -133,6 +133,12 @@ enum ScenarioRunner {
           return
         } catch { exit(1) }
       }
+      if scenario == "portal-peer" {
+        do {
+          try runPortalPeer()
+          return
+        } catch { exit(1) }
+      }
       if scenario == "tray-peer" {
         do {
           try runTrayPeer()

@@ -3,6 +3,27 @@ import XCTest
 @testable import ClipboardCore
 
 final class RichClipboardTests: XCTestCase {
+  private final class RestrictedClipboard: RichClipboardAccess, @unchecked Sendable {
+    let canMonitor = false
+    private(set) var reads = 0
+    func revision() -> UInt64 { 1 }
+    func read(maxBytes: Int) throws -> RichClipboardSnapshot? {
+      reads += 1
+      throw TextClipboardError.unsupportedSession
+    }
+    func write(payloads: [RawPayload], sensitive: Bool) throws {}
+  }
+  func testRestrictedSessionStopsCaptureWithoutReadingContent() async {
+    let clipboard = RestrictedClipboard()
+    let monitor = RichClipboardMonitor(clipboard: clipboard)
+    monitor.start()
+    var skips = monitor.skips.makeAsyncIterator()
+    let skip = await skips.next()
+    XCTAssertEqual(skip?.reason, "unsupportedSession")
+    XCTAssertEqual(clipboard.reads, 0)
+    monitor.stop()
+  }
+
   func testRichOnlyPreviewsDoNotExposeMarkupOrEmbeddedObjects() {
     let html = RawPayload(
       pasteboardType: "public.html",

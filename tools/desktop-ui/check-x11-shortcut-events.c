@@ -4,7 +4,8 @@
 #include <stdio.h>
 
 static unsigned actions;
-static void action(void *context, int32_t value) {
+static void action(void *context, int32_t value, const char *token) {
+  assert(token == NULL);
   (void)context;
   assert(value == 1);
   actions++;

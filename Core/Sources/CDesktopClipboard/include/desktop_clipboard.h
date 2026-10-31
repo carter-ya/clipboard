@@ -14,6 +14,7 @@ enum {
   CB_INVALID = -5
 };
 cb_session *cb_open(void);
+cb_session *cb_open_rich(const char *wayland_display, int *error);
 void cb_close(cb_session *session);
 int cb_connection_fd(cb_session *session);
 void cb_pump(cb_session *session);

@@ -13,6 +13,17 @@ enum DesktopLocalization {
     return chinese[value] ?? value
   }
   private static let chinese: [String: String] = [
+    "Clipboard capture is unavailable on this Wayland desktop. Copy remains available.":
+      "此 Wayland 桌面不支持后台读取剪贴板，仍可复制历史内容。",
+    "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.":
+      "Wayland 不提供剪贴板来源应用信息，应用排除规则无法匹配未知来源；敏感标记仍然有效。",
+    "Waiting for the desktop shortcut portal.": "正在等待桌面快捷键授权服务。",
+    "Apply the shortcut to request permission from your desktop.": "应用快捷键后，可向桌面请求使用权限。",
+    "Shortcut permission was declined. Apply again to retry.": "快捷键授权被拒绝，可再次应用以重试。",
+    "The global shortcut portal is unavailable on this Wayland desktop.":
+      "此 Wayland 桌面不提供全局快捷键授权服务。",
+    "The desktop manages this shortcut. Its assigned keys may differ from the preference.":
+      "快捷键由桌面管理，实际按键可能与首选设置不同。",
     "Your clipboard history, on this device.": "此设备上的剪贴板历史。",
     "All": "全部", "All types": "全部类型", "Text": "文本", "Rtf": "富文本", "Image": "图片", "File": "文件",
     "Pinned": "置顶", "Preview": "预览", "Local history": "本地历史", "Source: ": "来源：",
