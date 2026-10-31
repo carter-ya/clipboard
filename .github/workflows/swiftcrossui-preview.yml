@@ -1,0 +1,175 @@
+name: Desktop UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Desktop/**
+      - Core/**
+      - tools/desktop-ui/**
+      - .github/workflows/swiftcrossui-preview.yml
+  pull_request:
+    paths:
+      - Desktop/**
+      - Core/**
+      - tools/desktop-ui/**
+      - .github/workflows/swiftcrossui-preview.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    name: UI / ${{ matrix.os }} / ${{ matrix.backend }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            backend: GtkBackend
+            display: x11
+            accessibility: atspi
+          - os: windows-2022
+            backend: GtkBackend
+            display: win32
+            accessibility: accesskit
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      SCUI_DEFAULT_BACKEND: ${{ matrix.backend }}
+      GDK_BACKEND: ${{ matrix.display }}
+      GSK_RENDERER: cairo
+      GTK_A11Y: ${{ matrix.accessibility }}
+      CLIPBOARD_UI_DIAGNOSTICS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GTK and isolated desktop test tools
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev pkg-config libx11-dev libxfixes-dev xvfb xauth xclip python3-pyatspi python3-gi at-spi2-core dbus-x11 openbox imagemagick x11-utils fonts-noto-cjk fonts-noto-color-emoji
+      - name: Install Swift 6.3.3 on Windows
+        if: runner.os == 'Windows'
+        uses: compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7
+        with:
+          swift-version: swift-6.3.3-release
+          swift-build: 6.3.3-RELEASE
+      - name: Install Swift 6.3.3 on Ubuntu
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift_dir="$RUNNER_TEMP/swift-6.3.3"
+          mkdir -p "$swift_dir"
+          curl --fail --location --retry 3 \
+            https://download.swift.org/swift-6.3.3-release/ubuntu2204/swift-6.3.3-RELEASE/swift-6.3.3-RELEASE-ubuntu22.04.tar.gz \
+            --output "$RUNNER_TEMP/swift.tar.gz"
+          tar -xzf "$RUNNER_TEMP/swift.tar.gz" --strip-components=1 -C "$swift_dir"
+          echo "$swift_dir/usr/bin" >> "$GITHUB_PATH"
+      - name: Validate native Windows probe definitions
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 -Executable unused -OutputDirectory unused -ValidateOnly
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Restore Windows GTK runtime
+        if: runner.os == 'Windows'
+        id: gtk-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:/gtk-build/gtk/x64/release
+          key: desktop-gtk4.22.4-accesskit0.18-${{ hashFiles('tools/desktop-ui/install-windows-gtk.ps1', 'tools/desktop-ui/apply-gtk-source-patch.py', 'tools/desktop-ui/gtk-4.22.4-accesskit-actions.patch') }}
+      - name: Build Windows GTK with native accessibility
+        if: runner.os == 'Windows' && steps.gtk-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./tools/desktop-ui/install-windows-gtk.ps1
+      - name: Configure Windows GTK
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./tools/desktop-ui/install-windows-gtk.ps1 -ConfigureOnly
+          python tools/desktop-ui/normalize-windows-pkgconfig.py --prefix C:/gtk-build/gtk/x64/release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save Windows GTK runtime
+        if: runner.os == 'Windows' && steps.gtk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:/gtk-build/gtk/x64/release
+          key: ${{ steps.gtk-cache.outputs.cache-primary-key }}
+      - name: Verify toolchain
+        shell: pwsh
+        run: |
+          $VersionOutput = & swift --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $VersionOutput
+          if (($VersionOutput -join "`n") -notmatch 'Swift version 6\.3\.3(?:\s|$)') { throw 'Unexpected Swift toolchain' }
+      - name: Restore compiled UI dependencies
+        id: ui-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: Desktop/.build
+          key: desktop-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved') }}
+      - name: Restore dependency symbolic links on Windows
+        if: runner.os == 'Windows' && steps.ui-cache.outputs.cache-hit == 'true'
+        shell: pwsh
+        run: |
+          # Windows cache extraction can leave relative directory links unresolved.
+          # Recreate only tracked links from Git, retaining original dependency sources.
+          Get-ChildItem Desktop/.build/checkouts -Directory | ForEach-Object {
+            $CheckoutDirectory = $_.FullName
+            $TrackedEntries = & git -C $CheckoutDirectory ls-files --stage
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            foreach ($Entry in $TrackedEntries) {
+              if ($Entry -match '^120000 [0-9a-f]+ 0\t(.+)$') {
+                $LinkPath = $Matches[1]
+                & git -C $CheckoutDirectory -c core.symlinks=true checkout-index --force -- $LinkPath
+                if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              }
+            }
+          }
+      - name: Build Desktop UI
+        shell: pwsh
+        run: |
+          & python tools/desktop-ui/build-desktop.py --jobs 2 2>&1 | Tee-Object -FilePath ui-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save compiled UI dependencies
+        if: always() && steps.ui-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: Desktop/.build
+          key: ${{ steps.ui-cache.outputs.cache-primary-key }}
+      - name: Exercise GTK window and capture screenshots
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary_dir=$(swift build --package-path Desktop --show-bin-path)
+          dbus-run-session -- xvfb-run --auto-servernum \
+            /usr/bin/python3 tools/desktop-ui/smoke-linux.py \
+            --executable "$binary_dir/ClipboardDesktop" --output ui-artifacts
+      - name: Exercise Windows GTK window and capture screenshots
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $BinaryDirectory = (& swift build --package-path Desktop --show-bin-path).Trim()
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
+            -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -OutputDirectory ui-artifacts
+          $UiExitCode = $LASTEXITCODE
+          if ($UiExitCode -ne 0) {
+            # Diagnose a minimal native scene, preserving the full preview's failure.
+            & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
+              -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -OutputDirectory ui-artifacts/baseline -Baseline
+            exit $UiExitCode
+          }
+      - name: Upload screenshots and UI test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swiftcrossui-${{ matrix.os }}
+          path: |
+            ui-build.log
+            ui-artifacts
+          if-no-files-found: ignore
