@@ -250,11 +250,14 @@
         {
           "id": "CP11",
           "scope": "History archive interoperability",
-          "status": "planned",
+          "status": "in_progress",
           "remaining": [
-            "Read/write the Mac ZIP export format with equivalent sensitive exclusion, bounded archive validation, dedup and missing-blob results",
-            "Retain compatibility with existing desktop JSON archives"
-          ]
+            "Exact-head Windows/Linux/macOS CI, installed-runtime validation and review",
+            "Native import/export round-trip acceptance on both desktop platforms"
+          ],
+          "branch": "codex/cross-platform-history-zip",
+          "implemented": "Default ZIP exports contain ISO-8601 history.json and content-addressed blobs for Mac import. Reads accept root-level and single-wrapper Mac layouts, preserve legacy JSON, exclude sensitive/concealed items, recompute content metadata and deduplicate archive entries by content. File, directory, inflated and logical reference budgets are bounded; CRC/digest, paths and entry types are validated without archive-path extraction. Missing-blob and skipped counts reach the localized UI. Writes preserve an existing destination on failure; the chooser retains its session directory.",
+          "validation": "Linux arm64: 199 Core tests pass; native file chooser export creates a valid ZIP matching the three synthetic history items. Mac archive/localization/rich-preview targeted tests include actual NSFileCoordinator exports, nested layout, legacy JSON, checksums, malicious paths, missing blobs, duplicate content and logical-reference size limits. Windows execution remains pending. ZIP32 single-disk input is bounded to 256 MiB, 60000 entries and 10000 items, with the existing 16 MiB per-item desktop transfer bound."
         },
         {
           "id": "CP12",

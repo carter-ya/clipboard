@@ -86,6 +86,16 @@ public enum DesktopStringCatalog {
       let key = "Image · {bytes} bytes"
       return (table[key] ?? key).replacingOccurrences(of: "{bytes}", with: String(bytes))
     }
+    if parts.count == 8, parts[0] == "Imported", parts[2] == "items;",
+      parts[4] == "skipped;", parts[6] == "missing", parts[7] == "blobs.",
+      let added = Int(parts[1]), added >= 0, let skipped = Int(parts[3]), skipped >= 0,
+      let missing = Int(parts[5]), missing >= 0
+    {
+      let key = "Imported {added} items; {skipped} skipped; {missing} missing blobs."
+      return (table[key] ?? key).replacingOccurrences(of: "{added}", with: String(added))
+        .replacingOccurrences(of: "{skipped}", with: String(skipped))
+        .replacingOccurrences(of: "{missing}", with: String(missing))
+    }
     if parts.count == 6, parts[0] == "Imported", parts[2] == "items;",
       parts[4] == "duplicates", parts[5] == "skipped.",
       let added = Int(parts[1]), added >= 0, let skipped = Int(parts[3]), skipped >= 0

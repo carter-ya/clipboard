@@ -729,12 +729,16 @@ final class HistoryModel: ObservableObject {
   @MainActor func importHistory(from source: URL) async {
     guard let store else { return }
     do {
-      let items = try await Task.detached { try DesktopHistoryArchive.read(from: source) }.value
-      let result = await store.importItems(items, blobsRoot: nil)
+      let archive = try await Task.detached { try DesktopHistoryArchive.readResult(from: source) }
+        .value
+      // The store prepends imports. Reverse this newest-first archive so its
+      // relative order survives insertion into an existing history.
+      let result = await store.importItems(Array(archive.items.reversed()), blobsRoot: nil)
       await store.flush()
       await refresh()
-      status = "Imported \(result.added) items; \(result.skipped) duplicates skipped."
-    } catch { status = "Import failed. Choose a self-contained Clipboard JSON archive." }
+      status =
+        "Imported \(result.added) items; \(result.skipped + archive.skipped) skipped; \(result.blobsMissing + archive.blobsMissing) missing blobs."
+    } catch { status = "Import failed. Choose a Clipboard ZIP or JSON archive." }
   }
 
   @MainActor func refreshStartup() async {

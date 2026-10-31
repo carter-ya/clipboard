@@ -13,6 +13,10 @@ let package = Package(
   dependencies: [
     .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.0.0"),
     .package(url: "https://github.com/apple/swift-crypto.git", exact: "3.12.3"),
+    // Pin upstream Windows support rather than relying on a moving branch.
+    .package(
+      url: "https://github.com/weichsel/ZIPFoundation.git",
+      revision: "e7a17d57c583067eaa6659cd6d9521265b7664e9"),
   ],
   targets: [
     .systemLibrary(
@@ -66,6 +70,7 @@ let package = Package(
     .target(
       name: "ClipboardCore",
       dependencies: [
+        .product(name: "ZIPFoundation", package: "ZIPFoundation"),
         .product(
           name: "KeyboardShortcuts", package: "KeyboardShortcuts",
           condition: .when(platforms: [.macOS])
@@ -90,6 +95,7 @@ let package = Package(
       name: "ClipboardCoreTests",
       dependencies: [
         "ClipboardCore",
+        .product(name: "ZIPFoundation", package: "ZIPFoundation"),
         .target(name: "DesktopClipboard", condition: .when(platforms: [.linux, .windows])),
       ]
     ),

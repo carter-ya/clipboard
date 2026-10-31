@@ -36,6 +36,7 @@ struct ClipboardDesktopApp: App {
 struct HistoryView: View {
   @State var model = HistoryModel()
   @State var showsCompactFilters = false
+  @State var archiveDirectory: URL?
   @Environment(\.chooseFile) var chooseFile
   @Environment(\.chooseFileSaveDestination) var chooseSaveDestination
 
@@ -287,11 +288,14 @@ struct HistoryView: View {
       Button(model.t("Save content settings")) {
         Task { @MainActor in await model.applyContentSettings() }
       }
+      Text(model.t("ZIP archives work with Mac. Use .json for the legacy export format."))
       Button(model.t("Export history")) {
         Task { @MainActor in
           if let destination = await chooseSaveDestination(
-            title: model.t("Export history"), defaultFileName: "clipboard-history.clipboard.json")
+            title: model.t("Export history"), initialDirectory: archiveDirectory,
+            defaultFileName: "clipboard-history.zip")
           {
+            archiveDirectory = destination.deletingLastPathComponent()
             await model.exportHistory(to: destination)
           }
         }
@@ -309,7 +313,10 @@ struct HistoryView: View {
       }
       Button(model.t("Import history")) {
         Task { @MainActor in
-          if let source = await chooseFile(title: model.t("Import history")) {
+          if let source = await chooseFile(
+            title: model.t("Import history"), initialDirectory: archiveDirectory)
+          {
+            archiveDirectory = source.deletingLastPathComponent()
             await model.importHistory(from: source)
           }
         }
