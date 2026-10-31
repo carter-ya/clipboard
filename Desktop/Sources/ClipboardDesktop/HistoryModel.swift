@@ -26,7 +26,9 @@ final class HistoryModel: ObservableObject {
   private let ocr = NativeDesktopOCR()
   private let transport = BoundedDesktopAITransport()
   private var startup: NativeDesktopStartup?
-  private var analysisTask: Task<Void, Never>?
+  @MainActor private lazy var analysisScheduler = DesktopAnalysisScheduler(
+    busyChanged: { [weak self] in self?.analysisBusy = $0 },
+    perform: { [weak self] in await self?.performAnalysis($0) })
   @Published var items: [ClipItem] = []
   @Published var query = ""
   @Published var onlyPinned = false
@@ -264,9 +266,9 @@ final class HistoryModel: ObservableObject {
             if self.settings.automaticSummaries && self.settings.ai.enabled && item.kind != .file
               && (item.kind != .image || self.settings.ai.allowImages)
             {
-              self.analyze(remote: true, item: item)
+              self.enqueueAutomaticAnalysis(remote: true, item: item)
             } else if self.settings.automaticOCR && item.kind == .image {
-              self.analyze(remote: false, item: item)
+              self.enqueueAutomaticAnalysis(remote: false, item: item)
             }
           }
         }
@@ -635,40 +637,50 @@ final class HistoryModel: ObservableObject {
       status = "API key deleted. Save AI settings to update the connection."
     } catch { status = "Secure credential storage is unavailable or locked." }
   }
+  @MainActor private func enqueueAutomaticAnalysis(remote: Bool, item: ClipItem) {
+    guard !shuttingDown, !item.sensitive, item.summary == nil else { return }
+    let result = analysisScheduler.submit(.init(id: item.id, remote: remote, automatic: true))
+    if result == .full {
+      status = "Automatic analysis queue is full. Analyze skipped items manually."
+    }
+  }
   @MainActor func analyze(remote: Bool, item requested: ClipItem? = nil) {
-    guard !analysisBusy, let item = requested ?? selected, !item.sensitive else { return }
-    analysisBusy = true
+    guard !shuttingDown, let item = requested ?? selected, !item.sensitive else { return }
+    analysisScheduler.submit(.init(id: item.id, remote: remote, automatic: false))
+  }
+  @MainActor private func performAnalysis(_ request: DesktopAnalysisScheduler.Request) async {
+    guard let item = await store?.item(id: request.id) else { return }
+    // Recheck live preferences after waiting; disabling automation revokes queued work.
+    guard !shuttingDown, !Task.isCancelled, request.isAllowed(item: item, settings: settings)
+    else { return }
+    let remote = request.remote
     let configuration = settings.ai
     let service = DesktopAnalysis(
       credentials: credentials, transport: transport, ocr: ocr,
       blobRoot: root?.appendingPathComponent("blobs"))
     let language = settings.languageOverride
-    analysisTask = Task { @MainActor [weak self] in
-      guard let self else { return }
-      defer { self.analysisBusy = false }
-      do {
-        let result =
-          try await
-          (remote
-          ? service.summarize(item, settings: configuration, language: language)
-          : service.recognize(item, language: language))
-        try Task.checkCancellation()
-        guard !result.isEmpty else {
-          self.status = "No text was recognized."
-          return
-        }
-        await self.store?.updateSummary(
-          id: item.id, summary: result, source: remote ? .remoteOpenAI : .localOCR)
-        await self.store?.flush()
-        self.loadedPreviewID = nil
-        await self.refresh()
-        self.status = remote ? "Summary ready" : "OCR text ready"
-      } catch is CancellationError { self.status = "Analysis cancelled" } catch {
-        self.status =
-          remote
-          ? "Summary unavailable. Check AI settings and the connection."
-          : "OCR unavailable. Check the image and installed OCR language packs."
+    do {
+      let result =
+        try await
+        (remote
+        ? service.summarize(item, settings: configuration, language: language)
+        : service.recognize(item, language: language))
+      try Task.checkCancellation()
+      guard !result.isEmpty else {
+        status = "No text was recognized."
+        return
       }
+      await store?.updateSummary(
+        id: item.id, summary: result, source: remote ? .remoteOpenAI : .localOCR)
+      await store?.flush()
+      loadedPreviewID = nil
+      await refresh()
+      status = remote ? "Summary ready" : "OCR text ready"
+    } catch is CancellationError { status = "Analysis cancelled" } catch {
+      status =
+        remote
+        ? "Summary unavailable. Check AI settings and the connection."
+        : "OCR unavailable. Check the image and installed OCR language packs."
     }
   }
   @MainActor func setAppearance(_ value: String) async {
@@ -703,7 +715,7 @@ final class HistoryModel: ObservableObject {
   @MainActor func shutdown() async {
     guard !shuttingDown else { return }
     shuttingDown = true
-    analysisTask?.cancel()
+    analysisScheduler.stop()
     captureTask?.cancel()
     shellTask?.cancel()
     activationTask?.cancel()
@@ -721,7 +733,6 @@ final class HistoryModel: ObservableObject {
     nativeWindow?.quit()
   }
   deinit {
-    analysisTask?.cancel()
     monitor?.stop()
     shell?.stop()
     captureTask?.cancel()
