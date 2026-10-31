@@ -132,6 +132,17 @@ function Get-ImagePreview {
     [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Image)
   return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
 }
+function Read-SharedJson([string]$Path) {
+  # Snapshot replacement needs delete sharing on Windows. Get-Content's live
+  # read handle can otherwise make the application fail its own rename.
+  $sharing = [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete
+  $stream = [IO.FileStream]::new($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, $sharing)
+  try {
+    $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::UTF8)
+    try { return ($reader.ReadToEnd() | ConvertFrom-Json) }
+    finally { $reader.Dispose() }
+  } finally { $stream.Dispose() }
+}
 function Invoke-Button([string]$Label) {
   $element = Wait-For {
     $candidate = Find-Named $Label
@@ -222,7 +233,7 @@ try {
     $PreviousCopyRevision = [PreviewNative]::GetClipboardSequenceNumber()
     Invoke-Button 'Copy'
     Wait-For {
-      $promotedHistory = Get-Content -Raw -Encoding UTF8 (Join-Path $historyRoot 'history.json') | ConvertFrom-Json
+      $promotedHistory = Read-SharedJson (Join-Path $historyRoot 'history.json')
       ([PreviewNative]::GetClipboardSequenceNumber() -ne $PreviousCopyRevision) -and
         ($promotedHistory.items[0].preview -eq 'Welcome to Clipboard Preview')
     } 'copied_item_promoted_while_capture_paused' | Out-Null
@@ -285,7 +296,7 @@ try {
     Invoke-Button 'All'
     Set-Search ''
     Wait-For { Find-Named '2 items' } 'remaining_history' | Out-Null
-    $history = Get-Content -Raw -Encoding UTF8 (Join-Path $historyRoot 'history.json') | ConvertFrom-Json
+    $history = Read-SharedJson (Join-Path $historyRoot 'history.json')
     Add-Check 'store_persistence_matches_ui' ($history.items.Count -eq 2)
     if ($ClipboardPeer) {
       foreach ($fixture in @('rich', 'files')) {
@@ -471,7 +482,7 @@ try {
     Invoke-Button 'Save behavior'
     $settingsFile = Join-Path $historyRoot 'desktop-settings.json'
     Wait-For { Test-Path $settingsFile } 'saved_settings_file' | Out-Null
-    $saved = Get-Content -Raw -Encoding UTF8 $settingsFile | ConvertFrom-Json
+    $saved = Read-SharedJson $settingsFile
     Add-Check 'behavior_saved_without_enabling_recording' (!$saved.recordingEnabled -and $saved.closeToTray)
     Add-Check 'language_switches_keep_remote_AI_disabled_and_endpoint_draft_unsaved' (!$saved.ai.enabled -and $saved.ai.endpoint -ceq 'https://api.openai.com/v1' -and $saved.languageOverride -ceq 'en')
     Invoke-Button 'Quit Clipboard'
@@ -513,7 +524,7 @@ try {
     if (!$application.WaitForExit(10000)) { throw 'background_quit_timeout' }
     $historyRoot = Join-Path $OutputDirectory ('history-counts-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $historyRoot | Out-Null
-    $snapshot = Get-Content -Raw -Encoding UTF8 (Join-Path $primaryHistoryRoot 'history.json') | ConvertFrom-Json
+    $snapshot = Read-SharedJson (Join-Path $primaryHistoryRoot 'history.json')
     Copy-Item -Path (Join-Path $primaryHistoryRoot 'blobs') -Destination (Join-Path $historyRoot 'blobs') -Recurse
     $mixedBytes = [Text.Encoding]::UTF8.GetBytes('Legacy mixed fixture')
     $sha = [Security.Cryptography.SHA256]::Create()
@@ -564,7 +575,7 @@ try {
 
     $historyRoot = Join-Path $OutputDirectory ('rich-preview-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path (Join-Path $historyRoot 'blobs') -Force | Out-Null
-    $snapshot = Get-Content -Raw -Encoding UTF8 (Join-Path $primaryHistoryRoot 'history.json') | ConvertFrom-Json
+    $snapshot = Read-SharedJson (Join-Path $primaryHistoryRoot 'history.json')
     $createdAt = $snapshot.items[0].createdAt
     $fixtures = @(
       @{ name = 'HTML budget fixture'; kind = 'public.html'; body = '<p>' + ('中😀' * 12000) + ' HTML_COPY_TAIL</p>'; format = 'HTML Format' },
@@ -675,7 +686,7 @@ try {
     Set-Search ''
     Wait-For { (Find-Named '1 items') -and (Find-Named 'Reveal for this session') } 'selection_change_revoked_reveal' | Out-Null
     Add-Check 'selection_change_revokes_sensitive_reveal' ($null -eq (Find-Named $secret))
-    $persisted = Get-Content -Raw -Encoding UTF8 (Join-Path $historyRoot 'history.json') | ConvertFrom-Json
+    $persisted = Read-SharedJson (Join-Path $historyRoot 'history.json')
     $sensitiveRows = @($persisted.items | Where-Object { $_.sensitive })
     $blobFiles = @(Get-ChildItem -File (Join-Path $historyRoot 'blobs'))
     Add-Check 'sensitive_reveal_keeps_history_memory_only' ($persisted.items.Count -eq 3 -and $sensitiveRows.Count -eq 0 -and $blobFiles.Count -eq 0)

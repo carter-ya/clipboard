@@ -157,6 +157,30 @@ final class JSONSnapshotClipStoreTests: XCTestCase {
     XCTAssertEqual(items.last?.preview, "alpha")
   }
 
+  func testRepeatedFlushReplacesSnapshotWithoutOwningLegacyTemporaryPath() async throws {
+    let root = makeRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = try await JSONSnapshotClipStore(root: root)
+    await store.insert(makeRaw(text: "first", changeCount: 1))
+    await store.flush()
+
+    // A stale directory at the old predictable temporary path must not prevent
+    // a complete new snapshot or cause unrelated files to be removed.
+    let legacyTemporary = root.appendingPathComponent("history.json.tmp")
+    try FileManager.default.createDirectory(at: legacyTemporary, withIntermediateDirectories: false)
+    let marker = legacyTemporary.appendingPathComponent("unrelated")
+    try Data([42]).write(to: marker)
+    await store.insert(makeRaw(text: "second", changeCount: 2))
+    let firstID = await store.all().last!.id
+    await store.bumpToTop(id: firstID)
+    await store.flush()
+
+    let reopened = try await JSONSnapshotClipStore(root: root)
+    let saved = await reopened.all()
+    XCTAssertEqual(saved.map(\.preview), ["first", "second"])
+    XCTAssertEqual(try Data(contentsOf: marker), Data([42]))
+  }
+
   func testCorruptRecoveryProducesBakAndEmptyStart() async throws {
     let root = makeRoot()
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

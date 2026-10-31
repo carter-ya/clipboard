@@ -140,3 +140,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Desktop UI and native menus support en/zh-Hans/zh-Hant/ja/ko/de/es. Resolve explicit Chinese script before region and use the full ordered system language list. Ship the Core message catalog resource with installed bundles, preserve numeric placeholders, and retain native editors/drafts during language changes. Translate only tagged application preview messages, never clipboard text or file paths. Language writes share the existing settings-save gate and must not enable AI or implicitly save an endpoint draft.
 - The runtime-only Linux installer probe allows 600 seconds for the expanded full UI suite and 25 hide/reopen cycles. Individual action deadlines remain unchanged; a larger total coverage budget must not mask a stalled action or remove native checks.
+
+- History snapshots write atomically to the final destination through Foundation; never remove the last snapshot before moving a fixed temporary path. Windows native fixtures read live JSON with FileShare.ReadWrite | FileShare.Delete and dispose readers promptly, so observation does not prevent replacement. Preserve full copy/order assertions.
