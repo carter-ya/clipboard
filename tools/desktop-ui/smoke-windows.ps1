@@ -43,6 +43,124 @@ public static class PreviewNative {
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wparam, IntPtr lparam);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int command);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool DestroyWindow(IntPtr hwnd);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr CreateWindowEx(
+    uint extended, string className, string title, uint style, int x, int y, int width, int height,
+    IntPtr parent, IntPtr menu, IntPtr instance, IntPtr parameter);
+  [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr WindowProcedure(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] private struct WindowClass {
+    public uint Style; public IntPtr Procedure; public int ClassExtra, WindowExtra;
+    public IntPtr Instance, Icon, Cursor, Background; public string MenuName, ClassName;
+  }
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr GetModuleHandle(string name);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern ushort RegisterClass(ref WindowClass windowClass);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern bool UnregisterClass(string name, IntPtr instance);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr DefWindowProc(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
+  [DllImport("user32.dll")] private static extern void PostQuitMessage(int code);
+  private static readonly WindowProcedure focusProcedure = FocusWindowProcedure;
+  private static IntPtr FocusWindowProcedure(IntPtr window, uint message, IntPtr wparam, IntPtr lparam) {
+    if (message == 0x0002) { PostQuitMessage(0); return IntPtr.Zero; }
+    return DefWindowProc(window, message, wparam, lparam);
+  }
+  [StructLayout(LayoutKind.Sequential)] private struct Message {
+    public IntPtr Window; public uint Id; public UIntPtr WParam; public IntPtr LParam;
+    public uint Time; public int X, Y; public uint Private;
+  }
+  [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] private static extern int GetMessage(out Message message, IntPtr window, uint min, uint max);
+  [DllImport("user32.dll")] private static extern bool TranslateMessage(ref Message message);
+  [DllImport("user32.dll")] private static extern IntPtr DispatchMessage(ref Message message);
+  [DllImport("user32.dll")] private static extern bool PostThreadMessage(uint thread, uint message, UIntPtr wparam, IntPtr lparam);
+  private static System.Threading.Thread focusThread;
+  private static System.Threading.ManualResetEventSlim focusReady;
+  private static uint focusThreadId;
+  private static IntPtr focusWindow, focusControl;
+  [StructLayout(LayoutKind.Sequential)] private struct MouseInput {
+    public int X, Y; public uint Data, Flags, Time; public UIntPtr Extra;
+  }
+  [StructLayout(LayoutKind.Sequential)] private struct PointerInput {
+    public uint Type; public MouseInput Mouse;
+  }
+  [StructLayout(LayoutKind.Sequential)] private struct Point { public int X, Y; }
+  [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(Point point);
+  [DllImport("user32.dll")] private static extern uint SendInput(uint count, PointerInput[] inputs, int size);
+  public static bool ClickFocusFixture() {
+    // SetForegroundWindow may be refused by the OS foreground lock. In the
+    // isolated runner, activate only our own visible control with a real mouse
+    // click. Keep the strict foreground-window assertion in the caller.
+    if (focusWindow == IntPtr.Zero || focusControl == IntPtr.Zero) return false;
+    uint owner;
+    GetWindowThreadProcessId(focusWindow, out owner);
+    if (owner != (uint)System.Diagnostics.Process.GetCurrentProcess().Id) return false;
+    if (!SetWindowPos(focusWindow, new IntPtr(-1), 0, 0, 0, 0, 0x0053)) return false;
+    try {
+      Rect rect;
+      if (!GetWindowRect(focusControl, out rect) || rect.Right <= rect.Left || rect.Bottom <= rect.Top) return false;
+      var point = new Point { X = rect.Left + (rect.Right - rect.Left) / 2,
+                              Y = rect.Top + (rect.Bottom - rect.Top) / 2 };
+      if (WindowFromPoint(point) != focusControl || !SetCursorPos(point.X, point.Y)) return false;
+      var inputs = new[] {
+        new PointerInput { Mouse = new MouseInput { Flags = 0x0002 } },
+        new PointerInput { Mouse = new MouseInput { Flags = 0x0004 } }
+      };
+      uint sent = SendInput(2, inputs, Marshal.SizeOf(typeof(PointerInput)));
+      if (sent == 1) SendInput(1, new[] { inputs[1] }, Marshal.SizeOf(typeof(PointerInput)));
+      return sent == 2;
+    } finally {
+      SetWindowPos(focusWindow, new IntPtr(-2), 0, 0, 0, 0, 0x0013);
+    }
+  }
+  public static IntPtr CreateFocusFixture() {
+    if (focusThread != null) return IntPtr.Zero;
+    var ready = focusReady = new System.Threading.ManualResetEventSlim(false);
+    // A native HWND on the busy PowerShell thread has no message pump and
+    // cannot reliably participate in activation or UI Automation. Own this
+    // private focusable window on a separate STA thread with a real loop.
+    focusThread = new System.Threading.Thread(() => {
+      focusThreadId = GetCurrentThreadId();
+      const string className = "ClipboardPrivateFocusFixture";
+      IntPtr instance = GetModuleHandle(null);
+      var windowClass = new WindowClass { Procedure = Marshal.GetFunctionPointerForDelegate(focusProcedure),
+        Instance = instance, Background = new IntPtr(6), ClassName = className };
+      if (RegisterClass(ref windowClass) == 0) { ready.Set(); return; }
+      focusWindow = CreateWindowEx(0, className, "Clipboard startup focus fixture", 0x12CF0000,
+                                 10, 10, 220, 120, IntPtr.Zero, IntPtr.Zero, instance, IntPtr.Zero);
+      if (focusWindow != IntPtr.Zero) {
+        focusControl = CreateWindowEx(0x200, "EDIT", "Synthetic focus target", 0x50010000,
+                                      10, 10, 180, 24, focusWindow, new IntPtr(1), instance, IntPtr.Zero);
+      }
+      ready.Set();
+      try {
+        if (focusWindow == IntPtr.Zero || focusControl == IntPtr.Zero) return;
+        Message message;
+        while (GetMessage(out message, IntPtr.Zero, 0, 0) > 0) {
+          TranslateMessage(ref message);
+          DispatchMessage(ref message);
+        }
+      } finally {
+        if (focusWindow != IntPtr.Zero) DestroyWindow(focusWindow);
+        UnregisterClass(className, instance);
+      }
+    });
+    focusThread.IsBackground = true;
+    focusThread.SetApartmentState(System.Threading.ApartmentState.STA);
+    focusThread.Start();
+    if (!ready.Wait(10000)) { CloseFocusFixture(); return IntPtr.Zero; }
+    return focusControl == IntPtr.Zero ? IntPtr.Zero : focusWindow;
+  }
+  public static void CloseFocusFixture() {
+    if (focusThread == null) return;
+    if (focusThread.IsAlive) {
+      PostThreadMessage(focusThreadId, 0x0012, UIntPtr.Zero, IntPtr.Zero);
+      if (!focusThread.Join(5000)) return;
+    }
+    focusReady.Dispose(); focusReady = null;
+    focusThread = null; focusWindow = IntPtr.Zero; focusControl = IntPtr.Zero; focusThreadId = 0;
+  }
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
   [DllImport("user32.dll")] public static extern bool OpenClipboard(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool CloseClipboard();
@@ -624,6 +742,93 @@ try {
     if (!$application.WaitForExit(10000)) { throw 'rich_budget_quit_timeout' }
     Add-Check 'rich_budget_profile_quits_cleanly' ($application.ExitCode -eq 0)
 
+    $historyRoot = Join-Path $OutputDirectory ('startup-state-' + [Guid]::NewGuid().ToString('N'))
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+      -ArgumentList @('--smoke-root', ('"' + $historyRoot + '"'), '--smoke-startup') -PassThru `
+      -RedirectStandardOutput (Join-Path $OutputDirectory 'startup-state.stdout.log') `
+      -RedirectStandardError (Join-Path $OutputDirectory 'startup-state.stderr.log')
+    $null = $application.Handle
+    $nativeWindowHandle = Wait-For {
+      $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
+      if ($handle -ne [IntPtr]::Zero) { $handle }
+    } 'startup_private_window'
+    $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'startup_private_profile' | Out-Null
+    Invoke-Button 'Settings'
+    Wait-For { (Find-Named 'Preferences') -and (Find-Named 'Enable launch at login') } 'startup_initial_disabled' | Out-Null
+    $settingsEditor = Get-Editor
+    $settingsEditorID = ($settingsEditor.GetRuntimeId() -join ',')
+    $settingsEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('321')
+    $runPath = 'Software\Microsoft\Windows\CurrentVersion\Run'
+    function Get-PrivateStartupNames {
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath)
+      if ($null -eq $key) { return @() }
+      try { return @($key.GetValueNames() | Where-Object { $_.StartsWith('com.clipboard.test.', [StringComparison]::Ordinal) }) }
+      finally { $key.Dispose() }
+    }
+    $beforeStartupNames = @(Get-PrivateStartupNames)
+    $startupRegistrationName = $null
+    $startupCommand = $null
+    $focusFixture = [IntPtr]::Zero
+    try {
+      Invoke-Button 'Enable launch at login'
+      Wait-For { Find-Named 'Disable launch at login' } 'startup_explicit_enable' | Out-Null
+      $newNames = @(Get-PrivateStartupNames | Where-Object { $_ -notin $beforeStartupNames })
+      Add-Check 'private_startup_toggle_uses_only_synthetic_registration' ($newNames.Count -eq 1)
+      $startupRegistrationName = $newNames[0]
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath, $true)
+      try {
+        $startupCommand = [string]$key.GetValue($startupRegistrationName)
+        if (!$startupCommand.Contains('.startup-no-launch')) { throw 'startup_fixture_command' }
+        $key.DeleteValue($startupRegistrationName, $false)
+      } finally { $key.Dispose() }
+      [PreviewNative]::ShowWindow($nativeWindowHandle, 6) | Out-Null
+      Wait-For { [PreviewNative]::IsIconic($nativeWindowHandle) } 'startup_settings_minimized' | Out-Null
+      [PreviewNative]::ShowWindow($nativeWindowHandle, 9) | Out-Null
+      [PreviewNative]::SetForegroundWindow($nativeWindowHandle) | Out-Null
+      Wait-For { (Find-Named 'Preferences') -and (Find-Named 'Enable launch at login') } 'startup_state_after_restore' | Out-Null
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath)
+      try { Add-Check 'settings_restore_reconciles_external_startup_disable' ($null -eq $key.GetValue($startupRegistrationName)) }
+      finally { $key.Dispose() }
+      $currentEditor = Get-Editor
+      Add-Check 'startup_restore_preserves_native_editor_draft' (($currentEditor.GetRuntimeId() -join ',') -eq $settingsEditorID -and $currentEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -ceq '321')
+      $focusFixture = [PreviewNative]::CreateFocusFixture()
+      if ($focusFixture -eq [IntPtr]::Zero) { throw 'startup_focus_fixture' }
+      if ($env:GITHUB_ACTIONS -ne 'true') { throw 'startup_pointer_fixture_requires_isolated_runner' }
+      if (![PreviewNative]::ClickFocusFixture()) { throw 'startup_pointer_activation_failed' }
+      Wait-For { [PreviewNative]::GetForegroundWindow() -eq $focusFixture } 'startup_settings_deactivated_without_unmap' | Out-Null
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath, $true)
+      try { $key.SetValue($startupRegistrationName, $startupCommand, [Microsoft.Win32.RegistryValueKind]::String) }
+      finally { $key.Dispose() }
+      [PreviewNative]::SetForegroundWindow($nativeWindowHandle) | Out-Null
+      Wait-For { [PreviewNative]::GetForegroundWindow() -eq $nativeWindowHandle } 'startup_settings_reactivated_without_remap' | Out-Null
+      Wait-For { (Find-Named 'Preferences') -and (Find-Named 'Disable launch at login') } 'startup_state_after_reactivation' | Out-Null
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath)
+      try { Add-Check 'settings_reactivation_reads_external_startup_state_without_writing' ($key.GetValue($startupRegistrationName) -ceq $startupCommand) }
+      finally { $key.Dispose() }
+      Invoke-Button 'Disable launch at login'
+      Wait-For { Find-Named 'Enable launch at login' } 'startup_explicit_disable' | Out-Null
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath)
+      try { Add-Check 'explicit_startup_disable_removes_the_owned_registration' ($null -eq $key.GetValue($startupRegistrationName)) }
+      finally { $key.Dispose() }
+      $settingsFile = Join-Path $historyRoot 'desktop-settings.json'
+      $draftUnsaved = !(Test-Path $settingsFile)
+      if (!$draftUnsaved) { $draftUnsaved = (Read-SharedJson $settingsFile).historyCapacity -eq 100 }
+      Add-Check 'startup_reconciliation_does_not_save_content_drafts' $draftUnsaved
+      Invoke-Button 'Quit Clipboard'
+      if (!$application.WaitForExit(10000)) { throw 'startup_state_quit_timeout' }
+      Add-Check 'startup_state_profile_quits_cleanly' ($application.ExitCode -eq 0)
+    } finally {
+      [PreviewNative]::CloseFocusFixture()
+      if ($startupRegistrationName -and $startupCommand) {
+        $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath, $true)
+        if ($key) {
+          try { if ($key.GetValue($startupRegistrationName) -ceq $startupCommand) { $key.DeleteValue($startupRegistrationName, $false) } }
+          finally { $key.Dispose() }
+        }
+      }
+    }
+
     $sensitiveProbe = $true
     $historyRoot = Join-Path $OutputDirectory ('sensitive-preview-' + [Guid]::NewGuid().ToString('N'))
     $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
@@ -742,7 +947,7 @@ try {
   if ($application -and !$application.HasExited) { Stop-Process -Id $application.Id -Force }
   $passed = $checks.Count -gt 0 -and @($checks | Where-Object { !$_.passed }).Count -eq 0
   $report = @{ platform = 'windows-gtk4-accesskit'; passed = $passed; checks = @($checks.ToArray());
-    limitations = @('Native accessibility value/invoke operations only; no keyboard injection.',
+    limitations = @('Native accessibility value/invoke operations and an owned CI-only mouse activation fixture; no keyboard injection.',
       'Real Chinese IME and global hotkey focus transfer remain untested.') }
   $json = $report | ConvertTo-Json -Depth 6
   $json | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'results.json')

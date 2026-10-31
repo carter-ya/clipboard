@@ -573,6 +573,74 @@ try:
     app.wait(timeout=10)
     check('rich_budget_profile_quits_cleanly', app.returncode == 0)
 
+    history_root = out / ('startup-state-' + uuid.uuid4().hex)
+    app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root), '--smoke-startup'],
+                           stdout=log, stderr=log, start_new_session=True)
+    wait_for(lambda: has_text('Ready') and has_text('3 items'), 'startup_private_profile')
+    click('Settings')
+    wait_for(lambda: has_texts('Preferences', 'Enable launch at login'), 'startup_initial_disabled')
+    settings_editor = wait_for(editor, 'startup_settings_editor')
+    settings_editor.queryEditableText().setTextContents('321')
+    click('Enable launch at login')
+    wait_for(lambda: button('Disable launch at login'), 'startup_explicit_enable')
+    startup_entries = list((history_root / '.startup-config/autostart').glob('com.clipboard.test.*.desktop'))
+    check('private_startup_toggle_uses_only_synthetic_registration', len(startup_entries) == 1 and
+          b'.startup-no-launch' in startup_entries[0].read_bytes())
+    startup_entry = startup_entries[0]
+    startup_content = startup_entry.read_bytes()
+    startup_entry.unlink()
+    driver_x11 = ctypes.CDLL('libX11.so.6')
+    driver_x11.XOpenDisplay.restype = ctypes.c_void_p
+    driver_x11.XDefaultScreen.argtypes = [ctypes.c_void_p]
+    driver_x11.XDefaultScreen.restype = ctypes.c_int
+    driver_x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    driver_x11.XDefaultRootWindow.restype = ctypes.c_ulong
+    driver_x11.XIconifyWindow.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int]
+    driver_x11.XMapRaised.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+    driver_x11.XSetInputFocus.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
+    driver_x11.XGetInputFocus.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.c_int)]
+    driver_x11.XFlush.argtypes = [ctypes.c_void_p]
+    driver_x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+    display = driver_x11.XOpenDisplay(None)
+    try:
+        target_window = window_id()
+        driver_x11.XIconifyWindow(display, target_window, driver_x11.XDefaultScreen(display))
+        driver_x11.XFlush(display)
+        wait_for(lambda: not window_visible(), 'startup_settings_minimized')
+        driver_x11.XMapRaised(display, target_window)
+        driver_x11.XFlush(display)
+        wait_for(window_visible, 'startup_settings_mapped')
+        driver_x11.XSetInputFocus(display, target_window, 2, 0)
+        driver_x11.XFlush(display)
+        wait_for(lambda: window_visible() and has_texts('Preferences', 'Enable launch at login'), 'startup_state_after_restore')
+        check('settings_restore_reconciles_external_startup_disable', not startup_entry.exists())
+        check('startup_restore_preserves_native_editor_draft', not settings_editor.getState().contains(pyatspi.STATE_DEFUNCT) and
+              settings_editor.queryText().getText(0, settings_editor.queryText().characterCount) == '321' and editor() == settings_editor)
+        root_window = driver_x11.XDefaultRootWindow(display)
+        driver_x11.XSetInputFocus(display, root_window, 2, 0)
+        driver_x11.XFlush(display)
+        def focus_is_root():
+            focused, revert = ctypes.c_ulong(), ctypes.c_int()
+            driver_x11.XGetInputFocus(display, ctypes.byref(focused), ctypes.byref(revert))
+            return focused.value == root_window
+        wait_for(focus_is_root, 'startup_settings_deactivated_without_unmap')
+        startup_entry.write_bytes(startup_content)
+        driver_x11.XSetInputFocus(display, target_window, 2, 0)
+        driver_x11.XFlush(display)
+        wait_for(lambda: has_texts('Preferences', 'Disable launch at login'), 'startup_state_after_reactivation')
+        check('settings_reactivation_reads_external_startup_state_without_writing', startup_entry.read_bytes() == startup_content)
+    finally:
+        driver_x11.XCloseDisplay(display)
+    click('Disable launch at login')
+    wait_for(lambda: button('Enable launch at login') and not startup_entry.exists(), 'startup_explicit_disable')
+    check('explicit_startup_disable_removes_the_owned_registration', True)
+    saved_file = history_root / 'desktop-settings.json'
+    saved_settings = json.loads(saved_file.read_text()) if saved_file.exists() else {}
+    check('startup_reconciliation_does_not_save_content_drafts', saved_settings.get('historyCapacity', 100) == 100)
+    click('Quit Clipboard')
+    app.wait(timeout=10)
+    check('startup_state_profile_quits_cleanly', app.returncode == 0)
+
     sensitive_probe = True
     history_root = out / ('sensitive-preview-' + uuid.uuid4().hex)
     app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root), '--smoke-sensitive'],

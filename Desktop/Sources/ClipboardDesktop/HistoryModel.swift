@@ -11,6 +11,7 @@ final class HistoryModel: ObservableObject {
   @Published var analysisBusy = false
   @Published var startupEnabled = false
   @Published var startupAvailable = false
+  @Published var startupBusy = false
   @Published var aiEnabledDraft = false
   @Published var aiImagesDraft = false
   @Published var aiCredentialDraft = false
@@ -25,7 +26,7 @@ final class HistoryModel: ObservableObject {
   private var credentials = NativeDesktopCredentials()
   private let ocr = NativeDesktopOCR()
   private let transport = BoundedDesktopAITransport()
-  private var startup: NativeDesktopStartup?
+  @MainActor private var startup: DesktopStartupState?
   @MainActor private lazy var analysisScheduler = DesktopAnalysisScheduler(
     busyChanged: { [weak self] in self?.analysisBusy = $0 },
     perform: { [weak self] in await self?.performAnalysis($0) })
@@ -144,6 +145,12 @@ final class HistoryModel: ObservableObject {
       let presenter = GtkDesktopWindow()
       nativeWindow = presenter
       presenter.hidden = { [weak self] in self?.resetSensitivePreview() }
+      presenter.presentationChanged = { [weak self] in
+        Task { @MainActor in
+          guard let self, self.showsSettings, !self.shuttingDown else { return }
+          await self.refreshStartup()
+        }
+      }
       presenter.observeAppearance { [weak self] property in
         guard let self else { return }
         DesktopAppearance.recordSystem(property: property)
@@ -287,10 +294,25 @@ final class HistoryModel: ObservableObject {
       aiModelDraft = settings.ai.model
       automaticSummariesDraft = settings.automaticSummaries
       automaticOCRDraft = settings.automaticOCR
+      var startupBackend: NativeDesktopStartup?
       if DesktopApplicationContext.profile == "production" {
-        startup = try? NativeDesktopStartup(
+        startupBackend = try? NativeDesktopStartup(
           executable: DesktopApplicationContext.executableURL)
-        startupAvailable = startup != nil
+      } else if args.contains("--smoke-root"), args.contains("--smoke-startup") {
+        // Private native-state fixture: never register an application that can
+        // launch a production profile, and never use the normal startup name.
+        startupBackend = try? NativeDesktopStartup(
+          executable: directory.appendingPathComponent(".startup-no-launch"),
+          name: "com.clipboard.test." + DesktopApplicationContext.profile,
+          configRoot: directory.appendingPathComponent(".startup-config"))
+      }
+      if let startupBackend {
+        startup = DesktopStartupState(backend: startupBackend) { [weak self] enabled, busy in
+          guard let self, !self.shuttingDown else { return }
+          if self.startupEnabled != enabled { self.startupEnabled = enabled }
+          if self.startupBusy != busy { self.startupBusy = busy }
+        }
+        startupAvailable = true
       }
       capacityDraft = String(settings.historyCapacity)
       maxSizeDraft = String(settings.maxClipSizeBytes / (1024 * 1024))
@@ -353,7 +375,8 @@ final class HistoryModel: ObservableObject {
       await configureShell()
       ready = true
       status = "Ready"
-      nativeWindow?.focusSearch()
+      if showsSettings { await refreshStartup() }
+      if !showsSettings { nativeWindow?.focusSearch() }
       if settings.recordingEnabled { await setRecording(true) }
       if (!settings.showOnLaunch || CommandLine.arguments.contains("--background")) && canHide
         && !startupActivationRequested
@@ -715,9 +738,11 @@ final class HistoryModel: ObservableObject {
   }
 
   @MainActor func refreshStartup() async {
-    guard let startup else { return }
-    do { startupEnabled = try await startup.isEnabled() } catch {
-      status = "Startup integration is unavailable in this session."
+    guard let startup, showsSettings, !shuttingDown else { return }
+    do { try await startup.refresh() } catch {
+      if showsSettings, !shuttingDown {
+        status = "Startup integration is unavailable in this session."
+      }
     }
   }
   @MainActor func toggleStartup() async {
@@ -725,11 +750,14 @@ final class HistoryModel: ObservableObject {
       status = "Startup integration is unavailable in this session."
       return
     }
+    guard !startupBusy, !shuttingDown else { return }
     do {
-      try await startup.setEnabled(!startupEnabled)
-      startupEnabled = try await startup.isEnabled()
-      status = "Startup setting saved"
-    } catch { status = "Startup setting could not be changed." }
+      if try await startup.apply(!startupEnabled), showsSettings, !shuttingDown {
+        status = "Startup setting saved"
+      }
+    } catch {
+      if showsSettings, !shuttingDown { status = "Startup setting could not be changed." }
+    }
   }
   @MainActor func copyAnalysisResult() async {
     guard let item = selected, !item.sensitive, let text = item.summary else { return }
@@ -871,6 +899,7 @@ final class HistoryModel: ObservableObject {
   @MainActor func shutdown() async {
     guard !shuttingDown else { return }
     shuttingDown = true
+    startup?.stop()
     resetSensitivePreview()
     analysisScheduler.stop()
     captureTask?.cancel()
