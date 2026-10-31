@@ -243,13 +243,18 @@
           "scope": "Preferences and localization",
           "status": "in_progress",
           "remaining": [
-            "Size-limit disable and equivalent filter choices",
+            "Fractional and larger-than-16-MiB size-policy parity; equivalent filter choices",
             "Accurate OS startup policy/ownership semantics and discoverable capability/conflict guidance"
           ],
           "source_filter_validation": {
             "branch": "codex/cross-platform-source-filter-case",
             "implemented": "Windows executable source IDs compare without case while preserving original configuration/source spelling and existing Mac/Linux matching. A mixed-case password-manager source stays sensitive and never reaches history JSON or blob files.",
             "validation": "The regression fails before the fix and all 205 Core tests pass afterward in isolated Linux arm64. A Windows-only scenario copies the independent synthetic clipboard peer to a mixed-case executable name and checks native identity, default filtering, memory retention and no persistence; exact-head Windows execution is pending."
+          },
+          "size_filter_validation": {
+            "branch": "codex/cross-platform-size-filter-disable",
+            "implemented": "Zero disables the user item-size filter, including referenced file sizes, and round-trips in desktop settings. Native transfer buffers remain capped at 16 MiB and the limit is disclosed in all seven UI languages. Negative settings fail without replacing the saved zero value. Positive limits keep their previous behavior.",
+            "validation": "The regression fails before the fix; all 208 Core tests pass in isolated Linux arm64. Optimized Linux native UI passes all 88 checks, including zero save and invalid negative-value rejection. macOS passes 19 related settings/rich-clipboard/localization tests. Windows syntax/native helper definitions pass; exact-head Windows and installed-runtime execution remain pending."
           }
         },
         {

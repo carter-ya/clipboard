@@ -37,6 +37,23 @@ final class DesktopSettingsTests: XCTestCase {
       contentsOf: root.appendingPathComponent("desktop-settings.json"), encoding: .utf8)
     XCTAssertFalse(file.lowercased().contains("apikey"))
   }
+  func testZeroSizePreferenceRoundTripsAndNegativeSavePreservesIt() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = JSONDesktopSettingsStore(root: root)
+    var settings = DesktopSettings()
+    settings.maxClipSizeBytes = 0
+    try await store.save(settings)
+    let restored = try await JSONDesktopSettingsStore(root: root).load()
+    XCTAssertEqual(restored.maxClipSizeBytes, 0)
+    settings.maxClipSizeBytes = -1
+    do {
+      try await store.save(settings)
+      XCTFail("Negative size was accepted")
+    } catch {}
+    let preserved = try await store.load()
+    XCTAssertEqual(preserved.maxClipSizeBytes, 0)
+  }
   func testMalformedStoredSettingsDoNotEnableRecording() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }

@@ -305,3 +305,18 @@ pass in isolated Linux arm64. Windows Actions additionally runs an independent
 peer copied to a mixed-case executable name, checks actual native source identity
 and default filtering, and verifies sensitive payloads remain memory-only. That
 native Windows check is pending; it never launches a real password manager.
+
+Desktop size preference `0` now disables user item-size filtering and survives
+save/reload. Referenced file sizes are no longer mistaken for native transfer
+buffer sizes in this mode; a 20 MiB synthetic file reference is accepted without
+reading its body. Encoded clipboard transfers retain the 16 MiB native bound,
+disclosed in all seven languages. Positive limits retain their previous behavior.
+The regression fails before the fix; all 208 Core tests pass in isolated Linux
+arm64. Native settings checks also cover saving zero and rejecting a negative
+value without replacing it. Fractional preferences and captures exceeding the
+platform transport bound remain parity work; this is not unlimited capture.
+
+The optimized Linux arm64 build passes all 88 native UI checks, including both
+size-setting cases. macOS passes 19 targeted settings/rich-clipboard/localization
+tests. Windows probe syntax and native helper compilation pass; actual Windows
+and installed-runtime confirmation remain pending.

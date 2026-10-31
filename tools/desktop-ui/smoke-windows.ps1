@@ -258,6 +258,17 @@ function Get-Editor {
     [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)
   return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
 }
+function Get-EditorWithValue([string]$Value) {
+  if ($script:sensitiveProbe) { throw 'public_editor_lookup_after_sensitive_phase' }
+  $condition = [Windows.Automation.PropertyCondition]::new(
+    [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)
+  foreach ($control in $script:window.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)) {
+    try {
+      if ($control.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -ceq $Value) { return $control }
+    } catch {}
+  }
+  return $null
+}
 function Get-ImagePreview {
   $condition = [Windows.Automation.PropertyCondition]::new(
     [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Image)
@@ -902,6 +913,16 @@ try {
       $draftUnsaved = !(Test-Path $settingsFile)
       if (!$draftUnsaved) { $draftUnsaved = (Read-SharedJson $settingsFile).historyCapacity -eq 100 }
       Add-Check 'startup_reconciliation_does_not_save_content_drafts' $draftUnsaved
+      $sizeEditor = Wait-For { Get-EditorWithValue '10' } 'size_preference_editor'
+      $sizeEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('0')
+      Invoke-Button 'Save content settings'
+      Wait-For { (Find-Named 'Content settings saved') -and (Read-SharedJson $settingsFile).maxClipSizeBytes -eq 0 } 'disabled_size_preference_saved' | Out-Null
+      Add-Check 'native_settings_can_disable_size_filtering' ($null -ne (Find-Named '0 disables size filtering. Clipboard transfers remain limited to 16 MiB.'))
+      $sizeEditor = Wait-For { Get-EditorWithValue '0' } 'disabled_size_editor'
+      $sizeEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('-1')
+      Invoke-Button 'Save content settings'
+      Wait-For { Find-Named 'Enter a capacity of 1–5000 and a size of 0–16 MiB.' } 'negative_size_preference_rejected' | Out-Null
+      Add-Check 'invalid_size_does_not_replace_disabled_preference' ((Read-SharedJson $settingsFile).maxClipSizeBytes -eq 0)
       Invoke-Button 'Quit Clipboard'
       if (!$application.WaitForExit(10000)) { throw 'startup_state_quit_timeout' }
       Add-Check 'startup_state_profile_quits_cleanly' ($application.ExitCode -eq 0)

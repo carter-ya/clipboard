@@ -677,9 +677,9 @@ final class HistoryModel: ObservableObject {
   @MainActor func applyContentSettings() async {
     guard let settingsStore, let store,
       let capacity = Int(capacityDraft), let megabytes = Int(maxSizeDraft),
-      (1...16).contains(megabytes)
+      (0...16).contains(megabytes)
     else {
-      status = "Enter a capacity of 1–5000 and a size of 1–16 MiB."
+      status = "Enter a capacity of 1–5000 and a size of 0–16 MiB."
       return
     }
     await settingsSaveGate.acquire()
