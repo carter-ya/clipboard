@@ -111,7 +111,9 @@ with tempfile.TemporaryDirectory(prefix='image-worker-', dir=output) as temporar
     command = [compiler, '-O2', '-I', str(sdk / 'include'), '-I', str(stage), str(source_root / 'image-worker.c')]
     if os.name == 'nt':
         library = sdk / 'lib/onnxruntime.dll'
-        command += [str(sdk / 'lib/onnxruntime.lib'), 'ole32.lib', 'windowscodecs.lib', 'uuid.lib',
+        # Bare .lib names are treated as input files by the clang driver. Ask
+        # the linker to resolve system libraries through the Windows SDK paths.
+        command += [str(sdk / 'lib/onnxruntime.lib'), '-lole32', '-lwindowscodecs', '-luuid',
                     '-Xlinker', '/SUBSYSTEM:WINDOWS', '-Xlinker', '/ENTRY:mainCRTStartup']
     else:
         library = sdk / 'lib/libonnxruntime.so.1.31.1'
