@@ -10,6 +10,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'private-fixture-python.ps1')
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+Add-Type -AssemblyName WindowsBase
 # GTK has server-side AccessKit providers; native common-dialog controls use
 # the managed client's Win32 proxies. Register from a compiled caller before
 # traversing HWNDs: ProxyManager's default-loader stack walk is not reliable
@@ -158,6 +159,7 @@ public static class PreviewNative {
   [StructLayout(LayoutKind.Sequential)] private struct Point { public int X, Y; }
   [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
+  [DllImport("user32.dll")] public static extern uint GetDoubleClickTime();
   public static bool HoverOwnedControl(uint processId, int x, int y) {
     uint owner;
     GetWindowThreadProcessId(WindowFromPoint(new Point { X = x, Y = y }), out owner);
@@ -982,25 +984,60 @@ try {
     Add-Check 'counted_history_quits_cleanly' ($application.ExitCode -eq 0)
 
     if ($env:GITHUB_ACTIONS -ne 'true') { throw 'row_pointer_fixture_requires_isolated_runner' }
-    function Get-PublicHistoryRow([string]$Label) {
-      return Wait-For {
-        $candidate = Find-Named $Label
-        for ($depth = 0; $depth -lt 16 -and $candidate; $depth++) {
-          if ($candidate.Current.ControlType -eq [Windows.Automation.ControlType]::ListItem) {
-            if (!$candidate.Current.IsOffscreen -and $candidate.Current.IsEnabled) { return $candidate }
-            return $null
-          }
-          $candidate = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($candidate)
+    function Find-PublicHistoryRow([string]$Label) {
+      $candidate = Find-Named $Label
+      for ($depth = 0; $depth -lt 16 -and $candidate; $depth++) {
+        if ($candidate.Current.ControlType -eq [Windows.Automation.ControlType]::ListItem) {
+          if (!$candidate.Current.IsOffscreen -and $candidate.Current.IsEnabled) { return $candidate }
+          return $null
         }
-        return $null
-      } 'native_history_row'
+        $candidate = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($candidate)
+      }
+      return $null
     }
+    function Get-PublicHistoryRow([string]$Label) {
+      return Wait-For { Find-PublicHistoryRow $Label } 'native_history_row'
+    }
+    $script:lastHistoryPointerClick = $null
     function Click-PublicHistoryRow([string]$Label) {
-      $row = Get-PublicHistoryRow $Label
-      $bounds = $row.Current.BoundingRectangle
-      if ($bounds.Width -le 0 -or $bounds.Height -le 0 -or
-          ![PreviewNative]::ClickOwnedControl([uint32]$application.Id, [int]($bounds.X + $bounds.Width / 2), [int]($bounds.Y + $bounds.Height / 2))) {
-        throw 'native_history_row_pointer'
+      $geometry = @{ key = ''; samples = 0; stable = $false; hitMatches = $false; independentClick = $false }
+      try {
+        $point = Wait-For {
+          $row = Find-PublicHistoryRow $Label
+          if (!$row) { return $null }
+          $bounds = $row.Current.BoundingRectangle
+          if ($bounds.Width -le 0 -or $bounds.Height -le 0) { return $null }
+          $x, $y = [int]($bounds.X + $bounds.Width / 2), [int]($bounds.Y + $bounds.Height / 2)
+          if (![PreviewNative]::HoverOwnedControl([uint32]$application.Id, $x, $y)) { return $null }
+          $rowID = $row.GetRuntimeId() -join ','
+          $key = $rowID + ':' + $bounds.ToString()
+          $geometry.stable = $geometry.key -ceq $key
+          $geometry.key = $key
+          $geometry.samples++
+          $hit = [Windows.Automation.AutomationElement]::FromPoint([Windows.Point]::new($x, $y))
+          for ($depth = 0; $depth -lt 16 -and $hit -and
+              $hit.Current.ControlType -ne [Windows.Automation.ControlType]::ListItem; $depth++) {
+            $hit = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($hit)
+          }
+          $geometry.hitMatches = $null -ne $hit -and ($hit.GetRuntimeId() -join ',') -ceq $rowID
+          # Two presentations require two independent single clicks, rather than
+          # an accidental OS double click at a prior position after hide/reopen.
+          $geometry.independentClick = $null -eq $script:lastHistoryPointerClick -or
+            ([Diagnostics.Stopwatch]::GetTimestamp() - $script:lastHistoryPointerClick) /
+            [double][Diagnostics.Stopwatch]::Frequency -gt ([PreviewNative]::GetDoubleClickTime() / 1000.0)
+          if ($geometry.stable -and $geometry.hitMatches -and $geometry.independentClick) {
+            return @{ x = $x; y = $y }
+          }
+          return $null
+        } 'native_history_row_hit_target'
+        if (![PreviewNative]::ClickOwnedControl([uint32]$application.Id, $point.x, $point.y)) {
+          throw 'native_history_row_pointer'
+        }
+        $script:lastHistoryPointerClick = [Diagnostics.Stopwatch]::GetTimestamp()
+      } finally {
+        # Only bounded native geometry/identity metadata from synthetic public
+        # profiles. Never capture clipboard bytes, labels or sensitive controls.
+        $geometry | ConvertTo-Json -Depth 2 | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'row-pointer-metadata.json')
       }
     }
     $historyRoot = Join-Path $OutputDirectory ('history-activation-' + [Guid]::NewGuid().ToString('N'))
