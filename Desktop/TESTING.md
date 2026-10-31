@@ -10,6 +10,7 @@ remain blocked by the open interactive gates below.
 | --- | --- |
 | Shared logic and existing macOS app | `swift-portability.yml`: real Core tests on Windows/Ubuntu/macOS, existing macOS app build |
 | Native clipboard and services | Independent synthetic peers, bounded rich formats, sensitivity, credentials/startup/OCR and opt-in HTTP failure cases |
+| History activation | Private native selection first proves a different row is selected without copying; pointer clicks then require fresh clipboard revision/ownership, full original readback, immediate persisted promotion and hide without process exit on two presentations with reordered rows. An unsupported-payload fixture requires a real failed copy, visible error/window and unchanged timestamp. Core tests reject duplicate activations and stale dismissal after presentation change/stop. Physical keyboard/IME delivery remains separate. |
 | History selection | Private fixtures choose a later row through real search controls, then independently read fresh Copy results after reopen, kind/tab changes and middle/last-row deletion. Query/tab/source are retained on reopen; the transient kind resets. Keyboard/IME and row activation remain separate gates. |
 | Linux native UI | Private Xvfb/DBus, native AT-SPI controls, search/pin/delete/settings/copy and shell lifecycle |
 | Native Wayland | Private Sway without XWayland, independent wl-clipboard peers, portal protocol fixture and pointer-only copy fallback |

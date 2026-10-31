@@ -277,6 +277,47 @@ def click_visible_public_control(label, activate=True):
         click(label)
 
 
+def click_public_history_row(label):
+    if sensitive_probe:
+        raise RuntimeError('row_pointer_outside_private_phase')
+    def row():
+        for node in nodes():
+            if node.getRole() == pyatspi.ROLE_LIST_ITEM and any(child.name == label for child in walk(node)):
+                return node
+        return None
+    control = wait_for(row, 'native_history_row')
+    bounds = control.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+    if bounds.width <= 0 or bounds.height <= 0:
+        raise RuntimeError('native_history_row_bounds')
+    x11 = ctypes.CDLL('libX11.so.6')
+    xtest = ctypes.CDLL('libXtst.so.6')
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    x11.XDefaultRootWindow.restype = ctypes.c_ulong
+    x11.XTranslateCoordinates.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong,
+                                          ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_int),
+                                          ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_ulong)]
+    x11.XFlush.argtypes = [ctypes.c_void_p]
+    x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+    xtest.XTestFakeMotionEvent.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
+    xtest.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+    display = x11.XOpenDisplay(None)
+    if not display:
+        raise RuntimeError('row_pointer_display')
+    try:
+        x, y, child = ctypes.c_int(), ctypes.c_int(), ctypes.c_ulong()
+        if not x11.XTranslateCoordinates(display, window_id(), x11.XDefaultRootWindow(display),
+                                         bounds.x + bounds.width // 2, bounds.y + bounds.height // 2,
+                                         ctypes.byref(x), ctypes.byref(y), ctypes.byref(child)):
+            raise RuntimeError('row_pointer_position')
+        if not (xtest.XTestFakeMotionEvent(display, -1, x.value, y.value, 0) and
+                xtest.XTestFakeButtonEvent(display, 1, 1, 0) and xtest.XTestFakeButtonEvent(display, 1, 0, 0)):
+            raise RuntimeError('row_pointer_click')
+        x11.XFlush(display)
+    finally:
+        x11.XCloseDisplay(display)
+
+
 def hover_public_image():
     if sensitive_probe:
         raise RuntimeError('image_pointer_outside_private_phase')
@@ -752,6 +793,82 @@ try:
     check('counted_history_quits_cleanly', app.returncode == 0)
 
     # A distinct profile makes selection assertions independent of earlier Copy promotion.
+    # Native row activation copies only; it never synthesizes paste or keys.
+    history_root = out / ('history-activation-' + uuid.uuid4().hex)
+    app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root)],
+                           stdout=log, stderr=log, start_new_session=True)
+    wait_for(lambda: has_texts('Ready', '3 items'), 'activation_profile_ready')
+    target = 'Welcome to Clipboard Preview'
+    for round_index in range(2):
+        peer = subprocess.Popen(['xclip', '-selection', 'clipboard', '-in', '-quiet'], stdin=subprocess.PIPE,
+                                stdout=subprocess.DEVNULL, stderr=log, start_new_session=True)
+        try:
+            marker = b'Owned activation regression marker'
+            peer.stdin.write(marker)
+            peer.stdin.close()
+            def read_activation_clipboard():
+                return subprocess.check_output(['xclip', '-selection', 'clipboard', '-out', '-target', 'UTF8_STRING'], timeout=10)
+            wait_for(lambda: read_activation_clipboard() == marker, 'activation_marker_owned')
+            if round_index == 0:
+                wait_for(editor, 'activation_query').queryEditableText().setTextContents('Welcome')
+                wait_for(lambda: has_texts('1 items', target), 'activation_single_row')
+                check('filter_selection_does_not_copy_or_hide_history',
+                      peer.poll() is None and read_activation_clipboard() == marker and window_visible())
+                editor().queryEditableText().setTextContents('Release checklist')
+                wait_for(lambda: has_text('1 items'), 'activation_select_other_item')
+                editor().queryEditableText().setTextContents('e')
+                wait_for(lambda: has_text('2 items'), 'activation_two_rows')
+                def first_selection_is_release():
+                    for node in nodes():
+                        if node.getRole() == pyatspi.ROLE_LIST and 'Selection' in node.get_interfaces():
+                            selection = node.querySelection()
+                            if selection.nSelectedChildren == 1:
+                                return any(child.name == 'Release checklist · build, test, publish' for child in walk(selection.getSelectedChild(0)))
+                    return False
+                wait_for(first_selection_is_release, 'activation_native_preview_selection')
+                check('native_selection_previews_without_activating',
+                      peer.poll() is None and read_activation_clipboard() == marker and window_visible())
+            click_public_history_row(target)
+            wait_for(lambda: peer.poll() is not None, 'native_row_copies_to_clipboard')
+            check('native_row_activation_copies_original_' + str(round_index), read_activation_clipboard() == target.encode())
+            wait_for(lambda: not window_visible(), 'native_row_hides_after_success')
+            check('native_row_activation_hides_after_success_' + str(round_index), app.poll() is None)
+            snapshot = json.loads((history_root / 'history.json').read_text())['items']
+            check('native_row_activation_promotes_original_' + str(round_index), len(snapshot) == 3 and snapshot[0]['preview'] == target)
+        finally:
+            if peer.poll() is None:
+                peer.terminate()
+            peer.wait(timeout=5)
+        wake_existing()
+        wait_for(lambda: has_text('2 items') and editor_with_value('e'), 'activation_reopen_retains_query')
+    click('Settings')
+    wait_for(lambda: has_text('Preferences'), 'activation_quit_settings')
+    click('Quit Clipboard')
+    app.wait(timeout=10)
+    check('activation_profile_quits_cleanly', app.returncode == 0)
+
+    history_root = out / ('activation-failure-' + uuid.uuid4().hex)
+    history_root.mkdir()
+    bad_id = str(uuid.uuid4())
+    bad = dict(id=bad_id, createdAt='2023-11-14T22:13:20Z', kind='text', preview='Unsupported activation fixture',
+               pinned=False, sensitive=False, sha256=hashlib.sha256(b'synthetic unsupported').hexdigest(), sizeBytes=21,
+               payloads=[dict(pasteboardType='com.clipboard.synthetic-unsupported', inlineData=base64.b64encode(b'synthetic unsupported').decode())])
+    (history_root / 'history.json').write_text(json.dumps({'version': 1, 'items': [bad]}))
+    app = subprocess.Popen([str(Path(args.executable).resolve()), '--data-root', str(history_root)],
+                           stdout=log, stderr=log, start_new_session=True)
+    wait_for(lambda: has_texts('Ready', '1 items', 'Unsupported activation fixture'), 'activation_failure_profile')
+    click_public_history_row('Unsupported activation fixture')
+    wait_for(lambda: has_text('Clipboard is unavailable in this session.'), 'activation_failed_copy_reported')
+    check('failed_native_row_copy_keeps_window_visible', window_visible())
+    screenshot('row-activation-copy-failure.png')
+    snapshot = json.loads((history_root / 'history.json').read_text())['items']
+    check('failed_native_row_copy_does_not_promote_or_rewrite_original', snapshot[0]['id'] == bad_id and snapshot[0]['createdAt'] == bad['createdAt'])
+    click('Settings')
+    wait_for(lambda: has_text('Preferences'), 'activation_failure_quit_settings')
+    click('Quit Clipboard')
+    app.wait(timeout=10)
+    check('activation_failure_profile_quits_cleanly', app.returncode == 0)
+
     history_root = out / ('history-selection-' + uuid.uuid4().hex)
     history_root.mkdir()
     selection_items = []
