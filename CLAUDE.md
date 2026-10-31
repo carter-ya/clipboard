@@ -98,3 +98,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Windows rich UI tests pause after each capture before Copy, then require a new clipboard revision and a fresh status transition before checking native format bytes. An old Copied label or the fixture peer owning identical bytes cannot acknowledge a new asynchronous Copy.
 
 - Native Windows probes wait for the matching image/file preview and enabled button before invoking once. Equal result counts do not acknowledge a filter change; never retry an already submitted mutation.
+
+- OCR replacement waits for the native image preview before deleting the old image; an equal one-item count from the previous File filter is not proof of selection.
