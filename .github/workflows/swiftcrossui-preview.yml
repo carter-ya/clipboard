@@ -7,12 +7,14 @@ on:
       - Desktop/**
       - Core/**
       - tools/desktop-ui/**
+      - tools/desktop-package/**
       - .github/workflows/swiftcrossui-preview.yml
   pull_request:
     paths:
       - Desktop/**
       - Core/**
       - tools/desktop-ui/**
+      - tools/desktop-package/**
       - .github/workflows/swiftcrossui-preview.yml
   workflow_dispatch:
 
@@ -110,9 +112,11 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: Desktop/.build
-          key: desktop-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved') }}
+          key: desktop-release-v1-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved', 'Desktop/Package.swift', 'Core/Package.swift', 'Desktop/Patches/**') }}
+          restore-keys: |
+            desktop-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved') }}
       - name: Restore dependency symbolic links on Windows
-        if: runner.os == 'Windows' && steps.ui-cache.outputs.cache-hit == 'true'
+        if: runner.os == 'Windows' && steps.ui-cache.outputs.cache-matched-key != ''
         shell: pwsh
         run: |
           # Windows cache extraction can leave relative directory links unresolved.
@@ -134,12 +138,6 @@ jobs:
         run: |
           & python tools/desktop-ui/build-desktop.py --jobs 2 2>&1 | Tee-Object -FilePath ui-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Save compiled UI dependencies
-        if: always() && steps.ui-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: Desktop/.build
-          key: ${{ steps.ui-cache.outputs.cache-primary-key }}
       - name: Build independent native clipboard peer
         shell: pwsh
         run: |
@@ -179,6 +177,60 @@ jobs:
               -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -OutputDirectory ui-artifacts/baseline -Baseline
             exit $UiExitCode
           }
+      - name: Build optimized desktop artifacts
+        shell: pwsh
+        run: |
+          & python tools/desktop-ui/build-desktop.py --configuration release --jobs 2 2>&1 | Tee-Object -FilePath release-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & swift build --package-path Core --scratch-path Desktop/.build --configuration release --jobs 2 --product scenario-runner
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save compiled debug and optimized UI dependencies
+        if: steps.ui-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: Desktop/.build
+          key: ${{ steps.ui-cache.outputs.cache-primary-key }}
+      - name: Package Linux runtime and verify installation without a Swift SDK
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends patchelf
+          binary_dir=$(swift build --package-path Desktop --configuration release --show-bin-path)
+          python3 tools/desktop-package/package-desktop.py --binary "$binary_dir/ClipboardDesktop" --platform linux --output dist
+          package_dir=$(find dist -mindepth 1 -maxdepth 1 -type d -name 'ClipboardDesktop-*-linux-*' -print -quit)
+          package_name=$(basename "$package_dir")
+          docker build -t clipboard-runtime-fixture -f tools/desktop-package/linux-runtime.Dockerfile .
+          mkdir -p ui-artifacts/package
+          docker run --rm --init --network none -v "$PWD/dist:/packages:ro" -v "$PWD/tools/desktop-ui:/probes:ro" -v "$PWD/tools/desktop-package:/checks:ro" -v "$PWD/ui-artifacts/package:/reports" -v "$binary_dir/scenario-runner:/reference-peer:ro" -v "$PWD/Core/Fixtures/ocr.png:/ocr-fixture.png:ro" clipboard-runtime-fixture \
+            /usr/bin/python3 /checks/check-linux-install.py --package "/packages/$package_name" --probe /probes/smoke-linux.py --clipboard-peer /reference-peer --ocr-fixture /ocr-fixture.png --output /reports/installation
+          for scale in 1 2; do
+            docker run --rm --init --network none -v "$PWD/dist:/packages:ro" -v "$PWD/tools/desktop-ui:/probes:ro" -v "$PWD/ui-artifacts/package:/reports" clipboard-runtime-fixture \
+              dbus-run-session -- xvfb-run -a -s '-screen 0 1920x1440x24' /usr/bin/python3 /probes/check-linux-layout.py \
+              --executable "/packages/$package_name/bin/ClipboardDesktop" --scale "$scale" --output "/reports/scale-$scale"
+          done
+      - name: Build and exercise Windows user installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CLIPBOARD_PRIVATE_INSTALL_TEST: '1'
+        run: |
+          $BinaryDirectory = (& swift build --package-path Desktop --configuration release --show-bin-path).Trim()
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./tools/desktop-ui/install-windows-gtk.ps1 -ConfigureOnly
+          ./tools/desktop-package/build-windows-installer.ps1 -Binary (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -Output dist
+          $Installer = (Get-ChildItem dist/*-setup.exe | Select-Object -First 1).FullName
+          ./tools/desktop-package/check-windows-install.ps1 -Installer $Installer -Output ui-artifacts/package -Probe tools/desktop-ui/smoke-windows.ps1 -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png
+      - name: Upload installable previews and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: clipboard-desktop-preview-${{ runner.os }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*-setup.exe
+            dist/SHA256SUMS
+          if-no-files-found: error
       - name: Upload screenshots and UI test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -186,6 +238,7 @@ jobs:
           name: swiftcrossui-${{ matrix.os }}
           path: |
             ui-build.log
+            release-build.log
             clipboard-peer-build.log
             ui-artifacts
           if-no-files-found: ignore

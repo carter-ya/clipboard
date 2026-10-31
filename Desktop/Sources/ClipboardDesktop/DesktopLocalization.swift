@@ -13,6 +13,9 @@ enum DesktopLocalization {
     return chinese[value] ?? value
   }
   private static let chinese: [String: String] = [
+    "Clipboard could not safely open this profile.": "无法安全打开此配置。",
+    "Close another instance or check the desktop session, then try again.": "请关闭其他实例或检查桌面会话后重试。",
+    "Quit": "退出",
     "Clipboard capture is unavailable on this Wayland desktop. Copy remains available.":
       "此 Wayland 桌面不支持后台读取剪贴板，仍可复制历史内容。",
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.":
@@ -25,7 +28,8 @@ enum DesktopLocalization {
     "The desktop manages this shortcut. Its assigned keys may differ from the preference.":
       "快捷键由桌面管理，实际按键可能与首选设置不同。",
     "Your clipboard history, on this device.": "此设备上的剪贴板历史。",
-    "All": "全部", "All types": "全部类型", "Text": "文本", "Rtf": "富文本", "Image": "图片", "File": "文件",
+    "Filters": "筛选", "Hide filters": "收起筛选", "All": "全部", "All types": "全部类型", "Text": "文本",
+    "Rtf": "富文本", "Image": "图片", "File": "文件",
     "Pinned": "置顶", "Preview": "预览", "Local history": "本地历史", "Source: ": "来源：",
     "Search history": "搜索历史", "Source app ID (optional)": "来源应用标识（可选）",
     "Start recording": "开始录制", "Pause recording": "暂停录制", "Hide": "隐藏", "Settings": "设置",

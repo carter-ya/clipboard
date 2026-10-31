@@ -253,3 +253,46 @@ IME, multi-seat and multi-monitor/DPI remain platform release gates. No broad
 RemoteDesktop permission is requested to bypass clipboard restrictions.
 
 CP7 final local regression: macOS 182 Core tests (one existing Keychain skip), Linux 163 Core tests, X11 rich transport 23 checks, X11 GTK UI 32 checks, Sway GTK UI 32 checks, GTK copy-only fallback 32 aggregate checks, private portal protocol 13 checks, and Weston restricted-capability check all pass. Strict Swift formatting is clean.
+
+
+## CP8 installation and runtime validation
+
+The delivery stack now includes Windows per-user Inno Setup packaging and Linux
+per-user archive installation, with explicit runtime/dependency manifests and
+checksums. Linux bundles Swift libraries and declares Ubuntu 22.04 native GTK,
+OCR and security dependencies. Windows packaging checks the GUI subsystem and
+resolves recursive DLL imports from the verified GTK/selected Swift/MSVC inputs.
+Installation lifetime locks prevent replacing a running application's bundle.
+Upgrade/uninstall retain private history and credentials; uninstall removes only
+owned application/startup/shortcut files. No main merge or release is implied.
+
+The Linux arm64 debug package passed native UI controls in a container without a
+Swift SDK, including installation guards, upgrade history preservation, selective
+uninstall and rejection of a corrupted package. Optimized artifact validation,
+100%/200% compact layouts and bounded repeated lifecycle checks are in progress.
+GTK dependency source archives and exact build recipes were collected locally
+with hashes; CI produces a separate source artifact alongside runtime previews.
+
+Windows GTK now renders the real history window and exposes its accessibility
+tree (run 41039328866), but native focus and minimal button action checks fail.
+The pinned SwiftCrossUI backend has zero-delay Foundation run-loop timeouts that
+can starve lower-priority GTK accessibility idle callbacks; the reviewed patch
+adds a dispatch gap and releases callback contexts. The repair must pass native
+controls in CI before Windows UI acceptance. Screenshot/tree evidence alone is
+not a functional pass. Physical IME, shortcut focus and multi-monitor DPI gates
+remain open even after virtual scaling tests succeed.
+
+
+CP8 optimized Linux arm64 package acceptance passed in the runtime-only image
+with networking disabled: installed GUI, application lifetime upgrade/uninstall
+guards, eight install/upgrade/uninstall checks, and five layout checks at each
+100%/200% scale. Twenty measured hide/reopen cycles after warmup preserve query
+and focus: file descriptors remain 27; RSS changes 243576→245140 KiB. This bounded
+regression is not a multi-day soak. The separate verified runtime source workflow
+41042501729 is green. Windows GTK controls still fail after the scheduler patch;
+the next native run includes content-free action diagnostics, an MTA UIA client,
+default-priority AccessKit input dispatch and editable SetValue support.
+
+The optimized installed Linux package also passes rich image/file capture and copy, real Tesseract OCR, and separate OCR-result copy with an independent native peer. The peer uses only the installed runtime libraries; the app loader path remains unmodified. See Desktop/TESTING.md for the remaining interactive release gates.
+
+The final command-entry Linux package passes 63 installed GUI/lifecycle checks and eight installer checks; both scale suites pass six checks, including readable in-bounds history rows. Its latest measured lifecycle run keeps 27 descriptors and grows RSS by 1032 KiB. Bare PATH launch installation locks and localized service/privacy notes are covered.

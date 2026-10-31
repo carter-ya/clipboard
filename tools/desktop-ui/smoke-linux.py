@@ -16,9 +16,12 @@ import pyatspi
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--executable', required=True)
+parser.add_argument('--launch-command', help='Resolve the installed menu/command entry through PATH')
 parser.add_argument('--output', required=True)
 parser.add_argument('--clipboard-peer')
 parser.add_argument('--ocr-fixture')
+parser.add_argument('--lifecycle-cycles', type=int, default=0, help='Bounded private hide/reopen resource regression')
+parser.add_argument('--install-package', help='Private package fixture for installation-lock checks')
 args = parser.parse_args()
 out = Path(args.output).resolve()
 out.mkdir(parents=True, exist_ok=True)
@@ -196,10 +199,22 @@ def screenshot(name):
 
 try:
     wm = subprocess.Popen(['openbox', '--sm-disable'], stdout=log, stderr=log)
-    app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root)],
+    app = subprocess.Popen([args.launch_command or str(Path(args.executable).resolve()), '--smoke-root', str(history_root)],
                            stdout=log, stderr=log, start_new_session=True)
     wait_for(lambda: has_text('Ready') and has_text('3 items'), 'initial_history')
     check('native_window_and_history_visible', True)
+    if args.install_package:
+        package = Path(args.install_package).resolve()
+        installation = Path(args.executable).resolve().parent.parent
+        metadata = json.loads((installation / 'installation.json').read_text())
+        upgrade = subprocess.run(['/usr/bin/python3', str(package / 'install.py'), '--prefix', str(installation),
+                                  '--applications-dir', str(Path(metadata['desktopEntry']).parent),
+                                  '--bin-dir', str(Path(metadata['shortcut']).parent),
+                                  '--config-home', str(Path(metadata['autostart']).parent.parent)], capture_output=True, text=True)
+        check('running_installed_app_blocks_upgrade', upgrade.returncode != 0 and 'Quit Clipboard' in upgrade.stderr)
+        uninstall = subprocess.run(['/usr/bin/python3', str(installation / 'uninstall.py')], capture_output=True, text=True)
+        check('running_installed_app_blocks_uninstall', uninstall.returncode != 0 and 'Quit Clipboard' in uninstall.stderr)
+
     screenshot('history.png')
     edit = wait_for(editor, 'search_editable_control')
     try:
@@ -244,6 +259,29 @@ try:
     check('native_close_keeps_existing_process_alive', app.poll() is None)
     wake_existing()
     check('native_close_reopen_preserves_query', editor().queryText().getText(0, editor().queryText().characterCount) == '中文')
+    if args.lifecycle_cycles:
+        if not 5 <= args.lifecycle_cycles <= 100:
+            raise RuntimeError('lifecycle_cycles_out_of_range')
+        def resources():
+            status = Path('/proc/' + str(app.pid) + '/status').read_text()
+            rss = int(next(line.split()[1] for line in status.splitlines() if line.startswith('VmRSS:')))
+            return {'rssKiB': rss, 'fds': len(list(Path('/proc/' + str(app.pid) + '/fd').iterdir()))}
+        baseline = None
+        for cycle in range(args.lifecycle_cycles + 5):
+            click('Hide')
+            wait_for(lambda: not window_visible(), 'cycle_window_hidden')
+            wake_existing()
+            wait_for(lambda: editor().getState().contains(pyatspi.STATE_FOCUSED), 'cycle_search_focus')
+            if editor().queryText().getText(0, editor().queryText().characterCount) != '中文':
+                raise RuntimeError('cycle_lost_search')
+            if cycle == 4:
+                baseline = resources()
+        final = resources()
+        (out / 'lifecycle-resources.json').write_text(json.dumps({'cycles': args.lifecycle_cycles,
+                                                                 'baseline': baseline, 'final': final}, indent=2))
+        check('repeated_hide_reopen_preserves_query_and_focus', True)
+        check('repeated_window_lifecycle_keeps_fds_bounded', final['fds'] <= baseline['fds'] + 4)
+        check('repeated_window_lifecycle_keeps_memory_bounded', final['rssKiB'] <= baseline['rssKiB'] + 32768)
     click('Delete')
     wait_for(lambda: has_text('Item deleted') and has_text('0 items'), 'delete_in_pinned_list')
     check('delete_updates_real_store', True)
@@ -330,6 +368,9 @@ try:
     click('简体中文')
     wait_for(lambda: has_text('偏好设置') and has_text('语言已保存'), 'localized_settings')
     check('language_switch_updates_native_controls', bool(button('返回历史')) and bool(button('保存行为设置')))
+    check('localized_service_privacy_and_capability_notes',
+          has_text('本地 OCR 使用已安装的语言包，此平台不提供 Apple 专属模型。') and
+          has_text('远程 AI 默认关闭。启用后，符合条件的内容会发送到指定服务。'))
     screenshot('settings-chinese.png')
     click('返回历史')
     wait_for(lambda: editor() and has_text('设置'), 'localized_history')

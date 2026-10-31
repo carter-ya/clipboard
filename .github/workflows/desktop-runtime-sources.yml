@@ -1,0 +1,32 @@
+name: Desktop runtime sources
+on:
+  pull_request:
+    paths:
+      - Desktop/Packaging/**
+      - tools/desktop-package/**
+      - tools/desktop-ui/install-windows-gtk.ps1
+      - tools/desktop-ui/apply-gtk-source-patch.py
+      - tools/desktop-ui/gtk-4.22.4-accesskit-actions.patch
+      - tools/desktop-ui/extract-gtk-source.py
+      - tools/desktop-ui/normalize-windows-pkgconfig.py
+      - .github/workflows/desktop-runtime-sources.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: build/runtime-sources/archives
+          key: desktop-runtime-sources-gvsbuild-0362fd8-accesskit-0c52a8c
+      - name: Collect verified library sources and exact build recipes
+        run: python3 tools/desktop-package/collect-runtime-sources.py --workdir build/runtime-sources --output dist/sources
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-runtime-sources
+          path: dist/sources
+          if-no-files-found: error

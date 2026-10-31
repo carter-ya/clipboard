@@ -14,9 +14,14 @@ struct ClipboardDesktopApp: App {
     WindowGroup("Clipboard") {
       if DesktopApplicationContext.startupFailed {
         VStack(spacing: 16) {
-          Text("Clipboard could not safely open this profile.")
-          Text("Close another instance or check the desktop session, then try again.")
-          Button("Quit") { exit(1) }
+          Text(
+            DesktopLocalization.text("Clipboard could not safely open this profile.", language: nil)
+          )
+          Text(
+            DesktopLocalization.text(
+              "Close another instance or check the desktop session, then try again.", language: nil)
+          )
+          Button(DesktopLocalization.text("Quit", language: nil)) { exit(1) }
         }.padding(24)
       } else if CommandLine.arguments.contains("--ui-baseline") {
         BaselineView()
@@ -30,39 +35,57 @@ struct ClipboardDesktopApp: App {
 
 struct HistoryView: View {
   @State var model = HistoryModel()
+  @State var showsCompactFilters = false
   @Environment(\.chooseFile) var chooseFile
   @Environment(\.chooseFileSaveDestination) var chooseSaveDestination
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      header
-      if model.showsSettings {
-        settings
-      } else {
-        history
-      }
-      Spacer()
-      Divider()
-      HStack {
-        Text(model.t(model.status)).foregroundColor(.gray)
-        Spacer()
-        Text(model.t("Local history")).foregroundColor(.gray)
-      }
+    GeometryReader { geometry in
+      let compact = geometry.size.width < 820
+      VStack(alignment: .leading, spacing: 12) {
+        header(compact: compact)
+        ScrollView {
+          if model.showsSettings {
+            settings
+          } else {
+            history(compact: compact)
+          }
+        }.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+        if !model.showsSettings { itemActions }
+        Divider()
+        HStack {
+          Text(model.t(model.status)).foregroundColor(.gray)
+          Spacer()
+          if !compact { Text(model.t("Local history")).foregroundColor(.gray) }
+        }
+      }.padding(compact ? 12 : 24)
+        .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
     }
-    .padding(24)
     .environment(\.colorScheme, model.effectiveDark ? .dark : .light)
     .inspectWindow { model.attachWindow($0) }
     .task { await model.load() }
     .onChange(of: model.selectedID) { Task { @MainActor in await model.loadPreview() } }
   }
 
-  var header: some View {
+  func header(compact: Bool) -> some View {
     HStack {
-      VStack(alignment: .leading, spacing: 4) {
-        Text(model.t("Clipboard")).font(.system(size: 26))
-        Text(model.t("Your clipboard history, on this device.")).foregroundColor(.gray)
+      if compact {
+        Text(model.t("Clipboard")).font(.system(size: 22))
+      } else {
+        title
       }
       Spacer()
+      headerActions
+    }
+  }
+  var title: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(model.t("Clipboard")).font(.system(size: 26))
+      Text(model.t("Your clipboard history, on this device.")).foregroundColor(.gray)
+    }
+  }
+  var headerActions: some View {
+    HStack {
       Button(model.t(model.recording ? "Pause recording" : "Start recording")) {
         Task { @MainActor in await model.toggleRecording() }
       }.disabled(!model.ready || model.recordingTransition)
@@ -71,7 +94,7 @@ struct HistoryView: View {
     }
   }
 
-  var history: some View {
+  func history(compact: Bool) -> some View {
     VStack(alignment: .leading, spacing: 14) {
       TextField(model.t("Search history"), text: $model.query)
         .inspect { model.attachSearch($0) }
@@ -85,50 +108,88 @@ struct HistoryView: View {
           model.onlyPinned = true
           Task { @MainActor in await model.refresh() }
         }
+        if compact {
+          Button(model.t(showsCompactFilters ? "Hide filters" : "Filters")) {
+            showsCompactFilters.toggle()
+          }
+        }
         Spacer()
         Text(model.t("\(model.items.count) items")).foregroundColor(.gray)
       }
-      HStack(spacing: 8) {
-        Button(model.t("All types")) {
-          model.kindFilter = nil
-          Task { @MainActor in await model.refresh() }
-        }
-        ForEach(ClipKind.allCases.filter { $0 != .mixed }, id: \.self) { kind in
-          Button(model.t(kind.rawValue.capitalized)) {
-            model.kindFilter = kind
-            Task { @MainActor in await model.refresh() }
+      if !compact || showsCompactFilters {
+        if compact {
+          VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+              allTypesButton
+              typeButton(.text)
+              typeButton(.rtf)
+            }
+            HStack(spacing: 8) {
+              typeButton(.image)
+              typeButton(.file)
+              Spacer()
+            }
           }
+        } else {
+          HStack(spacing: 8) {
+            allTypesButton
+            ForEach(ClipKind.allCases.filter { $0 != .mixed }, id: \.self) { kind in
+              typeButton(kind)
+            }
+          }
+        }
+        #if os(Linux)
+          if ProcessInfo.processInfo.environment["WAYLAND_DISPLAY"] != nil {
+            Text(
+              model.t(
+                "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply."
+              )
+            )
+            .font(.system(size: 12)).foregroundColor(.gray)
+          }
+        #endif
+        TextField(model.t("Source app ID (optional)"), text: $model.sourceFilter)
+          .onChange(of: model.sourceFilter) { Task { @MainActor in await model.refresh() } }
+      }
+      Divider()
+      if compact {
+        VStack(alignment: .leading, spacing: 16) {
+          historyItems.frame(maxWidth: .infinity, minHeight: 180, maxHeight: 220)
+          Divider()
+          preview.frame(maxWidth: .infinity, minHeight: 200, maxHeight: 300)
+        }
+      } else {
+        HStack(alignment: .top, spacing: 20) {
+          historyItems.frame(minWidth: 300, maxWidth: 340, minHeight: 280, maxHeight: 360)
+          Divider()
+          preview.frame(
+            minWidth: 340, maxWidth: .infinity, minHeight: 280, maxHeight: 360)
         }
       }
-      #if os(Linux)
-        if ProcessInfo.processInfo.environment["WAYLAND_DISPLAY"] != nil {
+    }
+  }
+  var allTypesButton: some View {
+    Button(model.t("All types")) {
+      model.kindFilter = nil
+      Task { @MainActor in await model.refresh() }
+    }.frame(minWidth: 88)
+  }
+  func typeButton(_ kind: ClipKind) -> some View {
+    Button(model.t(kind.rawValue.capitalized)) {
+      model.kindFilter = kind
+      Task { @MainActor in await model.refresh() }
+    }.frame(minWidth: 72)
+  }
+  var historyItems: some View {
+    ScrollView {
+      List(model.items, selection: $model.selectedID) { item in
+        VStack(alignment: .leading, spacing: 7) {
+          Text(item.sensitive ? model.t("Sensitive content") : item.preview).lineLimit(2)
           Text(
-            model.t(
-              "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply."
-            )
+            (item.pinned ? model.t("Pinned") + " · " : "") + model.t(item.kind.rawValue.capitalized)
           )
           .font(.system(size: 12)).foregroundColor(.gray)
-        }
-      #endif
-      TextField(model.t("Source app ID (optional)"), text: $model.sourceFilter)
-        .onChange(of: model.sourceFilter) { Task { @MainActor in await model.refresh() } }
-      Divider()
-      HStack(alignment: .top, spacing: 20) {
-        ScrollView {
-          List(model.items, selection: $model.selectedID) { item in
-            VStack(alignment: .leading, spacing: 7) {
-              Text(item.sensitive ? model.t("Sensitive content") : item.preview)
-                .lineLimit(2)
-              Text(
-                (item.pinned ? model.t("Pinned") + " · " : "")
-                  + model.t(item.kind.rawValue.capitalized)
-              )
-              .font(.system(size: 12)).foregroundColor(.gray)
-            }.padding(10)
-          }
-        }.frame(minWidth: 300, maxWidth: 340, minHeight: 280)
-        Divider()
-        preview.frame(minWidth: 340, maxWidth: .infinity, minHeight: 280)
+        }.padding(10)
       }
     }
   }
@@ -155,6 +216,13 @@ struct HistoryView: View {
           }
         }
       }.frame(minHeight: 100, maxHeight: 180)
+      Text(model.t("Copy here, then paste in your app."))
+        .font(.system(size: 12)).foregroundColor(.gray)
+    }
+  }
+
+  var itemActions: some View {
+    VStack(alignment: .leading, spacing: 10) {
       HStack(spacing: 10) {
         Button(model.t("Copy")) { Task { @MainActor in await model.copySelected() } }.disabled(
           model.selected == nil)
@@ -163,16 +231,16 @@ struct HistoryView: View {
         Button(model.t("Delete")) { Task { @MainActor in await model.deleteSelected() } }
           .disabled(model.selected == nil)
       }
-      HStack(spacing: 10) {
-        Button(model.t("Recognize text")) { model.analyze(remote: false) }
-          .disabled(
-            model.selected?.kind != .image || model.selected?.sensitive == true
-              || model.analysisBusy)
-        Button(model.t("Summarize")) { model.analyze(remote: true) }
-          .disabled(!model.canSummarize || model.analysisBusy)
+      if model.selected?.kind == .image || model.canSummarize {
+        HStack(spacing: 10) {
+          Button(model.t("Recognize text")) { model.analyze(remote: false) }
+            .disabled(
+              model.selected?.kind != .image || model.selected?.sensitive == true
+                || model.analysisBusy)
+          Button(model.t("Summarize")) { model.analyze(remote: true) }
+            .disabled(!model.canSummarize || model.analysisBusy)
+        }
       }
-      Text(model.t("Copy here, then paste in your app."))
-        .font(.system(size: 12)).foregroundColor(.gray)
     }
   }
 
@@ -224,10 +292,14 @@ struct HistoryView: View {
         Task { @MainActor in await model.toggleStartup() }
       }.disabled(!model.startupAvailable)
       Text(
-        "Local OCR uses installed system language packs. Apple-only models are unavailable here.")
+        model.t(
+          "Local OCR uses installed system language packs. Apple-only models are unavailable here.")
+      )
       Toggle(model.t("Automatically recognize images"), isOn: $model.automaticOCRDraft)
       Text(
-        "Remote AI is off by default. Enabling it sends eligible content to your chosen endpoint.")
+        model.t(
+          "Remote AI is off by default. Enabling it sends eligible content to your chosen endpoint."
+        ))
       Toggle(model.t("Enable remote AI"), isOn: $model.aiEnabledDraft)
       Toggle(model.t("Allow image uploads"), isOn: $model.aiImagesDraft)
       Toggle(model.t("Automatically summarize new items"), isOn: $model.automaticSummariesDraft)
