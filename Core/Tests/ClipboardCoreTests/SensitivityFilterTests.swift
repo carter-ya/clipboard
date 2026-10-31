@@ -99,18 +99,18 @@ final class BlocklistFilterTests: XCTestCase {
     let clipboard = FakeRichClipboard()
     let monitor = RichClipboardMonitor(
       clipboard: clipboard,
-      filter: BlocklistFilter(blockedBundleIDs: ["windows:bitwarden.exe"]))
+      filter: BlocklistFilter(blockedBundleIDs: ["WINDOWS:BiTwArDeN.EXE"]))
     let data = Data("synthetic source fixture".utf8)
     clipboard.push(
       .init(
         payloads: [.init(pasteboardType: "public.utf8-plain-text", data: data)],
-        sourceAppID: "windows:Bitwarden.exe", sensitive: false, revision: 1))
+        sourceAppID: "windows:bitwarden.exe", sensitive: false, revision: 1))
     monitor.pulse()
     var changes = monitor.changes.makeAsyncIterator()
     let next = await changes.next()
     let captured = try XCTUnwrap(next)
     XCTAssertTrue(captured.isSensitive)
-    XCTAssertEqual(captured.bundleID, "windows:Bitwarden.exe")
+    XCTAssertEqual(captured.bundleID, "windows:bitwarden.exe")
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(
       "source-case-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }

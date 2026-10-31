@@ -3,6 +3,9 @@ import Foundation
 
 #if os(Windows)
   import DesktopClipboard
+  import CPlatformScenarioFixtures
+
+  func runOwnedSourcePeer() -> Int32 { clipboard_run_owned_source_fixture() }
 
   /// Only the isolated Windows runner may publish this synthetic source fixture.
   func runPlatformSourceFilter() async -> Report {
@@ -38,7 +41,7 @@ import Foundation
       environment[pathKey] =
         executable.deletingLastPathComponent().path + ";" + (environment[pathKey] ?? "")
       peer.environment = environment
-      peer.arguments = ["rich-clipboard-peer", "rich"]
+      peer.arguments = ["source-clipboard-peer"]
       peer.standardInput = input
       peer.standardOutput = output
       peer.standardError = FileHandle.nullDevice
@@ -58,11 +61,12 @@ import Foundation
       }
       guard ready == Data("ready\n".utf8) else { throw TextClipboardError.unavailable }
       stage = "source_fixture_native_read"
-      guard let snapshot = try clipboard.read(maxBytes: 1024 * 1024),
-        let source = snapshot.sourceAppID
-      else {
+      guard let snapshot = try clipboard.read(maxBytes: 1024 * 1024) else {
+        stage = "source_fixture_empty_snapshot"
         throw TextClipboardError.unavailable
       }
+      stage = "source_fixture_owner_identity"
+      guard let source = snapshot.sourceAppID else { throw TextClipboardError.unavailable }
       check(
         "native_source_identifies_the_owned_synthetic_executable",
         source.lowercased() == "windows:bitwarden.exe", into: &checks)
@@ -71,16 +75,22 @@ import Foundation
         payloads: snapshot.payloads, bundleID: source,
         changeCount: Int(truncatingIfNeeded: snapshot.revision),
         totalBytes: snapshot.payloads.reduce(0) { $0 + $1.data.count })
-      let filter = BlocklistFilter(blockedBundleIDs: DesktopSettings().blockedAppIDs)
-      if case .markSensitive(let reason) = filter.evaluate(
-        raw,
-        context: .init(
-          sourceBundleID: source, changeCount: raw.changeCount, timestamp: raw.timestamp))
-      {
+      let context = ClipContext(
+        sourceBundleID: source, changeCount: raw.changeCount, timestamp: raw.timestamp)
+      let defaults = BlocklistFilter(blockedBundleIDs: DesktopSettings().blockedAppIDs)
+      let defaultSensitive: Bool
+      if case .markSensitive = defaults.evaluate(raw, context: context) {
+        defaultSensitive = true
+      } else {
+        defaultSensitive = false
+      }
+      check("default_filter_marks_the_native_source_sensitive", defaultSensitive, into: &checks)
+      let filter = BlocklistFilter(blockedBundleIDs: ["WINDOWS:BiTwArDeN.EXE"])
+      if case .markSensitive(let reason) = filter.evaluate(raw, context: context) {
         raw.isSensitive = true
         raw.sensitivityReason = reason
       }
-      check("default_filter_marks_the_native_source_sensitive", raw.isSensitive, into: &checks)
+      check("custom_case_filter_marks_the_native_source_sensitive", raw.isSensitive, into: &checks)
       stage = "source_fixture_memory_store"
       let storeRoot = root.appendingPathComponent("store")
       let store = try await JSONSnapshotClipStore(root: storeRoot, inlineThresholdBytes: 1)
