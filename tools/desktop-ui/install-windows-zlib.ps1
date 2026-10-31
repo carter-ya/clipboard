@@ -32,9 +32,10 @@ foreach ($Library in @('msvcrt.lib', 'oldnames.lib', 'msvcprt.lib')) {
   $Found = @($env:LIB -split ';' | Where-Object { $_ -and (Test-Path (Join-Path $_ $Library)) })
   if (!$Found.Count) { throw 'msvc_runtime_library_paths_missing' }
 }
-# Official zlib release and SHA-256 published at https://zlib.net/.
+# Official upstream release asset, with SHA-256 published at https://zlib.net/.
+# The zlib.net endpoint can return a browser challenge instead of the archive.
 $ExpectedHash = 'bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16'
-Invoke-WebRequest -Uri 'https://zlib.net/fossils/zlib-1.3.2.tar.gz' -OutFile $Archive
+Invoke-WebRequest -Uri 'https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz' -OutFile $Archive
 if ((Get-FileHash -Algorithm SHA256 $Archive).Hash.ToLowerInvariant() -cne $ExpectedHash) {
   throw 'zlib_source_checksum_mismatch'
 }
