@@ -183,3 +183,5 @@
 "Light" = "Hell";
 
 "Dark" = "Dunkel";
+
+"summary.badge.localExcerpt" = "Lokaler Auszug";

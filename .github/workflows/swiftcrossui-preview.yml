@@ -152,6 +152,14 @@ jobs:
         run: |
           & python tools/desktop-ui/build-desktop.py --jobs 2 2>&1 | Tee-Object -FilePath ui-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify Windows executable stack reservation
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $BinaryDirectory = (& swift build --package-path Desktop --show-bin-path).Trim()
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & python tools/desktop-ui/check-windows-stack.py --executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') --output ui-artifacts/windows-stack.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build independent native clipboard peer
         shell: pwsh
         run: |
@@ -202,6 +210,12 @@ jobs:
         run: |
           & python tools/desktop-ui/build-desktop.py --configuration release --jobs 2 2>&1 | Tee-Object -FilePath release-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($env:RUNNER_OS -eq 'Windows') {
+            $ReleaseDirectory = (& swift build --package-path Desktop --configuration release --show-bin-path).Trim()
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & python tools/desktop-ui/check-windows-stack.py --executable (Join-Path $ReleaseDirectory 'ClipboardDesktop.exe') --output ui-artifacts/windows-release-stack.json
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
           & swift build --package-path Core --scratch-path Desktop/.build --configuration release --jobs 2 --product scenario-runner
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Save compiled debug and optimized UI dependencies

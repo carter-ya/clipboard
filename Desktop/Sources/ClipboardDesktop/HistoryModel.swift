@@ -24,6 +24,8 @@ final class HistoryModel: ObservableObject {
   @Published var aiKeyDraft = ""
   @Published var automaticSummariesDraft = false
   @Published var automaticOCRDraft = false
+  @Published var localTextSummariesDraft = false
+  @Published var automaticLocalSummariesDraft = false
   @Published var appearance = "system"
   @Published var effectiveDark = false
   @Published var uiLanguage: String?
@@ -124,6 +126,12 @@ final class HistoryModel: ObservableObject {
     return true
   }
 
+  @MainActor var canSummarizeLocally: Bool {
+    guard settings.localTextSummariesEnabled, let item = selected, !item.sensitive,
+      [.text, .rtf, .mixed].contains(item.kind)
+    else { return false }
+    return true
+  }
   var canRevealSensitivePreview: Bool {
     selected?.sensitive == true && revealedSensitiveID != selectedID
   }
@@ -320,6 +328,8 @@ final class HistoryModel: ObservableObject {
       aiModelDraft = settings.ai.model
       automaticSummariesDraft = settings.automaticSummaries
       automaticOCRDraft = settings.automaticOCR
+      localTextSummariesDraft = settings.localTextSummariesEnabled
+      automaticLocalSummariesDraft = settings.automaticLocalSummaries
       var startupBackend: NativeDesktopStartup?
       if DesktopApplicationContext.profile == "production" {
         startupBackend = try? NativeDesktopStartup(
@@ -392,9 +402,13 @@ final class HistoryModel: ObservableObject {
           // for every captured item. Refresh once before the next presentation.
           if self.nativeWindow?.isVisible != false && !self.showsSettings { await self.refresh() }
           if case .inserted(let item) = event, !item.sensitive {
-            if self.settings.automaticSummaries && self.settings.ai.allowsSummary(of: item.kind)
-            {
+            if self.settings.automaticSummaries && self.settings.ai.allowsSummary(of: item.kind) {
               self.enqueueAutomaticAnalysis(remote: true, item: item)
+            } else if self.settings.localTextSummariesEnabled
+              && self.settings.automaticLocalSummaries
+              && [.text, .rtf, .mixed].contains(item.kind)
+            {
+              self.enqueueAutomaticAnalysis(remote: false, item: item)
             } else if self.settings.automaticOCR && item.kind == .image {
               self.enqueueAutomaticAnalysis(remote: false, item: item)
             }
@@ -866,6 +880,8 @@ final class HistoryModel: ObservableObject {
     next.ai.model = aiModelDraft.trimmingCharacters(in: .whitespacesAndNewlines)
     next.automaticSummaries = automaticSummariesDraft
     next.automaticOCR = automaticOCRDraft
+    next.localTextSummariesEnabled = localTextSummariesDraft
+    next.automaticLocalSummaries = automaticLocalSummariesDraft
     do {
       try next.validate()
       try await settingsStore.save(next)
@@ -931,6 +947,7 @@ final class HistoryModel: ObservableObject {
     else { return }
     guard let ticket = analysisProgress.begin(id: item.id, remote: request.remote) else { return }
     let remote = request.remote
+    let localText = !remote && item.kind != .image
     let configuration = settings.ai
     let service = DesktopAnalysis(
       credentials: credentials, transport: transport, ocr: ocr,
@@ -941,7 +958,7 @@ final class HistoryModel: ObservableObject {
         try await
         (remote
         ? service.summarize(item, settings: configuration, language: language)
-        : service.recognize(item, language: language))
+        : localText ? service.summarizeLocally(item) : service.recognize(item, language: language))
       try Task.checkCancellation()
       guard !result.isEmpty else {
         analysisProgress.finish(ticket, succeeded: false)
@@ -955,12 +972,13 @@ final class HistoryModel: ObservableObject {
         return
       }
       await store?.updateSummary(
-        id: item.id, summary: result, source: remote ? .remoteOpenAI : .localOCR)
+        id: item.id, summary: result,
+        source: remote ? .remoteOpenAI : localText ? .localExtractive : .localOCR)
       await store?.flush()
       loadedPreviewID = nil
       await refresh()
       analysisProgress.finish(ticket, succeeded: true)
-      status = remote ? "Summary ready" : "OCR text ready"
+      status = remote || localText ? "Summary ready" : "OCR text ready"
     } catch is CancellationError {
       analysisProgress.remove(id: item.id)
       status = "Analysis cancelled"
@@ -969,7 +987,9 @@ final class HistoryModel: ObservableObject {
       status =
         remote
         ? "Summary unavailable. Check AI settings and the connection."
-        : "OCR unavailable. Check the image and installed OCR language packs."
+        : localText
+          ? "Local excerpts need at least 100 characters of readable text."
+          : "OCR unavailable. Check the image and installed OCR language packs."
     }
   }
   @MainActor func setAppearance(_ value: String) async {

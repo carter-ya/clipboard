@@ -975,6 +975,67 @@ try:
     app.wait(timeout=10)
     check('startup_state_profile_quits_cleanly', app.returncode == 0)
 
+    if args.clipboard_peer:
+        history_root = out / ('local-summary-' + uuid.uuid4().hex)
+        history_root.mkdir()
+        manual_lead = 'Manual local summary fixture begins with a useful sentence.'
+        manual_text = manual_lead + ' More local fixture context.' * 10
+        manual_item = dict(id=str(uuid.uuid4()), createdAt='2023-11-14T22:13:20Z', kind='text',
+                           preview=manual_text, sha256=hashlib.sha256(manual_text.encode()).hexdigest(),
+                           sizeBytes=len(manual_text.encode()), pinned=False, sensitive=False,
+                           payloads=[dict(pasteboardType='public.utf8-plain-text',
+                                          inlineData=base64.b64encode(manual_text.encode()).decode())])
+        (history_root / 'history.json').write_text(json.dumps(dict(version=1, items=[manual_item])))
+        (history_root / 'desktop-settings.json').write_text(json.dumps(dict(localTextSummariesEnabled=True)))
+        app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root)],
+                               stdout=log, stderr=log, start_new_session=True)
+        wait_for(lambda: has_texts('Ready', '1 items'), 'local_summary_profile_ready')
+        click('Summarize locally')
+        wait_for(lambda: has_texts('Summary ready', 'Local excerpt', manual_lead), 'manual_local_summary_ready')
+        stored = json.loads((history_root / 'history.json').read_text())['items'][0]
+        check('local_summary_preserves_original_payload_and_labels_its_engine',
+              stored.get('summary') == manual_lead and stored.get('summarySource') == 'localExtractive' and
+              base64.b64decode(stored['payloads'][0]['inlineData']).decode() == manual_text)
+        screenshot('local-text-summary.png')
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'local_summary_settings')
+        click('Automatically summarize text locally')
+        click_visible_public_control('Save AI settings')
+        wait_for(lambda: json.loads((history_root / 'desktop-settings.json').read_text()).get('automaticLocalSummaries') is True,
+                 'automatic_local_summary_saved')
+        saved = json.loads((history_root / 'desktop-settings.json').read_text())
+        check('local_summary_opt_in_keeps_remote_and_image_uploads_off',
+              saved['localTextSummariesEnabled'] and not saved['ai']['enabled'] and not saved['ai']['allowImages'])
+        click('Back to history')
+        wait_for(lambda: editor(), 'local_summary_history_restored')
+        click('Start recording')
+        wait_for(lambda: has_text('Recording clipboard'), 'local_summary_capture_ready')
+        peer = subprocess.Popen([str(Path(args.clipboard_peer).resolve()), 'rich-clipboard-peer', 'local-summary'],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+        try:
+            if not select.select([peer.stdout], [], [], 10)[0] or peer.stdout.readline(32).strip() != b'ready':
+                raise RuntimeError('local_summary_peer_ready')
+            automatic_lead = 'This synthetic local summary stays on this device.'
+            wait_for(lambda: any(item.get('summary') == automatic_lead and item.get('summarySource') == 'localExtractive'
+                                for item in json.loads((history_root / 'history.json').read_text())['items']),
+                     'automatic_local_summary_ready')
+            check('native_capture_can_generate_local_summary_without_remote_AI', True)
+            editor().queryEditableText().setTextContents('This synthetic local summary')
+            wait_for(lambda: has_texts('1 items', 'Local excerpt', automatic_lead), 'automatic_local_result_selected')
+            click('Pause recording')
+            click('Settings')
+            wait_for(lambda: has_text('Preferences'), 'local_summary_quit_settings')
+            click('Quit Clipboard')
+            app.wait(timeout=10)
+            check('local_summary_private_profile_quits_cleanly', app.returncode == 0)
+        finally:
+            peer.stdin.close()
+            try:
+                peer.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                peer.kill()
+                peer.wait(timeout=5)
+
     # Per-item progress uses a fresh synthetic profile and an owned loopback
     # service. Only the selected seeded item can enter these two requests.
     analysis_environment = os.environ.copy()
