@@ -49,7 +49,7 @@ jobs:
       - name: Verify private fixture interpreter with an isolated PATH
         shell: pwsh
         run: |
-          $FixturePython = (Get-Command python -CommandType Application -ErrorAction Stop).Source
+          $FixturePython = (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
           ./tools/desktop-ui/test-private-fixture-python.ps1 -FixturePython $FixturePython
       - name: Verify private AI fixture response cancellation
         run: python tools/desktop-ui/test-ai-probe-errors.py
