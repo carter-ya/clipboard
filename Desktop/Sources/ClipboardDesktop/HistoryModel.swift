@@ -311,10 +311,10 @@ final class HistoryModel: ObservableObject {
       }
     }
     shellTask = Task { @MainActor [weak self] in
-      for await action in actions {
+      for await event in actions {
         guard !Task.isCancelled, let self else { break }
         self.nativeWindow?.activationTimestamp = shell.activationTimestamp
-        self.nativeWindow?.activationToken = shell.takeActivationToken()
+        let action = event.action
         switch action {
         case .toggleHistory:
           if self.nativeWindow?.isVisible == true && !self.showsSettings {
@@ -322,7 +322,9 @@ final class HistoryModel: ObservableObject {
           } else {
             await self.showHistory()
           }
-        case .showHistory: await self.showHistory()
+        case .showHistory:
+          self.nativeWindow?.activationToken = event.activationToken
+          await self.showHistory()
         case .showPreferences: self.showPreferences()
         case .toggleRecording: await self.toggleRecording()
         case .quit: await self.shutdown()

@@ -26,7 +26,7 @@ static DWORD WINAPI instance_loop(void *value) {
   while (WaitForMultipleObjects(2, handles, FALSE, INFINITE) ==
          WAIT_OBJECT_0 + 1)
     if (instance->callback)
-      instance->callback(instance->context, 2);
+      instance->callback(instance->context, 2, NULL);
   return 0;
 }
 void clipboard_instance_destroy(clipboard_instance *instance) {
@@ -178,7 +178,7 @@ static void *instance_loop(void *value) {
       unsigned char action = 0;
       if (poll(&ready, 1, 500) > 0 && read(client, &action, 1) == 1 &&
           action == 1 && instance->callback)
-        instance->callback(instance->context, 2);
+        instance->callback(instance->context, 2, NULL);
       close(client);
     }
   }

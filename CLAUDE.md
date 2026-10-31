@@ -107,3 +107,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Native X11 shortcut dispatch must require an acquired registration and exact configured keyboard modifiers. Ignore Caps Lock and the discovered Num Lock mask, retain held-key suppression, and test the native dispatcher directly without synthesizing keyboard input.
 
 - Automatic desktop analysis uses the bounded ID-only serial scheduler; a busy manual action must not discard inserted clips. Recheck live settings and the current item when dequeuing, exclude sensitive/concealed or already analyzed clips, report overflow, and cancel/clear work on shutdown. Keep manual duplicate actions guarded.
+
+- Wayland activation tokens belong to immutable shell events. Copy the borrowed native callback string into its matching showHistory event; unrelated or delayed actions must not consume a shared token slot. Keep the delayed-consumer, two-distinct-activations portal regression.

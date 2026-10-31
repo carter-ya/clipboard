@@ -28,7 +28,7 @@ struct clipboard_shell {
 };
 static void emit(clipboard_shell *s, int32_t action) {
   if (s->callback)
-    s->callback(s->context, action);
+    s->callback(s->context, action, NULL);
 }
 static UINT virtual_key(const char *key) {
   size_t size = strlen(key);
@@ -302,7 +302,7 @@ struct clipboard_shell {
 };
 static void emit(clipboard_shell *s, int32_t action) {
   if (!atomic_load(&s->stopping) && s->callback)
-    s->callback(s->context, action);
+    s->callback(s->context, action, NULL);
 }
 static pthread_mutex_t grab_lock = PTHREAD_MUTEX_INITIALIZER;
 static _Atomic(Display *) trap_display;
@@ -1162,16 +1162,5 @@ void clipboard_shell_request_shortcut(clipboard_shell *s) {
   cp_request(s->portal);
 #else
   (void)s;
-#endif
-}
-int clipboard_shell_take_activation_token(clipboard_shell *s, char *buffer,
-                                          unsigned capacity) {
-#if defined(__linux__)
-  return s ? cp_take_token(s->portal, buffer, capacity) : 0;
-#else
-  (void)s;
-  (void)buffer;
-  (void)capacity;
-  return 0;
 #endif
 }

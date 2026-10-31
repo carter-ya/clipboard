@@ -2,7 +2,9 @@
 #define CLIPBOARD_DESKTOP_SHELL_H
 #include <stdint.h>
 typedef struct clipboard_shell clipboard_shell;
-typedef void (*clipboard_shell_callback)(void *context, int32_t action);
+/* activation_token is borrowed for this callback only; receivers copy it. */
+typedef void (*clipboard_shell_callback)(void *context, int32_t action,
+                                        const char *activation_token);
 /* Key is an ASCII letter/digit, F1...F24, SPACE, or empty to disable binding.
    Modifiers: control=1, alt=2, shift=4, super=8. Errors: unavailable=1,
    conflict=2. */
@@ -17,8 +19,6 @@ void clipboard_shell_set_recording(clipboard_shell *shell, int recording);
 void clipboard_shell_destroy(clipboard_shell *shell);
 unsigned clipboard_shell_shortcut_status(clipboard_shell *shell);
 void clipboard_shell_request_shortcut(clipboard_shell *shell);
-int clipboard_shell_take_activation_token(clipboard_shell *shell, char *buffer,
-                                          unsigned capacity);
 #endif
 
 #ifndef CLIPBOARD_DESKTOP_INSTANCE_H

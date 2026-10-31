@@ -83,6 +83,16 @@ public enum DesktopShellAction: Int32, Sendable {
   case capabilitiesChanged = 6
 }
 
+/// Metadata belongs to one queued event, even when the UI consumer is delayed.
+public struct DesktopShellEvent: Equatable, Sendable {
+  public let action: DesktopShellAction
+  public let activationToken: String?
+  public init(action: DesktopShellAction, activationToken: String? = nil) {
+    self.action = action
+    self.activationToken = action == .showHistory ? activationToken : nil
+  }
+}
+
 public enum DesktopShortcutPortalStatus: UInt32, Sendable {
   case notApplicable = 0
   case pending, permissionRequired, active, denied, unavailable
@@ -105,12 +115,11 @@ public enum DesktopShellError: Error { case unavailable, shortcutConflict, inval
 
 /// Owns native event sources. It never synthesizes input or writes the clipboard.
 public protocol DesktopShellAccess: AnyObject, Sendable {
-  var actions: AsyncStream<DesktopShellAction> { get }
+  var actions: AsyncStream<DesktopShellEvent> { get }
   var capabilities: DesktopShellCapabilities { get }
   var activationTimestamp: UInt32 { get }
   func start(shortcut: DesktopShortcut?, recording: Bool) throws
   func requestShortcutPermission()
-  func takeActivationToken() -> String?
   func updateLanguage(_ tag: String)
   func updateRecording(_ enabled: Bool)
   func stop()
@@ -119,12 +128,11 @@ public protocol DesktopShellAccess: AnyObject, Sendable {
 extension DesktopShellAccess {
   public var activationTimestamp: UInt32 { 0 }
   public func requestShortcutPermission() {}
-  public func takeActivationToken() -> String? { nil }
 }
 
 public final class FakeDesktopShell: DesktopShellAccess, @unchecked Sendable {
-  public let actions: AsyncStream<DesktopShellAction>
-  private let continuation: AsyncStream<DesktopShellAction>.Continuation
+  public let actions: AsyncStream<DesktopShellEvent>
+  private let continuation: AsyncStream<DesktopShellEvent>.Continuation
   private let lock = NSLock()
   private var running = false
   private var recording = false
@@ -143,8 +151,10 @@ public final class FakeDesktopShell: DesktopShellAccess, @unchecked Sendable {
   public func updateLanguage(_ tag: String) {}
   public func updateRecording(_ enabled: Bool) { lock.withLock { recording = enabled } }
   public func stop() { lock.withLock { running = false } }
-  public func send(_ action: DesktopShellAction) {
-    if lock.withLock({ running }) { continuation.yield(action) }
+  public func send(_ action: DesktopShellAction, activationToken: String? = nil) {
+    if lock.withLock({ running }) {
+      continuation.yield(.init(action: action, activationToken: activationToken))
+    }
   }
   deinit { continuation.finish() }
 }
