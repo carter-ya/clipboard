@@ -6,12 +6,16 @@ on:
     paths:
       - Core/**
       - .github/workflows/swift-portability.yml
+      - tools/desktop-ui/check-linux-clipboard-races.py
+      - tools/desktop-ui/check-x11-error-routing.c
   pull_request:
     paths:
       - Core/**
       - App/**
       - project.yml
       - .github/workflows/swift-portability.yml
+      - tools/desktop-ui/check-linux-clipboard-races.py
+      - tools/desktop-ui/check-x11-error-routing.c
   workflow_dispatch:
 
 permissions:
@@ -28,6 +32,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Install X11 build and integration-test dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libx11-dev libxfixes-dev xvfb xauth xclip
       - name: Install Swift 6.1.3 on Windows
         if: runner.os == 'Windows'
         uses: compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7
@@ -67,6 +77,30 @@ jobs:
         run: |
           & swift run --package-path Core scenario-runner rich-types 2>&1 | Tee-Object -FilePath scenario.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify native text clipboard with an independent process
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_OS -eq 'Linux') {
+            & xvfb-run --auto-servernum swift run --package-path Core scenario-runner platform-clipboard 2>&1 | Tee-Object -FilePath platform-clipboard.log
+          } else {
+            & swift run --package-path Core scenario-runner platform-clipboard 2>&1 | Tee-Object -FilePath platform-clipboard.log
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify cancelled X11 requests and error routing
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -D_POSIX_C_SOURCE=200809L -pthread \
+            -I Core/Sources/CDesktopClipboard/include \
+            tools/desktop-ui/check-x11-error-routing.c \
+            Core/Sources/CDesktopClipboard/desktop_clipboard.c \
+            -lX11 -lXfixes -o "$RUNNER_TEMP/check-x11-error-routing"
+          xvfb-run -a "$RUNNER_TEMP/check-x11-error-routing"
+          peer="$(swift build --package-path Core --show-bin-path)/scenario-runner"
+          CLIPBOARD_PRIVATE_X11_TEST=1 xvfb-run -a python3 \
+            tools/desktop-ui/check-linux-clipboard-races.py \
+            --executable "$peer" --output x11-cancelled-requests
       - name: Upload core test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -76,6 +110,8 @@ jobs:
             toolchain.log
             core-tests.log
             scenario.log
+            platform-clipboard.log
+            x11-cancelled-requests/
           if-no-files-found: ignore
 
   macos:

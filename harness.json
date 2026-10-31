@@ -1,7 +1,7 @@
 {
   "$schema_version": "1.0",
   "document_purpose": "Clipboard 项目的唯一权威文档。任何代理或开发者在提议改动前都必须先读这份文件。若代码与本文档不一致，必须在同一次提交中一并更新本文档——不得让两者静默分叉。",
-  "last_updated": "2026-10-30",
+  "last_updated": "2026-10-31",
   "project": {
     "name": "Clipboard",
     "one_liner": "macOS 的 Alfred 风格剪贴板历史——常驻菜单栏，支持全局快捷键、快速搜索；选中条目会写回系统剪贴板（由用户手动 Cmd+V 粘贴）。",
@@ -29,6 +29,14 @@
       "linux_arm64_core": "133 tests; zero failures; official Swift 6.1.3 Ubuntu 22.04 container",
       "synthetic_scenario": "Five rich-types checks passed on macOS and Linux arm64",
       "windows": "Prepared branch-scoped workflow only; no native Windows build or runtime result is claimed"
+    },
+    "platform_adapters": {
+      "scope": "Native Unicode text clipboard read/write and capture only; independent-process OS integration tests. No UI, hotkeys, image/file/RTF support or source-app attribution.",
+      "implementation": "Core owns TextClipboardAccess; separate DesktopClipboard target depends on Core and CDesktopClipboard shim. Windows uses CF_UNICODETEXT and clipboard sequence numbers. Linux X11 uses selection requests and XFixes owner-change notifications; a Dispatch read source serves ownership requests without a polling subprocess.",
+      "dependencies": "Windows User32; Linux libX11 and libXfixes development packages. Linux integration tests use isolated Xvfb.",
+      "privacy": "Native exclude-from-monitor / KDE secret hints are normalized into sensitive RawClipItem values. No raw clipboard body is logged. Writer marks sensitive text. Native detection remains convention-dependent.",
+      "limits": "Wayland explicitly unsupported even if DISPLAY is set. X11 INCR transfer unsupported; reads bounded to 16 MiB, X11 writes bounded by XMaxRequestSize. No automatic paste or keyboard synthesis.",
+      "validation": "Implementation migrated from the independently validated experiment. Fresh native Windows/Linux and macOS regression results on the latest-main PR stack are pending."
     },
     "evidence": "docs/swift-portability.md"
   },
@@ -59,7 +67,7 @@
         "base": "codex/cross-platform-foundation",
         "scope": "Native Windows/X11 text clipboard adapters, bounded reads, sensitive hints, independent-process integration tests.",
         "acceptance": "Capture and copy/readback pass using actual system APIs with synthetic fixtures.",
-        "status": "planned"
+        "status": "in_progress"
       },
       {
         "id": "CP3",
@@ -110,9 +118,13 @@
         "status": "planned"
       }
     ],
-    "completion_rule": "A created PR or passing build is not functional completion. Each stack layer retains implementation and verification evidence; unresolved manual/runtime gates remain open. No automatic main merge or public release is implied."
+    "completion_rule": "A created PR or passing build is not functional completion. Each stack layer retains implementation and verification evidence; unresolved manual/runtime gates remain open. No automatic main merge or public release is implied.",
+    "review_regressions": {
+      "CP2_cancelled_X11_request": "Reproduced the native owner exiting with BadWindow/X_ChangeProperty when a queued reader disappears. Backported the rich-content adapter connection-scoped recovery into CP2. A private-Xvfb regression cancels UTF8_STRING and TARGETS requests, then verifies a fresh independent reader. A native routing probe checks delegation to the existing host handler and connection registry reuse. No real user clipboard or keyboard input. Local Linux arm64 Swift 6.3.3: all 7 cancellation checks, the native routing/capacity/reuse probe, all 6 native clipboard scenarios and 140 Core tests passed; hosted Windows/macOS validation remains pending."
+    }
   },
   "tech_stack": {
+    "native_clipboard_experiment": "CDesktopClipboard C shim links User32 on Windows and X11/Xfixes on Linux; Xvfb is test-only.",
     "language": "Swift 5.9+",
     "portability_validation_dependency": "apple/swift-crypto 3.12.3 for Linux/Windows SHA-256; resolved transitive swift-asn1 1.7.3 requires Swift 6.1. This experiment was tested with Swift 6.1.3 and 6.4; oldest-toolchain compatibility is not established.",
     "ui_framework": "视图用 SwiftUI；NSStatusItem + NSPanel 外壳用 AppKit",

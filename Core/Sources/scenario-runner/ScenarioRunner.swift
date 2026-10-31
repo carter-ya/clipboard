@@ -120,10 +120,20 @@ func runRichTypes() async -> Report {
 enum ScenarioRunner {
   static func main() async {
     let scenario = CommandLine.arguments.dropFirst().first ?? "rich-types"
+    #if os(Linux) || os(Windows)
+      if scenario == "clipboard-peer" {
+        do {
+          try runClipboardPeer()
+          return
+        } catch { exit(1) }
+      }
+    #endif
     let report: Report
     switch scenario {
     case "rich-types":
       report = await runRichTypes()
+    case "platform-clipboard":
+      report = await runPlatformClipboard()
     default:
       report = Report(
         scenario: scenario,
