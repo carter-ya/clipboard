@@ -304,6 +304,20 @@ uint64_t cw_revision(cw_session *s) {
   cw_pump(s);
   return s->revision;
 }
+static int open_transfer_pipe(int descriptors[2]) {
+  if (pipe2(descriptors, O_CLOEXEC) != 0)
+    return -1;
+  // The descriptor passed to another client must retain blocking-write semantics.
+  int flags = fcntl(descriptors[0], F_GETFL);
+  if (flags < 0 || fcntl(descriptors[0], F_SETFL, flags | O_NONBLOCK) < 0) {
+    int saved = errno;
+    close(descriptors[0]);
+    close(descriptors[1]);
+    errno = saved;
+    return -1;
+  }
+  return 0;
+}
 static int read_mime(cw_session *s, cw_offer *offer, unsigned mime, size_t max,
                      unsigned char **out, size_t *length) {
   *out = NULL;
@@ -311,7 +325,7 @@ static int read_mime(cw_session *s, cw_offer *offer, unsigned mime, size_t max,
   if (s->finished)
     return CB_UNSUPPORTED;
   int descriptors[2];
-  if (pipe2(descriptors, O_CLOEXEC | O_NONBLOCK) != 0)
+  if (open_transfer_pipe(descriptors) != 0)
     return CB_UNAVAILABLE;
   zwlr_data_control_offer_v1_receive(offer->proxy, mime_names[mime],
                                      descriptors[1]);

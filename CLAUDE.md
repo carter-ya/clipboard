@@ -125,3 +125,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Plain-text desktop previews use a 64 KiB UTF-8 display budget and show a truncation notice. End on a Unicode scalar boundary; never truncate the stored payload or Copy. Keep the long Chinese/emoji native capture-and-full-readback regression. Rich-only parser limits remain separately tracked.
 
 - Native Windows text readback tests must expect CF_UNICODETEXT CRLF, matching the writer normalization. Keep full-content comparison and fresh clipboard revision checks; do not weaken them to a suffix-only match. Linux UTF-8 readback remains byte-exact.
+
+- Wayland receive pipes must keep the descriptor sent to an external producer blocking. Apply O_NONBLOCK only to the local reader, retain CLOEXEC, and test the actual helper with a complete large transfer from an independent blocking writer.
