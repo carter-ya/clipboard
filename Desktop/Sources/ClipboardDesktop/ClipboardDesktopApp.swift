@@ -49,7 +49,7 @@ struct HistoryView: View {
           if model.showsSettings {
             settings
           } else {
-            history(compact: compact, compactFilters: geometry.size.width < 1100)
+            history(compact: compact, compactFilters: viewportWidth < 1100)
           }
         }.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
         if !model.showsSettings { itemActions }
