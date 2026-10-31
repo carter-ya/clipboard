@@ -8,6 +8,25 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+# GTK has server-side AccessKit providers; native common-dialog controls use
+# the managed client's Win32 proxies. Register from a compiled caller before
+# traversing HWNDs: ProxyManager's default-loader stack walk is not reliable
+# when the first caller is a generated PowerShell method.
+# https://github.com/dotnet/wpf/blob/main/src/Microsoft.DotNet.Wpf/src/UIAutomation/UIAutomationClient/MS/Internal/Automation/ProxyManager.cs
+$automationClient = [Windows.Automation.AutomationElement].Assembly
+$proxyName = $automationClient.GetName()
+$proxyName.Name = 'UIAutomationClientsideProviders'
+$standardProviders = [Reflection.Assembly]::Load($proxyName)
+Add-Type -ReferencedAssemblies $automationClient.Location -TypeDefinition @'
+using System.Reflection;
+using System.Windows.Automation;
+public static class ClipboardStandardProviders {
+  public static void Register(AssemblyName assembly) {
+    ClientSettings.RegisterClientSideProviderAssembly(assembly);
+  }
+}
+'@
+[ClipboardStandardProviders]::Register($standardProviders.GetName())
 Add-Type -AssemblyName System.Drawing
 Add-Type -TypeDefinition @'
 using System;
@@ -322,11 +341,6 @@ function Get-ArchiveFilenamePattern($Element) {
     $pattern = $Element.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
     if (!$pattern.Current.IsReadOnly) { return $pattern }
   } catch {}
-  try {
-    $pattern = $Element.GetCurrentPattern([Windows.Automation.LegacyIAccessiblePattern]::Pattern)
-    # Standard editable text/combobox roles; reject disabled/read-only controls.
-    if ($pattern.Current.Role -in @(42, 46) -and ($pattern.Current.State -band 0x41) -eq 0) { return $pattern }
-  } catch {}
   return $null
 }
 function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefault = $false) {
@@ -374,13 +388,11 @@ function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefau
     $metadata = @()
     foreach ($native in [PreviewNative]::DialogFields($handle, $false)) {
       $supportsValue = $false
-      $supportsLegacy = $false
       try {
         $element = [Windows.Automation.AutomationElement]::FromHandle($native)
         $supportsValue = [bool]$element.GetCurrentPropertyValue([Windows.Automation.AutomationElement]::IsValuePatternAvailableProperty)
-        $supportsLegacy = [bool]$element.GetCurrentPropertyValue([Windows.Automation.AutomationElement]::IsLegacyIAccessiblePatternAvailableProperty)
       } catch {}
-      $metadata += @{ control = [PreviewNative]::DescribeDialogField($native); valuePattern = $supportsValue; legacyPattern = $supportsLegacy }
+      $metadata += @{ control = [PreviewNative]::DescribeDialogField($native); valuePattern = $supportsValue }
     }
     [IO.File]::WriteAllText((Join-Path $OutputDirectory 'archive-native-controls.json'), (ConvertTo-Json -InputObject $metadata), [Text.UTF8Encoding]::new($false))
     throw 'archive_filename_editor'
@@ -397,19 +409,12 @@ function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefau
     if (!$button) { return $null }
     try {
       if ($button.Current.IsEnabled) {
-        return @{ kind = 'invoke'; pattern = $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern) }
-      }
-    } catch {}
-    try {
-      $legacy = $button.GetCurrentPattern([Windows.Automation.LegacyIAccessiblePattern]::Pattern)
-      if ($legacy.Current.Role -eq 43 -and ($legacy.Current.State -band 1) -eq 0) {
-        return @{ kind = 'legacy'; pattern = $legacy }
+        return $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
       }
     } catch {}
     return $null
   } 'archive_dialog_accept'
-  if ($accept.kind -eq 'invoke') { $accept.pattern.Invoke() }
-  else { $accept.pattern.DoDefaultAction() }
+  $accept.Invoke()
 }
 function Set-Search([string]$Text) {
   $element = Wait-For { Get-Editor } 'search_control'
