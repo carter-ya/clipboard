@@ -212,6 +212,25 @@ final class DesktopHistoryArchiveTests: XCTestCase {
     }
   }
 
+  func testExportChecksExpandedReferencesBeforeReplacingTheDestination() throws {
+    let directory = try root()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let shared = Data(repeating: 65, count: 16 * 1024 * 1024 - 1)
+    let clips = (0..<17).map { index -> ClipItem in
+      var clip = item("logical export")
+      clip.payloads = [
+        .init(pasteboardType: "public.utf8-plain-text", inlineData: Data([UInt8(65 + index)])),
+        .init(pasteboardType: "public.html", inlineData: shared),
+      ]
+      return clip
+    }
+    let file = directory.appendingPathComponent("existing.zip")
+    let previous = Data("previous archive fixture".utf8)
+    try previous.write(to: file)
+    XCTAssertThrowsError(try DesktopHistoryArchive.write(items: clips, blobRoot: nil, to: file))
+    XCTAssertEqual(try Data(contentsOf: file), previous)
+  }
+
   func testFailedExportPreservesThePreviousDestination() throws {
     let directory = try root()
     defer { try? FileManager.default.removeItem(at: directory) }

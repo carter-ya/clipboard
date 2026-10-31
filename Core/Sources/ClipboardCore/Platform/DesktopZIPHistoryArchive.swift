@@ -22,6 +22,7 @@ enum DesktopZIPHistoryArchive {
     var exportedCount = 0
     var blobs: [String: Data] = [:]
     var total = 0
+    var logicalBytes = 0
     for item in items where !excluded(item) {
       try validateMetadata(item)
       var copy = item
@@ -29,7 +30,10 @@ enum DesktopZIPHistoryArchive {
       var raw: [RawPayload] = []
       copy.payloads = try item.payloads.map { payload in
         let data = try exportedBytes(payload, blobRoot: blobRoot)
-        guard data.count <= itemLimit - size else { throw Failure.tooLarge }
+        guard data.count <= itemLimit - size,
+          data.count <= DesktopHistoryArchive.maxBytes - logicalBytes
+        else { throw Failure.tooLarge }
+        logicalBytes += data.count
         size += data.count
         raw.append(.init(pasteboardType: payload.pasteboardType, data: data))
         if data.count <= 16 * 1024 {

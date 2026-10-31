@@ -40,6 +40,19 @@ public static class PreviewNative {
     }, IntPtr.Zero);
     return found;
   }
+  public static IntPtr FindDialog(uint processId, string title) {
+    IntPtr found = IntPtr.Zero;
+    EnumWindows((hwnd, _) => {
+      uint owner;
+      GetWindowThreadProcessId(hwnd, out owner);
+      var text = new System.Text.StringBuilder(512);
+      if (owner == processId && IsWindowVisible(hwnd) && GetWindowText(hwnd, text, text.Capacity) > 0 && text.ToString() == title) {
+        found = hwnd; return false;
+      }
+      return true;
+    }, IntPtr.Zero);
+    return found;
+  }
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wparam, IntPtr lparam);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
@@ -211,6 +224,28 @@ function Invoke-Button([string]$Label) {
   } ('enabled_button_' + $Label)
   $pattern = $element.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
   $pattern.Invoke()
+}
+function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefault = $false) {
+  $handle = Wait-For {
+    $candidate = [PreviewNative]::FindDialog([uint32]$application.Id, $Title)
+    if ($candidate -ne [IntPtr]::Zero) { $candidate }
+  } 'archive_native_dialog'
+  $dialog = [Windows.Automation.AutomationElement]::FromHandle($handle)
+  $editorCondition = [Windows.Automation.AndCondition]::new(
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit),
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, '1001'))
+  $fileName = Wait-For { $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, $editorCondition) } 'archive_filename_editor'
+  $value = $fileName.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
+  if ($CheckDefault) { Add-Check 'native_archive_save_dialog_defaults_to_zip' ($value.Current.Value -ceq 'clipboard-history.zip') }
+  $value.SetValue($Path)
+  $acceptCondition = [Windows.Automation.AndCondition]::new(
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Button),
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, '1'))
+  $accept = Wait-For {
+    $button = $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, $acceptCondition)
+    if ($button -and $button.Current.IsEnabled) { $button }
+  } 'archive_dialog_accept'
+  $accept.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
 }
 function Set-Search([string]$Text) {
   $element = Wait-For { Get-Editor } 'search_control'
@@ -678,6 +713,46 @@ try {
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'rich_budget_quit_timeout' }
     Add-Check 'rich_budget_profile_quits_cleanly' ($application.ExitCode -eq 0)
+
+    $historyRoot = Join-Path $OutputDirectory ('archive-state-' + [Guid]::NewGuid().ToString('N'))
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+      -ArgumentList @('--smoke-root', ('"' + $historyRoot + '"')) -PassThru `
+      -RedirectStandardOutput (Join-Path $OutputDirectory 'archive.stdout.log') -RedirectStandardError (Join-Path $OutputDirectory 'archive.stderr.log')
+    $nativeWindowHandle = Wait-For {
+      $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
+      if ($handle -ne [IntPtr]::Zero) { $handle }
+    } 'archive_private_window'
+    $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'archive_private_profile' | Out-Null
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'archive_preferences' | Out-Null
+    Invoke-Button 'Export history'
+    $archivePath = Join-Path $historyRoot 'native-export.zip'
+    Complete-ArchiveDialog 'Export history' $archivePath $true
+    Wait-For { (Test-Path $archivePath) -and (Find-Named 'History exported. Sensitive items excluded.') } 'archive_export_finished' | Out-Null
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($archivePath)
+    try {
+      $reader = [IO.StreamReader]::new($archive.GetEntry('history.json').Open(), [Text.Encoding]::UTF8)
+      try { $exported = $reader.ReadToEnd() | ConvertFrom-Json }
+      finally { $reader.Dispose() }
+    } finally { $archive.Dispose() }
+    Add-Check 'native_archive_export_contains_mac_history' ($exported.items.Count -eq 3 -and @($exported.items | Where-Object { $_.sensitive }).Count -eq 0)
+    Invoke-Button 'Clear history'
+    Invoke-Button 'Delete all history'
+    Wait-For { Find-Named 'History cleared' } 'archive_source_cleared' | Out-Null
+    Invoke-Button 'Import history'
+    Complete-ArchiveDialog 'Import history' $archivePath
+    Wait-For { Find-Named 'Imported 3 items; 0 skipped; 0 missing blobs.' } 'archive_native_round_trip' | Out-Null
+    $restored = Read-SharedJson (Join-Path $historyRoot 'history.json')
+    Add-Check 'native_archive_import_preserves_original_order_and_content' (($restored.items.sha256 -join ',') -ceq ($exported.items.sha256 -join ','))
+    Invoke-Button 'Import history'
+    Complete-ArchiveDialog 'Import history' $archivePath
+    Wait-For { Find-Named 'Imported 0 items; 3 skipped; 0 missing blobs.' } 'archive_duplicate_result' | Out-Null
+    Add-Check 'native_archive_duplicate_import_is_counted' ((Read-SharedJson (Join-Path $historyRoot 'history.json')).items.Count -eq 3)
+    Invoke-Button 'Quit Clipboard'
+    if (!$application.WaitForExit(10000)) { throw 'archive_state_quit_timeout' }
+    Add-Check 'archive_state_profile_quits_cleanly' ($application.ExitCode -eq 0)
 
     $historyRoot = Join-Path $OutputDirectory ('startup-state-' + [Guid]::NewGuid().ToString('N'))
     $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
