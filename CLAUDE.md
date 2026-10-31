@@ -109,3 +109,4 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Automatic desktop analysis uses the bounded ID-only serial scheduler; a busy manual action must not discard inserted clips. Recheck live settings and the current item when dequeuing, exclude sensitive/concealed or already analyzed clips, report overflow, and cancel/clear work on shutdown. Keep manual duplicate actions guarded.
 
 - Wayland activation tokens belong to immutable shell events. Copy the borrowed native callback string into its matching showHistory event; unrelated or delayed actions must not consume a shared token slot. Keep the delayed-consumer, two-distinct-activations portal regression.
+- Every whole-settings save, including appearance and language, must hold the same MainActor applyingSettings guard from snapshot creation through persistence and in-memory update. Presentation saves must never restore stale AI/privacy opt-outs.
