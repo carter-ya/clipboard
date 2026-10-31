@@ -120,6 +120,9 @@ func runRichTypes() async -> Report {
 enum ScenarioRunner {
   static func main() async {
     let scenario = CommandLine.arguments.dropFirst().first ?? "rich-types"
+    #if os(Windows)
+      if scenario == "source-clipboard-peer" { exit(runOwnedSourcePeer()) }
+    #endif
     #if os(Linux) || os(Windows)
       if scenario == "rich-clipboard-peer" {
         do {
@@ -166,6 +169,8 @@ enum ScenarioRunner {
       report = await runPlatformServices()
     case "platform-rich-clipboard":
       report = await runPlatformRichClipboard()
+    case "platform-source-filter":
+      report = await runPlatformSourceFilter()
     case "platform-instance":
       report = await runPlatformInstance()
     case "platform-shell":

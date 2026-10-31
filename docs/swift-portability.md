@@ -296,3 +296,16 @@ default-priority AccessKit input dispatch and editable SetValue support.
 The optimized installed Linux package also passes rich image/file capture and copy, real Tesseract OCR, and separate OCR-result copy with an independent native peer. The peer uses only the installed runtime libraries; the app loader path remains unmodified. See Desktop/TESTING.md for the remaining interactive release gates.
 
 The final command-entry Linux package passes 63 installed GUI/lifecycle checks and eight installer checks; both scale suites pass six checks, including readable in-bounds history rows. Its latest measured lifecycle run keeps 27 descriptors and grows RSS by 1032 KiB. Bare PATH launch installation locks and localized service/privacy notes are covered.
+
+Windows source privacy comparison now ignores executable filename case within
+the `windows:` namespace, including user-configured rule spelling. The native
+Swift adapter already lowercases observed Windows IDs, so the default lowercase
+rules were unaffected; custom mixed-case rules could miss those observed IDs.
+Public rule spelling and existing Mac/Linux comparisons are preserved. The
+custom-rule capture/store regression fails before the fix and passes afterward;
+all 205 Core tests pass in isolated Linux arm64. Windows Actions runs a synthetic
+peer copied to a mixed-case executable name. Its message-only HWND owns the
+clipboard and pumps native messages, allowing actual source identification; the
+older generic peer uses a null owner and cannot provide that source fixture.
+Checks cover both default and custom rules plus memory-only persistence. Native
+Windows confirmation is pending; no real password manager is launched.

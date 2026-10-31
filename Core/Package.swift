@@ -82,10 +82,14 @@ let package = Package(
       ],
       resources: [.copy("Resources/DesktopStrings.json")]
     ),
+    .target(
+      name: "CPlatformScenarioFixtures",
+      linkerSettings: [.linkedLibrary("user32", .when(platforms: [.windows]))]),
     .executableTarget(
       name: "scenario-runner",
       dependencies: [
         "ClipboardCore",
+        .target(name: "CPlatformScenarioFixtures", condition: .when(platforms: [.windows])),
         .target(name: "DesktopClipboard", condition: .when(platforms: [.linux, .windows])),
         .target(name: "DesktopShell", condition: .when(platforms: [.linux, .windows])),
         .target(name: "DesktopServices", condition: .when(platforms: [.linux, .windows])),

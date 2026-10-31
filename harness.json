@@ -246,7 +246,12 @@
           "remaining": [
             "Size-limit disable and equivalent filter choices",
             "Accurate OS startup policy/ownership semantics and discoverable capability/conflict guidance"
-          ]
+          ],
+          "source_filter_validation": {
+            "branch": "codex/cross-platform-source-filter-case",
+            "implemented": "Windows source filters compare custom rule spelling and observed IDs without case, preserving public rule spelling and Mac/Linux comparisons. The native Swift adapter already lowercases observed IDs; default lowercase rules were unaffected. Custom mixed-case rules now mark captured items sensitive and prevent persistence.",
+            "validation": "The custom-rule regression fails before the fix and all 205 Core tests pass afterward in isolated Linux arm64. Initial Windows source verification fails because the generic synthetic writer has a null HWND owner. A scenario-only native fixture now owns a message-only HWND and message loop, announces readiness with binary pipe output, and checks default/custom filtering plus memory-only storage. Exact-head Windows confirmation is pending."
+          }
         },
         {
           "id": "CP11",
