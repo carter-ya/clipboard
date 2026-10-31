@@ -1,6 +1,20 @@
 param([Parameter(Mandatory=$true)][string]$FixturePython)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'private-fixture-python.ps1')
+# Command discovery can return one match per PATH entry on Linux. Keep the
+# executable chosen by normal PATH precedence, rather than returning an array.
+function Get-Command {
+  [CmdletBinding()]
+  param([string]$Name, [string]$CommandType)
+  [pscustomobject]@{ Source = $FixturePython }
+  [pscustomobject]@{ Source = $FixturePython }
+}
+try {
+  $discovered = Resolve-PrivateFixturePython ''
+  if ($discovered -isnot [string] -or $discovered -cne [IO.Path]::GetFullPath($FixturePython)) {
+    throw 'multiple_fixture_matches_were_not_reduced_to_first'
+  }
+} finally { Remove-Item Function:Get-Command }
 $fixtureSavedPath = $env:PATH
 $fixtureIsolatedPath = Join-Path ([IO.Path]::GetTempPath()) ('no-fixture-tools-' + [Guid]::NewGuid().ToString('N'))
 $fixtureProcess = $null
