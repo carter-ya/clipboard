@@ -96,6 +96,8 @@ let package = Package(
       ]
     ),
     .testTarget(
+      name: "DesktopServicesTests", dependencies: ["DesktopServices"]),
+    .testTarget(
       name: "ClipboardCoreTests",
       dependencies: [
         "ClipboardCore",

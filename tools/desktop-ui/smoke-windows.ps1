@@ -1445,6 +1445,42 @@ try {
         Wait-For { @((Read-SharedJson (Join-Path $historyRoot 'history.json')).items | Where-Object { $_.summary -ceq $automaticLead -and $_.summarySource -ceq 'localExtractive' }).Count -eq 1 } 'automatic_local_file_excerpt_ready' | Out-Null
         Add-Check 'automatic_file_excerpt_runs_locally_after_upload_permission_is_revoked' $true
         Invoke-Button 'Pause recording'
+        $peer.StandardInput.Close()
+        if (!$peer.WaitForExit(5000)) { $peer.Kill(); $peer.WaitForExit() }
+        $peer.Dispose(); $peer = $null
+        $pdf = Join-Path $historyRoot 'private-pdf-upload-name 中文.pdf'
+        & python (Join-Path $PSScriptRoot 'pdf_fixture.py') --private-summary-fixture $pdf
+        if ($LASTEXITCODE -ne 0) { throw 'pdf_fixture_creation_failed' }
+        $pdfLead = 'This synthetic PDF excerpt stays on this device.'
+        Wait-For {
+          $control = Find-Named 'Start recording'
+          for ($depth = 0; $depth -lt 10 -and $control -and $control.Current.ControlType -ne [Windows.Automation.ControlType]::Button; $depth++) {
+            $control = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($control)
+          }
+          $control -and $control.Current.IsEnabled
+        } 'pdf_capture_transition_finished' | Out-Null
+        Invoke-Button 'Start recording'
+        Wait-For { Find-Named 'Recording clipboard' } 'pdf_capture_enabled' | Out-Null
+        $peerInfo.Arguments = 'rich-clipboard-peer file-summary "' + $pdf + '"'
+        $peer = [Diagnostics.Process]::Start($peerInfo)
+        $ready = $peer.StandardOutput.ReadLineAsync()
+        if (!$ready.Wait(10000) -or $ready.Result -ne 'ready') { throw 'pdf_file_peer_ready' }
+        Wait-For { @((Read-SharedJson (Join-Path $historyRoot 'history.json')).items | Where-Object { $_.summary -ceq $pdfLead -and $_.summarySource -ceq 'localExtractive' }).Count -eq 1 } 'automatic_local_pdf_excerpt_ready' | Out-Null
+        Add-Check 'copied_pdf_generates_local_excerpt_without_upload_permission' $true
+        Invoke-Button 'Pause recording'
+        Set-Search 'private-pdf-upload-name'
+        Wait-For { (Find-Named '1 items') -and (Find-Named 'Local excerpt') -and (Find-Named $pdfLead) } 'pdf_local_result_selected' | Out-Null
+        Add-Check 'automatic_pdf_result_reaches_native_preview' $true
+        Save-Screenshot 'local-pdf-excerpt.png'
+        Invoke-Button 'Settings'
+        Wait-For { Find-Named 'Preferences' } 'pdf_upload_preferences' | Out-Null
+        Invoke-VisibleConnectionButton 'Allow file text uploads'
+        Invoke-VisibleConnectionButton 'Save AI settings'
+        Wait-For { (Read-SharedJson $settingsFile).ai.allowFiles } 'pdf_upload_permission_saved' | Out-Null
+        Invoke-Button 'Back to history'
+        Invoke-Button 'Summarize'
+        Wait-For { (Find-Named 'Summary ready') -and (Find-Named 'Private file summary fixture') } 'remote_pdf_summary_ready' | Out-Null
+        Add-Check 'explicit_pdf_upload_sends_extracted_text_without_name_or_path' ((Read-SharedJson (Join-Path $historyRoot 'history.json')).items[0].summarySource -ceq 'remoteOpenAI')
         Invoke-Button 'Settings'
         Wait-For { Find-Named 'Preferences' } 'file_summary_quit_preferences' | Out-Null
         Invoke-Button 'Quit Clipboard'
@@ -1462,7 +1498,7 @@ try {
       $reportRead = $probeServer.StandardOutput.ReadLineAsync()
       if (!$reportRead.Wait(5000)) { throw 'file_summary_server_report' }
       $fixtureReport = $reportRead.Result | ConvertFrom-Json
-      Add-Check 'only_explicit_current_file_bodies_are_uploaded_without_paths_keys_or_cookies' ($fixtureReport.requests -eq 2 -and $fixtureReport.fixedTestsOnly -and $fixtureReport.noAuthorization -and $fixtureReport.noCookies)
+      Add-Check 'only_explicit_current_file_bodies_are_uploaded_without_paths_keys_or_cookies' ($fixtureReport.requests -eq 3 -and $fixtureReport.fixedTestsOnly -and $fixtureReport.noAuthorization -and $fixtureReport.noCookies)
       $probeServer.Dispose()
     }
 

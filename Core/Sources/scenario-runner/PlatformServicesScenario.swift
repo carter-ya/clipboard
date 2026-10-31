@@ -180,6 +180,30 @@ import Foundation
       }
       let reopened = try await reader.text(from: serialized, maxBytes: 4096)
       check("native_file_url_roundtrip_preserves_local_path", reopened == body, into: &checks)
+      fileStage = "read_private_pdf_text"
+      let pdf = directory.appendingPathComponent("fixture 中文😀.PDF")
+      let pdfText =
+        "Synthetic native PDF text stays private. "
+        + String(repeating: "Local context. ", count: 10)
+      try syntheticPDFText(pdfText).write(to: pdf)
+      let extracted = try await reader.text(from: pdf, maxBytes: 4096)
+      check(
+        "native_pdf_text_body_is_extracted_without_file_paths",
+        extracted.trimmingCharacters(in: .whitespacesAndNewlines)
+          == pdfText.trimmingCharacters(in: .whitespacesAndNewlines), into: &checks)
+      for (name, bytes, failure) in [
+        ("malformed", Data("%PDF-private-invalid".utf8), DesktopServiceError.invalidValue),
+        ("empty", syntheticPDFText(""), .invalidValue),
+        ("pages", syntheticPDFText("Synthetic page budget", pages: 257), .tooLarge),
+      ] {
+        fileStage = "reject_private_pdf_" + name
+        try bytes.write(to: pdf)
+        var rejectedPDF = false
+        do { _ = try await reader.text(from: pdf, maxBytes: 4096) } catch {
+          rejectedPDF = error as? DesktopServiceError == failure
+        }
+        check("native_pdf_\(name)_is_rejected", rejectedPDF, into: &checks)
+      }
       fileStage = "read_at_exact_byte_limit"
       try Data(repeating: 65, count: 128).write(to: file)
       let exact = try await reader.text(from: file, maxBytes: 128)

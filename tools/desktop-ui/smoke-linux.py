@@ -1165,6 +1165,40 @@ try:
                      'automatic_local_file_excerpt_ready')
             check('automatic_file_excerpt_runs_locally_after_upload_permission_is_revoked', True)
             click('Pause recording')
+            peer.stdin.close()
+            peer.wait(timeout=5)
+            peer = None
+            from pdf_fixture import text_pdf, SUMMARY_PDF_BODY, SUMMARY_PDF_LEAD
+            pdf = history_root / 'private-pdf-upload-name 中文.pdf'
+            pdf.write_bytes(text_pdf(SUMMARY_PDF_BODY))
+            wait_for(lambda: button('Start recording') and
+                     button('Start recording').getState().contains(pyatspi.STATE_SENSITIVE),
+                     'pdf_capture_transition_finished')
+            click('Start recording')
+            wait_for(lambda: has_text('Recording clipboard'), 'pdf_capture_enabled')
+            peer = subprocess.Popen([str(Path(args.clipboard_peer).resolve()), 'rich-clipboard-peer', 'file-summary', str(pdf)],
+                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+            if not select.select([peer.stdout], [], [], 10)[0] or peer.stdout.readline(32).strip() != b'ready':
+                raise RuntimeError('pdf_file_peer_ready')
+            wait_for(lambda: any(item.get('summary') == SUMMARY_PDF_LEAD and item.get('summarySource') == 'localExtractive'
+                                for item in json.loads((history_root / 'history.json').read_text())['items']),
+                     'automatic_local_pdf_excerpt_ready')
+            check('copied_pdf_generates_local_excerpt_without_upload_permission', True)
+            click('Pause recording')
+            wait_for(editor, 'pdf_local_result_search').queryEditableText().setTextContents('private-pdf-upload-name')
+            wait_for(lambda: has_texts('1 items', 'Local excerpt', SUMMARY_PDF_LEAD), 'pdf_local_result_selected')
+            check('automatic_pdf_result_reaches_native_preview', True)
+            screenshot('local-pdf-excerpt.png')
+            click('Settings')
+            wait_for(lambda: has_text('Preferences'), 'pdf_upload_preferences')
+            click_visible_public_control('Allow file text uploads')
+            click_visible_public_control('Save AI settings')
+            wait_for(lambda: json.loads(settings_file.read_text())['ai']['allowFiles'], 'pdf_upload_permission_saved')
+            click('Back to history')
+            click('Summarize')
+            wait_for(lambda: has_texts('Summary ready', 'Private file summary fixture'), 'remote_pdf_summary_ready')
+            check('explicit_pdf_upload_sends_extracted_text_without_name_or_path',
+                  json.loads((history_root / 'history.json').read_text())['items'][0].get('summarySource') == 'remoteOpenAI')
             click('Settings')
             wait_for(lambda: has_text('Preferences'), 'file_summary_quit_preferences')
             click('Quit Clipboard')
@@ -1187,7 +1221,7 @@ try:
                 server.wait(timeout=5)
         fixture_report = json.loads(server.stdout.readline(4096))
         check('only_explicit_current_file_bodies_are_uploaded_without_paths_keys_or_cookies',
-              fixture_report.get('requests') == 2 and fixture_report.get('fixedTestsOnly') and
+              fixture_report.get('requests') == 3 and fixture_report.get('fixedTestsOnly') and
               fixture_report.get('noAuthorization') and fixture_report.get('noCookies'))
 
     if args.clipboard_peer:

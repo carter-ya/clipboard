@@ -24,6 +24,12 @@ but cannot record other applications. Source application identity is unavailable
 on Wayland. Global shortcuts require a supported desktop portal and its approval.
 The actual shortcut assignment is managed by the desktop.
 
+Optional file excerpts and file text uploads are independently disabled initially.
+The package includes a bounded native PDF decoder. Text/PDF files and extracted
+text are limited to 1 MiB each, with at most 256 PDF pages. Encrypted and image-only
+PDFs are unavailable. PDFium dependency notices and pinned build provenance are
+in `share/licenses/pdfium`.
+
 This is a preview. Physical shortcut focus, Chinese IME and physical multi-monitor
 DPI acceptance remain open. Automatic updates are not included. Third-party
 notices and exact package/runtime hashes are included in `share/licenses` and

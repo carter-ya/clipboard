@@ -390,8 +390,12 @@ struct HistoryView: View {
   var localFileSettings: some View {
     VStack(alignment: .leading, spacing: 12) {
       Toggle(model.t("Enable local file excerpts"), isOn: $model.localFileSummariesDraft)
-      Text(model.t("Reads only the first copied UTF-8 text file, up to 1 MiB, on this device."))
-        .font(.system(size: 12)).foregroundColor(.gray)
+      Text(
+        model.t(
+          "Reads the first copied UTF-8 text or PDF file on this device. File and extracted text: at most 1 MiB; PDF: at most 256 pages."
+        )
+      )
+      .font(.system(size: 12)).foregroundColor(.gray)
       Toggle(
         model.t("Automatically summarize files locally"),
         isOn: $model.automaticLocalFileSummariesDraft
@@ -404,7 +408,8 @@ struct HistoryView: View {
       Toggle(model.t("Allow file text uploads"), isOn: $model.aiFilesDraft)
       Text(
         model.t(
-          "Uploads only the first copied UTF-8 text file, up to 1 MiB. PDFs are not supported.")
+          "Uploads text from the first copied UTF-8 or PDF file only. File and extracted text: at most 1 MiB; PDF: at most 256 pages. Encrypted or image-only PDFs are unavailable."
+        )
       )
       .font(.system(size: 12)).foregroundColor(.gray)
     }
