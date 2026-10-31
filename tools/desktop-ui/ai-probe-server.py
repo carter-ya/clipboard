@@ -11,15 +11,18 @@ if os.environ.get('CLIPBOARD_PRIVATE_AI_TEST') != '1':
 
 lock = threading.Lock()
 release = threading.Event()
-report = dict(requests=0, fixedTestsOnly=True, noAuthorization=True, noCookies=True)
+report = dict(requests=0, fixedTestsOnly=True, noAuthorization=True, noCookies=True,
+              invalidRequests=0, modelMismatches=0, handlerFailures=0, responseDisconnects=0)
 
 
 class Server(ThreadingHTTPServer):
-    daemon_threads = True
+    # Join owned request handlers before publishing the final audit report.
+    daemon_threads = False
 
     def handle_error(self, request, client_address):
         with lock:
             report['fixedTestsOnly'] = False
+            report['handlerFailures'] += 1
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -44,6 +47,8 @@ class Handler(BaseHTTPRequestHandler):
                 report['requests'] += 1
                 index = report['requests']
                 report['fixedTestsOnly'] &= fixed
+                report['invalidRequests'] += int(not fixed)
+                report['modelMismatches'] += int(body.get('model') != 'fixture-model')
                 report['noAuthorization'] &= self.headers.get('Authorization') is None
                 report['noCookies'] &= self.headers.get('Cookie') is None
             if index >= 4:
@@ -59,23 +64,33 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header('Set-Cookie', 'synthetic=ignored; Path=/')
             self.end_headers()
             self.wfile.write(data)
-        except (BrokenPipeError, ConnectionResetError):
-            pass
+        except ConnectionError:
+            # A Windows cancellation can abort the connection as well as reset
+            # it or break its pipe. A failed response write cannot invalidate
+            # the request body already checked above.
+            with lock:
+                report['responseDisconnects'] += 1
         except Exception:
             with lock:
                 report['fixedTestsOnly'] = False
+                report['handlerFailures'] += 1
 
 
-server = Server(('127.0.0.1', 0), Handler)
-thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval': 0.05}, daemon=True)
-thread.start()
-print('ready:' + str(server.server_address[1]), flush=True)
-try:
-    # EOF releases any slow request and shuts down only this fixture.
-    sys.stdin.buffer.read()
-finally:
-    release.set()
-    server.shutdown()
-    server.server_close()
-    thread.join(timeout=3)
-print(json.dumps(report), flush=True)
+def main():
+    server = Server(('127.0.0.1', 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval': 0.05}, daemon=True)
+    thread.start()
+    print('ready:' + str(server.server_address[1]), flush=True)
+    try:
+        # EOF releases any slow request and shuts down only this fixture.
+        sys.stdin.buffer.read()
+    finally:
+        release.set()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
+    print(json.dumps(report), flush=True)
+
+
+if __name__ == "__main__":
+    main()
