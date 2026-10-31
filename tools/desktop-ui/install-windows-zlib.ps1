@@ -50,7 +50,7 @@ if ($LASTEXITCODE -ne 0) { throw 'zlib_build_failed' }
 if ($LASTEXITCODE -ne 0) { throw 'zlib_install_failed' }
 $Libraries = @(Get-ChildItem (Join-Path $Prefix 'lib') -Filter '*.lib' | Where-Object { $_.Name -match '^(zs|zlibstatic)\.lib$' })
 if ($Libraries.Count -ne 1) { throw 'zlib_static_library_missing' }
-# ZIPFoundation's Windows system target links "zlib". This Core-only SDK
+# ZIPFoundation's Windows system target links "zlib". This build-time SDK
 # dependency is static; it adds no DLL to the desktop distribution.
 Copy-Item $Libraries[0].FullName (Join-Path $Prefix 'lib/zlib.lib') -Force
 if (!(Test-Path (Join-Path $Prefix 'include/zlib.h')) -or !(Test-Path (Join-Path $Prefix 'include/zconf.h'))) {
