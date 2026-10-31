@@ -159,7 +159,11 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - History metadata is display-only: build bounded localized date/source/image-result batches off the UI actor and reject stale refreshes. File names come only from copied URL references, without opening/statting targets, with 128-entry/64-KiB display limits and total-count/truncation guidance. Render names as individual rows, preserve original Copy payloads, and keep file metadata within existing sensitive-preview generation/revocation guards.
 
-- Private PowerShell fixture control pipes must explicitly use UTF-8 without a preamble before Process.Start. Retain the real BOM-refusal/EOF and held-request release regression; do not infer protocol success from an error screenshot taken after cleanup.
+
+
+
+
+- Private PowerShell fixture control pipes use UTF-8 without a preamble when supported by modern .NET. Windows PowerShell 5.1 lacks ProcessStartInfo.StandardInputEncoding: guard that property and accept one optional UTF-8 BOM on the first private command in the server. Retain real held-request tests for BOM/no-BOM and LF/CRLF without EOF; never infer protocol success from a screenshot after cleanup.
 
 - PowerShell wait diagnostic variables must not shadow predicate caller variables. Keep the real helper scope regression, exact public-control predicates and per-action deadlines; correct screenshots alone do not prove accessibility predicates succeeded.
 
