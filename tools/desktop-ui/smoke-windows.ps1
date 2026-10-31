@@ -405,7 +405,18 @@ function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefau
     [IO.File]::WriteAllText((Join-Path $OutputDirectory 'archive-native-controls.json'), (ConvertTo-Json -InputObject $metadata), [Text.UTF8Encoding]::new($false))
     throw 'archive_filename_editor'
   }
-  if ($CheckDefault) { Add-Check 'native_archive_save_dialog_defaults_to_zip' ($value.Current.Value -ceq 'clipboard-history.zip') }
+  if ($CheckDefault) {
+    $defaultName = $value.Current.Value
+    # Classify only this fixed synthetic default. Never emit a field value.
+    $defaultMetadata = @{
+      literalZIP = $defaultName -ceq 'clipboard-history.zip'
+      extensionHidden = $defaultName -ceq 'clipboard-history'
+      quotedZIP = $defaultName -ceq '"clipboard-history.zip"'
+      empty = [string]::IsNullOrEmpty($defaultName)
+    }
+    [IO.File]::WriteAllText((Join-Path $OutputDirectory 'archive-default-name.json'), ($defaultMetadata | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+    Add-Check 'native_archive_save_dialog_defaults_to_zip' $defaultMetadata.literalZIP
+  }
   $value.SetValue($Path)
   $acceptCondition = [Windows.Automation.AndCondition]::new(
     [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Button),
