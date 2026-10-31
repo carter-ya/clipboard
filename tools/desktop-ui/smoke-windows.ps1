@@ -16,6 +16,25 @@ public static class PreviewNative {
   [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
   private delegate bool EnumWindowProc(IntPtr hwnd, IntPtr parameter);
   [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowProc callback, IntPtr parameter);
+  [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumWindowProc callback, IntPtr parameter);
+  [DllImport("user32.dll")] private static extern int GetDlgCtrlID(IntPtr control);
+  public static IntPtr[] DialogFields(IntPtr parent, bool filenameOnly) {
+    var result = new System.Collections.Generic.List<IntPtr>();
+    EnumChildWindows(parent, (control, _) => {
+      var type = new System.Text.StringBuilder(128);
+      GetClassName(control, type, type.Capacity);
+      int id = GetDlgCtrlID(control);
+      if ((type.ToString() == "Edit" || type.ToString() == "ComboBox" || type.ToString() == "ComboBoxEx32") &&
+          (!filenameOnly || id == 1001 || id == 1148)) result.Add(control);
+      return result.Count < 32;
+    }, IntPtr.Zero);
+    return result.ToArray();
+  }
+  public static string DescribeDialogField(IntPtr control) {
+    var type = new System.Text.StringBuilder(128);
+    GetClassName(control, type, type.Capacity);
+    return GetDlgCtrlID(control).ToString() + ":" + type.ToString();
+  }
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetWindowText(IntPtr hwnd, System.Text.StringBuilder text, int max);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder text, int max);
@@ -329,7 +348,18 @@ function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefau
   # Windows common dialogs may expose the filename as an editable ComboBox
   # rather than an Edit node. Anchor only to known filename host/control IDs,
   # then require its native ValuePattern; never pick the address/search editor.
-  $value = Wait-For {
+  $value = $null
+  try {
+    $value = Wait-For {
+    # Native child handles also cover controls omitted from the dialog's
+    # provider fragment. ValuePattern remains mandatory; no text messages/keys.
+    foreach ($native in [PreviewNative]::DialogFields($handle, $true)) {
+      try {
+        $candidate = [Windows.Automation.AutomationElement]::FromHandle($native)
+        $pattern = $candidate.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
+        if ($candidate.Current.IsEnabled -and !$pattern.Current.IsReadOnly) { return $pattern }
+      } catch {}
+    }
     foreach ($id in @('1001', '1148', 'FileNameControlHost')) {
       $condition = [Windows.Automation.PropertyCondition]::new(
         [Windows.Automation.AutomationElement]::AutomationIdProperty, $id)
@@ -346,7 +376,22 @@ function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefau
         }
       }
     }
-  } 'archive_filename_editor'
+    } 'archive_filename_editor'
+  } catch {
+    # Bounded native IDs/classes and capability booleans only. Never record
+    # names, paths, editor values, clipboard content or exception text.
+    $metadata = @()
+    foreach ($native in [PreviewNative]::DialogFields($handle, $false)) {
+      $supportsValue = $false
+      try {
+        $element = [Windows.Automation.AutomationElement]::FromHandle($native)
+        $supportsValue = [bool]$element.GetCurrentPropertyValue([Windows.Automation.AutomationElement]::IsValuePatternAvailableProperty)
+      } catch {}
+      $metadata += @{ control = [PreviewNative]::DescribeDialogField($native); valuePattern = $supportsValue }
+    }
+    [IO.File]::WriteAllText((Join-Path $OutputDirectory 'archive-native-controls.json'), ($metadata | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+    throw 'archive_filename_editor'
+  }
   if ($CheckDefault) { Add-Check 'native_archive_save_dialog_defaults_to_zip' ($value.Current.Value -ceq 'clipboard-history.zip') }
   $value.SetValue($Path)
   $acceptCondition = [Windows.Automation.AndCondition]::new(
