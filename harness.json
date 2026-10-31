@@ -223,12 +223,20 @@
           "validation": "Linux arm64: all 182 Core tests, 27 private DBus tray/menu checks and 72 native UI checks pass. Every additional language is switched through actual GTK controls with translated privacy notes, preserved endpoint-editor identity/draft, unchanged AI opt-out and an unsaved endpoint draft. German and traditional Chinese renders were inspected. Windows probe syntax passes. All 8 compact/wide layout checks pass at each of scale 1/2; exact-head Windows and installed-runtime confirmation remain pending. A private Linux arm64 install with no Swift SDK or network passes 102 native UI/lifecycle checks and 8 installation/upgrade/uninstall/integrity checks, including the seven-language resource bundle and original single-action deadlines. The expanded full installation suite uses the inherited 600-second total budget. Exact-head x86 Linux/Windows CI remains pending."
         },
         {
+          "id": "CP10_startup_state",
+          "branch": "codex/cross-platform-startup-state",
+          "scope": "Refresh owned startup registration on native settings restoration and activation without rebuilding drafts",
+          "status": "in_progress",
+          "implemented": "A main-actor state coordinator separates passive reads from explicit registration changes, rejects stale reads and duplicate writes, and ignores late shutdown completions. Native GTK map/activation signals refresh visible settings without polling. Private native fixtures use distinct identities and a nonexistent executable. OS policy overrides and ownership semantics remain separate follow-up work.",
+          "validation": "Linux arm64: 187 Core tests and 79 native UI checks pass, including private startup registration removal/restoration, explicit disable, retained capacity editor identity and unsaved draft. Windows probe syntax passes; real Windows and installed-runtime checks remain pending."
+        },
+        {
           "id": "CP10",
           "scope": "Preferences and localization",
           "status": "in_progress",
           "remaining": [
             "Size-limit disable and equivalent filter choices",
-            "Startup state reconciliation on all restoration paths and discoverable capability/conflict guidance"
+            "Accurate OS startup policy/ownership semantics and discoverable capability/conflict guidance"
           ]
         },
         {

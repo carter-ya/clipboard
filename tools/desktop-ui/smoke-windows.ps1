@@ -43,6 +43,17 @@ public static class PreviewNative {
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wparam, IntPtr lparam);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int command);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool DestroyWindow(IntPtr hwnd);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr CreateWindowEx(
+    uint extended, string className, string title, uint style, int x, int y, int width, int height,
+    IntPtr parent, IntPtr menu, IntPtr instance, IntPtr parameter);
+  public static IntPtr CreateFocusFixture() {
+    return CreateWindowEx(0, "STATIC", "Clipboard startup focus fixture", 0x10CF0000,
+                          10, 10, 200, 100, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+  }
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
   [DllImport("user32.dll")] public static extern bool OpenClipboard(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool CloseClipboard();
@@ -612,6 +623,91 @@ try {
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'rich_budget_quit_timeout' }
     Add-Check 'rich_budget_profile_quits_cleanly' ($application.ExitCode -eq 0)
+
+    $historyRoot = Join-Path $OutputDirectory ('startup-state-' + [Guid]::NewGuid().ToString('N'))
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+      -ArgumentList @('--smoke-root', ('"' + $historyRoot + '"'), '--smoke-startup') -PassThru `
+      -RedirectStandardOutput (Join-Path $OutputDirectory 'startup-state.stdout.log') `
+      -RedirectStandardError (Join-Path $OutputDirectory 'startup-state.stderr.log')
+    $null = $application.Handle
+    $nativeWindowHandle = Wait-For {
+      $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
+      if ($handle -ne [IntPtr]::Zero) { $handle }
+    } 'startup_private_window'
+    $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'startup_private_profile' | Out-Null
+    Invoke-Button 'Settings'
+    Wait-For { (Find-Named 'Preferences') -and (Find-Named 'Enable launch at login') } 'startup_initial_disabled' | Out-Null
+    $settingsEditor = Get-Editor
+    $settingsEditorID = ($settingsEditor.GetRuntimeId() -join ',')
+    $settingsEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('321')
+    $runPath = 'Software\Microsoft\Windows\CurrentVersion\Run'
+    function Get-PrivateStartupNames {
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath)
+      if ($null -eq $key) { return @() }
+      try { return @($key.GetValueNames() | Where-Object { $_.StartsWith('com.clipboard.test.', [StringComparison]::Ordinal) }) }
+      finally { $key.Dispose() }
+    }
+    $beforeStartupNames = @(Get-PrivateStartupNames)
+    $startupRegistrationName = $null
+    $startupCommand = $null
+    $focusFixture = [IntPtr]::Zero
+    try {
+      Invoke-Button 'Enable launch at login'
+      Wait-For { Find-Named 'Disable launch at login' } 'startup_explicit_enable' | Out-Null
+      $newNames = @(Get-PrivateStartupNames | Where-Object { $_ -notin $beforeStartupNames })
+      Add-Check 'private_startup_toggle_uses_only_synthetic_registration' ($newNames.Count -eq 1)
+      $startupRegistrationName = $newNames[0]
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath, $true)
+      try {
+        $startupCommand = [string]$key.GetValue($startupRegistrationName)
+        if (!$startupCommand.Contains('.startup-no-launch')) { throw 'startup_fixture_command' }
+        $key.DeleteValue($startupRegistrationName, $false)
+      } finally { $key.Dispose() }
+      [PreviewNative]::ShowWindow($nativeWindowHandle, 6) | Out-Null
+      Wait-For { [PreviewNative]::IsIconic($nativeWindowHandle) } 'startup_settings_minimized' | Out-Null
+      [PreviewNative]::ShowWindow($nativeWindowHandle, 9) | Out-Null
+      [PreviewNative]::SetForegroundWindow($nativeWindowHandle) | Out-Null
+      Wait-For { (Find-Named 'Preferences') -and (Find-Named 'Enable launch at login') } 'startup_state_after_restore' | Out-Null
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath)
+      try { Add-Check 'settings_restore_reconciles_external_startup_disable' ($null -eq $key.GetValue($startupRegistrationName)) }
+      finally { $key.Dispose() }
+      $currentEditor = Get-Editor
+      Add-Check 'startup_restore_preserves_native_editor_draft' (($currentEditor.GetRuntimeId() -join ',') -eq $settingsEditorID -and $currentEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -ceq '321')
+      $focusFixture = [PreviewNative]::CreateFocusFixture()
+      if ($focusFixture -eq [IntPtr]::Zero) { throw 'startup_focus_fixture' }
+      [PreviewNative]::SetForegroundWindow($focusFixture) | Out-Null
+      Wait-For { [PreviewNative]::GetForegroundWindow() -eq $focusFixture } 'startup_settings_deactivated_without_unmap' | Out-Null
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath, $true)
+      try { $key.SetValue($startupRegistrationName, $startupCommand, [Microsoft.Win32.RegistryValueKind]::String) }
+      finally { $key.Dispose() }
+      [PreviewNative]::SetForegroundWindow($nativeWindowHandle) | Out-Null
+      Wait-For { (Find-Named 'Preferences') -and (Find-Named 'Disable launch at login') } 'startup_state_after_reactivation' | Out-Null
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath)
+      try { Add-Check 'settings_reactivation_reads_external_startup_state_without_writing' ($key.GetValue($startupRegistrationName) -ceq $startupCommand) }
+      finally { $key.Dispose() }
+      Invoke-Button 'Disable launch at login'
+      Wait-For { Find-Named 'Enable launch at login' } 'startup_explicit_disable' | Out-Null
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath)
+      try { Add-Check 'explicit_startup_disable_removes_the_owned_registration' ($null -eq $key.GetValue($startupRegistrationName)) }
+      finally { $key.Dispose() }
+      $settingsFile = Join-Path $historyRoot 'desktop-settings.json'
+      $draftUnsaved = !(Test-Path $settingsFile)
+      if (!$draftUnsaved) { $draftUnsaved = (Get-Content -Raw -Encoding UTF8 $settingsFile | ConvertFrom-Json).historyCapacity -eq 100 }
+      Add-Check 'startup_reconciliation_does_not_save_content_drafts' $draftUnsaved
+      Invoke-Button 'Quit Clipboard'
+      if (!$application.WaitForExit(10000)) { throw 'startup_state_quit_timeout' }
+      Add-Check 'startup_state_profile_quits_cleanly' ($application.ExitCode -eq 0)
+    } finally {
+      if ($focusFixture -ne [IntPtr]::Zero) { [PreviewNative]::DestroyWindow($focusFixture) | Out-Null }
+      if ($startupRegistrationName -and $startupCommand) {
+        $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath, $true)
+        if ($key) {
+          try { if ($key.GetValue($startupRegistrationName) -ceq $startupCommand) { $key.DeleteValue($startupRegistrationName, $false) } }
+          finally { $key.Dispose() }
+        }
+      }
+    }
 
     $sensitiveProbe = $true
     $historyRoot = Join-Path $OutputDirectory ('sensitive-preview-' + [Guid]::NewGuid().ToString('N'))
