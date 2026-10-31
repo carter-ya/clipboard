@@ -532,9 +532,11 @@ cleanup:
 #include <sys/select.h>
 #include <time.h>
 
+// X11 requestors can disappear before asynchronous replies are processed.
+// Only recover BadWindow on our own connections; preserve the host handler.
 static _Atomic(Display *) clipboard_displays[32];
 static pthread_mutex_t clipboard_display_lock = PTHREAD_MUTEX_INITIALIZER;
-static XErrorHandler previous_clipboard_error;
+static _Atomic(XErrorHandler) previous_clipboard_error;
 static int clipboard_error_installed;
 static int clipboard_error(Display *display, XErrorEvent *event) {
   if (event->error_code == BadWindow) {
@@ -542,8 +544,8 @@ static int clipboard_error(Display *display, XErrorEvent *event) {
       if (atomic_load(&clipboard_displays[i]) == display)
         return 0;
   }
-  return previous_clipboard_error ? previous_clipboard_error(display, event)
-                                  : 0;
+  XErrorHandler previous = atomic_load(&previous_clipboard_error);
+  return previous ? previous(display, event) : 0;
 }
 static int register_display(Display *display) {
   int registered = 0;
@@ -551,7 +553,7 @@ static int register_display(Display *display) {
   for (unsigned i = 0; i < 32; ++i)
     if (!atomic_load(&clipboard_displays[i])) {
       if (!clipboard_error_installed) {
-        previous_clipboard_error = XSetErrorHandler(clipboard_error);
+        atomic_store(&previous_clipboard_error, XSetErrorHandler(clipboard_error));
         clipboard_error_installed = 1;
       }
       atomic_store(&clipboard_displays[i], display);

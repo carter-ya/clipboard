@@ -1,7 +1,7 @@
 {
   "$schema_version": "1.0",
   "document_purpose": "Clipboard 项目的唯一权威文档。任何代理或开发者在提议改动前都必须先读这份文件。若代码与本文档不一致，必须在同一次提交中一并更新本文档——不得让两者静默分叉。",
-  "last_updated": "2026-10-30",
+  "last_updated": "2026-10-31",
   "project": {
     "name": "Clipboard",
     "one_liner": "macOS 的 Alfred 风格剪贴板历史——常驻菜单栏，支持全局快捷键、快速搜索；选中条目会写回系统剪贴板（由用户手动 Cmd+V 粘贴）。",
@@ -129,7 +129,11 @@
         "status": "planned"
       }
     ],
-    "completion_rule": "A created PR or passing build is not functional completion. Each stack layer retains implementation and verification evidence; unresolved manual/runtime gates remain open. No automatic main merge or public release is implied."
+    "completion_rule": "A created PR or passing build is not functional completion. Each stack layer retains implementation and verification evidence; unresolved manual/runtime gates remain open. No automatic main merge or public release is implied.",
+    "review_regressions": {
+      "CP2_cancelled_X11_request": "Reproduced the native owner exiting with BadWindow/X_ChangeProperty when a queued reader disappears. Backported the rich-content adapter connection-scoped recovery into CP2. A private-Xvfb regression cancels UTF8_STRING and TARGETS requests, then verifies a fresh independent reader. A native routing probe checks delegation to the existing host handler and connection registry reuse. No real user clipboard or keyboard input. Local Linux arm64 Swift 6.3.3: all 7 cancellation checks, the native routing/capacity/reuse probe, all 6 native clipboard scenarios and 140 Core tests passed; hosted Windows/macOS validation remains pending.",
+      "CP4_X11_shortcut_modifiers": "A native dispatcher regression reproduced bare-key activation. Dispatch now requires successful shortcut registration, the configured keycode and exact keyboard modifiers, ignoring only Caps Lock and the discovered Num Lock mapping. Direct native event tests cover missing/extra modifiers, failed registration, alternate Num Lock mapping, pointer-button state and held-key suppression without sending input to the OS. Local Linux arm64 native event regression and all 7 real registration/conflict/cleanup scenarios passed."
+    }
   },
   "desktop_ui": {
     "package": "Desktop (ClipboardDesktop executable), separate from the existing macOS product",
