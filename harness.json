@@ -248,8 +248,8 @@
           ],
           "source_filter_validation": {
             "branch": "codex/cross-platform-source-filter-case",
-            "implemented": "Windows executable source IDs compare without case while preserving original configuration/source spelling and existing Mac/Linux matching. A mixed-case password-manager source stays sensitive and never reaches history JSON or blob files.",
-            "validation": "The regression fails before the fix and all 205 Core tests pass afterward in isolated Linux arm64. A Windows-only scenario copies the independent synthetic clipboard peer to a mixed-case executable name and checks native identity, default filtering, memory retention and no persistence; exact-head Windows execution is pending."
+            "implemented": "Windows source filters compare custom rule spelling and observed IDs without case, preserving public rule spelling and Mac/Linux comparisons. The native Swift adapter already lowercases observed IDs; default lowercase rules were unaffected. Custom mixed-case rules now mark captured items sensitive and prevent persistence.",
+            "validation": "The custom-rule regression fails before the fix and all 205 Core tests pass afterward in isolated Linux arm64. Initial Windows source verification fails because the generic synthetic writer has a null HWND owner. A scenario-only native fixture now owns a message-only HWND and message loop, announces readiness with binary pipe output, and checks default/custom filtering plus memory-only storage. Exact-head Windows confirmation is pending."
           },
           "size_filter_validation": {
             "branch": "codex/cross-platform-size-filter-disable",

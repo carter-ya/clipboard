@@ -31,9 +31,9 @@ public struct BlocklistFilter: ClipFilter {
   }
 
   private static func comparisonKey(_ identifier: String) -> String {
-    // Windows reports the executable's original filename spelling. Match that
-    // namespace without case while retaining source/configuration text; X11
-    // window classes and Mac bundle identifiers keep their existing behavior.
+    // Windows executable identities ignore case. Normalize both custom rules
+    // and observed IDs without changing their public spelling. X11 window
+    // classes and Mac bundle IDs keep their existing comparison behavior.
     if identifier.prefix(8).lowercased() == "windows:" { return identifier.lowercased() }
     return identifier
   }
