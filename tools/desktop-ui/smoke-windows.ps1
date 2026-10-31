@@ -415,9 +415,12 @@ function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefau
       empty = [string]::IsNullOrEmpty($defaultName)
     }
     [IO.File]::WriteAllText((Join-Path $OutputDirectory 'archive-default-name.json'), ($defaultMetadata | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
-    Add-Check 'native_archive_save_dialog_defaults_to_zip' $defaultMetadata.literalZIP
+    if (!$defaultMetadata.literalZIP -and !$defaultMetadata.extensionHidden) { throw 'archive_unexpected_default_name' }
+    $expected = [IO.Path]::GetFullPath((Join-Path $historyRoot 'clipboard-history.zip'))
+    if ([IO.Path]::GetFullPath($Path) -cne $expected -or (Test-Path -LiteralPath $Path)) { throw 'archive_default_fixture_not_empty_or_private' }
+  } else {
+    $value.SetValue($Path)
   }
-  $value.SetValue($Path)
   $acceptCondition = [Windows.Automation.AndCondition]::new(
     [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Button),
     [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, '1'))
@@ -434,6 +437,12 @@ function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefau
     return $null
   } 'archive_dialog_accept'
   $accept.Invoke()
+  if ($CheckDefault) {
+    # The shell may hide a known extension in its edit control. Leave the
+    # filename untouched and require the real default save to create this ZIP.
+    Wait-For { Test-Path -LiteralPath $Path -PathType Leaf } 'native_default_zip_export_created' | Out-Null
+    Add-Check 'native_archive_save_dialog_defaults_to_zip' $true
+  }
 }
 function Set-Search([string]$Text) {
   $element = Wait-For { Get-Editor } 'search_control'
@@ -915,7 +924,7 @@ try {
     Invoke-Button 'Settings'
     Wait-For { Find-Named 'Preferences' } 'archive_preferences' | Out-Null
     Invoke-Button 'Export history'
-    $archivePath = Join-Path $historyRoot 'native-export.zip'
+    $archivePath = Join-Path $historyRoot 'clipboard-history.zip'
     Complete-ArchiveDialog 'Export history' $archivePath $true
     Wait-For { (Test-Path $archivePath) -and (Find-Named 'History exported. Sensitive items excluded.') } 'archive_export_finished' | Out-Null
     Add-Type -AssemblyName System.IO.Compression.FileSystem
