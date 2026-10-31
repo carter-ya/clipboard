@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Install/upgrade/uninstall on synthetic profiles in a runtime-only container."""
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -46,6 +47,23 @@ try:
               and (root / 'commands/clipboard-desktop').resolve() == executable.resolve())
         dependencies = subprocess.check_output(['ldd', str(executable)], text=True)
         check('installed_runtime_has_complete_library_closure', 'not found' not in dependencies)
+        image = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGUlEQVR4nGPQyLvznxLMMGrAqAGjBgwXAwBc3HEfVZuzFAAAAABJRU5ErkJggg==')
+        image_result = subprocess.run([str(installed / 'bin/clipboard-image-worker')], input=image,
+                                      capture_output=True, timeout=15)
+        try:
+            image_metadata = json.loads(image_result.stdout) if len(image_result.stdout) <= 4096 else {}
+        except ValueError:
+            image_metadata = {}
+        check('installed_image_classifier_works_with_bundled_runtime', image_result.returncode == 0 and
+              image_metadata.get('width') == 16 and image_metadata.get('height') == 16 and
+              isinstance(image_metadata.get('labels'), list) and len(image_metadata['labels']) <= 3)
+        image_notices = installed / 'share/licenses/image-model'
+        provenance = json.loads((image_notices / 'provenance.json').read_text())
+        check('installed_image_model_keeps_verified_provenance_and_notices',
+              provenance.get('cpu_only') is True and provenance.get('model_embedded') is True and
+              provenance.get('reference_tensor_verified') is True and provenance.get('preprocessing_reference_verified') is True and
+              all((image_notices / name).is_file() for name in
+                  ['onnxruntime-LICENSE', 'onnxruntime-ThirdPartyNotices.txt', 'MODELS-LICENSE', 'MODEL-README.md', 'synset.txt']))
         probe_command = ['dbus-run-session', '--', 'xvfb-run', '-a', '/usr/bin/python3', args.probe,
                          '--executable', str(executable), '--launch-command', 'clipboard-desktop', '--install-package', str(package),
                          '--lifecycle-cycles', '20', '--output', str(output / 'ui')]

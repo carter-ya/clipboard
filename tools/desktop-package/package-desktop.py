@@ -90,6 +90,20 @@ pdf_notices = binary.parent / 'pdfium-notices'
 if not (pdf_notices / 'provenance.json').is_file() or not (pdf_notices / 'LICENSE').is_file():
     raise RuntimeError('Verified PDF runtime provenance and dependency notices are required')
 shutil.copytree(pdf_notices, licenses / 'pdfium')
+image_worker = 'clipboard-image-worker' + ('.exe' if args.platform == 'windows' else '')
+image_library = 'onnxruntime.dll' if args.platform == 'windows' else 'libonnxruntime.so.1'
+for image_component in [image_worker, image_library] + (['onnxruntime_providers_shared.dll'] if args.platform == 'windows' else []):
+    source = binary.parent / image_component
+    if not source.is_file():
+        raise RuntimeError('Build the verified offline image worker before packaging')
+    shutil.copy2(source, bin_dir / image_component)
+    runtime_files.append(image_component)
+image_notices = binary.parent / 'image-model-notices'
+for notice in ['provenance.json', 'onnxruntime-LICENSE', 'onnxruntime-ThirdPartyNotices.txt',
+               'MODELS-LICENSE', 'MODEL-README.md', 'synset.txt']:
+    if not (image_notices / notice).is_file():
+        raise RuntimeError('Verified image model/runtime notices are required')
+shutil.copytree(image_notices, licenses / 'image-model')
 if args.platform == 'linux':
     if platform.system() != 'Linux':
         raise RuntimeError('Linux packages must be assembled on their native Linux builder')
@@ -183,7 +197,7 @@ else:
     copy_licenses(installation, 'swift-runtime')
     system = Path(os.environ['SystemRoot']) / 'System32'
     processed = set()
-    pending = [bin_dir / binary.name, bin_dir / pdf_worker] + list(bin_dir.glob('*.dll')) + list(lib_dir.rglob('*.dll'))
+    pending = [bin_dir / binary.name, bin_dir / pdf_worker, bin_dir / image_worker] + list(bin_dir.glob('*.dll')) + list(lib_dir.rglob('*.dll'))
     while pending:
         file = pending.pop()
         if file.name.lower() in processed:

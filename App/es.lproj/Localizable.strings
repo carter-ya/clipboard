@@ -185,3 +185,5 @@
 "Dark" = "Oscuro";
 
 "summary.badge.localExcerpt" = "Extracto local";
+
+"summary.badge.localImage" = "Imagen local";

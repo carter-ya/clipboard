@@ -52,6 +52,7 @@ final class DesktopHistoryArchiveTests: XCTestCase {
     let file = directory.appendingPathComponent("desktop-summaries.zip")
     let sources: [SummarySource] = [
       .vision, .naturalLanguage, .foundationModels, .remoteOpenAI, .localOCR, .localExtractive,
+      .localImage,
     ]
     let items = sources.enumerated().map { index, source in
       var value = item("archive-source-\(index)")

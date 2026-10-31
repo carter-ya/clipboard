@@ -141,15 +141,18 @@ public struct DesktopAnalysis: Sendable {
   private let ocr: any DesktopOCRRecognizing
   private let resolver: PayloadResolver
   private let fileReader: (any DesktopFileTextReading)?
+  private let imageClassifier: (any DesktopImageClassifying)?
   public init(
     credentials: any DesktopCredentialStoring, transport: any DesktopAITransport,
     ocr: any DesktopOCRRecognizing, blobRoot: URL?,
-    fileReader: (any DesktopFileTextReading)? = nil
+    fileReader: (any DesktopFileTextReading)? = nil,
+    imageClassifier: (any DesktopImageClassifying)? = nil
   ) {
     self.credentials = credentials
     self.transport = transport
     self.ocr = ocr
     self.fileReader = fileReader
+    self.imageClassifier = imageClassifier
     resolver = .init(blobRoot: blobRoot)
   }
   private func allow(_ item: ClipItem) throws {
@@ -158,7 +161,38 @@ public struct DesktopAnalysis: Sendable {
     else { throw DesktopServiceError.sensitiveContent }
   }
   public func recognize(_ item: ClipItem, language: String? = nil) async throws -> String {
+    let data = try await resolvedImageData(item)
+    let text = try await ocr.recognize(data, language: language)
+    try Task.checkCancellation()
+    return String(text.prefix(8000))
+  }
+  /// OCR remains the preferred signal. Empty/unavailable OCR may fall back to
+  /// the independent offline classifier; cancellation never starts another engine.
+  public func summarizeImageLocally(_ item: ClipItem, language: String? = nil) async throws
+    -> DesktopLocalImageResult
+  {
     try allow(item)
+    guard item.kind == .image else { throw DesktopServiceError.disabled }
+    let data = try await resolvedImageData(item)
+    do {
+      let text = try await ocr.recognize(data, language: language)
+      try Task.checkCancellation()
+      let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !trimmed.isEmpty {
+        return .init(text: DesktopTextPreview(trimmed, maxUTF8Bytes: 8000).text, source: .localOCR)
+      }
+    } catch DesktopServiceError.unavailable {
+      try Task.checkCancellation()
+    }
+    try Task.checkCancellation()
+    guard let imageClassifier else { throw DesktopServiceError.unavailable }
+    let result = try await imageClassifier.classify(data)
+    try Task.checkCancellation()
+    return .init(text: result.summary, source: .localImage)
+  }
+  private func resolvedImageData(_ item: ClipItem) async throws -> Data {
+    try allow(item)
+    try Task.checkCancellation()
     guard
       let payload = item.payloads.first(where: {
         ClipKind.imagePayloadTypes.contains($0.pasteboardType)
@@ -166,8 +200,11 @@ public struct DesktopAnalysis: Sendable {
     else { throw DesktopServiceError.invalidValue }
     let resolver = resolver
     let data = try await Task.detached { try resolver.data(for: payload) }.value
-    guard data.count <= 16 * 1024 * 1024 else { throw DesktopServiceError.tooLarge }
-    return String(try await ocr.recognize(data, language: language).prefix(8000))
+    try Task.checkCancellation()
+    guard !data.isEmpty, data.count <= 16 * 1024 * 1024 else {
+      throw DesktopServiceError.tooLarge
+    }
+    return data
   }
   public func summarizeLocally(_ item: ClipItem) async throws -> String {
     try allow(item)

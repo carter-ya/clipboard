@@ -271,6 +271,41 @@ import Foundation
     }
     do {
       let args = CommandLine.arguments
+      guard let index = args.firstIndex(of: "--ocr-fixture"), index + 1 < args.count else {
+        throw DesktopServiceError.invalidValue
+      }
+      let image = try Data(contentsOf: URL(fileURLWithPath: args[index + 1]))
+      let classifier = NativeDesktopImageClassifier()
+      let result = try await classifier.classify(image)
+      check(
+        "native_image_classifier_returns_bounded_metadata",
+        result.width > 0 && result.height > 0 && result.labels.count <= 3,
+        into: &checks)
+      var rejected = false
+      do { _ = try await classifier.classify(Data([0, 1, 2])) } catch { rejected = true }
+      check("native_image_classifier_rejects_invalid_image", rejected, into: &checks)
+      let transport = FakeDesktopAITransport()
+      let analyzer = DesktopAnalysis(
+        credentials: InMemoryDesktopCredentials(), transport: transport,
+        ocr: FakeDesktopOCR(result: ""), blobRoot: nil, imageClassifier: classifier)
+      let item = ClipItem(
+        createdAt: Date(), kind: .image, preview: "Synthetic image classification",
+        sha256: "fixture", sizeBytes: image.count,
+        payloads: [.init(pasteboardType: "public.png", inlineData: image)])
+      let summary = try await analyzer.summarizeImageLocally(item)
+      check(
+        "native_local_image_summary_keeps_its_engine_and_original_payload",
+        summary.source == .localImage && summary.text == result.summary
+          && item.payloads.first?.inlineData == image, into: &checks)
+      let requests = await transport.requests
+      check("native_local_image_classification_does_not_upload", requests.isEmpty, into: &checks)
+    } catch {
+      check(
+        "native_local_image_classification", false, detail: "private_classifier_unavailable",
+        into: &checks)
+    }
+    do {
+      let args = CommandLine.arguments
       guard let index = args.firstIndex(of: "--http-fixture"), index + 1 < args.count,
         let base = URL(string: args[index + 1]),
         ["127.0.0.1", "localhost"].contains(base.host ?? "")

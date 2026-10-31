@@ -7,6 +7,7 @@ on:
       - Core/**
       - tools/desktop-ui/install-windows-zlib.ps1
       - tools/desktop-pdf/**
+      - tools/desktop-image/**
       - tools/desktop-ui/check-services.py
       - tools/desktop-ui/check-linux-*
       - tools/desktop-ui/check-x11-*.c
@@ -18,6 +19,7 @@ on:
       - project.yml
       - tools/desktop-ui/install-windows-zlib.ps1
       - tools/desktop-pdf/**
+      - tools/desktop-image/**
       - tools/desktop-ui/check-services.py
       - tools/desktop-ui/check-linux-*
       - tools/desktop-ui/check-x11-*.c
@@ -143,6 +145,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $PdfWorker = if ($env:RUNNER_OS -eq 'Windows') { 'clipboard-pdf-worker.exe' } else { 'clipboard-pdf-worker' }
           & python tools/desktop-pdf/check-worker.py --executable (Join-Path $BinaryDirectory $PdfWorker)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & python tools/desktop-image/build-worker.py --output $BinaryDirectory --cache (Join-Path $env:RUNNER_TEMP 'clipboard-local-image-sdk-1.31.1')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $ImageWorker = if ($env:RUNNER_OS -eq 'Windows') { 'clipboard-image-worker.exe' } else { 'clipboard-image-worker' }
+          & python tools/desktop-image/check-worker.py --executable (Join-Path $BinaryDirectory $ImageWorker)
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ($env:RUNNER_OS -eq 'Linux') {
             & dbus-run-session -- /usr/bin/python3 tools/desktop-ui/check-services.py --executable (Join-Path $BinaryDirectory 'scenario-runner') --ocr-fixture Core/Fixtures/ocr.png 2>&1 | Tee-Object -FilePath platform-services.log
