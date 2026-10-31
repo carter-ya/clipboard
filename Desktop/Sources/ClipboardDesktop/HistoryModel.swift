@@ -75,7 +75,7 @@ final class HistoryModel: ObservableObject {
   @MainActor private var windowCoordinator: DesktopWindowCoordinator?
   @MainActor private var startupActivationRequested = false
   @MainActor private var shuttingDown = false
-  @MainActor private var applyingSettings = false
+  @MainActor private lazy var settingsSaveGate = DesktopSettingsSaveGate()
 
   static let fixtures = [
     "Welcome to Clipboard Preview",
@@ -526,9 +526,10 @@ final class HistoryModel: ObservableObject {
   }
 
   @MainActor func applyShortcut() async {
-    guard !applyingSettings, let shell, let settingsStore else { return }
-    applyingSettings = true
-    defer { applyingSettings = false }
+    guard let shell, let settingsStore else { return }
+    await settingsSaveGate.acquire()
+    defer { settingsSaveGate.release() }
+    guard !shuttingDown else { return }
     var next = settings
     next.shortcutEnabled = shortcutEnabledDraft
     next.shortcut = shortcutDraft
@@ -554,9 +555,10 @@ final class HistoryModel: ObservableObject {
     } catch { status = "Shortcut could not be saved. Previous settings kept." }
   }
   @MainActor func applyBehavior() async {
-    guard !applyingSettings, let settingsStore else { return }
-    applyingSettings = true
-    defer { applyingSettings = false }
+    guard let settingsStore else { return }
+    await settingsSaveGate.acquire()
+    defer { settingsSaveGate.release() }
+    guard !shuttingDown else { return }
     var next = settings
     next.closeToTray = closeToTrayDraft
     next.showOnLaunch = showOnLaunchDraft
@@ -569,15 +571,16 @@ final class HistoryModel: ObservableObject {
   }
 
   @MainActor func applyContentSettings() async {
-    guard !applyingSettings, let settingsStore, let store,
+    guard let settingsStore, let store,
       let capacity = Int(capacityDraft), let megabytes = Int(maxSizeDraft),
       (1...16).contains(megabytes)
     else {
       status = "Enter a capacity of 1–5000 and a size of 1–16 MiB."
       return
     }
-    applyingSettings = true
-    defer { applyingSettings = false }
+    await settingsSaveGate.acquire()
+    defer { settingsSaveGate.release() }
+    guard !shuttingDown else { return }
     var next = settings
     next.historyCapacity = capacity
     next.maxClipSizeBytes = megabytes * 1024 * 1024
@@ -660,9 +663,10 @@ final class HistoryModel: ObservableObject {
     } catch { status = "Clipboard is unavailable in this session." }
   }
   @MainActor func saveAISettings() async {
-    guard !applyingSettings, let settingsStore else { return }
-    applyingSettings = true
-    defer { applyingSettings = false }
+    guard let settingsStore else { return }
+    await settingsSaveGate.acquire()
+    defer { settingsSaveGate.release() }
+    guard !shuttingDown else { return }
     var next = settings
     next.ai.enabled = aiEnabledDraft
     next.ai.allowImages = aiImagesDraft
@@ -749,9 +753,10 @@ final class HistoryModel: ObservableObject {
     }
   }
   @MainActor func setAppearance(_ value: String) async {
-    guard !applyingSettings, let settingsStore else { return }
-    applyingSettings = true
-    defer { applyingSettings = false }
+    guard let settingsStore else { return }
+    await settingsSaveGate.acquire()
+    defer { settingsSaveGate.release() }
+    guard !shuttingDown else { return }
     var next = settings
     next.appearance = value
     do {
@@ -764,9 +769,10 @@ final class HistoryModel: ObservableObject {
     } catch { status = "Settings could not be saved." }
   }
   @MainActor func setLanguage(_ value: String?) async {
-    guard !applyingSettings, let settingsStore else { return }
-    applyingSettings = true
-    defer { applyingSettings = false }
+    guard let settingsStore else { return }
+    await settingsSaveGate.acquire()
+    defer { settingsSaveGate.release() }
+    guard !shuttingDown else { return }
     var next = settings
     next.languageOverride = value
     do {
