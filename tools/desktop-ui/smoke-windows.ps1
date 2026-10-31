@@ -106,6 +106,11 @@ function Get-Editor {
     [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)
   return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
 }
+function Get-ImagePreview {
+  $condition = [Windows.Automation.PropertyCondition]::new(
+    [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Image)
+  return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+}
 function Invoke-Button([string]$Label) {
   $element = Wait-For {
     $candidate = Find-Named $Label
@@ -303,7 +308,7 @@ try {
       }
       if ($OCRFixture) {
         Invoke-Button 'Image'
-        Wait-For { Find-Named '1 items' } 'image_for_ocr_replacement' | Out-Null
+        Wait-For { (Find-Named '1 items') -and (Get-ImagePreview) } 'image_for_ocr_replacement' | Out-Null
         Invoke-Button 'Delete'
         Wait-For { Find-Named '0 items' } 'previous_image_removed' | Out-Null
         Invoke-Button 'Start recording'
@@ -318,7 +323,7 @@ try {
         try {
           $line = $peer.StandardOutput.ReadLineAsync()
           if (!$line.Wait(10000) -or $line.Result -ne 'ready') { throw 'ocr_peer_startup' }
-          Wait-For { (Find-Named '1 items') -and (Find-Named 'Recognize text') } 'ocr_image_captured' | Out-Null
+          Wait-For { (Find-Named '1 items') -and (Get-ImagePreview) -and (Find-Named 'Recognize text') } 'ocr_image_captured' | Out-Null
           Invoke-Button 'Recognize text'
           Wait-For { (Find-Named 'OCR text ready') -and (Find-Named 'OCR / AI result') } 'ocr_result_visible' | Out-Null
           Add-Check 'native_ocr_result_reaches_real_preview' $true
