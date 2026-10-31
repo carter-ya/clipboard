@@ -1262,6 +1262,7 @@ try {
       $serverInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'ai-probe-server.py') + '"'
       $serverInfo.UseShellExecute = $false
       $serverInfo.RedirectStandardInput = $true
+      Set-PrivateFixtureInputEncoding $serverInfo
       $serverInfo.RedirectStandardOutput = $true
       $serverInfo.RedirectStandardError = $true
       $serverInfo.EnvironmentVariables['CLIPBOARD_PRIVATE_AI_TEST'] = '1'
@@ -1537,6 +1538,7 @@ try {
     $serverInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'ai-probe-server.py') + '"'
     $serverInfo.UseShellExecute = $false
     $serverInfo.RedirectStandardInput = $true
+    Set-PrivateFixtureInputEncoding $serverInfo
     $serverInfo.RedirectStandardOutput = $true
     $serverInfo.RedirectStandardError = $true
     $serverInfo.EnvironmentVariables['CLIPBOARD_PRIVATE_AI_TEST'] = '1'
