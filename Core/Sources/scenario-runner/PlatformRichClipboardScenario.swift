@@ -6,7 +6,8 @@ import Foundation
 
   private func richFixtures(_ name: String) -> [RawPayload] {
     if name == "local-summary" {
-      let text = "This synthetic local summary stays on this device. "
+      let text =
+        "This synthetic local summary stays on this device. "
         + String(repeating: "Additional private test context. ", count: 10)
       return [.init(pasteboardType: "public.utf8-plain-text", data: Data(text.utf8))]
     }
@@ -91,7 +92,14 @@ import Foundation
       return
     }
     let fixture = args.count > 2 ? args[2] : "rich"
-    if fixture == "ocr", args.count > 3 {
+    if fixture == "file-summary", args.count > 3 {
+      try clipboard.write(
+        payloads: [
+          .init(
+            pasteboardType: "public.file-url",
+            data: ClipboardFormats.fileURLData([URL(fileURLWithPath: args[3])]))
+        ], sensitive: false)
+    } else if fixture == "ocr", args.count > 3 {
       let data = try Data(contentsOf: URL(fileURLWithPath: args[3]))
       try clipboard.write(
         payloads: [.init(pasteboardType: "public.png", data: data)], sensitive: false)

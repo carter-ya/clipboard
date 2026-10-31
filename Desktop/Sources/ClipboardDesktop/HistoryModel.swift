@@ -18,6 +18,7 @@ final class HistoryModel: ObservableObject {
   @Published var aiEnabledDraft = false
   @Published var aiTextDraft = true
   @Published var aiImagesDraft = false
+  @Published var aiFilesDraft = false
   @Published var aiCredentialDraft = false
   @Published var aiEndpointDraft = "https://api.openai.com/v1"
   @Published var aiModelDraft = ""
@@ -26,6 +27,8 @@ final class HistoryModel: ObservableObject {
   @Published var automaticOCRDraft = false
   @Published var localTextSummariesDraft = false
   @Published var automaticLocalSummariesDraft = false
+  @Published var localFileSummariesDraft = false
+  @Published var automaticLocalFileSummariesDraft = false
   @Published var appearance = "system"
   @Published var effectiveDark = false
   @Published var uiLanguage: String?
@@ -117,6 +120,9 @@ final class HistoryModel: ObservableObject {
     guard let item = selected, !item.sensitive, settings.ai.allowsSummary(of: item.kind) else {
       return false
     }
+    if item.kind == .file {
+      return item.payloads.contains { $0.pasteboardType == "public.file-url" }
+    }
     if item.kind == .image {
       return settings.ai.allowImages
         && item.payloads.contains(where: {
@@ -127,10 +133,9 @@ final class HistoryModel: ObservableObject {
   }
 
   @MainActor var canSummarizeLocally: Bool {
-    guard settings.localTextSummariesEnabled, let item = selected, !item.sensitive,
-      [.text, .rtf, .mixed].contains(item.kind)
-    else { return false }
-    return true
+    guard let item = selected, !item.sensitive else { return false }
+    if item.kind == .file { return settings.localFileSummariesEnabled }
+    return settings.localTextSummariesEnabled && [.text, .rtf, .mixed].contains(item.kind)
   }
   var canRevealSensitivePreview: Bool {
     selected?.sensitive == true && revealedSensitiveID != selectedID
@@ -323,6 +328,7 @@ final class HistoryModel: ObservableObject {
       aiEnabledDraft = settings.ai.enabled
       aiTextDraft = settings.ai.allowText
       aiImagesDraft = settings.ai.allowImages
+      aiFilesDraft = settings.ai.allowFiles
       aiCredentialDraft = settings.ai.usesCredential
       aiEndpointDraft = settings.ai.endpoint
       aiModelDraft = settings.ai.model
@@ -330,6 +336,8 @@ final class HistoryModel: ObservableObject {
       automaticOCRDraft = settings.automaticOCR
       localTextSummariesDraft = settings.localTextSummariesEnabled
       automaticLocalSummariesDraft = settings.automaticLocalSummaries
+      localFileSummariesDraft = settings.localFileSummariesEnabled
+      automaticLocalFileSummariesDraft = settings.automaticLocalFileSummaries
       var startupBackend: NativeDesktopStartup?
       if DesktopApplicationContext.profile == "production" {
         startupBackend = try? NativeDesktopStartup(
@@ -394,8 +402,12 @@ final class HistoryModel: ObservableObject {
         for await event in events {
           guard !Task.isCancelled, let self else { break }
           switch event {
-          case .deleted(let id), .evicted(let id, _, _): self.analysisProgress.remove(id: id)
-          case .cleared: self.analysisProgress.clear()
+          case .deleted(let id), .evicted(let id, _, _):
+            self.analysisScheduler.cancel(id: id)
+            self.analysisProgress.remove(id: id)
+          case .cleared:
+            self.analysisScheduler.cancelAll()
+            self.analysisProgress.clear()
           default: break
           }
           // Keep native editors/drafts while hidden, without rerendering history
@@ -404,6 +416,11 @@ final class HistoryModel: ObservableObject {
           if case .inserted(let item) = event, !item.sensitive {
             if self.settings.automaticSummaries && self.settings.ai.allowsSummary(of: item.kind) {
               self.enqueueAutomaticAnalysis(remote: true, item: item)
+            } else if self.settings.localFileSummariesEnabled
+              && self.settings.automaticLocalFileSummaries
+              && item.kind == .file
+            {
+              self.enqueueAutomaticAnalysis(remote: false, item: item)
             } else if self.settings.localTextSummariesEnabled
               && self.settings.automaticLocalSummaries
               && [.text, .rtf, .mixed].contains(item.kind)
@@ -550,6 +567,7 @@ final class HistoryModel: ObservableObject {
   }
   @MainActor func deleteSelected() async {
     guard let store, let selectedID else { return }
+    analysisScheduler.cancel(id: selectedID)
     await store.delete(id: selectedID)
     await store.flush()
     await refresh()
@@ -755,6 +773,7 @@ final class HistoryModel: ObservableObject {
   @MainActor func clearHistory() async {
     guard let store else { return }
     confirmsClearHistory = false
+    analysisScheduler.cancelAll()
     await store.clearAll()
     await store.flush()
     await refresh()
@@ -875,6 +894,7 @@ final class HistoryModel: ObservableObject {
     next.ai.enabled = aiEnabledDraft
     next.ai.allowText = aiTextDraft
     next.ai.allowImages = aiImagesDraft
+    next.ai.allowFiles = aiFilesDraft
     next.ai.usesCredential = aiCredentialDraft
     next.ai.endpoint = aiEndpointDraft.trimmingCharacters(in: .whitespacesAndNewlines)
     next.ai.model = aiModelDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -882,10 +902,21 @@ final class HistoryModel: ObservableObject {
     next.automaticOCR = automaticOCRDraft
     next.localTextSummariesEnabled = localTextSummariesDraft
     next.automaticLocalSummaries = automaticLocalSummariesDraft
+    next.localFileSummariesEnabled = localFileSummariesDraft
+    next.automaticLocalFileSummaries = automaticLocalFileSummariesDraft
     do {
       try next.validate()
       try await settingsStore.save(next)
       settings = next
+      if let active = analysisScheduler.currentRequest {
+        // Revoke synchronously with the settings update. A store await here can
+        // let an already completed read/credential lookup initiate transport.
+        // If the active item is outside the retained view, fail closed.
+        let current = items.first(where: { $0.id == active.id })
+        if analysisScheduler.recheckCurrent(id: active.id, item: current, settings: settings) {
+          analysisProgress.remove(id: active.id)
+        }
+      }
       status = "AI settings saved"
     } catch { status = "Check the model and endpoint. Use HTTPS, or HTTP for a loopback server." }
   }
@@ -951,7 +982,7 @@ final class HistoryModel: ObservableObject {
     let configuration = settings.ai
     let service = DesktopAnalysis(
       credentials: credentials, transport: transport, ocr: ocr,
-      blobRoot: root?.appendingPathComponent("blobs"))
+      blobRoot: root?.appendingPathComponent("blobs"), fileReader: NativeDesktopFileTextReader())
     let language = settings.languageOverride
     do {
       let result =
@@ -981,15 +1012,32 @@ final class HistoryModel: ObservableObject {
       status = remote || localText ? "Summary ready" : "OCR text ready"
     } catch is CancellationError {
       analysisProgress.remove(id: item.id)
-      status = "Analysis cancelled"
+      if !shuttingDown && !showsSettings && selectedID == item.id
+        && items.contains(where: { $0.id == item.id })
+      {
+        status = "Analysis cancelled"
+      }
     } catch {
+      if Task.isCancelled {
+        analysisProgress.remove(id: item.id)
+        return
+      }
       analysisProgress.finish(ticket, succeeded: false)
-      status =
-        remote
-        ? "Summary unavailable. Check AI settings and the connection."
-        : localText
-          ? "Local excerpts need at least 100 characters of readable text."
-          : "OCR unavailable. Check the image and installed OCR language packs."
+      if item.kind == .file,
+        !remote
+          || [DesktopServiceError.invalidValue, .tooLarge, .fileUnavailable].contains(
+            error as? DesktopServiceError ?? .networkFailure)
+      {
+        status =
+          "File excerpts need readable UTF-8 text, at least 100 characters for local use and at most 1 MiB."
+      } else {
+        status =
+          remote
+          ? "Summary unavailable. Check AI settings and the connection."
+          : localText
+            ? "Local excerpts need at least 100 characters of readable text."
+            : "OCR unavailable. Check the image and installed OCR language packs."
+      }
     }
   }
   @MainActor func setAppearance(_ value: String) async {
