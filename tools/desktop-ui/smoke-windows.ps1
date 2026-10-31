@@ -155,6 +155,12 @@ public static class PreviewNative {
   }
   [StructLayout(LayoutKind.Sequential)] private struct Point { public int X, Y; }
   [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
+  public static bool HoverOwnedControl(uint processId, int x, int y) {
+    uint owner;
+    GetWindowThreadProcessId(WindowFromPoint(new Point { X = x, Y = y }), out owner);
+    return owner == processId && SetCursorPos(x, y);
+  }
   [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(Point point);
   [DllImport("user32.dll")] private static extern uint SendInput(uint count, PointerInput[] inputs, int size);
   public static bool ClickFocusFixture() {
@@ -329,6 +335,21 @@ function Get-ImagePreview {
   $condition = [Windows.Automation.PropertyCondition]::new(
     [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Image)
   return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+}
+function Get-OwnedImagePreviews {
+  $condition = [Windows.Automation.AndCondition]::new(
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, [int]$script:application.Id),
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Image))
+  return [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)
+}
+function Get-ImagePeek {
+  $images = @(Get-OwnedImagePreviews)
+  if ($images.Count -lt 2) { return $null }
+  $anchor = Get-ImagePreview
+  if (!$anchor) { return $null }
+  $anchorID = $anchor.GetRuntimeId() -join ','
+  foreach ($image in $images) { if (($image.GetRuntimeId() -join ',') -ne $anchorID) { return $image } }
+  return $null
 }
 function Read-SharedJson([string]$Path) {
   # Snapshot replacement needs delete sharing on Windows. Get-Content's live
@@ -633,6 +654,22 @@ try {
             Wait-For { $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $imageCondition) } 'native_image_preview' | Out-Null
             Add-Check 'image_preview_has_native_picture' $true
             Save-Screenshot 'image-preview.png'
+            if ($env:GITHUB_ACTIONS -ne 'true') { throw 'image_pointer_fixture_requires_isolated_runner' }
+            $anchor = Wait-For {
+              $candidate = Get-ImagePreview
+              if ($candidate -and !$candidate.Current.IsOffscreen) { $candidate }
+            } 'image_hover_anchor_visible'
+            $bounds = $anchor.Current.BoundingRectangle
+            if (![PreviewNative]::HoverOwnedControl([uint32]$application.Id, [int]($bounds.X + $bounds.Width / 2), [int]($bounds.Y + $bounds.Height / 2))) { throw 'image_hover_motion' }
+            $peek = Wait-For { Get-ImagePeek } 'image_hover_tooltip'
+            $peekBounds = $peek.Current.BoundingRectangle
+            $imageLimit = 640 * [Math]::Max(1, [PreviewNative]::GetDpiForWindow($nativeWindowHandle) / 96.0)
+            Add-Check 'image_hover_opens_a_bounded_native_preview' ($peekBounds.Width -gt 0 -and $peekBounds.Height -gt 0 -and $peekBounds.Width -le $imageLimit -and $peekBounds.Height -le $imageLimit -and $peek.Current.ControlType -eq [Windows.Automation.ControlType]::Image)
+            Invoke-Button 'Text'
+            Wait-For { @(Get-OwnedImagePreviews).Count -eq 0 } 'image_peek_revoked_on_selection' | Out-Null
+            Add-Check 'selection_change_closes_image_peek' $true
+            Invoke-Button 'Image'
+            Wait-For { Get-ImagePreview } 'image_preview_restored_after_peek' | Out-Null
             Invoke-Button 'Copy'
             Wait-For { (Find-Named 'Copied to clipboard') -and [PreviewNative]::GetClipboardSequenceNumber() -ne $CopyRevision } 'copy_image_status' | Out-Null
             Add-Check 'image_copy_keeps_original_native_png' ([PreviewNative]::HasPngClipboard())
@@ -697,6 +734,21 @@ try {
           $line = $peer.StandardOutput.ReadLineAsync()
           if (!$line.Wait(10000) -or $line.Result -ne 'ready') { throw 'ocr_peer_startup' }
           Wait-For { (Find-Named '1 items') -and (Get-ImagePreview) -and (Find-Named 'Recognize text') } 'ocr_image_captured' | Out-Null
+          if ($env:GITHUB_ACTIONS -ne 'true') { throw 'image_pointer_fixture_requires_isolated_runner' }
+          $anchor = Wait-For {
+            $candidate = Get-ImagePreview
+            if ($candidate -and !$candidate.Current.IsOffscreen) { $candidate }
+          } 'large_image_hover_anchor_visible'
+          $anchorBounds = $anchor.Current.BoundingRectangle
+          if (![PreviewNative]::HoverOwnedControl([uint32]$application.Id, [int]($anchorBounds.X + $anchorBounds.Width / 2), [int]($anchorBounds.Y + $anchorBounds.Height / 2))) { throw 'large_image_hover_motion' }
+          $peek = Wait-For { Get-ImagePeek } 'large_image_hover_tooltip'
+          $peekBounds = $peek.Current.BoundingRectangle
+          $imageLimit = 600 * [Math]::Max(1, [PreviewNative]::GetDpiForWindow($nativeWindowHandle) / 96.0)
+          Add-Check 'large_image_hover_enlarges_within_600_logical_pixels' ($peekBounds.Width -gt $anchorBounds.Width -and $peekBounds.Width -le $imageLimit -and $peekBounds.Height -gt 0 -and $peekBounds.Height -le $imageLimit)
+          Invoke-Button 'Text'
+          Wait-For { @(Get-OwnedImagePreviews).Count -eq 0 } 'large_image_peek_revoked' | Out-Null
+          Invoke-Button 'Image'
+          Wait-For { Get-ImagePreview } 'large_image_anchor_restored' | Out-Null
           Invoke-Button 'Recognize text'
           Wait-For { (Find-Named 'OCR text ready') -and (Find-Named 'OCR / AI result') } 'ocr_result_visible' | Out-Null
           Add-Check 'native_ocr_result_reaches_real_preview' $true

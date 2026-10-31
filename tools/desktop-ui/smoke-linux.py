@@ -224,6 +224,46 @@ def wake_existing():
 
 
 
+def hover_public_image():
+    if sensitive_probe:
+        raise RuntimeError('image_pointer_outside_private_phase')
+    image = wait_for(lambda: next((node for node in nodes() if
+                     node.getRole() == pyatspi.ROLE_IMAGE), None),
+                     'image_hover_anchor')
+    bounds = image.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+    if bounds.width <= 0 or bounds.height <= 0:
+        raise RuntimeError('image_hover_bounds')
+    x11 = ctypes.CDLL('libX11.so.6')
+    xtest = ctypes.CDLL('libXtst.so.6')
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    x11.XDefaultRootWindow.restype = ctypes.c_ulong
+    x11.XTranslateCoordinates.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong,
+                                          ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_int),
+                                          ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_ulong)]
+    x11.XFlush.argtypes = [ctypes.c_void_p]
+    x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+    xtest.XTestFakeMotionEvent.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
+    display = x11.XOpenDisplay(None)
+    if not display: raise RuntimeError('image_hover_display')
+    try:
+        root_x, root_y, child = ctypes.c_int(), ctypes.c_int(), ctypes.c_ulong()
+        if not x11.XTranslateCoordinates(display, window_id(), x11.XDefaultRootWindow(display),
+                                          bounds.x + bounds.width // 2, bounds.y + bounds.height // 2,
+                                          ctypes.byref(root_x), ctypes.byref(root_y), ctypes.byref(child)):
+            raise RuntimeError('image_hover_coordinates')
+        if not xtest.XTestFakeMotionEvent(display, -1, root_x.value, root_y.value, 0):
+            raise RuntimeError('image_hover_motion')
+        x11.XFlush(display)
+    finally:
+        x11.XCloseDisplay(display)
+    # GTK 4.6 exposes the custom tooltip as a panel with a second image.
+    def peek_image():
+        images = [node for node in nodes() if node.getRole() == pyatspi.ROLE_IMAGE]
+        return images[-1] if len(images) >= 2 else None
+    return wait_for(peek_image, 'image_hover_tooltip')
+
+
 def activate_archive_file_with_pointer(filename):
     # GTK 4.6 renders file rows without exposing them through AT-SPI. Locate
     # only our synthetic filename in this private chooser's actual pixels;
@@ -431,6 +471,17 @@ try:
                 if fixture == 'rich':
                     check('image_preview_has_native_picture', any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()))
                     screenshot('image-preview.png')
+                    tooltip = hover_public_image()
+                    tip_bounds = tooltip.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+                    check('image_hover_opens_a_bounded_native_preview',
+                          0 < tip_bounds.width <= 640 and 0 < tip_bounds.height <= 640 and
+                          sum(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()) >= 2)
+                    subprocess.run(['import', '-window', 'root', str(out / 'image-peek.png')], check=True, timeout=10)
+                    click('Text')
+                    wait_for(lambda: not any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()), 'image_peek_revoked_on_selection')
+                    check('selection_change_closes_image_peek', True)
+                    click('Image')
+                    wait_for(lambda: any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()), 'image_preview_restored_after_peek')
                     click('Copy')
                     wait_for(lambda: has_text('Copied to clipboard'), 'copy_image_status')
                     image = subprocess.check_output(['xclip', '-selection', 'clipboard', '-out', '-target', 'image/png'], timeout=10)
@@ -493,6 +544,17 @@ try:
                 if not select.select([peer.stdout], [], [], 10)[0] or peer.stdout.readline() != b'ready\n':
                     raise RuntimeError('ocr_peer_startup')
                 wait_for(lambda: has_text('1 items') and button('Recognize text'), 'ocr_image_captured')
+                anchor = wait_for(lambda: next((node for node in nodes() if node.getRole() == pyatspi.ROLE_IMAGE), None), 'large_image_anchor')
+                anchor_width = anchor.queryComponent().getExtents(pyatspi.WINDOW_COORDS).width
+                peek = hover_public_image()
+                peek_bounds = peek.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+                check('large_image_hover_enlarges_within_600_logical_pixels',
+                      anchor_width < peek_bounds.width <= 600 and 0 < peek_bounds.height <= 600)
+                subprocess.run(['import', '-window', 'root', str(out / 'large-image-peek.png')], check=True, timeout=10)
+                click('Text')
+                wait_for(lambda: not any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()), 'large_image_peek_revoked')
+                click('Image')
+                wait_for(lambda: any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()), 'large_image_anchor_restored')
                 click('Recognize text')
                 wait_for(lambda: has_text('OCR text ready') and has_text('OCR / AI result'), 'ocr_result_visible', seconds=60)
                 check('native_ocr_result_reaches_real_preview', any('CLIPBOARD' in getattr(node, 'name', '').upper() for node in nodes()))

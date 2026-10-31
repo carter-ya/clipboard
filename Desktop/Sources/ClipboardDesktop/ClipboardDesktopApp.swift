@@ -44,13 +44,15 @@ struct HistoryView: View {
     GeometryReader { geometry in
       let viewportWidth = model.responsiveWidth(proposed: geometry.size.width)
       let compact = viewportWidth < 820
+      let imageHeight = model.previewImageHeight(proposed: geometry.size.height)
       VStack(alignment: .leading, spacing: 12) {
         header(compact: compact)
         ScrollView {
           if model.showsSettings {
             settings
           } else {
-            history(compact: compact, compactFilters: viewportWidth < 1100)
+            history(
+              compact: compact, compactFilters: viewportWidth < 1100, imageHeight: imageHeight)
           }
         }.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
         if !model.showsSettings { itemActions }
@@ -103,7 +105,7 @@ struct HistoryView: View {
     }
   }
 
-  func history(compact: Bool, compactFilters: Bool) -> some View {
+  func history(compact: Bool, compactFilters: Bool, imageHeight: Double) -> some View {
     VStack(alignment: .leading, spacing: 14) {
       TextField(model.t("Search history"), text: $model.query)
         .inspect { model.attachSearch($0) }
@@ -172,13 +174,14 @@ struct HistoryView: View {
         VStack(alignment: .leading, spacing: 16) {
           historyItems.frame(maxWidth: .infinity, minHeight: 180, maxHeight: 220)
           Divider()
-          preview.frame(maxWidth: .infinity, minHeight: 200, maxHeight: 300)
+          preview(imageHeight: imageHeight).frame(
+            maxWidth: .infinity, minHeight: 200, maxHeight: 300)
         }
       } else {
         HStack(alignment: .top, spacing: 20) {
           historyItems.frame(minWidth: 300, maxWidth: 340, minHeight: 280, maxHeight: 360)
           Divider()
-          preview.frame(
+          preview(imageHeight: imageHeight).frame(
             minWidth: 340, maxWidth: .infinity, minHeight: 280, maxHeight: 360)
         }
       }
@@ -220,17 +223,18 @@ struct HistoryView: View {
     }
   }
 
-  var preview: some View {
+  func preview(imageHeight: Double) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       Text(model.t("Preview")).font(.system(size: 18))
       if let source = model.selected?.sourceBundleID {
         Text(model.t("Source: ") + source).font(.system(size: 12)).foregroundColor(.gray)
+          .lineLimit(1).help(source)
       }
       ScrollView {
         VStack(alignment: .leading, spacing: 12) {
           if let image = model.previewImage {
-            DesktopImagePreview(image: image).frame(
-              minWidth: 250, maxWidth: .infinity, minHeight: 180, maxHeight: 240)
+            DesktopImagePreview(image: image, accessibilityLabel: model.t("Image preview")).frame(
+              minWidth: 250, maxWidth: .infinity, maxHeight: imageHeight)
           }
           DesktopTextPreviewView(
             text: model.canRevealSensitivePreview

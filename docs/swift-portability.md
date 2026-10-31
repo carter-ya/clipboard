@@ -324,3 +324,25 @@ The optimized Linux arm64 build passes all 88 native UI checks, including both
 size-setting cases. macOS passes 19 targeted settings/rich-clipboard/localization
 tests. Windows probe syntax and native helper compilation pass; actual Windows
 and installed-runtime confirmation remain pending.
+
+Selected desktop images now provide a native hover preview. A second image is
+prepared off the UI actor with a maximum 600-pixel edge, stays in memory, and
+uses GTK's tooltip lifetime. The main picture scales within its layout proposal;
+selection/unmap closes the anchor, and updates requery an open tooltip. Masked
+sensitive images have no hover anchor, and original Copy bytes remain intact.
+Linux GTK 4.6 exposes its custom tooltip as a panel containing a second image;
+its AT-SPI window coordinates are translated through the private X11 window.
+Focused native checks cover actual appearance, bounds, selection cleanup and
+original PNG Copy. A synthetic 700x140 OCR image proves enlargement within the
+600-pixel bound. All 208 Core tests and all eight layout checks at each scale
+1/2 pass. All 91 full native Linux UI/privacy checks pass too, including sensitive
+reveal revocation. Exact-head Windows and installed-runtime checks are pending.
+
+The hover anchor uses a mapped native window-height budget (64–240 logical
+pixels) instead of a 180-pixel minimum that could center a small image outside
+the Windows viewport. The last mapped height survives hidden/internal size
+proposals, matching the existing native-width policy. Source labels remain one
+line with the full identity in native help. The candidate passes all 91 full
+Linux native UI/privacy checks and all eight layout checks at each scale 1/2.
+Windows probes now require the anchor to be onscreen before pointer movement;
+exact-head Windows confirmation and low-height/physical display audit remain open.
