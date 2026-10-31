@@ -156,3 +156,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Private PowerShell fixture control pipes must explicitly use UTF-8 without a preamble before Process.Start. Retain the real BOM-refusal/EOF and held-request release regression; do not infer protocol success from an error screenshot taken after cleanup.
 
 - PowerShell wait diagnostic variables must not shadow predicate caller variables. Keep the real helper scope regression, exact public-control predicates and per-action deadlines; correct screenshots alone do not prove accessibility predicates succeeded.
+
+- The expanded offline Linux installed suite has a 1200-second aggregate budget within the 90-minute CI job. Preserve all native per-action deadlines, owned-service/process limits and assertions; a stalled individual operation must still fail promptly. This budget follows the recorded x64 600-second outer timeout during successful file/PDF checks.
