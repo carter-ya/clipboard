@@ -21,12 +21,21 @@ parser.add_argument('--gtk-prefix')
 parser.add_argument('--version')
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[2]
-version = args.version or (repo / 'Desktop/VERSION').read_text().strip()
+version = args.version or (repo / 'Desktop/Sources/ClipboardDesktop/Resources/VERSION').read_text().strip()
 if not re.fullmatch(r'\d+\.\d+\.\d+(?:-preview\.\d+)?', version):
     raise RuntimeError('Invalid desktop package version')
 binary = Path(args.binary).resolve()
 if not binary.is_file():
     raise RuntimeError('Build the native desktop executable before packaging')
+# A stale build or --version override must never advertise a different
+# version from the value actually shipped to the installed application.
+version_resources = [binary.parent / ('ClipboardDesktop_ClipboardDesktop' + suffix) / 'VERSION'
+                     for suffix in ('.resources', '.bundle')]
+version_resources = [path for path in version_resources if path.is_file()]
+if len(version_resources) != 1 or version_resources[0].stat().st_size > 128:
+    raise RuntimeError('Build the desktop version resource before packaging')
+if version_resources[0].read_text(encoding='utf-8').strip() != version:
+    raise RuntimeError('Package version must match the built desktop version resource')
 output = Path(args.output).resolve()
 output.mkdir(parents=True, exist_ok=True)
 arch = 'x64' if platform.machine().lower() in ('x86_64', 'amd64') else 'arm64'

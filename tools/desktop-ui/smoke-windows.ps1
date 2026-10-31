@@ -328,7 +328,7 @@ function Get-Editor {
     [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)
   return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
 }
-function Invoke-VisibleConnectionButton([string]$Label) {
+function Invoke-VisibleConnectionButton([string]$Label, [bool]$Activate = $true) {
   if ($env:GITHUB_ACTIONS -ne 'true') { throw 'connection_pointer_fixture_requires_isolated_runner' }
   $scroll = @{ attempted = $false }
   Wait-For {
@@ -353,7 +353,7 @@ function Invoke-VisibleConnectionButton([string]$Label) {
           ($target.Y -gt $viewport.Y + $viewport.Height / 2))) { throw 'connection_scroll_motion' }
     return $false
   } ('visible_control_' + $Label) | Out-Null
-  Invoke-Button $Label
+  if ($Activate) { Invoke-Button $Label }
 }
 function Get-EditorWithValue([string]$Value) {
   if ($script:sensitiveProbe) { throw 'public_editor_lookup_after_sensitive_phase' }
@@ -1710,6 +1710,85 @@ try {
     $fixtureReport = $reportRead.Result | ConvertFrom-Json
     Add-Check 'fallback_retries_send_only_two_fixed_requests_without_credentials_or_cookies' ($fixtureReport.requests -eq 2 -and $fixtureReport.fixedTestsOnly -and $fixtureReport.noAuthorization -and $fixtureReport.noCookies)
     $probeServer.Dispose()
+
+    $historyRoot = Join-Path $OutputDirectory ('updates-' + [Guid]::NewGuid().ToString('N'))
+    $updateServerInfo = New-Object Diagnostics.ProcessStartInfo
+    $updateServerInfo.FileName = (Resolve-PrivateFixturePython $FixturePython)
+    $updateServerInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'update-probe-server.py') + '"'
+    $updateServerInfo.UseShellExecute = $false
+    $updateServerInfo.RedirectStandardInput = $true
+    $updateServerInfo.RedirectStandardOutput = $true
+    $updateServerInfo.RedirectStandardError = $true
+    $updateServerInfo.EnvironmentVariables['CLIPBOARD_PRIVATE_UPDATE_TEST'] = '1'
+    $updateServer = [Diagnostics.Process]::Start($updateServerInfo)
+    try {
+      $ready = $updateServer.StandardOutput.ReadLineAsync()
+      if (!$ready.Wait(10000) -or $ready.Result -notmatch '^ready:([0-9]+)$') { throw 'update_fixture_ready' }
+      $updatePort = $Matches[1]
+      $updateAppInfo = New-Object Diagnostics.ProcessStartInfo
+      $updateAppInfo.FileName = $Executable
+      $updateAppInfo.WorkingDirectory = Split-Path $Executable
+      $updateAppInfo.Arguments = '--smoke-root "' + $historyRoot + '" --smoke-updates'
+      $updateAppInfo.UseShellExecute = $false
+      $updateAppInfo.RedirectStandardOutput = $true
+      $updateAppInfo.RedirectStandardError = $true
+      $updateAppInfo.EnvironmentVariables['CLIPBOARD_PRIVATE_UPDATE_PORT'] = $updatePort
+      $application = [Diagnostics.Process]::Start($updateAppInfo)
+      $null = $application.Handle
+      # Native asynchronous drains retain no text or PowerShell callbacks.
+      $updateOutputDrain = $application.StandardOutput.BaseStream.CopyToAsync([IO.Stream]::Null)
+      $updateErrorDrain = $application.StandardError.BaseStream.CopyToAsync([IO.Stream]::Null)
+      $nativeWindowHandle = Wait-For {
+        $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
+        if ($handle -ne [IntPtr]::Zero) { $handle }
+      } 'updates_private_window'
+      $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+      Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'updates_private_profile' | Out-Null
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Checks official releases only when you ask.' } 'updates_initial_idle' | Out-Null
+      Add-Check 'updates_show_packaged_version_without_automatic_check' ($null -ne (Find-Named 'Installed version: 0.1.0-preview.1'))
+      $updateEditor = Wait-For { Get-EditorWithValue '100' } 'update_draft_editor'
+      $updateEditorID = $updateEditor.GetRuntimeId() -join ','
+      $updateEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('321')
+      Invoke-VisibleConnectionButton 'Check for updates'
+      Wait-For { Find-Named 'Could not check for updates. Try again.' } 'updates_failure' | Out-Null
+      Add-Check 'update_failure_keeps_retry_available' ($null -ne (Find-Named 'Check for updates'))
+      Invoke-VisibleConnectionButton 'Check for updates'
+      Wait-For { (Find-Named 'A desktop update is available.') -and (Find-Named 'Available version: 0.2.0') } 'updates_available' | Out-Null
+      Add-Check 'compatible_update_shows_official_manual_release_action' ($null -ne (Find-Named 'Open official release page'))
+      $currentUpdateEditor = Get-EditorWithValue '321'
+      Add-Check 'updates_preserve_native_editor_draft_without_saving_settings' (($currentUpdateEditor.GetRuntimeId() -join ',') -ceq $updateEditorID -and !(Test-Path (Join-Path $historyRoot 'desktop-settings.json')))
+      # Scroll only: never launch a browser in the automated fixture.
+      Invoke-VisibleConnectionButton 'Open official release page' $false
+      Save-Screenshot 'desktop-update-available.png'
+      Invoke-VisibleConnectionButton 'Check for updates'
+      Wait-For { Find-Named 'Checking for updates…' } 'updates_active' | Out-Null
+      $blocked = $updateServer.StandardOutput.ReadLineAsync()
+      if (!$blocked.Wait(10000) -or $blocked.Result -ne 'blocked') { throw 'update_request_not_active' }
+      Invoke-VisibleConnectionButton 'Cancel update check'
+      Wait-For { Find-Named 'Checks official releases only when you ask.' } 'updates_cancelled' | Out-Null
+      Add-Check 'cancelling_updates_clears_old_release_action' ($null -eq (Find-Named 'Open official release page'))
+      Invoke-VisibleConnectionButton 'Check for updates'
+      Wait-For { Find-Named 'Checking for updates…' } 'updates_second_active' | Out-Null
+      $blocked = $updateServer.StandardOutput.ReadLineAsync()
+      if (!$blocked.Wait(10000) -or $blocked.Result -ne 'blocked') { throw 'update_second_request_not_active' }
+      Invoke-Button 'Back to history'
+      Wait-For { (Find-Named '3 items') -and (Find-Named 'All') } 'updates_history_return' | Out-Null
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Checks official releases only when you ask.' } 'updates_cancelled_on_leave' | Out-Null
+      Add-Check 'leaving_settings_cancels_updates_and_rejects_late_results' ($null -eq (Find-Named 'Open official release page'))
+      Invoke-Button 'Quit Clipboard'
+      if (!$application.WaitForExit(10000)) { throw 'updates_private_quit_timeout' }
+      Add-Check 'updates_private_profile_quits_cleanly' ($application.ExitCode -eq 0)
+    } finally {
+      $updateServer.StandardInput.Close()
+      if (!$updateServer.WaitForExit(10000)) { $updateServer.Kill(); $updateServer.WaitForExit() }
+    }
+    $reportRead = $updateServer.StandardOutput.ReadLineAsync()
+    if (!$reportRead.Wait(5000)) { throw 'update_fixture_report' }
+    $updateReport = $reportRead.Result | ConvertFrom-Json
+    Add-Check 'updates_send_four_fixed_metadata_requests_without_credentials_or_cookies' ($updateReport.requests -eq 4 -and $updateReport.fixedTestsOnly -and $updateReport.noAuthorization -and $updateReport.noCookies)
+    $updateServer.Dispose()
 
     $sensitiveProbe = $true
     $historyRoot = Join-Path $OutputDirectory ('sensitive-preview-' + [Guid]::NewGuid().ToString('N'))

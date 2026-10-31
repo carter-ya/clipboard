@@ -344,12 +344,17 @@
         {
           "id": "CP13",
           "scope": "Distribution and platform acceptance",
-          "status": "planned",
+          "status": "in_progress",
           "remaining": [
             "Equivalent update discovery/manual update flow and secure installation path",
             "Windows/Linux build/package/lifecycle verification for final feature heads",
             "Physical IME, shortcut/focus, monitor DPI, real desktop permissions, user paste and long-session gates in Desktop/TESTING.md"
-          ]
+          ],
+          "update_discovery": {
+            "branch": "codex/cross-platform-update-discovery",
+            "implemented": "Explicit settings action queries only the fixed official GitHub releases endpoint through bounded ephemeral transport without history, AI settings, credentials, request body, cookies or redirects. Strict bounded SemVer comparison selects the highest compatible uploaded Windows x64 installer or Linux x64/arm64 archive with SHA256SUMS; stable installations ignore previews and drafts. Available results expose only a constructed official release page for a user click; installation remains manual using the existing per-user packages. No compatible desktop release is reported accurately rather than treating Mac-only releases as updates. The single version authority is moved into the desktop SwiftPM resource and read by both packagers and the actual UI. Hide, leaving settings, cancellation and shutdown invalidate owned work and late results. Seven-language controls retain existing drafts.",
+            "validation": "All 251 Linux Core tests, 17 targeted Mac tests, strict Core/App/Desktop lint and Windows probe parsing/native helper definitions pass. Eight final focused update checks and all 145 complete native Linux UI/privacy checks pass, including 503/retry, packaged version, compatible manual release action, live cancellation, settings handoff, original editor identity and unsaved draft retention, clean quit and exactly four fixed credential/cookie-free metadata requests. Both 100% and 200% layout suites pass all eight checks. The previous render exposed a clipped version value; the final full-width native version row is inspected. A real negative packaging check rejects a mismatched --version before creating an output directory; the correct native package includes the version resource in its integrity manifest. Offline runtime-only acceptance passes all eight installation/upgrade/uninstall/integrity gates and all 175 complete installed native UI/lifecycle checks with no Swift SDK or network, including the actual bundled version resource, PDF worker and update controls. Hosted Windows remains required. Automated fixtures do not open a real browser or installer."
+          }
         }
       ]
     }

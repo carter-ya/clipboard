@@ -10,6 +10,51 @@ import SwiftCrossUI
 final class HistoryModel: ObservableObject {
   @Published var analysisBusy = false
   @Published var itemAnalysisProgress: [UUID: DesktopItemAnalysisProgress] = [:]
+  @Published var updateBusy = false
+  @Published var updateResult: DesktopUpdateResult?
+  var desktopVersion: String { Self.installedVersion }
+  private static let installedVersion: String = {
+    guard let url = Bundle.module.url(forResource: "VERSION", withExtension: nil),
+      let value = try? String(contentsOf: url, encoding: .utf8)
+    else { return "" }
+    let version = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return DesktopReleaseVersion(version) == nil ? "" : version
+  }()
+  @MainActor private lazy var updates = DesktopUpdateState(
+    checker: DesktopUpdateChecker(
+      currentVersion: desktopVersion, target: updateTarget,
+      transport: DesktopUpdateFixture.transport()),
+    changed: { [weak self] busy, result in
+      self?.updateBusy = busy
+      self?.updateResult = result
+    })
+  private var updateTarget: DesktopUpdateTarget {
+    #if os(Windows)
+      return .windowsX64
+    #elseif arch(arm64)
+      return .linuxARM64
+    #else
+      return .linuxX64
+    #endif
+  }
+  @MainActor func checkUpdates() {
+    guard showsSettings, !shuttingDown else { return }
+    updates.start()
+  }
+  @MainActor func cancelUpdateCheck() { updates.cancel() }
+  var updateMessage: String {
+    if desktopVersion.isEmpty { return "The installed desktop version could not be read." }
+    if updateBusy { return "Checking for updates…" }
+    switch updateResult {
+    case .available: return "A desktop update is available."
+    case .upToDate: return "This desktop version is up to date."
+    case .noCompatibleRelease: return "No compatible desktop release was found."
+    case .invalidVersion: return "The installed desktop version could not be read."
+    case .rateLimited: return "GitHub refused this check. Try again later."
+    case .failed: return "Could not check for updates. Try again."
+    case .cancelled, nil: return "Checks official releases only when you ask."
+    }
+  }
   @Published var connectionBusy = false
   @Published var connectionResult: DesktopAIConnectionResult?
   @Published var startupEnabled = false
@@ -182,6 +227,7 @@ final class HistoryModel: ObservableObject {
       presenter.hidden = { [weak self] in
         self?.resetSensitivePreview()
         self?.invalidateAIConnection()
+        self?.cancelUpdateCheck()
       }
       presenter.presentationChanged = { [weak self] in
         Task { @MainActor in
@@ -518,6 +564,7 @@ final class HistoryModel: ObservableObject {
   }
 
   @MainActor func showHistory() async {
+    cancelUpdateCheck()
     invalidateAIConnection()
     if !ready { startupActivationRequested = true }
     if showsSettings { showsSettings = false }
@@ -1128,6 +1175,7 @@ final class HistoryModel: ObservableObject {
     shuttingDown = true
     startup?.stop()
     aiConnection.stop()
+    updates.stop()
     resetSensitivePreview()
     analysisProgress.stop()
     analysisScheduler.stop()
