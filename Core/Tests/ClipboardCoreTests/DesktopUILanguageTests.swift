@@ -27,7 +27,7 @@ final class DesktopUILanguageTests: XCTestCase {
       XCTAssertEqual(Set(table.keys), Set(keys.keys), language.rawValue)
       for (key, value) in table {
         XCTAssertFalse(value.isEmpty, key)
-        for placeholder in ["{count}", "{added}", "{skipped}", "{bytes}"] {
+        for placeholder in ["{count}", "{added}", "{skipped}", "{bytes}", "{missing}"] {
           XCTAssertEqual(
             key.contains(placeholder), value.contains(placeholder), "\(language): \(key)")
         }
@@ -42,6 +42,10 @@ final class DesktopUILanguageTests: XCTestCase {
     XCTAssertEqual(
       DesktopStringCatalog.text("Imported 2 items; 3 duplicates skipped.", language: "ja"),
       "2 件を読み込み、重複する 3 件をスキップしました。")
+    XCTAssertEqual(
+      DesktopStringCatalog.text(
+        "Imported 2 items; 3 skipped; 4 missing blobs.", language: "zh-Hans"),
+      "已导入 2 项；跳过 3 项；缺失文件 4 项。")
     XCTAssertEqual(
       DesktopStringCatalog.text("synthetic original clipboard text", language: "ko"),
       "synthetic original clipboard text")

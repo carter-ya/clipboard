@@ -5,6 +5,7 @@ import base64
 import hashlib
 import shutil
 import ctypes
+import ctypes.util
 import json
 import os
 from pathlib import Path
@@ -30,7 +31,7 @@ out = Path(args.output).resolve()
 out.mkdir(parents=True, exist_ok=True)
 checks = []
 limitations = [
-    "No keyboard injection; programmatic accessibility control operations only.",
+    "No keyboard injection; private native pointer or accessibility control operations only.",
     "Real Chinese IME composition and global hotkey focus transfer remain untested.",
 ]
 history_root = out / ('history-' + uuid.uuid4().hex)
@@ -207,6 +208,89 @@ def wake_existing():
     check('secondary_launch_exits_without_new_store_owner', peer.returncode == 0 and app.poll() is None)
     wait_for(lambda: window_visible() and has_text('Clipboard') and editor(),
              'existing_window_reopened')
+
+
+
+def activate_archive_file_with_pointer(filename):
+    # GTK 4.6 renders file rows without exposing them through AT-SPI. Locate
+    # only our synthetic filename in this private chooser's actual pixels;
+    # never synthesize keys or use the clipboard to enter a path.
+    if sensitive_probe:
+        raise RuntimeError('archive_pointer_outside_private_phase')
+    def visible_chooser():
+        tree = subprocess.check_output(['xwininfo', '-root', '-tree'], text=True)
+        for line in tree.splitlines():
+            if '"Import history"' not in line: continue
+            candidate = int(line.strip().split()[0], 16)
+            state = subprocess.check_output(['xwininfo', '-id', hex(candidate), '-stats'], text=True)
+            if 'Map State: IsViewable' in state: return candidate
+        return None
+    chooser = wait_for(visible_chooser, 'archive_chooser_window')
+    def rendered_point():
+        picture = out / 'archive-open-dialog.png'
+        subprocess.run(['import', '-window', hex(chooser), str(picture)], check=True, timeout=10)
+        engine = ctypes.CDLL(ctypes.util.find_library('tesseract'))
+        lept = ctypes.CDLL(ctypes.util.find_library('lept'))
+        engine.TessBaseAPICreate.restype = ctypes.c_void_p
+        engine.TessBaseAPIInit3.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
+        engine.TessBaseAPISetPageSegMode.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        engine.TessBaseAPISetImage2.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        engine.TessBaseAPISetSourceResolution.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        engine.TessBaseAPIGetTsvText.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        engine.TessBaseAPIGetTsvText.restype = ctypes.c_void_p
+        engine.TessDeleteText.argtypes = [ctypes.c_void_p]
+        engine.TessBaseAPIDelete.argtypes = [ctypes.c_void_p]
+        lept.pixRead.argtypes = [ctypes.c_char_p]
+        lept.pixRead.restype = ctypes.c_void_p
+        lept.pixDestroy.argtypes = [ctypes.POINTER(ctypes.c_void_p)]
+        api = engine.TessBaseAPICreate()
+        pix = ctypes.c_void_p(lept.pixRead(os.fsencode(picture)))
+        text = None
+        try:
+            if not api or not pix.value or engine.TessBaseAPIInit3(api, None, b'eng') != 0:
+                raise RuntimeError('archive_filename_locator')
+            engine.TessBaseAPISetPageSegMode(api, 6)
+            engine.TessBaseAPISetImage2(api, pix)
+            engine.TessBaseAPISetSourceResolution(api, 96)
+            text = engine.TessBaseAPIGetTsvText(api, 0)
+            if not text: raise RuntimeError('archive_filename_locator')
+            rows = [line.split('\t') for line in ctypes.string_at(text).decode().splitlines()]
+            matches = [row for row in rows if len(row) == 12 and row[11] == filename and float(row[10]) >= 50]
+            if len(matches) != 1:
+                return None
+            row = matches[0]
+            return int(row[6]) + int(row[8]) // 2, int(row[7]) + int(row[9]) // 2
+        finally:
+            if text: engine.TessDeleteText(text)
+            if api: engine.TessBaseAPIDelete(api)
+            if pix.value: lept.pixDestroy(ctypes.byref(pix))
+    x, y = wait_for(rendered_point, 'archive_filename_not_rendered')
+    x11 = ctypes.CDLL('libX11.so.6')
+    xtest = ctypes.CDLL('libXtst.so.6')
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    x11.XDefaultRootWindow.restype = ctypes.c_ulong
+    x11.XTranslateCoordinates.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong,
+                                          ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_int),
+                                          ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_ulong)]
+    x11.XFlush.argtypes = [ctypes.c_void_p]
+    x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+    xtest.XTestFakeMotionEvent.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
+    xtest.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+    display = x11.XOpenDisplay(None)
+    if not display: raise RuntimeError('archive_pointer_display')
+    try:
+        root_x, root_y, child = ctypes.c_int(), ctypes.c_int(), ctypes.c_ulong()
+        if not x11.XTranslateCoordinates(display, chooser, x11.XDefaultRootWindow(display), x, y,
+                                          ctypes.byref(root_x), ctypes.byref(root_y), ctypes.byref(child)):
+            raise RuntimeError('archive_pointer_bounds')
+        if not (xtest.XTestFakeMotionEvent(display, -1, root_x.value, root_y.value, 0) and
+                xtest.XTestFakeButtonEvent(display, 1, 1, 0) and xtest.XTestFakeButtonEvent(display, 1, 0, 0) and
+                xtest.XTestFakeButtonEvent(display, 1, 1, 50) and xtest.XTestFakeButtonEvent(display, 1, 0, 0)):
+            raise RuntimeError('archive_pointer_selection')
+        x11.XFlush(display)
+    finally:
+        x11.XCloseDisplay(display)
 
 
 def screenshot(name):
@@ -572,6 +656,40 @@ try:
     click('Quit Clipboard')
     app.wait(timeout=10)
     check('rich_budget_profile_quits_cleanly', app.returncode == 0)
+
+    history_root = out / ('archive-state-' + uuid.uuid4().hex)
+    app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root)],
+                           stdout=log, stderr=log, start_new_session=True)
+    wait_for(lambda: has_texts('Ready', '3 items'), 'archive_private_profile')
+    click('Settings')
+    wait_for(lambda: has_text('Preferences'), 'archive_preferences')
+    click('Export history')
+    name_entry = wait_for(lambda: next((n for n in nodes() if n.name == 'Name:' and 'EditableText' in n.get_interfaces()), None), 'archive_save_filename')
+    check('native_archive_save_dialog_defaults_to_zip', name_entry.queryText().getText(0, name_entry.queryText().characterCount) == 'clipboard-history.zip')
+    archive_path = history_root / 'clipboard-history.zip'
+    click('Save')
+    wait_for(lambda: archive_path.exists() and has_text('History exported. Sensitive items excluded.'), 'archive_export_finished')
+    import zipfile
+    with zipfile.ZipFile(archive_path) as archive:
+        exported = json.loads(archive.read('history.json'))
+    check('native_archive_export_contains_mac_history', len(exported['items']) == 3 and not any(i['sensitive'] for i in exported['items']))
+    click('Clear history')
+    click('Delete all history')
+    wait_for(lambda: has_text('History cleared'), 'archive_source_cleared')
+    click('Import history')
+    wait_for(lambda: has_text('Open'), 'archive_open_dialog')
+    activate_archive_file_with_pointer('clipboard-history.zip')
+    wait_for(lambda: has_text('Imported 3 items; 0 skipped; 0 missing blobs.'), 'archive_native_round_trip')
+    restored = json.loads((history_root / 'history.json').read_text())
+    check('native_archive_import_preserves_original_order_and_content', [i['sha256'] for i in restored['items']] == [i['sha256'] for i in exported['items']])
+    click('Import history')
+    wait_for(lambda: has_text('Open'), 'archive_duplicate_dialog')
+    activate_archive_file_with_pointer('clipboard-history.zip')
+    wait_for(lambda: has_text('Imported 0 items; 3 skipped; 0 missing blobs.'), 'archive_duplicate_result')
+    check('native_archive_duplicate_import_is_counted', len(json.loads((history_root / 'history.json').read_text())['items']) == 3)
+    click('Quit Clipboard')
+    app.wait(timeout=10)
+    check('archive_state_profile_quits_cleanly', app.returncode == 0)
 
     history_root = out / ('startup-state-' + uuid.uuid4().hex)
     app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root), '--smoke-startup'],
