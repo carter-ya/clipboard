@@ -176,7 +176,7 @@
           "implemented": "A successful native copy immediately bumps the item to the top and flushes/refreshes even with capture paused; failures do not promote. Windows and Linux native UI fixtures now copy an older filtered item and require new persisted ordering plus independent clipboard readback.",
           "remaining": [
             "Selection/reset and keyboard interaction audit against App/HistoryPanelViewModel.swift and App/HistoryPanelView.swift",
-            "Sensitive per-presentation reveal and preview/hover parity",
+            "Image hover/peek parity; sensitive reveal is tracked separately",
             "Long text truncation indicators, kind counts and source/file display metadata"
           ],
           "validation": "Optimized Linux arm64 app builds; all 34 native UI checks passed, including the older-item copy promotion regression, native text/image/file readback, OCR, language/theme, settings and hide/reopen. Windows script syntax passes; real Windows runtime and final platform CI are pending."
@@ -188,6 +188,14 @@
           "status": "in_progress",
           "implemented": "Plain UTF-8 text uses the Mac 64 KiB display budget instead of silently truncating at 8000 characters. Truncation ends on a Unicode scalar boundary and shows an English/Chinese notice; native Copy resolves the original complete payload. Rich-only HTML/RTF parser limits and sensitive reveal remain separate work.",
           "validation": "Linux arm64: optimized app build, all 170 Core tests including UTF-8 boundary cases, and all 36 native UI checks passed. The native fixture captures long Chinese/emoji text, verifies the visible truncation notice, then independently reads back every original byte after Copy. Windows script syntax passes; native Windows CI remains pending."
+        },
+        {
+          "id": "CP9_sensitive_preview",
+          "branch": "codex/cross-platform-sensitive-preview",
+          "scope": "Explicit in-memory reveal of sensitive text and images for one presentation",
+          "status": "in_progress",
+          "implemented": "Sensitive previews stay masked until the user selects Reveal for this session. Selection changes, settings handoff, native GTK unmap and shutdown revoke the reveal. Generation checks reject late asynchronous results, and their load cache is invalidated too. Sensitive decoding has no blob root and uses memory-only image loading; the sensitive flag and AI/OCR gates remain intact. Synthetic text/image injection requires both --smoke-root and --smoke-sensitive. Sensitive-phase probes suppress content diagnostics and screenshots.",
+          "validation": "Linux arm64 optimized app builds and all 49 native UI checks pass, including explicit text/image reveal, re-mask after hide/settings/selection, rapid reveal/hide/reopen, disabled OCR and a history snapshot containing only the three non-sensitive fixtures with no image blobs. Sensitive-phase content diagnostics and screenshots are suppressed. Windows fixture syntax and strict Swift formatting pass; native Windows execution remains pending."
         },
         {
           "id": "CP10",

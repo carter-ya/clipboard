@@ -32,7 +32,9 @@ final class HistoryModel: ObservableObject {
   @Published var items: [ClipItem] = []
   @Published var query = ""
   @Published var onlyPinned = false
-  @Published var selectedID: UUID?
+  @Published var selectedID: UUID? {
+    didSet { if oldValue != selectedID { resetSensitivePreview() } }
+  }
   @Published var showsSettings = false
   @Published var status = "Loading history"
   @Published var recording = false
@@ -71,6 +73,8 @@ final class HistoryModel: ObservableObject {
   private var shellTask: Task<Void, Never>?
   private var activationTask: Task<Void, Never>?
   private var loadedPreviewID: UUID?
+  private var previewGeneration: UInt64 = 0
+  @Published private var revealedSensitiveID: UUID?
   @MainActor private var nativeWindow: GtkDesktopWindow?
   @MainActor private weak var searchEntry: Gtk.Entry?
   @MainActor private var windowCoordinator: DesktopWindowCoordinator?
@@ -98,10 +102,38 @@ final class HistoryModel: ObservableObject {
     return true
   }
 
+  var canRevealSensitivePreview: Bool {
+    selected?.sensitive == true && revealedSensitiveID != selectedID
+  }
+  private func resetSensitivePreview() {
+    previewGeneration &+= 1
+    // Invalidate both completed and in-flight loads when their generation changes.
+    loadedPreviewID = nil
+    let wasRevealed = revealedSensitiveID != nil
+    if wasRevealed { revealedSensitiveID = nil }
+    if wasRevealed || selected?.sensitive == true {
+      previewImage = nil
+      previewTruncated = false
+      previewText =
+        selected?.sensitive == true
+        ? "Sensitive content is hidden." : "Choose an item to preview its content."
+    }
+  }
+  @MainActor func revealSensitivePreview() async {
+    guard !shuttingDown, !showsSettings, nativeWindow?.isVisible == true,
+      let selected, selected.sensitive
+    else { return }
+    revealedSensitiveID = selected.id
+    previewGeneration &+= 1
+    loadedPreviewID = nil
+    await loadPreview()
+  }
+
   @MainActor func attachWindow(_ window: Gtk.Window) {
     if nativeWindow == nil {
       let presenter = GtkDesktopWindow()
       nativeWindow = presenter
+      presenter.hidden = { [weak self] in self?.resetSensitivePreview() }
       presenter.observeAppearance { [weak self] property in
         guard let self else { return }
         DesktopAppearance.recordSystem(property: property)
@@ -148,12 +180,14 @@ final class HistoryModel: ObservableObject {
     loadedPreviewID = selected.id
     previewImage = nil
     previewTruncated = false
-    if selected.sensitive {
+    if selected.sensitive && revealedSensitiveID != selected.id {
       previewText = "Sensitive content is hidden."
       return
     }
     previewText = "Loading preview…"
-    let resolver = PayloadResolver(blobRoot: root?.appendingPathComponent("blobs"))
+    let generation = previewGeneration
+    let resolver = PayloadResolver(
+      blobRoot: selected.sensitive ? nil : root?.appendingPathComponent("blobs"))
     let result = await Task.detached(priority: .userInitiated) {
       () -> (String, DesktopPreviewImage?, Bool) in
       if selected.kind == .image,
@@ -194,7 +228,9 @@ final class HistoryModel: ObservableObject {
         false
       )
     }.value
-    guard selectedID == selected.id else { return }
+    guard selectedID == selected.id, generation == previewGeneration,
+      !selected.sensitive || revealedSensitiveID == selected.id
+    else { return }
     previewText = result.0
     previewImage = result.1
     previewTruncated = result.2
@@ -259,6 +295,23 @@ final class HistoryModel: ObservableObject {
             RawClipItem(
               payloads: [RawPayload(pasteboardType: "public.utf8-plain-text", data: data)],
               totalBytes: data.count))
+        }
+        await store.flush()
+      }
+      if args.contains("--smoke-root"), args.contains("--smoke-sensitive") {
+        let text = Data("Sensitive synthetic preview fixture · 中文".utf8)
+        let image = Data(
+          base64Encoded:
+            "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGUlEQVR4nGPQyLvznxLMMGrAqAGjBgwXAwBc3HEfVZuzFAAAAABJRU5ErkJggg=="
+        )!
+        for payload in [
+          RawPayload(pasteboardType: "public.utf8-plain-text", data: text),
+          RawPayload(pasteboardType: "public.png", data: image),
+        ] {
+          await store.insert(
+            RawClipItem(
+              payloads: [payload], totalBytes: payload.data.count,
+              isSensitive: true, sensitivityReason: "synthetic-preview-fixture"))
         }
         await store.flush()
       }
@@ -372,6 +425,7 @@ final class HistoryModel: ObservableObject {
     windowCoordinator?.showHistory()
   }
   @MainActor func showPreferences() {
+    resetSensitivePreview()
     if !ready { startupActivationRequested = true }
     if !showsSettings { showsSettings = true }
     windowCoordinator?.showPreferences()
@@ -796,6 +850,7 @@ final class HistoryModel: ObservableObject {
   @MainActor func shutdown() async {
     guard !shuttingDown else { return }
     shuttingDown = true
+    resetSensitivePreview()
     analysisScheduler.stop()
     captureTask?.cancel()
     captureSkipsTask?.cancel()

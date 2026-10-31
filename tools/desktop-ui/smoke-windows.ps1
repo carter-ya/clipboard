@@ -82,6 +82,7 @@ $application = $null
 $window = $null
 $nativeWindowHandle = [IntPtr]::Zero
 $probeStarted = Get-Date
+$sensitiveProbe = $false
 
 function Add-Check([string]$Name, [bool]$Passed) {
   $script:checks.Add(@{ name = $Name; passed = $Passed })
@@ -457,30 +458,100 @@ try {
     Wait-For { Find-Named 'Preferences' } 'background_settings' | Out-Null
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'background_quit_timeout' }
+    $sensitiveProbe = $true
+    $historyRoot = Join-Path $OutputDirectory ('sensitive-preview-' + [Guid]::NewGuid().ToString('N'))
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+      -ArgumentList @('--smoke-root', ('"' + $historyRoot + '"'), '--smoke-sensitive') -PassThru `
+      -RedirectStandardOutput (Join-Path $OutputDirectory 'sensitive.stdout.log') `
+      -RedirectStandardError (Join-Path $OutputDirectory 'sensitive.stderr.log')
+    $null = $application.Handle
+    $nativeWindowHandle = Wait-For {
+      $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
+      if ($handle -ne [IntPtr]::Zero) { $handle }
+    } 'sensitive_private_window'
+    $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '5 items') } 'sensitive_private_profile' | Out-Null
+    Invoke-Button 'Image'
+    Wait-For { (Find-Named '1 items') -and (Find-Named 'Reveal for this session') -and (Find-Named 'Sensitive content is hidden.') } 'sensitive_image_masked' | Out-Null
+    Add-Check 'sensitive_image_starts_masked' ($null -eq (Get-ImagePreview))
+    Invoke-Button 'Reveal for this session'
+    Wait-For { Get-ImagePreview } 'sensitive_image_revealed' | Out-Null
+    Add-Check 'explicit_sensitive_reveal_decodes_native_image' $true
+    $ocrControl = Find-Named 'Recognize text'
+    for ($depth = 0; $depth -lt 10 -and $ocrControl -and $ocrControl.Current.ControlType -ne [Windows.Automation.ControlType]::Button; $depth++) {
+      $ocrControl = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($ocrControl)
+    }
+    Add-Check 'revealed_sensitive_image_still_disables_ocr' ($ocrControl -and !$ocrControl.Current.IsEnabled)
+    Invoke-Button 'Hide'
+    Wait-For { [PreviewNative]::FindWindow([uint32]$application.Id) -eq [IntPtr]::Zero } 'sensitive_window_hidden' | Out-Null
+    Wake-Existing
+    Wait-For { (Find-Named 'Sensitive content is hidden.') -and (Find-Named 'Reveal for this session') } 'sensitive_remasked_after_hide' | Out-Null
+    Add-Check 'hide_reopen_revokes_sensitive_reveal' ($null -eq (Get-ImagePreview))
+    Invoke-Button 'Reveal for this session'
+    Wait-For { Get-ImagePreview } 'sensitive_image_revealed_again' | Out-Null
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'sensitive_settings_handoff' | Out-Null
+    Invoke-Button 'Back to history'
+    Wait-For { (Find-Named 'Sensitive content is hidden.') -and (Find-Named 'Reveal for this session') } 'sensitive_remasked_after_settings' | Out-Null
+    Add-Check 'settings_handoff_revokes_sensitive_reveal' $true
+    Invoke-Button 'Reveal for this session'
+    Invoke-Button 'Hide'
+    Wait-For { [PreviewNative]::FindWindow([uint32]$application.Id) -eq [IntPtr]::Zero } 'rapid_sensitive_hide' | Out-Null
+    Wake-Existing
+    Wait-For { (Find-Named 'Sensitive content is hidden.') -and (Find-Named 'Reveal for this session') } 'rapid_reveal_remains_revoked' | Out-Null
+    Add-Check 'rapid_reveal_hide_does_not_restore_sensitive_preview' ($null -eq (Get-ImagePreview))
+    Invoke-Button 'Text'
+    Wait-For { (Find-Named '4 items') -and (Find-Named 'Reveal for this session') } 'sensitive_text_masked' | Out-Null
+    $secret = 'Sensitive synthetic preview fixture · 中文'
+    Add-Check 'sensitive_text_starts_masked' ($null -eq (Find-Named $secret))
+    Invoke-Button 'Reveal for this session'
+    Wait-For { Find-Named $secret } 'sensitive_text_explicitly_revealed' | Out-Null
+    Add-Check 'explicit_sensitive_reveal_displays_text' $true
+    Set-Search 'Welcome'
+    Wait-For { (Find-Named '1 items') -and !(Find-Named $secret) } 'public_selection_after_reveal' | Out-Null
+    Invoke-Button 'Image'
+    Wait-For { Find-Named '0 items' } 'different_kind_after_reveal' | Out-Null
+    Set-Search ''
+    Wait-For { (Find-Named '1 items') -and (Find-Named 'Reveal for this session') } 'selection_change_revoked_reveal' | Out-Null
+    Add-Check 'selection_change_revokes_sensitive_reveal' ($null -eq (Find-Named $secret))
+    $persisted = Get-Content -Raw -Encoding UTF8 (Join-Path $historyRoot 'history.json') | ConvertFrom-Json
+    $sensitiveRows = @($persisted.items | Where-Object { $_.sensitive })
+    $blobFiles = @(Get-ChildItem -File (Join-Path $historyRoot 'blobs'))
+    Add-Check 'sensitive_reveal_keeps_history_memory_only' ($persisted.items.Count -eq 3 -and $sensitiveRows.Count -eq 0 -and $blobFiles.Count -eq 0)
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'sensitive_quit_settings' | Out-Null
+    Invoke-Button 'Quit Clipboard'
+    if (!$application.WaitForExit(10000)) { throw 'sensitive_quit_timeout' }
+    Add-Check 'sensitive_preview_quits_cleanly' ($application.ExitCode -eq 0)
   }
 } catch {
-  $checks.Add(@{ name = 'ui_probe'; passed = $false; detail = $_.Exception.Message })
-  try {
-    if ($window) {
-      $controls = $window.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition)
-      $controls | ForEach-Object {
-        @{ type=$_.Current.ControlType.ProgrammaticName; class=$_.Current.ClassName;
-           focusable=$_.Current.IsKeyboardFocusable; focused=$_.Current.HasKeyboardFocus;
-           enabled=$_.Current.IsEnabled; runtimeID=($_.GetRuntimeId() -join ',');
-           valueLength=$(try { $_.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value.Length } catch { -1 }) }
-      } | ConvertTo-Json -Depth 5 | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'control-state.json')
-    }
-  } catch { }
-  $_ | Format-List * -Force | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'probe-error.log')
-  # Keep crash evidence from this isolated CI desktop without changing machine settings.
-  try {
-    Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = $probeStarted } -ErrorAction Stop |
-      Where-Object { $_.Id -in @(1000, 1001, 1026) -and $_.Message -match 'ClipboardDesktop|Microsoft.UI.Xaml' } |
-      Select-Object TimeCreated, Id, Message | Format-List |
-      Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'application-events.log')
-  } catch { $_.Exception.Message | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'event-query.log') }
+  if ($sensitiveProbe) {
+    $checks.Add(@{ name = 'sensitive_ui_probe'; passed = $false; detail = $_.Exception.GetType().FullName })
+    'Sensitive preview probe failed; content diagnostics suppressed.' | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'probe-error.log')
+  } else {
+    $checks.Add(@{ name = 'ui_probe'; passed = $false; detail = $_.Exception.Message })
+    try {
+      if ($window) {
+        $controls = $window.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition)
+        $controls | ForEach-Object {
+          @{ type=$_.Current.ControlType.ProgrammaticName; class=$_.Current.ClassName;
+             focusable=$_.Current.IsKeyboardFocusable; focused=$_.Current.HasKeyboardFocus;
+             enabled=$_.Current.IsEnabled; runtimeID=($_.GetRuntimeId() -join ',');
+             valueLength=$(try { $_.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value.Length } catch { -1 }) }
+        } | ConvertTo-Json -Depth 5 | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'control-state.json')
+      }
+    } catch { }
+    $_ | Format-List * -Force | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'probe-error.log')
+    # Keep crash evidence from this isolated CI desktop without changing machine settings.
+    try {
+      Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = $probeStarted } -ErrorAction Stop |
+        Where-Object { $_.Id -in @(1000, 1001, 1026) -and $_.Message -match 'ClipboardDesktop|Microsoft.UI.Xaml' } |
+        Select-Object TimeCreated, Id, Message | Format-List |
+        Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'application-events.log')
+    } catch { $_.Exception.Message | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'event-query.log') }
 
-  try { if ($nativeWindowHandle -ne [IntPtr]::Zero -and !$application.HasExited) { Save-Screenshot 'failure.png' } } catch { }
+    try { if ($nativeWindowHandle -ne [IntPtr]::Zero -and !$application.HasExited) { Save-Screenshot 'failure.png' } } catch { }
+  }
 } finally {
   if ($application -and !$application.HasExited) { Stop-Process -Id $application.Id -Force }
   $passed = $checks.Count -gt 0 -and @($checks | Where-Object { !$_.passed }).Count -eq 0

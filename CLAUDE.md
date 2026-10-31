@@ -127,3 +127,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Native Windows text readback tests must expect CF_UNICODETEXT CRLF, matching the writer normalization. Keep full-content comparison and fresh clipboard revision checks; do not weaken them to a suffix-only match. Linux UTF-8 readback remains byte-exact.
 
 - Wayland receive pipes must keep the descriptor sent to an external producer blocking. Apply O_NONBLOCK only to the local reader, retain CLOEXEC, and test the actual helper with a complete large transfer from an independent blocking writer.
+
+- Sensitive desktop previews require an explicit reveal for the selected item and presentation. Revoke on selection change, settings handoff, native unmap and shutdown; reject late preview results by generation and invalidate their loaded-ID cache. Sensitive decoding has no blob root, creates no preview files, and never changes sensitivity or AI/OCR gates. Synthetic sensitive fixtures require both --smoke-root and --smoke-sensitive. Suppress screenshots, content-bearing errors and accessibility-text diagnostics throughout that probe phase.

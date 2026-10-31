@@ -13,6 +13,8 @@ enum DesktopLocalization {
     return chinese[value] ?? value
   }
   private static let chinese: [String: String] = [
+    "Reveal for this session": "仅在本次查看中显示",
+    "Sensitive content is hidden.": "敏感内容已遮挡。",
     "Preview truncated. Copy keeps the full text.": "预览已截断，复制仍会保留完整文字。",
     "Clipboard could not safely open this profile.": "无法安全打开此配置。",
     "Close another instance or check the desktop session, then try again.": "请关闭其他实例或检查桌面会话后重试。",
