@@ -96,3 +96,6 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Windows rich UI tests pause after each capture before Copy, then require a new clipboard revision and a fresh status transition before checking native format bytes. An old Copied label or the fixture peer owning identical bytes cannot acknowledge a new asynchronous Copy.
 
 - Native Windows probes wait for the matching image/file preview and enabled button before invoking once. Equal result counts do not acknowledge a filter change; never retry an already submitted mutation.
+- X11 selection requestors may disappear before a reply. The clipboard adapter recovers BadWindow only on registered private connections and delegates other connections/errors to the prior host handler. The portability workflow permanently exercises cancelled requests and registry cleanup in private Xvfb.
+
+- Native X11 shortcut dispatch must require an acquired registration and exact configured keyboard modifiers. Ignore Caps Lock and the discovered Num Lock mask, retain held-key suppression, and test the native dispatcher directly without synthesizing keyboard input.
