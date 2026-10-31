@@ -296,3 +296,12 @@ default-priority AccessKit input dispatch and editable SetValue support.
 The optimized installed Linux package also passes rich image/file capture and copy, real Tesseract OCR, and separate OCR-result copy with an independent native peer. The peer uses only the installed runtime libraries; the app loader path remains unmodified. See Desktop/TESTING.md for the remaining interactive release gates.
 
 The final command-entry Linux package passes 63 installed GUI/lifecycle checks and eight installer checks; both scale suites pass six checks, including readable in-bounds history rows. Its latest measured lifecycle run keeps 27 descriptors and grows RSS by 1032 KiB. Bare PATH launch installation locks and localized service/privacy notes are covered.
+
+Windows source privacy comparison now ignores executable filename case within
+the `windows:` namespace. Original source/configuration spelling and existing
+Mac/Linux comparisons are preserved. A synthetic mixed-case password-manager
+source regression fails before the fix and passes afterward; all 205 Core tests
+pass in isolated Linux arm64. Windows Actions additionally runs an independent
+peer copied to a mixed-case executable name, checks actual native source identity
+and default filtering, and verifies sensitive payloads remain memory-only. That
+native Windows check is pending; it never launches a real password manager.

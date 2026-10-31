@@ -166,6 +166,8 @@ enum ScenarioRunner {
       report = await runPlatformServices()
     case "platform-rich-clipboard":
       report = await runPlatformRichClipboard()
+    case "platform-source-filter":
+      report = await runPlatformSourceFilter()
     case "platform-instance":
       report = await runPlatformInstance()
     case "platform-shell":

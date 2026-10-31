@@ -19,18 +19,28 @@ public struct SensitivityFilter: ClipFilter {
 
 public struct BlocklistFilter: ClipFilter {
   public let blockedBundleIDs: Set<String>
+  private let comparisonIDs: Set<String>
 
   public init(blockedBundleIDs: Set<String>) {
     self.blockedBundleIDs = blockedBundleIDs
+    comparisonIDs = Set(blockedBundleIDs.map(Self.comparisonKey))
   }
 
   public init(blockedBundleIDs: [String]) {
-    self.blockedBundleIDs = Set(blockedBundleIDs)
+    self.init(blockedBundleIDs: Set(blockedBundleIDs))
+  }
+
+  private static func comparisonKey(_ identifier: String) -> String {
+    // Windows reports the executable's original filename spelling. Match that
+    // namespace without case while retaining source/configuration text; X11
+    // window classes and Mac bundle identifiers keep their existing behavior.
+    if identifier.prefix(8).lowercased() == "windows:" { return identifier.lowercased() }
+    return identifier
   }
 
   public func evaluate(_ item: RawClipItem, context: ClipContext) -> FilterDecision {
     guard let bundleID = context.sourceBundleID else { return .accept }
-    if blockedBundleIDs.contains(bundleID) {
+    if comparisonIDs.contains(Self.comparisonKey(bundleID)) {
       return .markSensitive("blockedSource:\(bundleID)")
     }
     return .accept

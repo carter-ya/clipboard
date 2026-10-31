@@ -245,7 +245,12 @@
           "remaining": [
             "Size-limit disable and equivalent filter choices",
             "Accurate OS startup policy/ownership semantics and discoverable capability/conflict guidance"
-          ]
+          ],
+          "source_filter_validation": {
+            "branch": "codex/cross-platform-source-filter-case",
+            "implemented": "Windows executable source IDs compare without case while preserving original configuration/source spelling and existing Mac/Linux matching. A mixed-case password-manager source stays sensitive and never reaches history JSON or blob files.",
+            "validation": "The regression fails before the fix and all 205 Core tests pass afterward in isolated Linux arm64. A Windows-only scenario copies the independent synthetic clipboard peer to a mixed-case executable name and checks native identity, default filtering, memory retention and no persistence; exact-head Windows execution is pending."
+          }
         },
         {
           "id": "CP11",
