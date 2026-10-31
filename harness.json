@@ -99,7 +99,10 @@
         "base": "codex/cross-platform-shell",
         "scope": "Images/files/HTML/RTF, source-app identity, filters, export/import and capacity controls with the existing Core privacy rules.",
         "acceptance": "Independent peers exchange supported native formats; sensitive items never persist or export.",
-        "status": "in_progress"
+        "status": "verified",
+        "evidence": [
+          "Head 3b50913 passes all three Core/platform jobs in 41157046973 and both native UI jobs in 41157046941. Native image/file capture, pause, new-revision Copy and PNG/two-path readback pass."
+        ]
       },
       {
         "id": "CP6",
@@ -107,7 +110,10 @@
         "base": "codex/cross-platform-rich-content",
         "scope": "Credential storage, startup integration, OCR and supported AI engines through platform adapters; localized settings and capability explanations.",
         "acceptance": "Native service tests and failure cases pass; credentials never fall back to plaintext; remote requests remain opt-in and exclude sensitive content.",
-        "status": "in_progress"
+        "status": "verified",
+        "evidence": [
+          "Head 02565fc passes all three Core/platform/service jobs in 41158347676 and both native UI jobs in 41158347664. Real OCR/result Copy, theme/language changes, localized notes and background lifecycle pass. Physical shortcut focus/IME/DPI remain release gates."
+        ]
       },
       {
         "id": "CP7",
@@ -115,8 +121,9 @@
         "base": "codex/cross-platform-services",
         "scope": "Wayland clipboard and shortcuts on explicitly supported compositors/portals, with accurate capability reporting for restricted desktops.",
         "acceptance": "Real compositor integration tests pass for each advertised session; no XWayland success is presented as native Wayland support.",
-        "status": "in_progress",
+        "status": "verified",
         "evidence": [
+          "Head d4a0087 passes all three Core/platform jobs in 41158346987 and Windows/Linux UI in 41158347287; native Sway and restricted-copy fixtures remain enabled.",
           "Native Sway Wayland clipboard integration: 23 rich transport checks, independent wl-clipboard Unicode interoperability, and native GTK controls.",
           "Sway full UI and pointer-only GTK copy fallback each pass 32 checks. No XWayland or synthesized keyboard events.",
           "Private DBus portal fixture covers explicit permission, denial/retry, session closure, application identity and one-shot activation tokens; real compositor shortcut/IME remains a manual gate.",
@@ -131,15 +138,16 @@
         "acceptance": "Installation and smoke gates pass on supported targets; physical IME/focus/DPI verification is recorded before platform release readiness.",
         "status": "in_progress",
         "evidence": [
-          "Wide and compact layouts keep primary item actions outside the scroll viewport. Windows run 41155271336 passes previously failing Delete after reopen and reaches native image/file capture; rich-copy asynchronous status sequencing is repaired separately and awaits a fresh native run.",
+          "Primary actions stay outside the scroll viewport at every width. Head 789d599 passes the full Windows native UI step in 41158346907, including image/file capture, fresh Copy, real OCR/result Copy, theme/language and shell lifecycle. Windows optimized packaging/installation remains in progress.",
           "Optimized Linux arm64 package passes 63 installed native GUI/lifecycle checks including independent image/file capture-copy, real Tesseract OCR and result copy, without a Swift SDK/network; eight installer/upgrade/uninstall checks also pass.",
           "After the action-toolbar repair, 100% and 200% virtual display suites each pass seven checks, including full wide-action bounds and compact editor/row/pointer Copy at 640x480 logical size.",
           "Current optimized Linux arm64 package repeats all 63 installed UI/lifecycle and eight installation checks. Twenty measured hide/reopen cycles after warmup keep descriptors at 27 and grow RSS 24 KiB. This bounded regression is not a multi-day soak.",
-          "Verified GTK dependency source archive CI 41042501729 is green. Windows GUI subsystem, recursive DLL closure and installer remain native CI gates; physical IME/shortcut focus/multi-monitor DPI remain open.",
+          "Head 789d599 passes all three Core/platform jobs in 41158346876 and verified dependency-source archive CI in 41158346921. Linux x64 UI/Wayland/optimized installation also passes in 41158346907; Windows installed-runtime acceptance remains pending.",
           "Interactive acceptance instructions are recorded in Desktop/TESTING.md; no physical IME/focus/DPI or multi-day soak is claimed.",
           "Bare PATH launches use Bundle.main.executableURL for installation locks and startup registration; argv[0] can be only clipboard-desktop. The installed probe exercises the command entry.",
           "Windows installed OCR/UI fixture hides its own build-tree resource bundles during the probe, preventing SwiftPM absolute-path fallbacks from masking missing installed resources. Native installer gate remains pending.",
-          "Installed Windows fixture runs five warmup and twenty measured hide/reopen cycles, asserting query/focus preservation and bounded private bytes/OS handles; native CI pending."
+          "Installed Windows fixture runs five warmup and twenty measured hide/reopen cycles, asserting query/focus preservation and bounded private bytes/OS handles; native CI pending.",
+          "Windows run 41158346907 successfully builds the optimized GUI binary, complete DLL closure and Inno installer. Installation fixture stops before installation because Get-ItemPropertyValue treats an expected absent startup value as a terminating provider error; nullable registry-key reads repair all three absence checks. CI now saves successful optimized builds before installation checks so future fixture retries retain compiled dependencies. Native installed acceptance remains required."
         ]
       }
     ],
@@ -149,9 +157,9 @@
     "package": "Desktop (ClipboardDesktop executable), separate from the existing macOS product",
     "framework": "SwiftCrossUI 0.10.0 / GtkBackend explicitly selected on Windows and Linux; Swift 6.3.3 / SwiftSyntax 603.0.1",
     "windows_runtime": "GTK 4.22.4 rebuilt with AccessKit C 0.18.0 (0c52a8ce2357bbeb927f90dc9a1c19c8ec1bd2c3), Rust 1.87.0; fixed gvsbuild 2026.8.0 dependency archive; SHA-256 verified inputs",
-    "backend_gate": "GTK/AccessKit native value/focus/invoke controls pass on Windows and Linux in 41091114285; shell lifecycle passes in 41091761447. Full rich/services UI and installed Windows package remain separately gated. The prior WinUI crash is not treated as success.",
+    "backend_gate": "GTK/AccessKit native UI passes on Windows and Linux. Full services UI passes in 41158347664; the responsive distribution UI passes its Windows debug UI step in 41158346907. Installed Windows package acceptance remains separate; the prior WinUI crash is not treated as success.",
     "fixtures": "Only --smoke-root seeds synthetic content. --data-root and ordinary launches start from real/empty storage. Recording remains off until explicit UI action.",
-    "scope": "CP3/CP4 shell plus CP5 rich capture/copy, bounded image thumbnails, source/type filters, capacity and self-contained JSON history import/export. System services, Wayland and distribution remain later layers."
+    "scope": "Windows/Linux SwiftCrossUI desktop with native shell, rich content, OCR, credentials/startup, opt-in AI, theme/language and accurate Wayland capabilities. Preview installation is CP8; physical IME/shortcut focus/DPI remain release gates."
   },
   "tech_stack": {
     "desktop_ui_dependency": "SwiftCrossUI 0.10.0, SwiftSyntax 603.0.1, GTK 4; Windows runtime pins are recorded in desktop_ui and tools/desktop-ui/install-windows-gtk.ps1.",
@@ -2696,7 +2704,7 @@
     "validation": {
       "macOS": "175 Core tests passed; one existing Keychain skip; strict Swift formatting passes.",
       "linux_arm64": "156 Core tests, 23 independent native format/sensitivity/INCR checks (including TIFF), and 24 GTK control/lifecycle/rich-capture checks passed.",
-      "windows": "Windows/Linux native rich-format and Core tests, plus macOS Core/application build passed in Actions run 41021121713. GTK/AccessKit UI runtime gate remains pending."
+      "windows": "Head 3b50913: all Core/platform jobs pass in 41157046973 and both native UI jobs pass in 41157046941, including new-revision native PNG and two-file-path Copy readback."
     }
   },
   "desktop_services": {
@@ -2711,7 +2719,7 @@
     "validation": {
       "macOS": "181 Core tests passed, one existing Keychain skip; full existing application Debug build passed; strict Swift formatting passed.",
       "linux_arm64": "162 Core tests; 12 isolated native credential/startup/OCR/HTTP checks; 12 private tray/menu/localization checks; 32 real GTK control/rich-capture/OCR/theme/language/background-launch checks passed.",
-      "windows": "Native credential/startup/WinRT OCR/HTTP and expanded UI probes prepared; native results pending. GTK source download stalled before compilation; a hard-bounded curl downloader is the next runtime repair."
+      "windows": "Head 02565fc: all Core/platform/native service jobs pass in 41158347676 and both native UI jobs pass in 41158347664. Real WinRT OCR/result Copy, secure credentials/startup and bounded loopback HTTP checks pass."
     }
   }
 }

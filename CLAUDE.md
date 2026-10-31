@@ -107,3 +107,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Native Windows probes wait for the matching image/file preview and enabled button before invoking once. Equal result counts do not acknowledge a filter change; never retry an already submitted mutation.
 
 - OCR replacement waits for the native image preview before deleting the old image; an equal one-item count from the previous File filter is not proof of selection.
+
+- Installer fixtures read an absent startup value as null through the registry key API; preserve the refusal of existing normal registrations. Cache compiled UI dependencies after a successful optimized build, before installation checks, and repair Windows tracked links on exact or fallback cache restores.

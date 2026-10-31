@@ -112,9 +112,11 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: Desktop/.build
-          key: desktop-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved') }}
+          key: desktop-release-v1-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved', 'Desktop/Package.swift', 'Core/Package.swift', 'Desktop/Patches/**') }}
+          restore-keys: |
+            desktop-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved') }}
       - name: Restore dependency symbolic links on Windows
-        if: runner.os == 'Windows' && steps.ui-cache.outputs.cache-hit == 'true'
+        if: runner.os == 'Windows' && steps.ui-cache.outputs.cache-matched-key != ''
         shell: pwsh
         run: |
           # Windows cache extraction can leave relative directory links unresolved.
@@ -136,12 +138,6 @@ jobs:
         run: |
           & python tools/desktop-ui/build-desktop.py --jobs 2 2>&1 | Tee-Object -FilePath ui-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Save compiled UI dependencies
-        if: always() && steps.ui-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: Desktop/.build
-          key: ${{ steps.ui-cache.outputs.cache-primary-key }}
       - name: Build independent native clipboard peer
         shell: pwsh
         run: |
@@ -188,6 +184,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & swift build --package-path Core --scratch-path Desktop/.build --configuration release --jobs 2 --product scenario-runner
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save compiled debug and optimized UI dependencies
+        if: steps.ui-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: Desktop/.build
+          key: ${{ steps.ui-cache.outputs.cache-primary-key }}
       - name: Package Linux runtime and verify installation without a Swift SDK
         if: runner.os == 'Linux'
         shell: bash

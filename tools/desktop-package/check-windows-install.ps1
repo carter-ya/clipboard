@@ -13,9 +13,18 @@ $Installer = [IO.Path]::GetFullPath($Installer)
 $Root = Join-Path $env:RUNNER_TEMP ('clipboard-install-' + [Guid]::NewGuid().ToString('N'))
 $Installed = Join-Path $Root 'install 中文 space'
 $Executable = Join-Path $Installed 'bin/ClipboardDesktop.exe'
-$RunKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$RunSubKey = 'Software\Microsoft\Windows\CurrentVersion\Run'
+$RunKey = 'HKCU:\' + $RunSubKey
 $RunName = 'com.clipboard.desktop'
-$OriginalRun = Get-ItemPropertyValue -Path $RunKey -Name $RunName -ErrorAction SilentlyContinue
+function Read-StartupCommand {
+  # The registry API returns null for an absent value. Get-ItemPropertyValue
+  # can throw a terminating provider error even with SilentlyContinue.
+  $Key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($RunSubKey)
+  if ($null -eq $Key) { return $null }
+  try { return $Key.GetValue($RunName, $null) }
+  finally { $Key.Dispose() }
+}
+$OriginalRun = Read-StartupCommand
 if ($null -ne $OriginalRun) { throw 'Refusing an existing Clipboard startup registration' }
 $Checks = [Collections.Generic.List[object]]::new()
 $App = $null
@@ -85,12 +94,12 @@ try {
   New-Item -Path $RunKey -Force | Out-Null
   $StartupCommand = '"' + $Executable + '" --background'
   New-ItemProperty -Path $RunKey -Name $RunName -Value $StartupCommand -PropertyType String -Force | Out-Null
-  Check 'upgrade_preserves_runtime_and_startup_preference' ((Install-Package) -eq 0 -and (Get-ItemPropertyValue -Path $RunKey -Name $RunName) -eq $StartupCommand)
+  Check 'upgrade_preserves_runtime_and_startup_preference' ((Install-Package) -eq 0 -and (Read-StartupCommand) -eq $StartupCommand)
   $Uninstaller = Join-Path $Installed 'unins000.exe'
   $Uninstall = Start-Process -FilePath $Uninstaller -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -PassThru
   if (!$Uninstall.WaitForExit(120000)) { $Uninstall.Kill(); throw 'Uninstaller timeout' }
   Check 'uninstall_removes_application_and_matching_startup' ($Uninstall.ExitCode -eq 0 -and !(Test-Path $Executable) -and
-    $null -eq (Get-ItemPropertyValue -Path $RunKey -Name $RunName -ErrorAction SilentlyContinue))
+    $null -eq (Read-StartupCommand))
   $Preserved = $true
   foreach ($File in $Histories) { if ((Get-FileHash -Algorithm SHA256 $File.FullName).Hash -ne $HistoryHashes[$File.FullName]) { $Preserved = $false } }
   Check 'upgrade_and_uninstall_preserve_private_history' $Preserved
