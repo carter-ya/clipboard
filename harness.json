@@ -160,6 +160,65 @@
       "CP6_automatic_analysis_queue": "Confirmed inserted events called the manual busy guard and were silently discarded while another analysis awaited OCR/network. Automatic work now uses a bounded 64-item FIFO of IDs with duplicate suppression and visible overflow feedback; manual work retains bail-while-busy. The worker reloads each item and rechecks live automatic settings, sensitive/concealed flags and existing summary before accessing analysis services. Shutdown cancels active work and clears pending IDs. Local Linux arm64: 165 Core tests, including FIFO/bounds/manual-busy, cancellation and permission-revocation regressions, passed; the actual optimized desktop application builds successfully.",
       "CP7_activation_event_ownership": "Confirmed UI consumed the global portal token for every queued action, allowing capability/tray events to steal a later activation token and rapid activations to overwrite each other. Native callbacks now copy a bounded borrowed token directly into an immutable DesktopShellEvent; only that showHistory event supplies it to the window. Removed the shared consumable token slot/API. A private D-Bus fixture defers stream consumption until two valid activations queue behind status events and checks both distinct tokens; fake-stream regression also includes preferences and recording events. Linux arm64: all 14 private portal checks, 167 Core tests, X11 cancellation/error routing/shortcut regressions and optimized desktop build passed; native Windows CI remains pending.",
       "CP6_settings_save_serialization": "Source confirmed appearance/language writers copied settings and awaited persistence without the shared applyingSettings guard, allowing an old snapshot to overwrite a concurrent AI opt-out. Both now acquire the same MainActor guard before reading settings and hold it through persistence and in-memory update, with defer release on success/failure. All six whole-settings mutation paths use the guard. This is a code-proven race correction; no disk-delay UI reproduction is claimed."
+    },
+    "functional_parity": {
+      "status": "in_progress",
+      "baseline_mac_commit": "2fd2a97ff878ce37cb0f3beade23cb7ffcb9d2f2",
+      "completion_rule": "CP1–CP8 provide a tested preview, not complete Mac feature parity. Every follow-up PR requires exact-head Codex review with no unresolved findings, relevant green native CI, and explicit evidence. Keep physical/release gates open until actually verified. Main merge remains awaiting the explicit human confirmation requested after automatic approval rejected the first merge.",
+      "work_items": [
+        {
+          "id": "CP9",
+          "branch": "codex/cross-platform-history-parity",
+          "scope": "Immediate history promotion after successful native Copy",
+          "status": "in_progress",
+          "implemented": "A successful native copy immediately bumps the item to the top and flushes/refreshes even with capture paused; failures do not promote. Windows and Linux native UI fixtures now copy an older filtered item and require new persisted ordering plus independent clipboard readback.",
+          "remaining": [
+            "Selection/reset and keyboard interaction audit against App/HistoryPanelViewModel.swift and App/HistoryPanelView.swift",
+            "Sensitive per-presentation reveal and preview/hover parity",
+            "Long text truncation indicators, kind counts and source/file display metadata"
+          ],
+          "validation": "Optimized Linux arm64 app builds; all 34 native UI checks passed, including the older-item copy promotion regression, native text/image/file readback, OCR, language/theme, settings and hide/reopen. Windows script syntax passes; real Windows runtime and final platform CI are pending."
+        },
+        {
+          "id": "CP10",
+          "scope": "Preferences and localization",
+          "status": "planned",
+          "remaining": [
+            "All seven Mac UI languages, including distinct traditional Chinese and system locale matching",
+            "Size-limit disable and equivalent filter choices",
+            "Startup state reconciliation on all restoration paths and discoverable capability/conflict guidance"
+          ]
+        },
+        {
+          "id": "CP11",
+          "scope": "History archive interoperability",
+          "status": "planned",
+          "remaining": [
+            "Read/write the Mac ZIP export format with equivalent sensitive exclusion, bounded archive validation, dedup and missing-blob results",
+            "Retain compatibility with existing desktop JSON archives"
+          ]
+        },
+        {
+          "id": "CP12",
+          "scope": "Analysis feature parity",
+          "status": "planned",
+          "remaining": [
+            "Connection diagnostics, progress/failure/retry and matching per-kind opt-ins",
+            "Equivalent supported local summary capability with truthful availability; Apple frameworks remain Mac-only",
+            "Image, text and file handling with the same privacy gates and bounded services"
+          ]
+        },
+        {
+          "id": "CP13",
+          "scope": "Distribution and platform acceptance",
+          "status": "planned",
+          "remaining": [
+            "Equivalent update discovery/manual update flow and secure installation path",
+            "Windows/Linux build/package/lifecycle verification for final feature heads",
+            "Physical IME, shortcut/focus, monitor DPI, real desktop permissions, user paste and long-session gates in Desktop/TESTING.md"
+          ]
+        }
+      ]
     }
   },
   "desktop_ui": {
