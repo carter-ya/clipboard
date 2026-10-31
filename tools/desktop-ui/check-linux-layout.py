@@ -103,6 +103,36 @@ def resize(width, height):
     wait_for(lambda: dimensions() == (width * args.scale, height * args.scale), 'window_resize')
 
 
+def button(label):
+    for node in nodes():
+        if node.name != label:
+            continue
+        for _ in range(10):
+            if node.getRole() == pyatspi.ROLE_PUSH_BUTTON:
+                return node
+            node = node.parent
+            if node is None:
+                break
+    return None
+
+
+def fully_visible(node, width, height):
+    rect = node.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+    if not (rect.x >= 0 and rect.y >= 0 and rect.width > 0 and rect.height > 0
+            and rect.x + rect.width <= width and rect.y + rect.height <= height):
+        return False
+    ancestor = node.parent
+    while ancestor and ancestor.getRole() != pyatspi.ROLE_FRAME:
+        if ancestor.getRole() == pyatspi.ROLE_SCROLL_PANE:
+            viewport = ancestor.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+            if not (rect.x >= viewport.x and rect.y >= viewport.y
+                    and rect.x + rect.width <= viewport.x + viewport.width
+                    and rect.y + rect.height <= viewport.y + viewport.height):
+                return False
+        ancestor = ancestor.parent
+    return True
+
+
 def screenshot(name):
     subprocess.run(['import', '-window', hex(window()), str(out / name)], check=True, timeout=10)
 
@@ -128,6 +158,9 @@ try:
     initial = editor()
     initial.queryEditableText().setTextContents('中文')
     wait_for(lambda: has_text('1 items'), 'unicode_query')
+    wait_for(lambda: all(button(label) and fully_visible(button(label), 960, 640)
+                         for label in ['Copy', 'Pin / unpin', 'Delete']), 'wide_action_bounds')
+    check('wide_item_actions_are_fully_visible', True)
     screenshot('wide.png')
     resize(640, 480)
     wait_for(lambda: has_text('1 items') and editor(), 'compact_layout')
@@ -135,18 +168,7 @@ try:
     check('narrow_layout_preserves_search_editor', not initial.getState().contains(pyatspi.STATE_DEFUNCT)
           and initial.queryText().getText(0, initial.queryText().characterCount) == '中文')
     screenshot('compact.png')
-    def copy_button():
-        for node in nodes():
-            if node.name != 'Copy':
-                continue
-            for _ in range(10):
-                if node.getRole() == pyatspi.ROLE_PUSH_BUTTON:
-                    return node
-                node = node.parent
-                if node is None:
-                    break
-        return None
-    copy = wait_for(copy_button, 'compact_copy_button')
+    copy = wait_for(lambda: button('Copy'), 'compact_copy_button')
     def inside(node):
         rect = node.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
         # GTK reports these bounds in logical pixels, independently of GDK_SCALE.
