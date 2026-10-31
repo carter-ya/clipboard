@@ -157,6 +157,7 @@ function Save-Screenshot([string]$Name) {
 
 try {
   $historyRoot = Join-Path $OutputDirectory ('history-' + [Guid]::NewGuid().ToString('N'))
+  $primaryHistoryRoot = $historyRoot
   $launchArguments = @('--smoke-root', ('"' + $historyRoot + '"'))
   if ($Baseline) { $launchArguments += '--ui-baseline' }
   $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
@@ -458,6 +459,57 @@ try {
     Wait-For { Find-Named 'Preferences' } 'background_settings' | Out-Null
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'background_quit_timeout' }
+    $historyRoot = Join-Path $OutputDirectory ('history-counts-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $historyRoot | Out-Null
+    $snapshot = Get-Content -Raw -Encoding UTF8 (Join-Path $primaryHistoryRoot 'history.json') | ConvertFrom-Json
+    Copy-Item -Path (Join-Path $primaryHistoryRoot 'blobs') -Destination (Join-Path $historyRoot 'blobs') -Recurse
+    $mixedBytes = [Text.Encoding]::UTF8.GetBytes('Legacy mixed fixture')
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { $mixedHash = [BitConverter]::ToString($sha.ComputeHash($mixedBytes)).Replace('-', '').ToLowerInvariant() }
+    finally { $sha.Dispose() }
+    $mixed = @{ id = [Guid]::NewGuid().ToString(); createdAt = $snapshot.items[0].createdAt;
+      kind = 'mixed'; preview = 'Legacy mixed fixture'; pinned = $false; sensitive = $false;
+      sha256 = $mixedHash; sizeBytes = $mixedBytes.Length;
+      payloads = @(@{ pasteboardType = 'public.utf8-plain-text'; inlineData = [Convert]::ToBase64String($mixedBytes) }) }
+    $snapshot.items = @($mixed) + @($snapshot.items)
+    $expectedAll = $snapshot.items.Count
+    [IO.File]::WriteAllText((Join-Path $historyRoot 'history.json'), ($snapshot | ConvertTo-Json -Depth 12), [Text.UTF8Encoding]::new($false))
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+      -ArgumentList @('--data-root', ('"' + $historyRoot + '"')) -PassThru `
+      -RedirectStandardOutput (Join-Path $OutputDirectory 'counts.stdout.log') `
+      -RedirectStandardError (Join-Path $OutputDirectory 'counts.stderr.log')
+    $null = $application.Handle
+    $nativeWindowHandle = Wait-For {
+      $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
+      if ($handle -ne [IntPtr]::Zero) { $handle }
+    } 'counted_history_window'
+    $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+    Wait-For { (Find-Named 'Ready') -and (Find-Named ($expectedAll.ToString() + ' items')) -and (Find-Named 'Mixed') } 'counted_history_ready' | Out-Null
+    Add-Check 'query_wide_tab_and_type_counts_are_visible' ((Find-Named ('(' + $expectedAll + ')')) -and (Find-Named '(2)'))
+    Save-Screenshot 'history-counts.png'
+    Invoke-Button 'Mixed'
+    Wait-For { (Find-Named '1 items') -and (Find-Named 'Legacy mixed fixture') } 'legacy_mixed_filter' | Out-Null
+    Add-Check 'legacy_mixed_kind_can_be_filtered' ($null -ne (Find-Named ('(' + $expectedAll + ')')))
+    Invoke-Button 'Pin / unpin'
+    Wait-For { Find-Named 'Item pinned' } 'pin_legacy_mixed' | Out-Null
+    Invoke-Button 'Pinned'
+    Wait-For { (Find-Named '1 items') -and !(Find-Named '(2)') } 'pinned_kind_counts' | Out-Null
+    Invoke-Button 'Text'
+    Wait-For { Find-Named '0 items' } 'empty_pinned_kind' | Out-Null
+    Add-Check 'kind_counts_follow_pinned_tab_without_collapsing_library_total' ((Find-Named ('(' + $expectedAll + ')')) -and (Find-Named '(1)') -and !(Find-Named '(2)'))
+    Invoke-Button 'All'
+    Wait-For { (Find-Named '2 items') -and (Find-Named '(2)') } 'all_tab_restores_text_count' | Out-Null
+    Set-Search 'Legacy mixed fixture'
+    Wait-For { (Find-Named '0 items') -and !(Find-Named ('(' + $expectedAll + ')')) } 'query_updates_cross_kind_counts' | Out-Null
+    Invoke-Button 'Mixed'
+    Wait-For { (Find-Named '1 items') -and (Find-Named 'Legacy mixed fixture') } 'matched_mixed_kind' | Out-Null
+    Add-Check 'tab_and_type_counts_follow_the_active_query' ((Find-Named '(1)') -and !(Find-Named ('(' + $expectedAll + ')')))
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'counted_history_quit_settings' | Out-Null
+    Invoke-Button 'Quit Clipboard'
+    if (!$application.WaitForExit(10000)) { throw 'counted_history_quit_timeout' }
+    Add-Check 'counted_history_quits_cleanly' ($application.ExitCode -eq 0)
+
     $sensitiveProbe = $true
     $historyRoot = Join-Path $OutputDirectory ('sensitive-preview-' + [Guid]::NewGuid().ToString('N'))
     $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `

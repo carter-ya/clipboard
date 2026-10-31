@@ -13,6 +13,7 @@ enum DesktopLocalization {
     return chinese[value] ?? value
   }
   private static let chinese: [String: String] = [
+    "Mixed": "混合内容",
     "Reveal for this session": "仅在本次查看中显示",
     "Sensitive content is hidden.": "敏感内容已遮挡。",
     "Preview truncated. Copy keeps the full text.": "预览已截断，复制仍会保留完整文字。",
