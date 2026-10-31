@@ -75,6 +75,8 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Desktop shell adapters use Windows tray/hotkey APIs or Linux SNI/dbusmenu/X11. Single-instance ownership is acquired before opening a profile; activation IPC carries no clipboard data. GTK hidden editors preserve drafts without adding UI polling. Persisted recording-on-start is distinct from runtime pause. Native shell tests use private Xvfb/DBus sessions and synthetic profile identities.
 
 - Desktop rich capture uses Core RichClipboardAccess and a native adapter. Resolve blob bytes/decode images off UI; sensitive previews stay hidden. Desktop history archives are bounded, self-contained JSON (not macOS ZIP), exclude sensitive items and reject external blob references. Source IDs come from clipboard owner metadata, never the foreground app. INCR transfer timers exist only while outgoing transfers are active.
+
+- DesktopServices owns OS credential/startup/OCR and bounded AI transport adapters. No plaintext credential fallback, keys in JSON or payloads in command arguments. Explicit remote/image/automatic opt-ins are separate; sensitive/concealed items fail before resolution or networking. Linux service tests run on a fresh DBus session with private keyring/config directories; Windows uses distinct synthetic credential/startup identities. GTK theme and language updates must preserve editors and require no UI polling.
 - The pinned SwiftCrossUI GTK main-loop patch releases one-shot callback contexts and prevents zero-delay timeouts from starving AccessKit idle actions. Keep native accessibility focus/button checks as hard gates; a visible tree alone is insufficient.
 
 - The pinned GTK AccessKit patch handles editable SetValue with native sensitivity/editability checks and schedules accessibility input at default priority. Optional CI diagnostics contain action/target IDs only, never text. UI Automation clients run MTA; native focus/action success remains required.
@@ -96,6 +98,12 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Windows rich UI tests pause after each capture before Copy, then require a new clipboard revision and a fresh status transition before checking native format bytes. An old Copied label or the fixture peer owning identical bytes cannot acknowledge a new asynchronous Copy.
 
 - Native Windows probes wait for the matching image/file preview and enabled button before invoking once. Equal result counts do not acknowledge a filter change; never retry an already submitted mutation.
+
+- OCR replacement waits for the native image preview before deleting the old image; an equal one-item count from the previous File filter is not proof of selection.
 - X11 selection requestors may disappear before a reply. The clipboard adapter recovers BadWindow only on registered private connections and delegates other connections/errors to the prior host handler. The portability workflow permanently exercises cancelled requests and registry cleanup in private Xvfb.
 
 - Native X11 shortcut dispatch must require an acquired registration and exact configured keyboard modifiers. Ignore Caps Lock and the discovered Num Lock mask, retain held-key suppression, and test the native dispatcher directly without synthesizing keyboard input.
+
+- Automatic desktop analysis uses the bounded ID-only serial scheduler; a busy manual action must not discard inserted clips. Recheck live settings and the current item when dequeuing, exclude sensitive/concealed or already analyzed clips, report overflow, and cancel/clear work on shutdown. Keep manual duplicate actions guarded.
+
+- Every whole-settings save, including appearance and language, must await the same MainActor FIFO save gate before reading the latest settings, retain its lease through persistence and in-memory update, and release it with defer. Do not drop rapid presentation actions or restore stale AI/privacy opt-outs. Pending writers must skip work during shutdown.

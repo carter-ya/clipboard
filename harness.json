@@ -110,7 +110,7 @@
         "base": "codex/cross-platform-rich-content",
         "scope": "Credential storage, startup integration, OCR and supported AI engines through platform adapters; localized settings and capability explanations.",
         "acceptance": "Native service tests and failure cases pass; credentials never fall back to plaintext; remote requests remain opt-in and exclude sensitive content.",
-        "status": "planned"
+        "status": "in_progress"
       },
       {
         "id": "CP7",
@@ -132,7 +132,9 @@
     "completion_rule": "A created PR or passing build is not functional completion. Each stack layer retains implementation and verification evidence; unresolved manual/runtime gates remain open. No automatic main merge or public release is implied.",
     "review_regressions": {
       "CP2_cancelled_X11_request": "Reproduced the native owner exiting with BadWindow/X_ChangeProperty when a queued reader disappears. Backported the rich-content adapter connection-scoped recovery into CP2. A private-Xvfb regression cancels UTF8_STRING and TARGETS requests, then verifies a fresh independent reader. A native routing probe checks delegation to the existing host handler and connection registry reuse. No real user clipboard or keyboard input. Local Linux arm64 Swift 6.3.3: all 7 cancellation checks, the native routing/capacity/reuse probe, all 6 native clipboard scenarios and 140 Core tests passed; hosted Windows/macOS validation remains pending.",
-      "CP4_X11_shortcut_modifiers": "A native dispatcher regression reproduced bare-key activation. Dispatch now requires successful shortcut registration, the configured keycode and exact keyboard modifiers, ignoring only Caps Lock and the discovered Num Lock mapping. Direct native event tests cover missing/extra modifiers, failed registration, alternate Num Lock mapping, pointer-button state and held-key suppression without sending input to the OS. Local Linux arm64 native event regression and all 7 real registration/conflict/cleanup scenarios passed."
+      "CP4_X11_shortcut_modifiers": "A native dispatcher regression reproduced bare-key activation. Dispatch now requires successful shortcut registration, the configured keycode and exact keyboard modifiers, ignoring only Caps Lock and the discovered Num Lock mapping. Direct native event tests cover missing/extra modifiers, failed registration, alternate Num Lock mapping, pointer-button state and held-key suppression without sending input to the OS. Local Linux arm64 native event regression and all 7 real registration/conflict/cleanup scenarios passed.",
+      "CP6_automatic_analysis_queue": "Confirmed inserted events called the manual busy guard and were silently discarded while another analysis awaited OCR/network. Automatic work now uses a bounded 64-item FIFO of IDs with duplicate suppression and visible overflow feedback; manual work retains bail-while-busy. The worker reloads each item and rechecks live automatic settings, sensitive/concealed flags and existing summary before accessing analysis services. Shutdown cancels active work and clears pending IDs. Local Linux arm64: 165 Core tests, including FIFO/bounds/manual-busy, cancellation and permission-revocation regressions, passed; the actual optimized desktop application builds successfully.",
+      "CP6_settings_save_serialization": "Source confirmed unguarded appearance/language snapshots could overwrite a concurrent AI opt-out. The initial shared busy guard prevented overwrite but native Windows CI 41167533718 (job 124438235352) then reproduced a dropped rapid language click after theme changes (localized_settings timeout). All six whole-settings writers now await one MainActor FIFO save gate before taking the latest snapshot, defer lease release, and skip pending work during shutdown. A concurrency regression holds an AI opt-out save while two presentation actions queue, then verifies both are persisted without re-enabling AI or automatic summaries. Local Linux arm64: 166 Core tests and optimized app build passed; the confirming Windows run is pending."
     }
   },
   "desktop_ui": {
@@ -2686,7 +2688,22 @@
     "validation": {
       "macOS": "175 Core tests passed; one existing Keychain skip; strict Swift formatting passes.",
       "linux_arm64": "156 Core tests, 23 independent native format/sensitivity/INCR checks (including TIFF), and 24 GTK control/lifecycle/rich-capture checks passed.",
-      "windows": "First native build exposed a missing DROPFILES declaration; added the Windows Shell object header. Rich-format and UI image/file-capture CI results remain pending."
+      "windows": "Windows/Linux native rich-format and Core tests, plus macOS Core/application build passed in Actions run 41021121713. GTK/AccessKit UI runtime gate remains pending."
+    }
+  },
+  "desktop_services": {
+    "scope": "CP6: native credential storage and per-user startup, local OCR, explicit remote AI configuration/analysis, English/Simplified Chinese controls and native tray labels, system/light/dark appearance.",
+    "boundaries": "Core owns DesktopCredentialStoring/DesktopStartupControlling/DesktopOCRRecognizing/DesktopAITransport and fakes plus the privacy-gated DesktopAnalysis coordinator. Native adapters live in DesktopServices/CDesktopServices. Existing macOS engines stay independent; only a localOCR result badge was added to its shared enum display.",
+    "credentials": "Windows Credential Manager; Linux libsecret Secret Service. No plaintext fallback; private profiles and endpoints receive distinct hashed credential namespaces. Secret Service operations cancel after 15 seconds. API keys never enter DesktopSettings, content logs or process arguments.",
+    "startup": "Windows HKCU Run; Linux XDG autostart desktop entry with escaped Exec. Only the normal UI profile may configure startup; tests use distinct fixture keys/directories. --background keeps a reachable app hidden and a second launch reopens the existing profile, including startup races.",
+    "ocr_ui_regression": "Run 41157046508 passes native image/file capture, pause and fresh Copy assertions. OCR preparation must wait for a native image preview before deleting: File and Image can both have one item, so count-only waits can delete the previous file selection. The probe now checks the preview for both replacement and new OCR capture.",
+    "ocr": "Linux Tesseract/leptonica with installed eng/chi_sim models, bounded encoded size/pixel dimensions and a 30-second recognition deadline. Windows uses WinRT OcrEngine through a packaged PowerShell bridge with image bytes on stdin, installed language capability checks and a 45-second process deadline. No sensitive item reaches either engine. No Windows OCR pass is claimed yet.",
+    "ai": "Remote AI and automatic summaries start disabled; image uploads require a separate opt-in, bounded to 2 MiB PNG/JPEG. Portable OpenAI-compatible request/response code is reused. Ephemeral URLSession disables cookies/cache/credential persistence, refuses redirects and bounds incoming responses to 64 KiB. HTTPS endpoints or explicitly selected loopback HTTP are supported. Sensitive/concealed items are rejected before payload resolution, credential reads or networking. File-content summaries and Apple-only engines are not advertised on this desktop.",
+    "presentation": "Native GTK appearance plus SwiftCrossUI color environment remain synchronized by settings notifications, with no UI polling. English/zh-Hans changes preserve native editors; tray/menu labels update without restarting. OCR results can be searched/copied separately from original image payloads.",
+    "validation": {
+      "macOS": "181 Core tests passed, one existing Keychain skip; full existing application Debug build passed; strict Swift formatting passed.",
+      "linux_arm64": "162 Core tests; 12 isolated native credential/startup/OCR/HTTP checks; 12 private tray/menu/localization checks; 32 real GTK control/rich-capture/OCR/theme/language/background-launch checks passed.",
+      "windows": "Native credential/startup/WinRT OCR/HTTP and expanded UI probes prepared; native results pending. GTK source download stalled before compilation; a hard-bounded curl downloader is the next runtime repair."
     }
   }
 }

@@ -8,12 +8,31 @@ let package = Package(
     .library(name: "ClipboardCore", targets: ["ClipboardCore"]),
     .library(name: "DesktopClipboard", targets: ["DesktopClipboard"]),
     .library(name: "DesktopShell", targets: ["DesktopShell"]),
+    .library(name: "DesktopServices", targets: ["DesktopServices"]),
   ],
   dependencies: [
     .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.0.0"),
     .package(url: "https://github.com/apple/swift-crypto.git", exact: "3.12.3"),
   ],
   targets: [
+    .systemLibrary(
+      name: "CLibSecret", pkgConfig: "libsecret-1", providers: [.apt(["libsecret-1-dev"])]),
+    .systemLibrary(
+      name: "CTesseract", pkgConfig: "tesseract",
+      providers: [.apt(["libtesseract-dev", "libleptonica-dev"])]),
+    .target(
+      name: "CDesktopServices",
+      dependencies: [
+        .target(name: "CLibSecret", condition: .when(platforms: [.linux])),
+        .target(name: "CTesseract", condition: .when(platforms: [.linux])),
+      ],
+      linkerSettings: [
+        .linkedLibrary("advapi32", .when(platforms: [.windows])),
+        .linkedLibrary("lept", .when(platforms: [.linux])),
+      ]),
+    .target(
+      name: "DesktopServices", dependencies: ["ClipboardCore", "CDesktopServices"],
+      resources: [.copy("Resources/WindowsOCR.ps1")]),
     .systemLibrary(name: "CDBus", pkgConfig: "dbus-1", providers: [.apt(["libdbus-1-dev"])]),
     .target(
       name: "CDesktopShell",
@@ -60,6 +79,7 @@ let package = Package(
         "ClipboardCore",
         .target(name: "DesktopClipboard", condition: .when(platforms: [.linux, .windows])),
         .target(name: "DesktopShell", condition: .when(platforms: [.linux, .windows])),
+        .target(name: "DesktopServices", condition: .when(platforms: [.linux, .windows])),
       ]
     ),
     .testTarget(

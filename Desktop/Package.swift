@@ -20,6 +20,7 @@ let package = Package(
           name: "DesktopClipboard", package: "Core",
           condition: .when(platforms: [.linux, .windows])),
         .product(name: "DesktopShell", package: "Core"),
+        .product(name: "DesktopServices", package: "Core"),
         .product(name: "Gtk", package: "swift-cross-ui"),
         .product(name: "SwiftCrossUI", package: "swift-cross-ui"),
         .product(name: "GtkBackend", package: "swift-cross-ui"),

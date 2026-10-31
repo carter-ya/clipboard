@@ -1,5 +1,6 @@
 import ClipboardCore
 import DesktopClipboard
+import DesktopServices
 import DesktopShell
 import Foundation
 import Gtk
@@ -7,6 +8,27 @@ import SwiftCrossUI
 
 /// Presentation state; persistence, filters and native ownership stay in Core/adapters.
 final class HistoryModel: ObservableObject {
+  @Published var analysisBusy = false
+  @Published var startupEnabled = false
+  @Published var startupAvailable = false
+  @Published var aiEnabledDraft = false
+  @Published var aiImagesDraft = false
+  @Published var aiCredentialDraft = false
+  @Published var aiEndpointDraft = "https://api.openai.com/v1"
+  @Published var aiModelDraft = ""
+  @Published var aiKeyDraft = ""
+  @Published var automaticSummariesDraft = false
+  @Published var automaticOCRDraft = false
+  @Published var appearance = "system"
+  @Published var effectiveDark = false
+  @Published var uiLanguage: String?
+  private var credentials = NativeDesktopCredentials()
+  private let ocr = NativeDesktopOCR()
+  private let transport = BoundedDesktopAITransport()
+  private var startup: NativeDesktopStartup?
+  @MainActor private lazy var analysisScheduler = DesktopAnalysisScheduler(
+    busyChanged: { [weak self] in self?.analysisBusy = $0 },
+    perform: { [weak self] in await self?.performAnalysis($0) })
   @Published var items: [ClipItem] = []
   @Published var query = ""
   @Published var onlyPinned = false
@@ -50,8 +72,9 @@ final class HistoryModel: ObservableObject {
   @MainActor private var nativeWindow: GtkDesktopWindow?
   @MainActor private weak var searchEntry: Gtk.Entry?
   @MainActor private var windowCoordinator: DesktopWindowCoordinator?
+  @MainActor private var startupActivationRequested = false
   @MainActor private var shuttingDown = false
-  @MainActor private var applyingSettings = false
+  @MainActor private lazy var settingsSaveGate = DesktopSettingsSaveGate()
 
   static let fixtures = [
     "Welcome to Clipboard Preview",
@@ -60,10 +83,29 @@ final class HistoryModel: ObservableObject {
   ]
   var selected: ClipItem? { items.first { $0.id == selectedID } }
 
+  @MainActor var canSummarize: Bool {
+    guard settings.ai.enabled, let item = selected, !item.sensitive, item.kind != .file else {
+      return false
+    }
+    if item.kind == .image {
+      return settings.ai.allowImages
+        && item.payloads.contains(where: {
+          ["public.png", "public.jpeg"].contains($0.pasteboardType)
+        })
+    }
+    return true
+  }
+
   @MainActor func attachWindow(_ window: Gtk.Window) {
     if nativeWindow == nil {
       let presenter = GtkDesktopWindow()
       nativeWindow = presenter
+      presenter.observeAppearance { [weak self] property in
+        guard let self else { return }
+        DesktopAppearance.recordSystem(property: property)
+        if self.appearance != "system" { DesktopAppearance.apply(self.appearance) }
+        self.effectiveDark = DesktopAppearance.currentIsDark
+      }
       windowCoordinator = DesktopWindowCoordinator(window: presenter)
       presenter.closeRequested = { [weak self] in
         guard let self else { return }
@@ -169,10 +211,27 @@ final class HistoryModel: ObservableObject {
         }.value
       }
       root = directory
+      credentials = NativeDesktopCredentials(namespace: DesktopApplicationContext.profile)
       let settingsStore = JSONDesktopSettingsStore(root: directory)
       self.settingsStore = settingsStore
       do { settings = try await settingsStore.load() } catch {
         shellStatus = "Saved settings could not be read. Recording starts paused."
+      }
+      uiLanguage = settings.languageOverride
+      appearance = settings.appearance
+      DesktopAppearance.apply(appearance)
+      effectiveDark = DesktopAppearance.currentIsDark
+      aiEnabledDraft = settings.ai.enabled
+      aiImagesDraft = settings.ai.allowImages
+      aiCredentialDraft = settings.ai.usesCredential
+      aiEndpointDraft = settings.ai.endpoint
+      aiModelDraft = settings.ai.model
+      automaticSummariesDraft = settings.automaticSummaries
+      automaticOCRDraft = settings.automaticOCR
+      if DesktopApplicationContext.profile == "production" {
+        startup = try? NativeDesktopStartup(
+          executable: URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL)
+        startupAvailable = startup != nil
       }
       capacityDraft = String(settings.historyCapacity)
       maxSizeDraft = String(settings.maxClipSizeBytes / (1024 * 1024))
@@ -198,11 +257,20 @@ final class HistoryModel: ObservableObject {
       }
       let events = store.events
       eventsTask = Task { @MainActor [weak self] in
-        for await _ in events {
+        for await event in events {
           guard !Task.isCancelled, let self else { break }
           // Keep native editors/drafts while hidden, without rerendering history
           // for every captured item. Refresh once before the next presentation.
           if self.nativeWindow?.isVisible != false && !self.showsSettings { await self.refresh() }
+          if case .inserted(let item) = event, !item.sensitive {
+            if self.settings.automaticSummaries && self.settings.ai.enabled && item.kind != .file
+              && (item.kind != .image || self.settings.ai.allowImages)
+            {
+              self.enqueueAutomaticAnalysis(remote: true, item: item)
+            } else if self.settings.automaticOCR && item.kind == .image {
+              self.enqueueAutomaticAnalysis(remote: false, item: item)
+            }
+          }
         }
       }
       await refresh()
@@ -211,7 +279,11 @@ final class HistoryModel: ObservableObject {
       status = "Ready"
       nativeWindow?.focusSearch()
       if settings.recordingEnabled { await setRecording(true) }
-      if !settings.showOnLaunch && canHide { windowCoordinator?.hide() }
+      if (!settings.showOnLaunch || CommandLine.arguments.contains("--background")) && canHide
+        && !startupActivationRequested
+      {
+        windowCoordinator?.hide()
+      }
     } catch { status = "History could not be opened." }
   }
 
@@ -224,6 +296,7 @@ final class HistoryModel: ObservableObject {
     } catch DesktopShellError.shortcutConflict {
       shellStatus = "The global shortcut is already in use. Choose another in Settings."
     } catch { shellStatus = "The global shortcut is unavailable in this desktop session." }
+    shell.updateLanguage(settings.languageOverride ?? Locale.preferredLanguages.first ?? "en")
     reconcileShellCapabilities()
     let actions = shell.actions
     if let instance = DesktopApplicationContext.instance {
@@ -270,14 +343,17 @@ final class HistoryModel: ObservableObject {
   }
 
   @MainActor func showHistory() async {
+    if !ready { startupActivationRequested = true }
     if showsSettings { showsSettings = false }
     await refresh()
     await Task.yield()
     windowCoordinator?.showHistory()
   }
   @MainActor func showPreferences() {
+    if !ready { startupActivationRequested = true }
     if !showsSettings { showsSettings = true }
     windowCoordinator?.showPreferences()
+    Task { @MainActor [weak self] in await self?.refreshStartup() }
   }
   @MainActor func hide() { if canHide { windowCoordinator?.hide() } }
 
@@ -386,9 +462,10 @@ final class HistoryModel: ObservableObject {
   }
 
   @MainActor func applyShortcut() async {
-    guard !applyingSettings, let shell, let settingsStore else { return }
-    applyingSettings = true
-    defer { applyingSettings = false }
+    guard let shell, let settingsStore else { return }
+    await settingsSaveGate.acquire()
+    defer { settingsSaveGate.release() }
+    guard !shuttingDown else { return }
     var next = settings
     next.shortcutEnabled = shortcutEnabledDraft
     next.shortcut = shortcutDraft
@@ -413,9 +490,10 @@ final class HistoryModel: ObservableObject {
     } catch { status = "Shortcut could not be saved. Previous settings kept." }
   }
   @MainActor func applyBehavior() async {
-    guard !applyingSettings, let settingsStore else { return }
-    applyingSettings = true
-    defer { applyingSettings = false }
+    guard let settingsStore else { return }
+    await settingsSaveGate.acquire()
+    defer { settingsSaveGate.release() }
+    guard !shuttingDown else { return }
     var next = settings
     next.closeToTray = closeToTrayDraft
     next.showOnLaunch = showOnLaunchDraft
@@ -428,15 +506,16 @@ final class HistoryModel: ObservableObject {
   }
 
   @MainActor func applyContentSettings() async {
-    guard !applyingSettings, let settingsStore, let store,
+    guard let settingsStore, let store,
       let capacity = Int(capacityDraft), let megabytes = Int(maxSizeDraft),
       (1...16).contains(megabytes)
     else {
       status = "Enter a capacity of 1–5000 and a size of 1–16 MiB."
       return
     }
-    applyingSettings = true
-    defer { applyingSettings = false }
+    await settingsSaveGate.acquire()
+    defer { settingsSaveGate.release() }
+    guard !shuttingDown else { return }
     var next = settings
     next.historyCapacity = capacity
     next.maxClipSizeBytes = megabytes * 1024 * 1024
@@ -489,9 +568,164 @@ final class HistoryModel: ObservableObject {
     } catch { status = "Import failed. Choose a self-contained Clipboard JSON archive." }
   }
 
+  @MainActor func refreshStartup() async {
+    guard let startup else { return }
+    do { startupEnabled = try await startup.isEnabled() } catch {
+      status = "Startup integration is unavailable in this session."
+    }
+  }
+  @MainActor func toggleStartup() async {
+    guard let startup else {
+      status = "Startup integration is unavailable in this session."
+      return
+    }
+    do {
+      try await startup.setEnabled(!startupEnabled)
+      startupEnabled = try await startup.isEnabled()
+      status = "Startup setting saved"
+    } catch { status = "Startup setting could not be changed." }
+  }
+  @MainActor func copyAnalysisResult() async {
+    guard let item = selected, !item.sensitive, let text = item.summary else { return }
+    do {
+      let clipboard = try await nativeClipboard()
+      try await Task.detached {
+        try clipboard.write(
+          payloads: [.init(pasteboardType: "public.utf8-plain-text", data: Data(text.utf8))],
+          sensitive: false)
+      }.value
+      status = "Copied to clipboard"
+    } catch { status = "Clipboard is unavailable in this session." }
+  }
+  @MainActor func saveAISettings() async {
+    guard let settingsStore else { return }
+    await settingsSaveGate.acquire()
+    defer { settingsSaveGate.release() }
+    guard !shuttingDown else { return }
+    var next = settings
+    next.ai.enabled = aiEnabledDraft
+    next.ai.allowImages = aiImagesDraft
+    next.ai.usesCredential = aiCredentialDraft
+    next.ai.endpoint = aiEndpointDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    next.ai.model = aiModelDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    next.automaticSummaries = automaticSummariesDraft
+    next.automaticOCR = automaticOCRDraft
+    do {
+      try next.validate()
+      try await settingsStore.save(next)
+      settings = next
+      status = "AI settings saved"
+    } catch { status = "Check the model and endpoint. Use HTTPS, or HTTP for a loopback server." }
+  }
+  @MainActor func saveAPIKey() async {
+    guard ready, !aiKeyDraft.isEmpty else { return }
+    var configuration = settings.ai
+    configuration.endpoint = aiEndpointDraft
+    do {
+      try configuration.validate()
+      try await credentials.save(aiKeyDraft, account: configuration.credentialAccount)
+      aiKeyDraft = ""
+      aiCredentialDraft = true
+      status = "API key saved in the system credential store. Save AI settings to use it."
+    } catch {
+      status = "Secure credential storage is unavailable or locked. No plaintext fallback was used."
+    }
+  }
+  @MainActor func deleteAPIKey() async {
+    var configuration = settings.ai
+    configuration.endpoint = aiEndpointDraft
+    do {
+      try await credentials.delete(account: configuration.credentialAccount)
+      aiKeyDraft = ""
+      aiCredentialDraft = false
+      status = "API key deleted. Save AI settings to update the connection."
+    } catch { status = "Secure credential storage is unavailable or locked." }
+  }
+  @MainActor private func enqueueAutomaticAnalysis(remote: Bool, item: ClipItem) {
+    guard !shuttingDown, !item.sensitive, item.summary == nil else { return }
+    let result = analysisScheduler.submit(.init(id: item.id, remote: remote, automatic: true))
+    if result == .full {
+      status = "Automatic analysis queue is full. Analyze skipped items manually."
+    }
+  }
+  @MainActor func analyze(remote: Bool, item requested: ClipItem? = nil) {
+    guard !shuttingDown, let item = requested ?? selected, !item.sensitive else { return }
+    analysisScheduler.submit(.init(id: item.id, remote: remote, automatic: false))
+  }
+  @MainActor private func performAnalysis(_ request: DesktopAnalysisScheduler.Request) async {
+    guard let item = await store?.item(id: request.id) else { return }
+    // Recheck live preferences after waiting; disabling automation revokes queued work.
+    guard !shuttingDown, !Task.isCancelled, request.isAllowed(item: item, settings: settings)
+    else { return }
+    let remote = request.remote
+    let configuration = settings.ai
+    let service = DesktopAnalysis(
+      credentials: credentials, transport: transport, ocr: ocr,
+      blobRoot: root?.appendingPathComponent("blobs"))
+    let language = settings.languageOverride
+    do {
+      let result =
+        try await
+        (remote
+        ? service.summarize(item, settings: configuration, language: language)
+        : service.recognize(item, language: language))
+      try Task.checkCancellation()
+      guard !result.isEmpty else {
+        status = "No text was recognized."
+        return
+      }
+      await store?.updateSummary(
+        id: item.id, summary: result, source: remote ? .remoteOpenAI : .localOCR)
+      await store?.flush()
+      loadedPreviewID = nil
+      await refresh()
+      status = remote ? "Summary ready" : "OCR text ready"
+    } catch is CancellationError { status = "Analysis cancelled" } catch {
+      status =
+        remote
+        ? "Summary unavailable. Check AI settings and the connection."
+        : "OCR unavailable. Check the image and installed OCR language packs."
+    }
+  }
+  @MainActor func setAppearance(_ value: String) async {
+    guard let settingsStore else { return }
+    await settingsSaveGate.acquire()
+    defer { settingsSaveGate.release() }
+    guard !shuttingDown else { return }
+    var next = settings
+    next.appearance = value
+    do {
+      try await settingsStore.save(next)
+      settings = next
+      appearance = value
+      DesktopAppearance.apply(value)
+      effectiveDark = DesktopAppearance.currentIsDark
+      status = "Appearance saved"
+    } catch { status = "Settings could not be saved." }
+  }
+  @MainActor func setLanguage(_ value: String?) async {
+    guard let settingsStore else { return }
+    await settingsSaveGate.acquire()
+    defer { settingsSaveGate.release() }
+    guard !shuttingDown else { return }
+    var next = settings
+    next.languageOverride = value
+    do {
+      try await settingsStore.save(next)
+      settings = next
+      uiLanguage = value
+      shell?.updateLanguage(value ?? Locale.preferredLanguages.first ?? "en")
+      status = "Language saved"
+    } catch { status = "Settings could not be saved." }
+  }
+  @MainActor func t(_ value: String) -> String {
+    DesktopLocalization.text(value, language: uiLanguage)
+  }
+
   @MainActor func shutdown() async {
     guard !shuttingDown else { return }
     shuttingDown = true
+    analysisScheduler.stop()
     captureTask?.cancel()
     shellTask?.cancel()
     activationTask?.cancel()

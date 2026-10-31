@@ -69,6 +69,9 @@ public final class NativeDesktopShell: DesktopShellAccess, @unchecked Sendable {
     }
   }
 
+  public func updateLanguage(_ tag: String) {
+    queue.sync { clipboard_shell_set_language(handle, tag.lowercased().hasPrefix("zh") ? 1 : 0) }
+  }
   public func updateRecording(_ enabled: Bool) {
     queue.sync { clipboard_shell_set_recording(handle, enabled ? 1 : 0) }
   }

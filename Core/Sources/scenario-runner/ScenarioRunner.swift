@@ -156,6 +156,8 @@ enum ScenarioRunner {
     switch scenario {
     case "rich-types":
       report = await runRichTypes()
+    case "platform-services":
+      report = await runPlatformServices()
     case "platform-rich-clipboard":
       report = await runPlatformRichClipboard()
     case "platform-instance":

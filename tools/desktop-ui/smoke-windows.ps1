@@ -1,6 +1,7 @@
 ﻿param([Parameter(Mandatory=$true)][string]$Executable,
       [Parameter(Mandatory=$true)][string]$OutputDirectory,
       [string]$ClipboardPeer,
+      [string]$OCRFixture,
       [switch]$Baseline,
       [switch]$ValidateOnly)
 $ErrorActionPreference = 'Stop'
@@ -102,6 +103,11 @@ function Find-Named([string]$Name) {
 function Get-Editor {
   $condition = [Windows.Automation.PropertyCondition]::new(
     [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)
+  return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+}
+function Get-ImagePreview {
+  $condition = [Windows.Automation.PropertyCondition]::new(
+    [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Image)
   return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
 }
 function Invoke-Button([string]$Label) {
@@ -277,11 +283,73 @@ try {
           $peer.Dispose()
         }
       }
+      if ($OCRFixture) {
+        Invoke-Button 'Image'
+        Wait-For { (Find-Named '1 items') -and (Get-ImagePreview) } 'image_for_ocr_replacement' | Out-Null
+        Invoke-Button 'Delete'
+        Wait-For { Find-Named '0 items' } 'previous_image_removed' | Out-Null
+        Invoke-Button 'Start recording'
+        Wait-For { Find-Named 'Recording clipboard' } 'ocr_capture_enabled' | Out-Null
+        $peerInfo = New-Object Diagnostics.ProcessStartInfo
+        $peerInfo.FileName = [IO.Path]::GetFullPath($ClipboardPeer)
+        $peerInfo.Arguments = 'rich-clipboard-peer ocr "' + [IO.Path]::GetFullPath($OCRFixture) + '"'
+        $peerInfo.UseShellExecute = $false
+        $peerInfo.RedirectStandardInput = $true
+        $peerInfo.RedirectStandardOutput = $true
+        $peer = [Diagnostics.Process]::Start($peerInfo)
+        try {
+          $line = $peer.StandardOutput.ReadLineAsync()
+          if (!$line.Wait(10000) -or $line.Result -ne 'ready') { throw 'ocr_peer_startup' }
+          Wait-For { (Find-Named '1 items') -and (Get-ImagePreview) -and (Find-Named 'Recognize text') } 'ocr_image_captured' | Out-Null
+          Invoke-Button 'Recognize text'
+          Wait-For { (Find-Named 'OCR text ready') -and (Find-Named 'OCR / AI result') } 'ocr_result_visible' | Out-Null
+          Add-Check 'native_ocr_result_reaches_real_preview' $true
+          Invoke-Button 'Pause recording'
+          Wait-For { Find-Named 'Recording paused' } 'pause_before_copying_ocr' | Out-Null
+          Invoke-Button 'Copy result'
+          Wait-For { Find-Named 'Copied to clipboard' } 'ocr_result_copy_status' | Out-Null
+          $ocrText = [PreviewNative]::ReadClipboard()
+          Add-Check 'ocr_result_can_be_copied_without_replacing_original_item' ($ocrText.ToUpperInvariant().Contains('CLIPBOARD') -and $ocrText.Contains('123'))
+        } finally {
+          $peer.StandardInput.Close()
+          if (!$peer.WaitForExit(5000)) { $peer.Kill(); $peer.WaitForExit() }
+          $peer.Dispose()
+        }
+      }
       Invoke-Button 'All types'
       Wait-For { Find-Named '4 items' } 'all_content_restored' | Out-Null
     }
     Invoke-Button 'Settings'
     Wait-For { Find-Named 'Preferences' } 'preferences_for_save' | Out-Null
+    Invoke-Button 'Dark'
+    Wait-For { Find-Named 'Appearance saved' } 'dark_appearance_saved' | Out-Null
+    Start-Sleep -Milliseconds 200
+    Save-Screenshot 'settings-dark.png'
+    $probeBitmap = [Drawing.Bitmap]::new((Join-Path $OutputDirectory 'settings-dark.png'))
+    try {
+      $total = 0.0; $samples = 0
+      for ($y = 0; $y -lt $probeBitmap.Height; $y += 16) {
+        for ($x = 0; $x -lt $probeBitmap.Width; $x += 16) {
+          $pixel = $probeBitmap.GetPixel($x, $y)
+          $total += ($pixel.R + $pixel.G + $pixel.B) / 765.0; $samples++
+        }
+      }
+      Add-Check 'native_dark_appearance_changes_rendered_window' ($total / $samples -lt 0.6)
+    } finally { $probeBitmap.Dispose() }
+    Invoke-Button 'Light'
+    Wait-For { Find-Named 'Appearance saved' } 'light_appearance_saved' | Out-Null
+    Invoke-Button '简体中文'
+    Wait-For { (Find-Named '偏好设置') -and (Find-Named '语言已保存') } 'localized_settings' | Out-Null
+    Add-Check 'language_switch_updates_native_controls' ($null -ne (Find-Named '返回历史'))
+    Save-Screenshot 'settings-chinese.png'
+    Invoke-Button '返回历史'
+    Wait-For { (Get-Editor) -and (Find-Named '设置') } 'localized_history' | Out-Null
+    Wait-For { (Get-Editor).Current.HasKeyboardFocus } 'localized_history_focus' | Out-Null
+    Add-Check 'language_change_preserves_history_focus' $true
+    Invoke-Button '设置'
+    Wait-For { Find-Named '偏好设置' } 'localized_settings_return' | Out-Null
+    Invoke-Button 'English'
+    Wait-For { (Find-Named 'Preferences') -and (Find-Named 'Language saved') } 'english_restored' | Out-Null
     Invoke-Button 'Save behavior'
     $settingsFile = Join-Path $historyRoot 'desktop-settings.json'
     Wait-For { Test-Path $settingsFile } 'saved_settings_file' | Out-Null
@@ -308,6 +376,22 @@ try {
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'normal_quit_timeout' }
     Add-Check 'normal_launch_quits_cleanly' ($application.ExitCode -eq 0)
+    $historyRoot = Join-Path $OutputDirectory ('background-' + [Guid]::NewGuid().ToString('N'))
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+      -ArgumentList @('--data-root', ('"' + $historyRoot + '"'), '--background') -PassThru `
+      -RedirectStandardOutput (Join-Path $OutputDirectory 'background.stdout.log') `
+      -RedirectStandardError (Join-Path $OutputDirectory 'background.stderr.log')
+    $null = $application.Handle
+    Wait-For { Test-Path (Join-Path $historyRoot 'blobs') } 'background_profile_claimed' | Out-Null
+    Wait-For { [PreviewNative]::FindWindow([uint32]$application.Id) -eq [IntPtr]::Zero } 'background_launch_stays_hidden' | Out-Null
+    Add-Check 'startup_background_argument_keeps_window_hidden' (!$application.HasExited)
+    Wake-Existing
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '0 items') } 'background_launch_reopened' | Out-Null
+    Add-Check 'startup_background_instance_can_be_reopened' $true
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'background_settings' | Out-Null
+    Invoke-Button 'Quit Clipboard'
+    if (!$application.WaitForExit(10000)) { throw 'background_quit_timeout' }
   }
 } catch {
   $checks.Add(@{ name = 'ui_probe'; passed = $false; detail = $_.Exception.Message })
