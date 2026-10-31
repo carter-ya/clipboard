@@ -42,7 +42,7 @@ final class PortabilityTests: XCTestCase {
   }
 
   #if !os(macOS)
-    func testRichPayloadBytesSurviveWithoutApplePreviewDecoder() async throws {
+    func testRichPayloadBytesSurviveWithPortablePreview() async throws {
       let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("clipboard-rich-\(UUID().uuidString)")
       defer { try? FileManager.default.removeItem(at: root) }
@@ -53,7 +53,7 @@ final class PortabilityTests: XCTestCase {
       let reopened = try await JSONSnapshotClipStore(root: root)
       let items = await reopened.all()
       let item = try XCTUnwrap(items.first)
-      XCTAssertEqual(item.preview, "", "Raw markup must not masquerade as rendered text")
+      XCTAssertEqual(item.preview, "hello", "Portable preview strips markup without rendering HTML")
       XCTAssertEqual(item.payloads.first?.inlineData, payload.data)
     }
 

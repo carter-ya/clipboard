@@ -29,6 +29,7 @@ let package = Package(
       name: "CDesktopClipboard",
       linkerSettings: [
         .linkedLibrary("user32", .when(platforms: [.windows])),
+        .linkedLibrary("shell32", .when(platforms: [.windows])),
         .linkedLibrary("X11", .when(platforms: [.linux])),
         .linkedLibrary("Xfixes", .when(platforms: [.linux])),
       ]

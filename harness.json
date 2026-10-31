@@ -102,7 +102,7 @@
         "base": "codex/cross-platform-shell",
         "scope": "Images/files/HTML/RTF, source-app identity, filters, export/import and capacity controls with the existing Core privacy rules.",
         "acceptance": "Independent peers exchange supported native formats; sensitive items never persist or export.",
-        "status": "planned"
+        "status": "in_progress"
       },
       {
         "id": "CP6",
@@ -141,7 +141,7 @@
     "windows_runtime": "GTK 4.22.4 rebuilt with AccessKit C 0.18.0 (0c52a8ce2357bbeb927f90dc9a1c19c8ec1bd2c3), Rust 1.87.0; fixed gvsbuild 2026.8.0 dependency archive; SHA-256 verified inputs",
     "backend_gate": "Prior WinUI UI Automation traversal crashed with upstream issue #787. Windows GTK runtime preparation reached the GTK source download and then stalled despite Invoke-WebRequest TimeoutSec; replaced it with curl connect/total deadlines. GTK/AccessKit controls remain pending.",
     "fixtures": "Only --smoke-root seeds synthetic content. --data-root and ordinary launches start from real/empty storage. Recording remains off until explicit UI action.",
-    "scope": "History/search/preview/copy/pin/delete/settings foundation. CP4-CP8 add remaining desktop features; physical keyboard/IME/DPI gates remain open."
+    "scope": "CP3/CP4 shell plus CP5 rich capture/copy, bounded image thumbnails, source/type filters, capacity and self-contained JSON history import/export. System services, Wayland and distribution remain later layers."
   },
   "tech_stack": {
     "desktop_ui_dependency": "SwiftCrossUI 0.10.0, SwiftSyntax 603.0.1, GTK 4; Windows runtime pins are recorded in desktop_ui and tools/desktop-ui/install-windows-gtk.ps1.",
@@ -2673,7 +2673,20 @@
     "validation": {
       "macOS": "166 Core tests, one existing Keychain skip, zero failures; DesktopShell stub target builds; strict Swift formatting passes.",
       "linux_arm64": "6 independent-process instance checks; 7 native shortcut checks; 10 private-bus tray checks; 18 real GTK control/window/persistence/lifecycle checks passed in Swift 6.3.3 container.",
-      "windows": "Initial native build exposed Windows SDK header order; fixed by including windows.h before shellapi.h. Native shell/instance and full UI lifecycle CI results pending; physical keyboard, IME and DPI remain open."
+      "windows": "Core, native clipboard, instance activation/recovery and shortcut conflict/cleanup passed in Actions run 41016884988. GTK/AccessKit controls and physical keyboard/IME/DPI remain pending."
+    }
+  },
+  "desktop_rich_content": {
+    "scope": "CP5: Unicode text, HTML, RTF, PNG/JPEG/TIFF/BMP and multiple file URLs; source-owner identity where native metadata exists; kind/source filters, capacity/size/source rules and import/export.",
+    "implementation": "Portable RichClipboardAccess + fake/monitor/writer, separate native DesktopClipboard C shim. Windows uses registered formats, CF_DIB/CF_HDROP/CF_TIFF; CF_HTML byte offsets and UTF-16 paths normalize off UI. Linux maps MIME targets with bounded incoming/outgoing INCR; transfer-only timers expire abandoned outgoing requests.",
+    "limits": "16 MiB aggregate clipboard payload limit; referenced local file sizes enter the existing size filter. X11 incoming INCR deadline 2 seconds, outgoing inactivity 5 seconds; pending outgoing bytes bounded to 16 MiB. Source ID is windows:<executable> or linux:<WM_CLASS>; absent owner metadata stays unknown, never guessed from foreground app. Wayland remains CP7.",
+    "previews": "GdkPixbuf decodes thumbnails away from UI, scaled to 1280 px, with original dimension/pixel guards; sensitive images are hidden. Portable HTML plain-text previews do not load resources or execute scripts; RTF Unicode/plain previews skip embedded objects and preserve original bytes. Complex legacy RTF code pages may require a plain-text sidecar.",
+    "copy_regression": "Windows rich UI probes pause after each capture before Copy and require a fresh paused-to-copied status, changed clipboard revision and native format readback. A previous Copied label and the peer owning identical bytes cannot acknowledge a queued Copy (41155271336). Run 41156106695 verifies fresh image Copy, then exposes equal-count file-filter and disabled-button races. Probes now wait for the actual file/image preview and enabled control before invoking once; native rerun remains required.",
+    "archive": "Self-contained .clipboard.json envelope, version 1; maximum 256 MiB, inline payloads, sensitive items excluded. Imports reject external blob references and rederive hashes/kinds/previews before existing store de-duplication. This desktop format is not the macOS ZIP export format.",
+    "validation": {
+      "macOS": "175 Core tests passed; one existing Keychain skip; strict Swift formatting passes.",
+      "linux_arm64": "156 Core tests, 23 independent native format/sensitivity/INCR checks (including TIFF), and 24 GTK control/lifecycle/rich-capture checks passed.",
+      "windows": "First native build exposed a missing DROPFILES declaration; added the Windows Shell object header. Rich-format and UI image/file-capture CI results remain pending."
     }
   }
 }
