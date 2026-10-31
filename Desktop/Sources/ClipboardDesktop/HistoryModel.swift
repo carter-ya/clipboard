@@ -1002,12 +1002,37 @@ final class HistoryModel: ObservableObject {
       credentials: credentials, transport: transport, ocr: ocr,
       blobRoot: root?.appendingPathComponent("blobs"), fileReader: NativeDesktopFileTextReader())
     let language = settings.languageOverride
+    var activeRequest = request
+    var resultKind = item.kind
     do {
-      let result =
-        try await
-        (remote
-        ? service.summarize(item, settings: configuration, language: language)
-        : localText ? service.summarizeLocally(item) : service.recognize(item, language: language))
+      let result: String
+      do {
+        let first =
+          try await
+          (remote
+          ? service.summarize(item, settings: configuration, language: language)
+          : localText
+            ? service.summarizeLocally(item) : service.recognize(item, language: language))
+        if remote && first.isEmpty { throw DesktopServiceError.networkFailure }
+        result = first
+      } catch {
+        try Task.checkCancellation()
+        guard remote, !shuttingDown, analysisProgress.isCurrent(ticket),
+          let current = await store?.item(id: item.id)
+        else { throw error }
+        try Task.checkCancellation()
+        guard analysisProgress.isCurrent(ticket),
+          let local = analysisScheduler.beginLocalFallback(item: current, settings: settings)
+        else { throw error }
+        activeRequest = local
+        resultKind = current.kind
+        analysisProgress.useLocalFallback(ticket)
+        result =
+          try await
+          (current.kind == .image
+          ? service.recognize(current, language: settings.languageOverride)
+          : service.summarizeLocally(current))
+      }
       try Task.checkCancellation()
       guard !result.isEmpty else {
         analysisProgress.finish(ticket, succeeded: false)
@@ -1015,19 +1040,21 @@ final class HistoryModel: ObservableObject {
         return
       }
       guard let current = await store?.item(id: item.id), !shuttingDown,
-        analysisProgress.isCurrent(ticket), request.isAllowed(item: current, settings: settings)
+        analysisProgress.isCurrent(ticket),
+        activeRequest.isAllowed(item: current, settings: settings)
       else {
         analysisProgress.remove(id: item.id)
         return
       }
       await store?.updateSummary(
         id: item.id, summary: result,
-        source: remote ? .remoteOpenAI : localText ? .localExtractive : .localOCR)
+        source: activeRequest.remote
+          ? .remoteOpenAI : resultKind == .image ? .localOCR : .localExtractive)
       await store?.flush()
       loadedPreviewID = nil
       await refresh()
       analysisProgress.finish(ticket, succeeded: true)
-      status = remote || localText ? "Summary ready" : "OCR text ready"
+      status = activeRequest.remote || resultKind != .image ? "Summary ready" : "OCR text ready"
     } catch is CancellationError {
       analysisProgress.remove(id: item.id)
       if !shuttingDown && !showsSettings && selectedID == item.id

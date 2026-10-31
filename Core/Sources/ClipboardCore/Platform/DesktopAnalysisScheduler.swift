@@ -35,6 +35,11 @@ public final class DesktopAnalysisScheduler {
       if item.kind == .file { return settings.automaticLocalFileSummaries }
       return item.kind == .image ? settings.automaticOCR : settings.automaticLocalSummaries
     }
+    public func localFallback(item: ClipItem, settings: DesktopSettings) -> Request? {
+      guard remote, isAllowed(item: item, settings: settings) else { return nil }
+      let local = Request(id: id, remote: false, automatic: automatic)
+      return local.isAllowed(item: item, settings: settings) ? local : nil
+    }
   }
   public enum Submission: Equatable { case started, queued, duplicate, full, busy, stopped }
   public private(set) var isBusy = false
@@ -78,6 +83,13 @@ public final class DesktopAnalysisScheduler {
   public func cancel(id: UUID) {
     pending.removeAll { $0.id == id }
     if current?.id == id { task?.cancel() }
+  }
+  public func beginLocalFallback(item: ClipItem, settings: DesktopSettings) -> Request? {
+    guard !stopped, !Task.isCancelled,
+      let fallback = current?.localFallback(item: item, settings: settings)
+    else { return nil }
+    current = fallback
+    return fallback
   }
   public func cancelAll() {
     pending.removeAll()
