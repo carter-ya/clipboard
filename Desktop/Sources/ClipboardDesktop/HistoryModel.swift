@@ -1020,7 +1020,10 @@ final class HistoryModel: ObservableObject {
       try await settingsStore.save(next)
       settings = next
       if let active = analysisScheduler.currentRequest {
-        let current = await store?.item(id: active.id)
+        // Revoke synchronously with the settings update. A store await here can
+        // let an already completed read/credential lookup initiate transport.
+        // If the active item is outside the retained view, fail closed.
+        let current = items.first(where: { $0.id == active.id })
         if analysisScheduler.recheckCurrent(id: active.id, item: current, settings: settings) {
           analysisProgress.remove(id: active.id)
         }
