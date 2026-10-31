@@ -1215,6 +1215,10 @@ try {
       # headers, endpoint, exception text or the fixture's raw output.
       $connectionAudit = @{
         requests = [int]$fixtureReport.requests
+        invalidRequests = [int]$fixtureReport.invalidRequests
+        modelMismatches = [int]$fixtureReport.modelMismatches
+        handlerFailures = [int]$fixtureReport.handlerFailures
+        responseDisconnects = [int]$fixtureReport.responseDisconnects
         fixedTestsOnly = $fixtureReport.fixedTestsOnly -eq $true
         noAuthorization = $fixtureReport.noAuthorization -eq $true
         noCookies = $fixtureReport.noCookies -eq $true
