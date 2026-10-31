@@ -17,12 +17,15 @@ public struct DesktopSettings: Codable, Equatable, Sendable {
   public var ai = DesktopAISettings()
   public var automaticSummaries = false
   public var automaticOCR = false
+  public var localTextSummariesEnabled = false
+  public var automaticLocalSummaries = false
   public init() {}
 
   private enum CodingKeys: String, CodingKey {
     case recordingEnabled, shortcutEnabled, shortcut, closeToTray, showOnLaunch
     case historyCapacity, maxClipSizeBytes, skipSensitive, blocklistEnabled, blockedAppIDs
     case appearance, languageOverride, ai, automaticSummaries, automaticOCR
+    case localTextSummariesEnabled, automaticLocalSummaries
   }
   public init(from decoder: any Decoder) throws {
     self.init()
@@ -49,6 +52,10 @@ public struct DesktopSettings: Codable, Equatable, Sendable {
     automaticSummaries =
       try values.decodeIfPresent(Bool.self, forKey: .automaticSummaries) ?? automaticSummaries
     automaticOCR = try values.decodeIfPresent(Bool.self, forKey: .automaticOCR) ?? automaticOCR
+    localTextSummariesEnabled =
+      try values.decodeIfPresent(Bool.self, forKey: .localTextSummariesEnabled) ?? false
+    automaticLocalSummaries =
+      try values.decodeIfPresent(Bool.self, forKey: .automaticLocalSummaries) ?? false
     try validate()
   }
 

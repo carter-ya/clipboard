@@ -225,6 +225,44 @@ struct HistoryView: View {
       }
       ScrollView {
         VStack(alignment: .leading, spacing: 12) {
+          if case .running(let remote)? = model.selectedAnalysisProgress {
+            Text(
+              model.t(
+                remote
+                  ? "Generating summary…"
+                  : model.selected?.kind == .image ? "Recognizing text…" : "Creating local excerpt…"
+              ))
+          }
+          if case .failed(let remote)? = model.selectedAnalysisProgress {
+            Text(
+              model.t(
+                remote
+                  ? "Could not generate a summary."
+                  : model.selected?.kind == .image
+                    ? "Could not recognize text." : "Could not create a local excerpt."))
+            Button(
+              model.t(
+                remote
+                  ? "Retry summary"
+                  : model.selected?.kind == .image
+                    ? "Retry text recognition" : "Retry local excerpt")
+            ) {
+              model.retryAnalysis()
+            }.disabled(
+              model.analysisBusy || (remote && !model.canSummarize)
+                || (!remote && model.selected?.kind != .image && !model.canSummarizeLocally))
+          }
+          if let summary = model.selected?.summary, model.selected?.sensitive != true {
+            Text(
+              model.t(
+                model.selected?.summarySource == .localExtractive
+                  ? "Local excerpt" : "OCR / AI result")
+            ).font(.system(size: 14))
+            Text(summary).frame(maxWidth: .infinity, alignment: .leading)
+            Button(model.t("Copy result")) {
+              Task { @MainActor in await model.copyAnalysisResult() }
+            }
+          }
           if let image = model.previewImage {
             DesktopImagePreview(image: image, accessibilityLabel: model.t("Image preview")).frame(
               minWidth: 250, maxWidth: .infinity, maxHeight: imageHeight)
@@ -244,22 +282,7 @@ struct HistoryView: View {
             Text(model.t("Preview truncated. Copy keeps the full text."))
               .font(.system(size: 12)).foregroundColor(.gray)
           }
-          if case .running(let remote)? = model.selectedAnalysisProgress {
-            Text(model.t(remote ? "Generating summary…" : "Recognizing text…"))
-          }
-          if case .failed(let remote)? = model.selectedAnalysisProgress {
-            Text(model.t(remote ? "Could not generate a summary." : "Could not recognize text."))
-            Button(model.t(remote ? "Retry summary" : "Retry text recognition")) {
-              model.retryAnalysis()
-            }.disabled(model.analysisBusy || (remote && !model.canSummarize))
-          }
-          if let summary = model.selected?.summary, model.selected?.sensitive != true {
-            Text(model.t("OCR / AI result")).font(.system(size: 14))
-            Text(summary).frame(maxWidth: .infinity, alignment: .leading)
-            Button(model.t("Copy result")) {
-              Task { @MainActor in await model.copyAnalysisResult() }
-            }
-          }
+
         }
       }.frame(minHeight: 100, maxHeight: 180)
       Text(model.t("Copy here, then paste in your app."))
@@ -277,12 +300,16 @@ struct HistoryView: View {
         Button(model.t("Delete")) { Task { @MainActor in await model.deleteSelected() } }
           .disabled(model.selected == nil)
       }
-      if model.selected?.kind == .image || model.canSummarize {
+      if model.selected?.kind == .image || model.canSummarize || model.canSummarizeLocally {
         HStack(spacing: 10) {
           Button(model.t("Recognize text")) { model.analyze(remote: false) }
             .disabled(
               model.selected?.kind != .image || model.selected?.sensitive == true
                 || model.analysisBusy)
+          if model.canSummarizeLocally {
+            Button(model.t("Summarize locally")) { model.analyze(remote: false) }
+              .disabled(model.analysisBusy)
+          }
           Button(model.t("Summarize")) { model.analyze(remote: true) }
             .disabled(!model.canSummarize || model.analysisBusy)
         }
@@ -339,6 +366,24 @@ struct HistoryView: View {
     }
   }
 
+  var localAnalysisSettings: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text(
+        model.t(
+          "Local OCR uses installed system language packs. Apple-only models are unavailable here.")
+      )
+      Toggle(model.t("Automatically recognize images"), isOn: $model.automaticOCRDraft)
+      Toggle(model.t("Enable local text summaries"), isOn: $model.localTextSummariesDraft)
+      Text(model.t("Creates a short excerpt on this device. Nothing is uploaded."))
+        .font(.system(size: 12)).foregroundColor(.gray)
+      Toggle(
+        model.t("Automatically summarize text locally"), isOn: $model.automaticLocalSummariesDraft
+      )
+      .disabled(!model.localTextSummariesDraft)
+
+    }
+  }
+
   var serviceSettings: some View {
     VStack(alignment: .leading, spacing: 12) {
       Text(model.t("System services")).font(.system(size: 18))
@@ -349,11 +394,7 @@ struct HistoryView: View {
         model.t(
           "System startup policy can override this registration. Check Startup apps or your desktop session settings."
         ))
-      Text(
-        model.t(
-          "Local OCR uses installed system language packs. Apple-only models are unavailable here.")
-      )
-      Toggle(model.t("Automatically recognize images"), isOn: $model.automaticOCRDraft)
+      localAnalysisSettings
       Text(
         model.t(
           "Remote AI is off by default. Enabling it sends eligible content to your chosen endpoint."

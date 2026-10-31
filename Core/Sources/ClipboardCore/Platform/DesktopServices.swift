@@ -64,7 +64,8 @@ public struct DesktopAISettings: Codable, Equatable, Sendable {
     // text behavior. Malformed/missing existing fields still fail closed.
     enabled = try values.decode(Bool.self, forKey: .enabled)
     allowImages = try values.decode(Bool.self, forKey: .allowImages)
-    allowText = values.contains(.allowText) ? try values.decode(Bool.self, forKey: .allowText) : true
+    allowText =
+      values.contains(.allowText) ? try values.decode(Bool.self, forKey: .allowText) : true
     usesCredential = try values.decode(Bool.self, forKey: .usesCredential)
     endpoint = try values.decode(String.self, forKey: .endpoint)
     model = try values.decode(String.self, forKey: .model)
@@ -161,6 +162,30 @@ public struct DesktopAnalysis: Sendable {
     guard data.count <= 16 * 1024 * 1024 else { throw DesktopServiceError.tooLarge }
     return String(try await ocr.recognize(data, language: language).prefix(8000))
   }
+  public func summarizeLocally(_ item: ClipItem) async throws -> String {
+    try allow(item)
+    guard [.text, .rtf, .mixed].contains(item.kind) else { throw DesktopServiceError.disabled }
+    try Task.checkCancellation()
+    let text = try await resolvedText(item)
+    try Task.checkCancellation()
+    guard let result = DesktopLocalTextSummary.summarize(text) else {
+      throw DesktopServiceError.invalidValue
+    }
+    return result
+  }
+  private func resolvedText(_ item: ClipItem) async throws -> String {
+    let resolver = resolver
+    let payloads = try await Task.detached {
+      try item.payloads.filter {
+        [
+          "public.utf8-plain-text", "public.plain-text", "public.string", "public.html",
+          "public.rtf",
+        ]
+        .contains($0.pasteboardType)
+      }.map { RawPayload(pasteboardType: $0.pasteboardType, data: try resolver.data(for: $0)) }
+    }.value
+    return RichTextPreview.text(from: payloads, limit: 16000)
+  }
   public func summarize(_ item: ClipItem, settings: DesktopAISettings, language: String? = nil)
     async throws -> String
   {
@@ -189,15 +214,7 @@ public struct DesktopAnalysis: Sendable {
       // alone must never cause arbitrary files to leave the device.
       throw DesktopServiceError.disabled
     } else {
-      let payloads = try await Task.detached {
-        try item.payloads.filter {
-          [
-            "public.utf8-plain-text", "public.plain-text", "public.string", "public.html",
-            "public.rtf",
-          ].contains($0.pasteboardType)
-        }.map { RawPayload(pasteboardType: $0.pasteboardType, data: try resolver.data(for: $0)) }
-      }.value
-      let text = RichTextPreview.text(from: payloads, limit: 16000)
+      let text = try await resolvedText(item)
       guard !text.isEmpty else { throw DesktopServiceError.invalidValue }
       messages = buildRemoteOpenAITextMessages(text, responseLanguage: language)
     }

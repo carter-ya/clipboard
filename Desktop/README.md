@@ -87,6 +87,8 @@ profiles use distinct credential namespaces and cannot change the normal
 profile's startup entry. The startup command uses `--background`; another launch
 reopens the same process safely.
 
+Local text summaries are optional lead-sentence excerpts, generated entirely on this device. Enable them in settings for manual use; automatic processing has its own opt-in. The result is labeled Local excerpt and retains the original clipboard item. This baseline uses neither a model nor the network and supports text/RTF/mixed clips with at least 100 readable characters. Apple language/entity models remain unavailable on Windows/Linux.
+
 Remote OpenAI-compatible AI is disabled initially. Enable it explicitly and save
 a model/endpoint; text summaries, image uploads and automatic analysis have separate switches. Turning off text summaries also excludes RTF and mixed text clips from manual and queued remote analysis. Local OCR and the explicit fixed-message connection test remain separate.
 Requests use memory-only sessions, refuse redirects and bound responses while

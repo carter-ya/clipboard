@@ -183,3 +183,5 @@
 "Light" = "Claro";
 
 "Dark" = "Oscuro";
+
+"summary.badge.localExcerpt" = "Extracto local";

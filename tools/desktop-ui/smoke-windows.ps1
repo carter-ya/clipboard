@@ -1181,6 +1181,71 @@ try {
       }
     }
 
+    if ($ClipboardPeer) {
+      $historyRoot = Join-Path $OutputDirectory ('local-summary-' + [Guid]::NewGuid().ToString('N'))
+      [IO.Directory]::CreateDirectory($historyRoot) | Out-Null
+      $manualLead = 'Manual local summary fixture begins with a useful sentence.'
+      $manualText = $manualLead + (' More local fixture context.' * 10)
+      $manualBytes = [Text.Encoding]::UTF8.GetBytes($manualText)
+      $hash = [Security.Cryptography.SHA256]::Create()
+      try { $digest = [BitConverter]::ToString($hash.ComputeHash($manualBytes)).Replace('-', '').ToLowerInvariant() }
+      finally { $hash.Dispose() }
+      $manualItem = @{ id = [Guid]::NewGuid().ToString(); createdAt = '2023-11-14T22:13:20Z'; kind = 'text'; preview = $manualText; sha256 = $digest; sizeBytes = $manualBytes.Length; pinned = $false; sensitive = $false; payloads = @(@{ pasteboardType = 'public.utf8-plain-text'; inlineData = [Convert]::ToBase64String($manualBytes) }) }
+      [IO.File]::WriteAllText((Join-Path $historyRoot 'history.json'), (@{ version = 1; items = @($manualItem) } | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+      [IO.File]::WriteAllText((Join-Path $historyRoot 'desktop-settings.json'), '{"localTextSummariesEnabled":true}', [Text.UTF8Encoding]::new($false))
+      $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+        -ArgumentList @('--smoke-root', ('"' + $historyRoot + '"')) -PassThru `
+        -RedirectStandardOutput (Join-Path $OutputDirectory 'local-summary.stdout.log') `
+        -RedirectStandardError (Join-Path $OutputDirectory 'local-summary.stderr.log')
+      $null = $application.Handle
+      $nativeWindowHandle = Wait-For { $h = [PreviewNative]::FindWindow([uint32]$application.Id); if ($h -ne [IntPtr]::Zero) { $h } } 'local_summary_profile_window'
+      [PreviewNative]::SetWindowPos($nativeWindowHandle, [IntPtr]::Zero, 16, 16, 0, 0, 0x0005) | Out-Null
+      $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+      Wait-For { (Find-Named 'Ready') -and (Find-Named '1 items') } 'local_summary_profile_ready' | Out-Null
+      Invoke-Button 'Summarize locally'
+      Wait-For { (Find-Named 'Summary ready') -and (Find-Named 'Local excerpt') -and (Find-Named $manualLead) } 'manual_local_summary_ready' | Out-Null
+      $stored = (Read-SharedJson (Join-Path $historyRoot 'history.json')).items[0]
+      Add-Check 'local_summary_preserves_original_payload_and_labels_its_engine' ($stored.summary -ceq $manualLead -and $stored.summarySource -ceq 'localExtractive' -and [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($stored.payloads[0].inlineData)) -ceq $manualText)
+      Save-Screenshot 'local-text-summary.png'
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Preferences' } 'local_summary_settings' | Out-Null
+      Invoke-Button 'Automatically summarize text locally'
+      Invoke-VisibleConnectionButton 'Save AI settings'
+      Wait-For { (Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')).automaticLocalSummaries -eq $true } 'automatic_local_summary_saved' | Out-Null
+      $saved = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
+      Add-Check 'local_summary_opt_in_keeps_remote_and_image_uploads_off' ($saved.localTextSummariesEnabled -and !$saved.ai.enabled -and !$saved.ai.allowImages)
+      Invoke-Button 'Back to history'
+      Wait-For { Get-Editor } 'local_summary_history_restored' | Out-Null
+      Invoke-Button 'Start recording'
+      Wait-For { Find-Named 'Recording clipboard' } 'local_summary_capture_ready' | Out-Null
+      $peerInfo = New-Object Diagnostics.ProcessStartInfo
+      $peerInfo.FileName = [IO.Path]::GetFullPath($ClipboardPeer)
+      $peerInfo.Arguments = 'rich-clipboard-peer local-summary'
+      $peerInfo.UseShellExecute = $false
+      $peerInfo.RedirectStandardInput = $true
+      $peerInfo.RedirectStandardOutput = $true
+      $peer = [Diagnostics.Process]::Start($peerInfo)
+      try {
+        $ready = $peer.StandardOutput.ReadLineAsync()
+        if (!$ready.Wait(10000) -or $ready.Result -ne 'ready') { throw 'local_summary_peer_ready' }
+        $automaticLead = 'This synthetic local summary stays on this device.'
+        Wait-For { @((Read-SharedJson (Join-Path $historyRoot 'history.json')).items | Where-Object { $_.summary -ceq $automaticLead -and $_.summarySource -ceq 'localExtractive' }).Count -eq 1 } 'automatic_local_summary_ready' | Out-Null
+        Add-Check 'native_capture_can_generate_local_summary_without_remote_AI' $true
+        Set-Search 'This synthetic local summary'
+        Wait-For { (Find-Named '1 items') -and (Find-Named 'Local excerpt') -and (Find-Named $automaticLead) } 'automatic_local_result_selected' | Out-Null
+        Invoke-Button 'Pause recording'
+        Invoke-Button 'Settings'
+        Wait-For { Find-Named 'Preferences' } 'local_summary_quit_settings' | Out-Null
+        Invoke-Button 'Quit Clipboard'
+        if (!$application.WaitForExit(10000)) { throw 'local_summary_quit_timeout' }
+        Add-Check 'local_summary_private_profile_quits_cleanly' ($application.ExitCode -eq 0)
+      } finally {
+        $peer.StandardInput.Close()
+        if (!$peer.WaitForExit(5000)) { $peer.Kill(); $peer.WaitForExit() }
+        $peer.Dispose()
+      }
+    }
+
     # Separate private profile: per-item progress/failure/retry, never real history.
     $serverInfo = New-Object Diagnostics.ProcessStartInfo
     $serverInfo.FileName = (Get-Command python).Source
