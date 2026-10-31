@@ -97,6 +97,18 @@ jobs:
             & swift run --package-path Core scenario-runner platform-rich-clipboard 2>&1 | Tee-Object -FilePath platform-rich.log
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify Wayland receive pipes with a blocking external producer
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -pthread -I Core/Sources/CDesktopClipboard/include \
+            tools/desktop-ui/check-linux-wayland-pipe.c \
+            Core/Sources/CDesktopClipboard/desktop_clipboard.c \
+            Core/Sources/CDesktopClipboard/wayland-protocols/*.c \
+            $(pkg-config --cflags --libs wayland-client) -lX11 -lXfixes \
+            -o "$RUNNER_TEMP/check-linux-wayland-pipe"
+          "$RUNNER_TEMP/check-linux-wayland-pipe"
       - name: Verify native Wayland capture and restricted-compositor capabilities
         if: runner.os == 'Linux'
         shell: bash

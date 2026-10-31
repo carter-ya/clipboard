@@ -121,3 +121,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Every whole-settings save, including appearance and language, must await the same MainActor FIFO save gate before reading the latest settings, retain its lease through persistence and in-memory update, and release it with defer. Do not drop rapid presentation actions or restore stale AI/privacy opt-outs. Pending writers must skip work during shutdown.
 
 - CP1–CP8 are preview foundations. Follow `cross_platform_delivery.functional_parity` for remaining Mac-equivalent development. A successful desktop Copy must immediately promote the item through Core and refresh, including when capture is paused; do not rely on recapture. Native UI probes verify ordering and independent readback using private fixtures.
+
+- Wayland receive pipes must keep the descriptor sent to an external producer blocking. Apply O_NONBLOCK only to the local reader, retain CLOEXEC, and test the actual helper with a complete large transfer from an independent blocking writer.
