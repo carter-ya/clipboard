@@ -41,7 +41,8 @@ struct HistoryView: View {
 
   var body: some View {
     GeometryReader { geometry in
-      let compact = geometry.size.width < 820
+      let viewportWidth = model.responsiveWidth(proposed: geometry.size.width)
+      let compact = viewportWidth < 820
       VStack(alignment: .leading, spacing: 12) {
         header(compact: compact)
         ScrollView {
