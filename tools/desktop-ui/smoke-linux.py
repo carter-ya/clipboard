@@ -1171,6 +1171,9 @@ try:
             from pdf_fixture import text_pdf, SUMMARY_PDF_BODY, SUMMARY_PDF_LEAD
             pdf = history_root / 'private-pdf-upload-name 中文.pdf'
             pdf.write_bytes(text_pdf(SUMMARY_PDF_BODY))
+            wait_for(lambda: button('Start recording') and
+                     button('Start recording').getState().contains(pyatspi.STATE_SENSITIVE),
+                     'pdf_capture_transition_finished')
             click('Start recording')
             wait_for(lambda: has_text('Recording clipboard'), 'pdf_capture_enabled')
             peer = subprocess.Popen([str(Path(args.clipboard_peer).resolve()), 'rich-clipboard-peer', 'file-summary', str(pdf)],

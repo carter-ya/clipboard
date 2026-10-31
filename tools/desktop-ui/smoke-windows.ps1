@@ -1422,6 +1422,13 @@ try {
         & python (Join-Path $PSScriptRoot 'pdf_fixture.py') --private-summary-fixture $pdf
         if ($LASTEXITCODE -ne 0) { throw 'pdf_fixture_creation_failed' }
         $pdfLead = 'This synthetic PDF excerpt stays on this device.'
+        Wait-For {
+          $control = Find-Named 'Start recording'
+          for ($depth = 0; $depth -lt 10 -and $control -and $control.Current.ControlType -ne [Windows.Automation.ControlType]::Button; $depth++) {
+            $control = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($control)
+          }
+          $control -and $control.Current.IsEnabled
+        } 'pdf_capture_transition_finished' | Out-Null
         Invoke-Button 'Start recording'
         Wait-For { Find-Named 'Recording clipboard' } 'pdf_capture_enabled' | Out-Null
         $peerInfo.Arguments = 'rich-clipboard-peer file-summary "' + $pdf + '"'
