@@ -94,9 +94,11 @@ int cds_startup_read(const char *name, const char *command) {
   DWORD size = sizeof(actual), type = 0;
   LSTATUS status = RegGetValueW(HKEY_CURRENT_USER, run_key, key_name,
                                 RRF_RT_REG_SZ, &type, actual, &size);
-  int result = status == ERROR_FILE_NOT_FOUND ? 0
-               : status == ERROR_SUCCESS      ? (wcscmp(actual, expected) == 0)
-                                              : -1;
+  int result =
+      status == ERROR_FILE_NOT_FOUND ? 0
+      : status == ERROR_SUCCESS      ? (wcscmp(actual, expected) == 0 ? 1 : -3)
+      : status == ERROR_UNSUPPORTED_TYPE || status == ERROR_MORE_DATA ? -3
+                                                                      : -1;
   free(key_name);
   free(expected);
   return result;
@@ -109,9 +111,26 @@ int cds_startup_set(const char *name, const char *command, int enabled) {
     return -2;
   }
   HKEY key = NULL;
-  LSTATUS status = RegCreateKeyExW(HKEY_CURRENT_USER, run_key, 0, NULL, 0,
-                                   KEY_SET_VALUE, NULL, &key, NULL);
+  LSTATUS status =
+      RegCreateKeyExW(HKEY_CURRENT_USER, run_key, 0, NULL, 0,
+                      KEY_QUERY_VALUE | KEY_SET_VALUE, NULL, &key, NULL);
   if (status == ERROR_SUCCESS) {
+    WCHAR existing[4096];
+    DWORD bytes = sizeof(existing), type = 0;
+    LSTATUS query =
+        RegQueryValueExW(key, key_name, NULL, &type, (BYTE *)existing, &bytes);
+    int absent = query == ERROR_FILE_NOT_FOUND;
+    int owned = query == ERROR_SUCCESS && type == REG_SZ &&
+                bytes >= sizeof(WCHAR) && bytes <= sizeof(existing) &&
+                bytes % sizeof(WCHAR) == 0 &&
+                existing[bytes / sizeof(WCHAR) - 1] == L'\0' &&
+                wcscmp(existing, value) == 0;
+    if (!absent && !owned) {
+      RegCloseKey(key);
+      free(key_name);
+      free(value);
+      return query == ERROR_SUCCESS || query == ERROR_MORE_DATA ? -3 : -1;
+    }
     status = enabled
                  ? RegSetValueExW(key, key_name, 0, REG_SZ, (BYTE *)value,
                                   (DWORD)((wcslen(value) + 1) * sizeof(WCHAR)))

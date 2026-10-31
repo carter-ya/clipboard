@@ -769,6 +769,7 @@ try {
     $beforeStartupNames = @(Get-PrivateStartupNames)
     $startupRegistrationName = $null
     $startupCommand = $null
+    $foreignStartupCommand = $null
     $focusFixture = [IntPtr]::Zero
     try {
       Invoke-Button 'Enable launch at login'
@@ -811,6 +812,17 @@ try {
       $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath)
       try { Add-Check 'explicit_startup_disable_removes_the_owned_registration' ($null -eq $key.GetValue($startupRegistrationName)) }
       finally { $key.Dispose() }
+      $foreignStartupCommand = $startupCommand.Replace('.startup-no-launch', '.startup-other-no-launch')
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath, $true)
+      try { $key.SetValue($startupRegistrationName, $foreignStartupCommand, [Microsoft.Win32.RegistryValueKind]::String) }
+      finally { $key.Dispose() }
+      Invoke-Button 'Enable launch at login'
+      Wait-For { Find-Named 'Startup entry conflicts with this installation. Check system startup settings before retrying.' } 'startup_conflict_guidance' | Out-Null
+      $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath)
+      try { Add-Check 'startup_conflict_preserves_other_installation_entry' ($key.GetValue($startupRegistrationName) -ceq $foreignStartupCommand) }
+      finally { $key.Dispose() }
+      $currentEditor = Get-Editor
+      Add-Check 'startup_conflict_preserves_native_editor_draft' (($currentEditor.GetRuntimeId() -join ',') -eq $settingsEditorID -and $currentEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -ceq '321')
       $settingsFile = Join-Path $historyRoot 'desktop-settings.json'
       $draftUnsaved = !(Test-Path $settingsFile)
       if (!$draftUnsaved) { $draftUnsaved = (Read-SharedJson $settingsFile).historyCapacity -eq 100 }
@@ -823,7 +835,7 @@ try {
       if ($startupRegistrationName -and $startupCommand) {
         $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath, $true)
         if ($key) {
-          try { if ($key.GetValue($startupRegistrationName) -ceq $startupCommand) { $key.DeleteValue($startupRegistrationName, $false) } }
+          try { if ($key.GetValue($startupRegistrationName) -ceq $startupCommand -or ($foreignStartupCommand -and $key.GetValue($startupRegistrationName) -ceq $foreignStartupCommand)) { $key.DeleteValue($startupRegistrationName, $false) } }
           finally { $key.Dispose() }
         }
       }

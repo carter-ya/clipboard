@@ -634,6 +634,18 @@ try:
     click('Disable launch at login')
     wait_for(lambda: button('Enable launch at login') and not startup_entry.exists(), 'startup_explicit_disable')
     check('explicit_startup_disable_removes_the_owned_registration', True)
+    foreign_startup = startup_content.replace(b'.startup-no-launch', b'.startup-other-no-launch')
+    startup_entry.write_bytes(foreign_startup)
+    try:
+        click('Enable launch at login')
+        wait_for(lambda: has_text('Startup entry conflicts with this installation. Check system startup settings before retrying.'), 'startup_conflict_guidance')
+        check('startup_conflict_preserves_other_installation_entry', startup_entry.read_bytes() == foreign_startup)
+        check('startup_conflict_preserves_native_editor_draft', editor() == settings_editor and
+              settings_editor.queryText().getText(0, settings_editor.queryText().characterCount) == '321')
+    finally:
+        if startup_entry.exists() and startup_entry.read_bytes() == foreign_startup:
+            startup_entry.unlink()
+
     saved_file = history_root / 'desktop-settings.json'
     saved_settings = json.loads(saved_file.read_text()) if saved_file.exists() else {}
     check('startup_reconciliation_does_not_save_content_drafts', saved_settings.get('historyCapacity', 100) == 100)

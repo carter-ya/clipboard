@@ -231,6 +231,14 @@
           "validation": "Linux native, Wayland and installed-runtime CI passes at a2203ed. Windows reaches startup restoration with preserved editor/draft but fails the strict foreground handoff assertion. The CI-only helper now uses an owned native mouse click rather than relying on SetForegroundWindow permission, and still requires actual helper and application foreground HWND transitions. PowerShell parsing and native helper compilation pass locally; exact-head Windows execution remains pending."
         },
         {
+          "id": "CP10_startup_ownership",
+          "branch": "codex/cross-platform-startup-ownership",
+          "scope": "Refuse conflicting per-user startup entries and expose OS policy limitations",
+          "status": "in_progress",
+          "implemented": "Windows compares existing command/type before write or removal. Linux reads a bounded regular desktop entry, preserves other commands/symlinks/malformed entries, tolerates presentation changes and respects Hidden, GNOME disable, session lists and TryExec. Conflict and system policy guidance is localized in seven languages. Registration presence does not establish Windows Startup apps approval or Linux system-wide policy.",
+          "validation": "The native conflict regression fails before the fix (replacement, removal and foreign-entry preservation) and passes afterward. Linux arm64 passes 188 Core tests, 25 isolated native service checks and nine focused native startup UI checks; the earlier full UI run passes all 79 checks. Final conflict wording passes all nine focused native checks and all seven-language catalog tests. Real Windows and installed execution remain pending."
+        },
+        {
           "id": "CP10",
           "scope": "Preferences and localization",
           "status": "in_progress",
