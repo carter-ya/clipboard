@@ -1239,14 +1239,22 @@ try {
       if (!$draftUnsaved) { $draftUnsaved = (Read-SharedJson $settingsFile).historyCapacity -eq 100 }
       Add-Check 'startup_reconciliation_does_not_save_content_drafts' $draftUnsaved
       $sizeEditor = Wait-For { Get-EditorWithValue '10' } 'size_preference_editor'
+      $sizeEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('0.5')
+      Invoke-Button 'Save content settings'
+      Wait-For { (Read-SharedJson $settingsFile).maxClipSizeBytes -eq 524288 } 'fractional_size_saved' | Out-Null
+      Add-Check 'native_fractional_size_threshold_roundtrips' ($sizeEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -ceq '0.5')
+      $sizeEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('32.5')
+      Invoke-Button 'Save content settings'
+      Wait-For { (Read-SharedJson $settingsFile).maxClipSizeBytes -eq 34078720 } 'large_size_policy_saved' | Out-Null
+      Add-Check 'native_size_policy_can_exceed_transfer_buffer_limit' $true
       $sizeEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('0')
       Invoke-Button 'Save content settings'
       Wait-For { (Find-Named 'Content settings saved') -and (Read-SharedJson $settingsFile).maxClipSizeBytes -eq 0 } 'disabled_size_preference_saved' | Out-Null
-      Add-Check 'native_settings_can_disable_size_filtering' ($null -ne (Find-Named '0 disables size filtering. Clipboard transfers remain limited to 16 MiB.'))
+      Add-Check 'native_settings_can_disable_size_filtering' ($null -ne (Find-Named '0 disables size filtering. Use a dot for decimals. Clipboard transfers remain limited to 16 MiB.'))
       $sizeEditor = Wait-For { Get-EditorWithValue '0' } 'disabled_size_editor'
       $sizeEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('-1')
       Invoke-Button 'Save content settings'
-      Wait-For { Find-Named 'Enter a capacity of 1–5000 and a size of 0–16 MiB.' } 'negative_size_preference_rejected' | Out-Null
+      Wait-For { Find-Named 'Enter a capacity of 1–5000 and a valid size in MiB.' } 'negative_size_preference_rejected' | Out-Null
       Add-Check 'invalid_size_does_not_replace_disabled_preference' ((Read-SharedJson $settingsFile).maxClipSizeBytes -eq 0)
       Invoke-Button 'Allow text summaries'
       Invoke-VisibleConnectionButton 'Save AI settings'
