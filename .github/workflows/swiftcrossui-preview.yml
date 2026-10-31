@@ -46,6 +46,8 @@ jobs:
       CLIPBOARD_UI_DIAGNOSTICS: '1'
     steps:
       - uses: actions/checkout@v4
+      - name: Verify private AI fixture response cancellation
+        run: python tools/desktop-ui/test-ai-probe-errors.py
       - name: Verify private AI fixture pipe protocol
         run: python tools/desktop-ui/test-ai-probe-server.py
       - name: Install GTK and isolated desktop test tools
