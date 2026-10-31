@@ -865,6 +865,9 @@ final class HistoryModel: ObservableObject {
   @MainActor func saveAPIKey() async {
     guard ready, !aiKeyDraft.isEmpty else { return }
     invalidateAIConnection()
+    // A test may start while the credential store suspends this operation.
+    // Its result becomes stale when the saved key or selected-key draft changes.
+    defer { invalidateAIConnection() }
     var configuration = settings.ai
     configuration.endpoint = aiEndpointDraft
     do {
@@ -879,6 +882,9 @@ final class HistoryModel: ObservableObject {
   }
   @MainActor func deleteAPIKey() async {
     invalidateAIConnection()
+    // A test may start while the credential store suspends this operation.
+    // Its result becomes stale when the saved key or selected-key draft changes.
+    defer { invalidateAIConnection() }
     var configuration = settings.ai
     configuration.endpoint = aiEndpointDraft
     do {
