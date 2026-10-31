@@ -121,3 +121,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Every whole-settings save, including appearance and language, must hold the same MainActor applyingSettings guard from snapshot creation through persistence and in-memory update. Presentation saves must never restore stale AI/privacy opt-outs.
 
 - CP1–CP8 are preview foundations. Follow `cross_platform_delivery.functional_parity` for remaining Mac-equivalent development. A successful desktop Copy must immediately promote the item through Core and refresh, including when capture is paused; do not rely on recapture. Native UI probes verify ordering and independent readback using private fixtures.
+
+- Plain-text desktop previews use a 64 KiB UTF-8 display budget and show a truncation notice. End on a Unicode scalar boundary; never truncate the stored payload or Copy. Keep the long Chinese/emoji native capture-and-full-readback regression. Rich-only parser limits remain separately tracked.

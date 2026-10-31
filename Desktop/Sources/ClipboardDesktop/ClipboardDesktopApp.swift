@@ -207,6 +207,10 @@ struct HistoryView: View {
               minWidth: 250, maxWidth: .infinity, minHeight: 180, maxHeight: 240)
           }
           Text(model.previewText).frame(maxWidth: .infinity, alignment: .leading)
+          if model.previewTruncated {
+            Text(model.t("Preview truncated. Copy keeps the full text."))
+              .font(.system(size: 12)).foregroundColor(.gray)
+          }
           if let summary = model.selected?.summary, model.selected?.sensitive != true {
             Text(model.t("OCR / AI result")).font(.system(size: 14))
             Text(summary).frame(maxWidth: .infinity, alignment: .leading)

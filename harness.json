@@ -180,6 +180,14 @@
           "validation": "Optimized Linux arm64 app builds; all 34 native UI checks passed, including the older-item copy promotion regression, native text/image/file readback, OCR, language/theme, settings and hide/reopen. Windows script syntax passes; real Windows runtime and final platform CI are pending."
         },
         {
+          "id": "CP9_text_preview",
+          "branch": "codex/cross-platform-text-preview",
+          "scope": "Bounded plain-text previews with visible truncation and full-content Copy",
+          "status": "in_progress",
+          "implemented": "Plain UTF-8 text uses the Mac 64 KiB display budget instead of silently truncating at 8000 characters. Truncation ends on a Unicode scalar boundary and shows an English/Chinese notice; native Copy resolves the original complete payload. Rich-only HTML/RTF parser limits and sensitive reveal remain separate work.",
+          "validation": "Linux arm64: optimized app build, all 170 Core tests including UTF-8 boundary cases, and all 36 native UI checks passed. The native fixture captures long Chinese/emoji text, verifies the visible truncation notice, then independently reads back every original byte after Copy. Windows script syntax passes; native Windows CI remains pending."
+        },
+        {
           "id": "CP10",
           "scope": "Preferences and localization",
           "status": "planned",
