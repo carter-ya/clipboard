@@ -78,7 +78,42 @@ public static class PreviewNative {
   private static System.Threading.ManualResetEventSlim focusReady;
   private static uint focusThreadId;
   private static IntPtr focusWindow, focusControl;
-  public static IntPtr GetFocusFixtureControl() { return focusControl; }
+  [StructLayout(LayoutKind.Sequential)] private struct MouseInput {
+    public int X, Y; public uint Data, Flags, Time; public UIntPtr Extra;
+  }
+  [StructLayout(LayoutKind.Sequential)] private struct PointerInput {
+    public uint Type; public MouseInput Mouse;
+  }
+  [StructLayout(LayoutKind.Sequential)] private struct Point { public int X, Y; }
+  [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(Point point);
+  [DllImport("user32.dll")] private static extern uint SendInput(uint count, PointerInput[] inputs, int size);
+  public static bool ClickFocusFixture() {
+    // SetForegroundWindow may be refused by the OS foreground lock. In the
+    // isolated runner, activate only our own visible control with a real mouse
+    // click. Keep the strict foreground-window assertion in the caller.
+    if (focusWindow == IntPtr.Zero || focusControl == IntPtr.Zero) return false;
+    uint owner;
+    GetWindowThreadProcessId(focusWindow, out owner);
+    if (owner != (uint)System.Diagnostics.Process.GetCurrentProcess().Id) return false;
+    if (!SetWindowPos(focusWindow, new IntPtr(-1), 0, 0, 0, 0, 0x0053)) return false;
+    try {
+      Rect rect;
+      if (!GetWindowRect(focusControl, out rect) || rect.Right <= rect.Left || rect.Bottom <= rect.Top) return false;
+      var point = new Point { X = rect.Left + (rect.Right - rect.Left) / 2,
+                              Y = rect.Top + (rect.Bottom - rect.Top) / 2 };
+      if (WindowFromPoint(point) != focusControl || !SetCursorPos(point.X, point.Y)) return false;
+      var inputs = new[] {
+        new PointerInput { Mouse = new MouseInput { Flags = 0x0002 } },
+        new PointerInput { Mouse = new MouseInput { Flags = 0x0004 } }
+      };
+      uint sent = SendInput(2, inputs, Marshal.SizeOf(typeof(PointerInput)));
+      if (sent == 1) SendInput(1, new[] { inputs[1] }, Marshal.SizeOf(typeof(PointerInput)));
+      return sent == 2;
+    } finally {
+      SetWindowPos(focusWindow, new IntPtr(-2), 0, 0, 0, 0, 0x0013);
+    }
+  }
   public static IntPtr CreateFocusFixture() {
     if (focusThread != null) return IntPtr.Zero;
     var ready = focusReady = new System.Threading.ManualResetEventSlim(false);
@@ -759,15 +794,14 @@ try {
       Add-Check 'startup_restore_preserves_native_editor_draft' (($currentEditor.GetRuntimeId() -join ',') -eq $settingsEditorID -and $currentEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -ceq '321')
       $focusFixture = [PreviewNative]::CreateFocusFixture()
       if ($focusFixture -eq [IntPtr]::Zero) { throw 'startup_focus_fixture' }
-      [PreviewNative]::SetForegroundWindow($focusFixture) | Out-Null
-      # Activation is the fixture contract. UI Automation cannot reliably
-      # SetFocus on a control hosted by its own client process; the actual
-      # foreground HWND assertion below proves the GTK app was deactivated.
+      if ($env:GITHUB_ACTIONS -ne 'true') { throw 'startup_pointer_fixture_requires_isolated_runner' }
+      if (![PreviewNative]::ClickFocusFixture()) { throw 'startup_pointer_activation_failed' }
       Wait-For { [PreviewNative]::GetForegroundWindow() -eq $focusFixture } 'startup_settings_deactivated_without_unmap' | Out-Null
       $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath, $true)
       try { $key.SetValue($startupRegistrationName, $startupCommand, [Microsoft.Win32.RegistryValueKind]::String) }
       finally { $key.Dispose() }
       [PreviewNative]::SetForegroundWindow($nativeWindowHandle) | Out-Null
+      Wait-For { [PreviewNative]::GetForegroundWindow() -eq $nativeWindowHandle } 'startup_settings_reactivated_without_remap' | Out-Null
       Wait-For { (Find-Named 'Preferences') -and (Find-Named 'Disable launch at login') } 'startup_state_after_reactivation' | Out-Null
       $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath)
       try { Add-Check 'settings_reactivation_reads_external_startup_state_without_writing' ($key.GetValue($startupRegistrationName) -ceq $startupCommand) }
@@ -913,7 +947,7 @@ try {
   if ($application -and !$application.HasExited) { Stop-Process -Id $application.Id -Force }
   $passed = $checks.Count -gt 0 -and @($checks | Where-Object { !$_.passed }).Count -eq 0
   $report = @{ platform = 'windows-gtk4-accesskit'; passed = $passed; checks = @($checks.ToArray());
-    limitations = @('Native accessibility value/invoke operations only; no keyboard injection.',
+    limitations = @('Native accessibility value/invoke operations and an owned CI-only mouse activation fixture; no keyboard injection.',
       'Real Chinese IME and global hotkey focus transfer remain untested.') }
   $json = $report | ConvertTo-Json -Depth 6
   $json | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'results.json')

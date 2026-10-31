@@ -228,7 +228,7 @@
           "scope": "Refresh owned startup registration on native settings restoration and activation without rebuilding drafts",
           "status": "in_progress",
           "implemented": "A main-actor state coordinator separates passive reads from explicit registration changes, rejects stale reads and duplicate writes, and ignores late shutdown completions. Native GTK map/activation signals refresh visible settings without polling. Private native fixtures use distinct identities and a nonexistent executable. OS policy overrides and ownership semantics remain separate follow-up work.",
-          "validation": "Linux arm64: 187 Core tests and 79 native UI checks pass, including private startup registration removal/restoration, explicit disable, retained capacity editor identity and unsaved draft. Windows probe syntax passes; real Windows and installed-runtime checks remain pending."
+          "validation": "Linux native, Wayland and installed-runtime CI passes at a2203ed. Windows reaches startup restoration with preserved editor/draft but fails the strict foreground handoff assertion. The CI-only helper now uses an owned native mouse click rather than relying on SetForegroundWindow permission, and still requires actual helper and application foreground HWND transitions. PowerShell parsing and native helper compilation pass locally; exact-head Windows execution remains pending."
         },
         {
           "id": "CP10",
