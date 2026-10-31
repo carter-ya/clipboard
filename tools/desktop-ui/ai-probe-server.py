@@ -5,6 +5,7 @@ import os
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pdf_fixture import SUMMARY_PDF_BODY
 
 if os.environ.get('CLIPBOARD_PRIVATE_AI_TEST') != '1':
     raise SystemExit(2)
@@ -51,15 +52,20 @@ class Handler(BaseHTTPRequestHandler):
                          messages[-1]['content'].endswith('\n\nRelease checklist · build, test, publish'))
             if file_mode:
                 expected = 'This synthetic remote file summary uses the current body. ' + 'Private file body context. ' * 10
+                content = messages[-1].get('content') if messages and isinstance(messages[-1], dict) else None
+                pdf_body = isinstance(content, str) and content.endswith('\n\n' + SUMMARY_PDF_BODY)
                 fixed = (self.path == '/v1/chat/completions' and body.get('model') == 'fixture-model' and
                          'max_tokens' not in body and len(messages) == 2 and
                          messages[-1].get('role') == 'user' and
                          isinstance(messages[-1].get('content'), str) and
-                         messages[-1]['content'].endswith('\n\n' + expected.strip()) and
-                         'private-upload-name' not in messages[-1]['content'])
+                         (messages[-1]['content'].endswith('\n\n' + expected.strip()) or pdf_body) and
+                         'private-upload-name' not in messages[-1]['content'] and
+                         'private-pdf-upload-name' not in messages[-1]['content'])
             with lock:
                 report['requests'] += 1
                 index = report['requests']
+                if file_mode:
+                    fixed &= index <= 3 and pdf_body == (index == 3)
                 report['fixedTestsOnly'] &= fixed
                 report['noAuthorization'] &= self.headers.get('Authorization') is None
                 report['noCookies'] &= self.headers.get('Cookie') is None

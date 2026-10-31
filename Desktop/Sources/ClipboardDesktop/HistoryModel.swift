@@ -1047,7 +1047,7 @@ final class HistoryModel: ObservableObject {
             error as? DesktopServiceError ?? .networkFailure)
       {
         status =
-          "File excerpts need readable UTF-8 text, at least 100 characters for local use and at most 1 MiB."
+          "Use readable UTF-8 text or an unencrypted text PDF. File and text: at most 1 MiB; PDF: at most 256 pages. Local excerpts need at least 100 characters."
       } else {
         status =
           remote

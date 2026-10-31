@@ -95,7 +95,7 @@ Requests use memory-only sessions, refuse redirects and bound responses while
 receiving. Sensitive/concealed items never enter OCR or the network pipeline.
 Test connection uses the current fields and the saved key only when selected. It sends a fixed tiny test message, never clipboard history, and does not save the configuration. The request can be cancelled; editing connection fields or leaving settings clears its result. Authentication, endpoint/model, rate-limit and network failures have separate localized guidance.
 
-Copied UTF-8 text/code/data files can produce local excerpts or remote summaries, with independent default-off permissions. Only the first copied file is read, up to 1 MiB; paths/names are not added to requests. Local and remote automatic file processing recheck current permissions. Nonregular files and final symbolic links are refused. PDF extraction and Apple-only models remain unavailable. OCR
+Copied UTF-8 text/code/data files can produce local excerpts or remote summaries, with independent default-off permissions. Only the first copied file is read, up to 1 MiB; paths/names are not added to requests. Local and remote automatic file processing recheck current permissions. Nonregular files and final symbolic links are refused. Text PDFs are decoded by a separate bounded native process; encrypted and image-only PDFs are unavailable. File and extracted text are each capped at 1 MiB, with at most 256 PDF pages. Apple-only models remain unavailable. OCR
 results can be copied separately without changing the original history item. Analysis progress and failures belong to each item; switching selection shows that item’s state. A failed attempt offers a retry using the same engine. Progress metadata stays in memory and is discarded when the item is removed or the app quits.
 
 English/Simplified Chinese labels and native tray menus update live. System,
@@ -157,3 +157,5 @@ focus/value/button behavior remains a hard CI gate.
 The automated and interactive acceptance checklist is in [TESTING.md](TESTING.md).
 
 Each history presentation starts at the first matching item and clears the transient type filter, retaining search, source and All/Pinned scope. Tab changes clear the type filter; type changes select the first visible item. Deleting a selected item keeps the next visible neighbor, or the previous item when deleting the last row.
+
+The native build helper builds and verifies `clipboard-pdf-worker` plus a fixed non-V8/non-XFA PDFium runtime. It checks published archive hashes and packages all PDFium dependency notices and provenance. PDF input/output use private pipes without document paths or contents in command arguments. The decoder has memory/CPU limits, a parent deadline and explicit owned cancellation.

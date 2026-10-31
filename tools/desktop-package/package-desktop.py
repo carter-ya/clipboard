@@ -69,6 +69,18 @@ for resolved in [repo / 'Desktop/Package.resolved', repo / 'Core/Package.resolve
 shutil.copy2(repo / 'Desktop/Packaging' / ('README-' + args.platform + '.md'), root / 'README.md')
 
 runtime_files = []
+pdf_worker = 'clipboard-pdf-worker' + ('.exe' if args.platform == 'windows' else '')
+pdf_library = 'pdfium.dll' if args.platform == 'windows' else 'libpdfium.so'
+for pdf_component in [pdf_worker, pdf_library]:
+    source = binary.parent / pdf_component
+    if not source.is_file():
+        raise RuntimeError('Build the bounded PDF worker and verified runtime before packaging')
+    shutil.copy2(source, bin_dir / pdf_component)
+    runtime_files.append(pdf_component)
+pdf_notices = binary.parent / 'pdfium-notices'
+if not (pdf_notices / 'provenance.json').is_file() or not (pdf_notices / 'LICENSE').is_file():
+    raise RuntimeError('Verified PDF runtime provenance and dependency notices are required')
+shutil.copytree(pdf_notices, licenses / 'pdfium')
 if args.platform == 'linux':
     if platform.system() != 'Linux':
         raise RuntimeError('Linux packages must be assembled on their native Linux builder')
@@ -88,7 +100,7 @@ if args.platform == 'linux':
             if not target.exists():
                 shutil.copy2(source, target)
                 runtime_files.append(needed)
-    if not runtime_files:
+    if not any(name.startswith('libswift') for name in runtime_files):
         raise RuntimeError('No Swift runtime was found; do not produce an incomplete archive')
     subprocess.run(['patchelf', '--set-rpath', '$ORIGIN/../lib', str(bin_dir / binary.name)], check=True)
     for library in lib_dir.iterdir():
@@ -162,7 +174,7 @@ else:
     copy_licenses(installation, 'swift-runtime')
     system = Path(os.environ['SystemRoot']) / 'System32'
     processed = set()
-    pending = [bin_dir / binary.name] + list(bin_dir.glob('*.dll')) + list(lib_dir.rglob('*.dll'))
+    pending = [bin_dir / binary.name, bin_dir / pdf_worker] + list(bin_dir.glob('*.dll')) + list(lib_dir.rglob('*.dll'))
     while pending:
         file = pending.pop()
         if file.name.lower() in processed:

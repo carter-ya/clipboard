@@ -103,7 +103,7 @@ final class DesktopFileTextTests: XCTestCase {
     var configuration = settings()
     configuration.allowFiles = true
     for value in [
-      "https://example.invalid/a.txt", "file://server/share/a.txt", "file:///tmp/a.pdf",
+      "https://example.invalid/a.txt", "file://server/share/a.txt", "file:///tmp/a.exe",
       "file:///tmp/a.txt?secret=fixture", "file:///tmp/a.txt#fragment",
       "file://name:password@localhost/tmp/a.txt",
     ] {
@@ -116,6 +116,7 @@ final class DesktopFileTextTests: XCTestCase {
     let calls = await reader.calls
     XCTAssertTrue(calls.isEmpty)
     try DesktopFileTextPolicy.validate(URL(fileURLWithPath: "/synthetic/FILE.TXT"))
+    try DesktopFileTextPolicy.validate(URL(fileURLWithPath: "/synthetic/DOCUMENT.PDF"))
   }
   private actor SuspendedReader: DesktopFileTextReading {
     private var pending: CheckedContinuation<String, Never>?

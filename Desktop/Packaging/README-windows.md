@@ -8,6 +8,12 @@ Open Clipboard from the Start menu. Recording starts paused. Text recognition
 uses Windows OCR and requires an installed OCR language. Remote AI is disabled
 initially and has separate image-upload and automatic-analysis switches.
 
+Local file excerpts and remote file text uploads have independent default-off
+controls. The included native PDF decoder accepts text PDFs, with 1 MiB limits
+for files and extracted text and at most 256 pages. Encrypted and image-only PDFs
+are unavailable. Decoder dependency notices and pinned build provenance are in
+`share/licenses/pdfium`.
+
 Quit all Clipboard windows before upgrading or uninstalling. Run a newer installer
 to upgrade in place. Use Windows Apps settings or the Start menu uninstaller to
 remove the application. History, preferences and OS-stored AI credentials are

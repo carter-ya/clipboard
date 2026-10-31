@@ -24,6 +24,11 @@ public struct NativeDesktopFileTextReader: DesktopFileTextReading {
       return Data(bytes: bytes, count: length)
     }.value
     try Task.checkCancellation()
+    if file.pathExtension.lowercased() == "pdf" {
+      let text = try await NativeDesktopPDFText().text(from: data)
+      guard text.utf8.count <= maxBytes else { throw DesktopServiceError.tooLarge }
+      return text
+    }
     guard let text = String(data: data, encoding: .utf8), !text.contains("\0"),
       !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     else { throw DesktopServiceError.invalidValue }
