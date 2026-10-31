@@ -99,6 +99,10 @@ final class HistoryModel: ObservableObject {
   @MainActor private lazy var analysisScheduler = DesktopAnalysisScheduler(
     busyChanged: { [weak self] in self?.analysisBusy = $0 },
     perform: { [weak self] in await self?.performAnalysis($0) })
+  @Published var itemPresentations: [UUID: DesktopItemPresentation] = [:]
+  @Published var previewFileCount: Int?
+  private var refreshRevision: UInt64 = 0
+  private var presentationTask: Task<[UUID: DesktopItemPresentation], Never>?
   @Published var items: [ClipItem] = []
   @Published var allItemsCount = 0
   @Published var pinnedItemsCount = 0
@@ -192,6 +196,7 @@ final class HistoryModel: ObservableObject {
     previewGeneration &+= 1
     // Invalidate both completed and in-flight loads when their generation changes.
     loadedPreviewID = nil
+    previewFileCount = nil
     let wasRevealed = revealedSensitiveID != nil
     if wasRevealed { revealedSensitiveID = nil }
     if wasRevealed || selected?.sensitive == true {
@@ -228,6 +233,7 @@ final class HistoryModel: ObservableObject {
       let presenter = GtkDesktopWindow()
       nativeWindow = presenter
       presenter.hidden = { [weak self] in
+        self?.cancelHistoryPresentation()
         self?.historyActivation.invalidatePresentation()
         self?.resetSensitivePreview()
         self?.invalidateAIConnection()
@@ -303,6 +309,7 @@ final class HistoryModel: ObservableObject {
   @MainActor func loadPreview() async {
     guard let selected else {
       loadedPreviewID = nil
+      previewFileCount = nil
       previewImage = nil
       previewTruncated = false
       previewText = "Choose an item to preview its content."
@@ -311,6 +318,7 @@ final class HistoryModel: ObservableObject {
     }
     guard loadedPreviewID != selected.id else { return }
     loadedPreviewID = selected.id
+    previewFileCount = nil
     previewImage = nil
     previewTruncated = false
     if selected.sensitive && revealedSensitiveID != selected.id {
@@ -324,7 +332,7 @@ final class HistoryModel: ObservableObject {
     let resolver = PayloadResolver(
       blobRoot: selected.sensitive ? nil : root?.appendingPathComponent("blobs"))
     let result = await Task.detached(priority: .userInitiated) {
-      () -> (String, DesktopPreviewImage?, Bool, String?) in
+      () -> (String, DesktopPreviewImage?, Bool, String?, Int?) in
       if selected.kind == .image,
         let payload = selected.payloads.first(where: {
           ClipKind.imagePayloadTypes.contains($0.pasteboardType)
@@ -332,14 +340,20 @@ final class HistoryModel: ObservableObject {
         let bytes = try? resolver.data(for: payload)
       {
         let message = "Image · \(selected.sizeBytes) bytes"
-        return (message, DesktopPreviewImage.decode(bytes), false, message)
+        return (message, DesktopPreviewImage.decode(bytes), false, message, nil)
       }
-      if selected.kind == .file,
-        let payload = selected.payloads.first(where: { $0.pasteboardType == "public.file-url" }),
-        let bytes = try? resolver.data(for: payload),
-        let urls = try? ClipboardFormats.fileURLs(from: bytes)
-      {
-        return (urls.map(\.path).joined(separator: "\n"), nil, false, nil)
+      if selected.kind == .file {
+        guard
+          let payload = selected.payloads.first(where: { $0.pasteboardType == "public.file-url" }),
+          let bytes = try? resolver.data(for: payload),
+          let files = try? DesktopFileReferencePreview(data: bytes)
+        else {
+          return ("", nil, false, "File references are unavailable.", nil)
+        }
+        return (
+          files.entries.map(\.name).joined(separator: "\n"), nil,
+          files.isTruncated, nil, files.totalCount
+        )
       }
       if let payload = selected.payloads.first(where: {
         ["public.utf8-plain-text", "public.plain-text", "public.string"].contains($0.pasteboardType)
@@ -348,7 +362,7 @@ final class HistoryModel: ObservableObject {
         let text = String(data: bytes, encoding: .utf8)
       {
         let preview = DesktopTextPreview(text)
-        return (preview.text, nil, preview.isTruncated, nil)
+        return (preview.text, nil, preview.isTruncated, nil, nil)
       }
       let rich = selected.payloads.compactMap { payload -> RawPayload? in
         guard ["public.html", "public.rtf"].contains(payload.pasteboardType),
@@ -362,7 +376,7 @@ final class HistoryModel: ObservableObject {
       let message = text.isEmpty && selected.preview.isEmpty ? fallback : nil
       return (
         text.isEmpty ? (selected.preview.isEmpty ? fallback : selected.preview) : text,
-        nil, preview.isTruncated, message
+        nil, preview.isTruncated, message, nil
       )
     }.value
     guard selectedID == selected.id, generation == previewGeneration,
@@ -372,6 +386,7 @@ final class HistoryModel: ObservableObject {
     previewImage = result.1
     previewTruncated = result.2
     previewMessage = result.3
+    previewFileCount = result.4
   }
 
   @MainActor func load() async {
@@ -608,6 +623,7 @@ final class HistoryModel: ObservableObject {
     windowCoordinator?.showHistory()
   }
   @MainActor func showPreferences() {
+    cancelHistoryPresentation()
     historyActivation.invalidatePresentation()
     resetSensitivePreview()
     if !ready { startupActivationRequested = true }
@@ -631,8 +647,16 @@ final class HistoryModel: ObservableObject {
     await refresh()
   }
 
+  @MainActor private func cancelHistoryPresentation() {
+    refreshRevision &+= 1
+    presentationTask?.cancel()
+    presentationTask = nil
+  }
   @MainActor func refresh() async {
-    guard let store else { return }
+    guard let store, !shuttingDown else { return }
+    cancelHistoryPresentation()
+    let revision = refreshRevision
+    let requestedLanguage = uiLanguage
     let requestedQuery = query
     let requestedPinned = onlyPinned
     let requestedKind = kindFilter
@@ -641,11 +665,24 @@ final class HistoryModel: ObservableObject {
       query: requestedQuery,
       filters: SearchFilters(
         sourceBundleID: requestedSource.isEmpty ? nil : requestedSource))
-    guard query == requestedQuery, onlyPinned == requestedPinned, kindFilter == requestedKind,
+    guard revision == refreshRevision, !shuttingDown,
+      query == requestedQuery, onlyPinned == requestedPinned, kindFilter == requestedKind,
       sourceFilter == requestedSource
     else { return }
     let projection = DesktopHistoryProjection(
       matching: found, onlyPinned: requestedPinned, kind: requestedKind)
+    let visible = projection.items
+    let task = Task.detached(priority: .userInitiated) {
+      DesktopHistoryPresentation.make(items: visible, language: requestedLanguage)
+    }
+    presentationTask = task
+    let presentations = await task.value
+    guard revision == refreshRevision, !shuttingDown, requestedLanguage == uiLanguage,
+      query == requestedQuery, onlyPinned == requestedPinned, kindFilter == requestedKind,
+      sourceFilter == requestedSource
+    else { return }
+    presentationTask = nil
+    itemPresentations = presentations
     allItemsCount = projection.allCount
     pinnedItemsCount = projection.pinnedCount
     allTypesCount = projection.allTypesCount
@@ -1216,6 +1253,7 @@ final class HistoryModel: ObservableObject {
   @MainActor func shutdown() async {
     guard !shuttingDown else { return }
     shuttingDown = true
+    cancelHistoryPresentation()
     historyActivation.stop()
     startup?.stop()
     aiConnection.stop()
@@ -1241,6 +1279,7 @@ final class HistoryModel: ObservableObject {
     nativeWindow?.quit()
   }
   deinit {
+    presentationTask?.cancel()
     monitor?.stop()
     shell?.stop()
     captureTask?.cancel()

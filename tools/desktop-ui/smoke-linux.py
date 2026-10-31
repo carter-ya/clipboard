@@ -560,7 +560,7 @@ try:
                 if not select.select([peer.stdout], [], [], 10)[0] or peer.stdout.readline() != b'ready\n':
                     raise RuntimeError('rich_peer_startup')
                 click(kind)
-                wait_for(lambda: has_text(count) and has_text('Source: linux:ClipboardDesktop'), 'capture_native_' + fixture)
+                wait_for(lambda: has_text(count) and has_text('Source: ClipboardDesktop'), 'capture_native_' + fixture)
                 check('native_' + fixture + '_capture_reaches_type_filter_and_preview', True)
                 if fixture == 'rich':
                     check('image_preview_has_native_picture', any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()))
@@ -793,6 +793,58 @@ try:
     check('counted_history_quits_cleanly', app.returncode == 0)
 
     # A distinct profile makes selection assertions independent of earlier Copy promotion.
+    # Display-only metadata uses synthetic references; no target file is created.
+    history_root = out / ('metadata-' + uuid.uuid4().hex)
+    history_root.mkdir()
+    metadata_png = Path(args.ocr_fixture).read_bytes() if args.ocr_fixture else base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGUlEQVR4nGPQyLvznxLMMGrAqAGjBgwXAwBc3HEfVZuzFAAAAABJRU5ErkJggg==')
+    metadata_paths = [out / 'absent reference files' / '设计 😀.txt', out / 'absent reference files' / 'second.pdf']
+    metadata_uris = '\r\n'.join(path.as_uri() for path in metadata_paths).encode()
+    image_id, files_id = str(uuid.uuid4()), str(uuid.uuid4())
+    image_summary = 'Image row analysis fixture'
+    metadata_items = [
+        dict(id=image_id, createdAt='2023-11-14T22:13:20Z', kind='image', preview='<image>',
+             pinned=False, sensitive=False, sha256=hashlib.sha256(metadata_png).hexdigest(), sizeBytes=len(metadata_png),
+             sourceBundleID='windows:C:\\Synthetic\\PhotoTool.exe', summary=image_summary, summarySource='localOCR',
+             payloads=[dict(pasteboardType='public.png', inlineData=base64.b64encode(metadata_png).decode())]),
+        dict(id=files_id, createdAt='2023-11-14T22:12:20Z', kind='file', preview='Files metadata fixture',
+             pinned=False, sensitive=False, sha256=hashlib.sha256(metadata_uris).hexdigest(), sizeBytes=len(metadata_uris),
+             sourceBundleID='linux:FixtureFiles',
+             payloads=[dict(pasteboardType='public.file-url', inlineData=base64.b64encode(metadata_uris).decode())])]
+    (history_root / 'history.json').write_text(json.dumps({'version': 1, 'items': metadata_items}))
+    app = subprocess.Popen([str(Path(args.executable).resolve()), '--data-root', str(history_root)],
+                           stdout=log, stderr=log, start_new_session=True)
+    wait_for(lambda: has_texts('Ready', '2 items'), 'metadata_profile_ready')
+    def metadata_row_uses_result():
+        return any(node.getRole() == pyatspi.ROLE_LIST_ITEM and
+                   any(child.name == image_summary for child in walk(node)) for node in nodes())
+    wait_for(metadata_row_uses_result, 'metadata_image_row_result')
+    check('image_row_displays_its_analysis_result', True)
+    wait_for(lambda: has_text('Source: PhotoTool.exe'), 'metadata_readable_source')
+    check('preview_source_uses_readable_executable_name', True)
+    wait_for(lambda: any('2023' in node.name and (str(len(metadata_png)) + ' bytes') in node.name for node in nodes()),
+             'metadata_capture_time_and_bytes')
+    check('preview_reports_capture_time_and_recorded_bytes', True)
+    screenshot('history-image-metadata.png')
+    click('File')
+    wait_for(lambda: has_texts('1 items', 'Files: 2', 'Source: FixtureFiles') and
+             has_texts('设计 😀.txt', 'second.pdf'), 'metadata_file_names')
+    check('file_preview_shows_decoded_names_and_reference_count', all(not path.exists() for path in metadata_paths))
+    screenshot('history-file-metadata.png')
+    click('Copy')
+    wait_for(lambda: has_text('Copied to clipboard'), 'metadata_file_copy')
+    copied_uris = subprocess.check_output(['xclip', '-selection', 'clipboard', '-out', '-target', 'text/uri-list'], timeout=10)
+    check('file_name_display_keeps_complete_native_references', copied_uris.decode().splitlines() == metadata_uris.decode().splitlines())
+    saved_items = {item['id'].lower(): item for item in json.loads((history_root / 'history.json').read_text())['items']}
+    check('metadata_presentation_does_not_rewrite_original_records', all(
+        saved_items[item['id'].lower()]['preview'] == item['preview'] and
+        saved_items[item['id'].lower()]['sourceBundleID'] == item['sourceBundleID'] and
+        saved_items[item['id'].lower()]['payloads'] == item['payloads'] for item in metadata_items))
+    click('Settings')
+    wait_for(lambda: has_text('Preferences'), 'metadata_quit_settings')
+    click('Quit Clipboard')
+    app.wait(timeout=10)
+    check('metadata_profile_quits_cleanly', app.returncode == 0)
+
     # Native row activation copies only; it never synthesizes paste or keys.
     history_root = out / ('history-activation-' + uuid.uuid4().hex)
     app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root)],
