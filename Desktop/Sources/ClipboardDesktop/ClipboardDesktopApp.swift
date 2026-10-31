@@ -222,7 +222,7 @@ struct HistoryView: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 12) {
           if let image = model.previewImage {
-            DesktopImagePreview(image: image).frame(
+            DesktopImagePreview(image: image, accessibilityLabel: model.t("Image preview")).frame(
               minWidth: 250, maxWidth: .infinity, minHeight: 180, maxHeight: 240)
           }
           DesktopTextPreviewView(
