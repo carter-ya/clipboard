@@ -139,3 +139,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Long desktop previews use a native multi-line label with bounded current-text width metrics. Skip full-content shaping for zero-width minimum queries, preserve the backend multi-line ellipsizing behavior, and invalidate metrics on text/font/context/scale changes. The pinned GTK representable patch must update its current input value while retaining the widget/coordinator. Native tests require exact complete display text and original HTML/RTF Copy bytes; do not hide layout delays by extending timeouts.
 
 - The runtime-only Linux installer probe allows 600 seconds for the expanded full UI suite and 25 hide/reopen cycles. Individual action deadlines remain unchanged; a larger total coverage budget must not mask a stalled action or remove native checks.
+
+- History snapshots write atomically to the final destination through Foundation; never remove the last snapshot before moving a fixed temporary path. Windows native fixtures read live JSON with FileShare.ReadWrite | FileShare.Delete and dispose readers promptly, so observation does not prevent replacement. Preserve full copy/order assertions.
