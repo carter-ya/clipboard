@@ -210,7 +210,7 @@
           "scope": "Readable history metadata, bounded image-result rows and decoded file names",
           "status": "in_progress",
           "implemented": "Display-only batches provide localized capture dates, bounded readable native source labels and image analysis snippets without mutating original records. One off-main formatter per batch and refresh epochs reject cancelled/stale results. Preview shows recorded byte size and capture time. File previews show decoded individual names plus total reference count, at most 128 entries and 64 KiB; truncated lists explain that Copy retains all original references. Parsing copied URLs never opens or stats referenced files. File counts and names share existing preview generation/reveal revocation. Seven-language messages ship in the shared catalog.",
-          "validation": "All 259 Linux Core tests and six focused macOS metadata tests pass. The previous optimized package fails the image-row result assertion; the new candidate passes all seven focused native checks, including readable source/time/size, Unicode file names/count, nonexistent target files, complete independent URI-list Copy and unchanged preview/source/payload records. Actual image/file renders inspected; file names render as individual rows so the second line is visible. Both 100% and 200% layout suites pass all eight checks. Windows probe parser and native CF_HDROP readback helper compile; complete final native/installed Linux and exact-head hosted Windows remain pending. The corrected complete native optimized Linux suite passes all 166 checks. Final frozen source includes the reviewed synchronous permission-revocation repair and again passes all 259 Core tests and optimized build, including six real PDF decoder checks. Its complete native and runtime-only installed suites are running; do not count them as passed yet.",
+          "validation": "All 259 Linux Core tests and six focused macOS metadata tests pass. The previous optimized package fails the image-row result assertion; the new candidate passes all seven focused native checks, including readable source/time/size, Unicode file names/count, nonexistent target files, complete independent URI-list Copy and unchanged preview/source/payload records. Actual image/file renders inspected; file names render as individual rows so the second line is visible. Both 100% and 200% layout suites pass all eight checks. Windows probe parser and native CF_HDROP readback helper compile; complete final native/installed Linux and exact-head hosted Windows remain pending. The corrected complete native optimized Linux suite passes all 166 checks. Final frozen source includes the reviewed synchronous permission-revocation repair and again passes all 259 Core tests and optimized build, including six real PDF decoder checks. The final frozen binary again passes all 166 complete native Linux UI/privacy checks. Offline runtime-only validation now passes all eight installation/upgrade/uninstall/integrity gates and all 196 installed native UI/lifecycle checks, without a Swift SDK or network. The final product source tree exactly matches the frozen tested build. Exact-head f665b0b Codex review completes without findings; hosted Windows remains pending.",
           "remaining": [
             "Exact-head Windows native/installed confirmation and physical desktop acceptance remain required."
           ]
@@ -285,7 +285,7 @@
           "status": "in_progress",
           "remaining": [
             "Final native Windows acceptance of the implemented fractional/large size policy",
-            "Audit equivalent filter choices and system startup approval/conflict guidance on real desktop sessions"
+            "Physical OS startup approval/conflict guidance on real desktop sessions"
           ],
           "source_filter_validation": {
             "branch": "codex/cross-platform-source-filter-case",
@@ -301,7 +301,8 @@
             "branch": "codex/cross-platform-size-policy",
             "implemented": "A bounded exact decimal MiB parser and formatter preserve fractional saved thresholds, reject malformed/overflow and positive sub-byte inputs rather than disabling the filter, and accept nonnegative integer byte policies above 16 MiB. Referenced-file metadata uses the actual user threshold while native transfer buffers keep their independent 16 MiB cap. The UI and seven-language guidance support decimal thresholds and disclose the transfer limit.",
             "validation": "The native Linux regression fails on the previous build at fractional_size_saved. A private 20 MiB file-reference regression also fails with the original 16 MiB policy clamp, then passes after separating policy from transport. All 241 Linux Core tests and 23 targeted Mac conversion/settings/monitor/localization tests pass, including exact byte/MiB roundtrips through Int.max, overflow/sub-byte refusal and 16-MiB-plus-one transfer refusal. Three focused native Linux checks pass for 0.5/32.5 MiB persistence and clean quit. Complete native and hosted Windows confirmation remain pending. All 133 final full native Linux UI/privacy checks pass, including fractional/large preference persistence, preserved editor identity, zero disablement and invalid negative refusal. Windows probe syntax/native definitions pass. The inherited Windows native archive-dialog stack overflow remains under investigation."
-          }
+          },
+          "filter_choice_audit": "Compared App/HistoryPanelView.swift, HistoryPanelViewModel.swift and KindChipBar against desktop history and portable DesktopHistoryProjection: All/Pinned and all five ClipKind values plus All types have equivalent query/tab/type count scopes. Desktop additionally exposes an explicit source-ID filter; the Mac reference has no installed-app picker to port. Native mixed/pinned/query checks remain permanent."
         },
         {
           "id": "CP11",
@@ -322,7 +323,7 @@
           "scope": "Analysis feature parity",
           "status": "in_progress",
           "remaining": [
-            "Audit local image description/classification beyond OCR against the Mac Vision behavior with truthful platform availability",
+            "Offline image scene classification beyond OCR remains unavailable; matching Mac Vision would require a separately validated portable model/runtime",
             "Final Windows/native package acceptance of text/file/PDF opt-ins, progress/retry, local excerpts and fallback"
           ],
           "connection_diagnostics": {
@@ -359,7 +360,8 @@
             "branch": "codex/cross-platform-analysis-fallback",
             "implemented": "A failed or empty remote result can continue in the same owned task using local OCR or local text/file extraction only while both the original remote request and the matching independent local permission remain allowed. Automatic requests also require the corresponding automatic-local opt-in. Reload the current item before fallback; sensitive/concealed, deleted, already summarized and cancelled items remain excluded. Switch the scheduler to the actual local phase so live local-permission revocation cancels the same task. Progress describes the current engine while failure/retry keeps the original remote ticket. Persist only the first valid result with its actual engine; original payloads remain unchanged.",
             "validation": "All 245 Linux Core tests and 22 targeted Mac tests pass, including independent per-kind manual/automatic consent, private/stale item rejection, original retry identity and cancellation of the owned local phase. The old build fails the new real-control fallback result assertion. The optimized candidate passes four focused and all 137 complete native Linux UI/privacy checks. The private loopback service returns 503 on both attempts: the first fails while local permission is off; after an explicit local opt-in, Retry produces a correctly labelled local excerpt and preserves every original payload byte. Exactly two fixed synthetic requests have no credentials/cookies. The actual fallback render is inspected. Windows probe syntax/native helper definitions and both LF/CRLF pipe cases pass; hosted Windows/installed confirmation remains required."
-          }
+          },
+          "image_capability_audit": "App/VisionImageSummarizer prioritizes OCR, otherwise emits up to three Vision labels above confidence 0.1, then image dimensions. Desktop local analysis performs OCR only; configured AI image summaries are an independent explicit opt-in and cannot be counted as offline classification. Current local excerpts also differ from Mac generative/NaturalLanguage engines. Desktop/TESTING.md records supported alternatives and the remaining local scene-classification gap. No model, runtime, automatic download or new upload consent was introduced. Keep functional parity in progress."
         },
         {
           "id": "CP13",
