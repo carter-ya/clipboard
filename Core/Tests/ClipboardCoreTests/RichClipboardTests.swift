@@ -64,6 +64,35 @@ final class RichClipboardTests: XCTestCase {
     XCTAssertEqual(skip?.limit, 16 * 1024 * 1024)
     XCTAssertNil(filter.captured)
   }
+  func testLargeFilePolicyDoesNotEnlargeNativeTransferBuffers() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let file = root.appendingPathComponent("synthetic-large-reference")
+    XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: nil))
+    let handle = try FileHandle(forWritingTo: file)
+    try handle.truncate(atOffset: 20 * 1024 * 1024)
+    try handle.close()
+    let clipboard = FakeRichClipboard()
+    let filter = RecordingFilter()
+    let monitor = RichClipboardMonitor(
+      clipboard: clipboard, filter: filter, maxBytes: 32 * 1024 * 1024)
+    clipboard.push(
+      .init(
+        payloads: [
+          .init(pasteboardType: "public.file-url", data: ClipboardFormats.fileURLData([file]))
+        ], revision: 1))
+    monitor.pulse()
+    XCTAssertGreaterThan(filter.captured?.totalBytes ?? 0, 16 * 1024 * 1024)
+    filter.captured = nil
+    clipboard.push(
+      .init(
+        payloads: [
+          .init(pasteboardType: "public.png", data: Data(repeating: 0, count: 16 * 1024 * 1024 + 1))
+        ], revision: 2))
+    monitor.pulse()
+    XCTAssertNil(filter.captured)
+  }
   func testRestrictedSessionStopsCaptureWithoutReadingContent() async {
     let clipboard = RestrictedClipboard()
     let monitor = RichClipboardMonitor(clipboard: clipboard)

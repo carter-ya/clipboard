@@ -62,7 +62,7 @@ uses registered formats, CF_DIB, CF_HDROP and CF_TIFF. Images are decoded off th
 UI thread into bounded thumbnails; sensitive previews remain hidden. Source
 filters use the actual clipboard owner's executable/WM_CLASS where available;
 unknown source metadata is never replaced with the current foreground app.
-Content settings configure type/source filters, capacity and maximum item size.
+Content settings configure type/source filters, capacity and maximum item size. Decimal MiB values use a dot and preserve the saved byte threshold. Zero disables the user size filter; larger policies can admit copied file references while native clipboard transfers remain capped at 16 MiB.
 
 Export/import uses a self-contained `clipboard-history.clipboard.json` file,
 with a 256 MiB maximum. Sensitive items are excluded; imports do not extract or
