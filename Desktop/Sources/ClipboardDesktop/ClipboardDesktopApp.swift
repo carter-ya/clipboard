@@ -288,8 +288,10 @@ struct HistoryView: View {
     VStack(alignment: .leading, spacing: 12) {
       Text(model.t("History capacity (1–5000)"))
       TextField(model.t("100"), text: $model.capacityDraft)
-      Text(model.t("Maximum clipboard item (MiB, 1–16)"))
+      Text(model.t("Maximum clipboard item (MiB, 0–16)"))
       TextField(model.t("10"), text: $model.maxSizeDraft)
+      Text(model.t("0 disables size filtering. Clipboard transfers remain limited to 16 MiB."))
+        .font(.system(size: 12)).foregroundColor(.gray)
       Toggle(model.t("Mark blocked source apps as sensitive"), isOn: $model.blocklistEnabledDraft)
       TextField(model.t("Blocked app IDs, separated by commas"), text: $model.blockedAppsDraft)
       Button(model.t("Save content settings")) {

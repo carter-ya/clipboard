@@ -244,13 +244,18 @@
           "scope": "Preferences and localization",
           "status": "in_progress",
           "remaining": [
-            "Size-limit disable and equivalent filter choices",
+            "Fractional and larger-than-16-MiB size-policy parity; equivalent filter choices",
             "Accurate OS startup policy/ownership semantics and discoverable capability/conflict guidance"
           ],
           "source_filter_validation": {
             "branch": "codex/cross-platform-source-filter-case",
             "implemented": "Windows source filters compare custom rule spelling and observed IDs without case, preserving public rule spelling and Mac/Linux comparisons. The native Swift adapter already lowercases observed IDs; default lowercase rules were unaffected. Custom mixed-case rules now mark captured items sensitive and prevent persistence.",
             "validation": "The custom-rule regression fails before the fix and all 205 Core tests pass afterward in isolated Linux arm64. Initial Windows source verification fails because the generic synthetic writer has a null HWND owner. A scenario-only native fixture now owns a message-only HWND and message loop, announces readiness with binary pipe output, and checks default/custom filtering plus memory-only storage. Exact-head Windows confirmation is pending."
+          },
+          "size_filter_validation": {
+            "branch": "codex/cross-platform-size-filter-disable",
+            "implemented": "Zero disables the user item-size filter, including referenced file sizes, and round-trips in desktop settings. Native transfer buffers remain capped at 16 MiB and the limit is disclosed in all seven UI languages. Negative settings fail without replacing the saved zero value. Positive limits keep their previous behavior.",
+            "validation": "The regression fails before the fix; all 208 Core tests pass in isolated Linux arm64. Optimized Linux native UI passes all 88 checks, including zero save and invalid negative-value rejection. macOS passes 19 related settings/rich-clipboard/localization tests. Windows syntax/native helper definitions pass; exact-head Windows and installed-runtime execution remain pending."
           }
         },
         {
