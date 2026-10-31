@@ -305,11 +305,27 @@ function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefau
     if ($candidate -ne [IntPtr]::Zero) { $candidate }
   } 'archive_native_dialog'
   $dialog = [Windows.Automation.AutomationElement]::FromHandle($handle)
-  $editorCondition = [Windows.Automation.AndCondition]::new(
-    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit),
-    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, '1001'))
-  $fileName = Wait-For { $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, $editorCondition) } 'archive_filename_editor'
-  $value = $fileName.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
+  # Windows common dialogs may expose the filename as an editable ComboBox
+  # rather than an Edit node. Anchor only to known filename host/control IDs,
+  # then require its native ValuePattern; never pick the address/search editor.
+  $value = Wait-For {
+    foreach ($id in @('1001', '1148', 'FileNameControlHost')) {
+      $condition = [Windows.Automation.PropertyCondition]::new(
+        [Windows.Automation.AutomationElement]::AutomationIdProperty, $id)
+      foreach ($hostControl in $dialog.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)) {
+        $controls = @($hostControl)
+        if ($id -eq 'FileNameControlHost') {
+          $editable = [Windows.Automation.PropertyCondition]::new(
+            [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)
+          $controls += @($hostControl.FindAll([Windows.Automation.TreeScope]::Descendants, $editable))
+        }
+        foreach ($control in $controls) {
+          if (!$control.Current.IsEnabled) { continue }
+          try { return $control.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern) } catch {}
+        }
+      }
+    }
+  } 'archive_filename_editor'
   if ($CheckDefault) { Add-Check 'native_archive_save_dialog_defaults_to_zip' ($value.Current.Value -ceq 'clipboard-history.zip') }
   $value.SetValue($Path)
   $acceptCondition = [Windows.Automation.AndCondition]::new(
