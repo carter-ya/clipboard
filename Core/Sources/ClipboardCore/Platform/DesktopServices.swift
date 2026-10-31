@@ -142,17 +142,20 @@ public struct DesktopAnalysis: Sendable {
   private let resolver: PayloadResolver
   private let fileReader: (any DesktopFileTextReading)?
   private let imageClassifier: (any DesktopImageClassifying)?
+  private let localLanguage: (any DesktopLocalLanguageProcessing)?
   public init(
     credentials: any DesktopCredentialStoring, transport: any DesktopAITransport,
     ocr: any DesktopOCRRecognizing, blobRoot: URL?,
     fileReader: (any DesktopFileTextReading)? = nil,
-    imageClassifier: (any DesktopImageClassifying)? = nil
+    imageClassifier: (any DesktopImageClassifying)? = nil,
+    localLanguage: (any DesktopLocalLanguageProcessing)? = nil
   ) {
     self.credentials = credentials
     self.transport = transport
     self.ocr = ocr
     self.fileReader = fileReader
     self.imageClassifier = imageClassifier
+    self.localLanguage = localLanguage
     resolver = .init(blobRoot: blobRoot)
   }
   private func allow(_ item: ClipItem) throws {
@@ -219,6 +222,34 @@ public struct DesktopAnalysis: Sendable {
     }
     return result
   }
+  public func analyzeLanguageLocally(
+    _ item: ClipItem, task: DesktopLocalLanguageTask, language: String? = nil
+  ) async throws -> DesktopLocalLanguageResult {
+    try allow(item)
+    guard [.text, .rtf, .mixed, .file].contains(item.kind) else {
+      throw DesktopServiceError.disabled
+    }
+    try Task.checkCancellation()
+    guard let localLanguage else { throw DesktopServiceError.unavailable }
+    let bounded: RichTextPreview.Result
+    if item.kind == .file {
+      let preview = DesktopTextPreview(try await resolvedFileText(item))
+      bounded = .init(text: preview.text, isTruncated: preview.isTruncated)
+    } else {
+      bounded = RichTextPreview.preview(from: try await resolvedTextPayloads(item))
+    }
+    try Task.checkCancellation()
+    let input = bounded.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !input.isEmpty, task != .enrichment || input.count >= 100 else {
+      throw DesktopServiceError.invalidValue
+    }
+    let output = try await localLanguage.process(text: input, task: task, language: language)
+    try Task.checkCancellation()
+    guard output.task == task else { throw DesktopServiceError.invalidValue }
+    return .init(
+      text: try output.renderedText(for: input, language: language), task: task,
+      inputTruncated: bounded.isTruncated || output.inputTruncated)
+  }
   private func resolvedFileText(_ item: ClipItem) async throws -> String {
     guard let payload = item.payloads.first(where: { $0.pasteboardType == "public.file-url" })
     else {
@@ -252,8 +283,11 @@ public struct DesktopAnalysis: Sendable {
     return text
   }
   private func resolvedText(_ item: ClipItem) async throws -> String {
+    RichTextPreview.text(from: try await resolvedTextPayloads(item), limit: 16000)
+  }
+  private func resolvedTextPayloads(_ item: ClipItem) async throws -> [RawPayload] {
     let resolver = resolver
-    let payloads = try await Task.detached {
+    return try await Task.detached {
       try item.payloads.filter {
         [
           "public.utf8-plain-text", "public.plain-text", "public.string", "public.html",
@@ -262,7 +296,6 @@ public struct DesktopAnalysis: Sendable {
         .contains($0.pasteboardType)
       }.map { RawPayload(pasteboardType: $0.pasteboardType, data: try resolver.data(for: $0)) }
     }.value
-    return RichTextPreview.text(from: payloads, limit: 16000)
   }
   public func summarize(_ item: ClipItem, settings: DesktopAISettings, language: String? = nil)
     async throws -> String

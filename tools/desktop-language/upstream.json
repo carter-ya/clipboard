@@ -1,0 +1,42 @@
+{
+  "version": "llama.cpp v0.8.0",
+  "commit": "8642541b255bfb5dc39cd351a178be09013a55d6",
+  "sourceURL": "https://codeload.github.com/ggml-org/llama.cpp/tar.gz/8642541b255bfb5dc39cd351a178be09013a55d6",
+  "sourceSHA256": "1688a167a8edd9499cdd0c19b8bd044f0fa184b466981977bbf2222d884953a4",
+  "sourceSize": 38685236,
+  "sourceDigestOrigin": "Computed over the pinned official commit archive; not a published release-asset digest",
+  "modelManifest": "Core/Sources/ClipboardCore/Resources/DesktopLocalLanguageModel.json",
+  "notices": [
+    {
+      "name": "model-LICENSE",
+      "url": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/resolve/cdbee75f17c01a7cc42f958dc650907174af0554/LICENSE",
+      "size": 11343,
+      "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e"
+    },
+    {
+      "name": "model-README.md",
+      "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/a06e946bb6b655725eafa393f4a9745d460374c9/README.md",
+      "size": 11207,
+      "sha256": "c18c2d01645e709fcc0bfd593291d3dc43e51873f5af170a082c36ccd95988c3"
+    },
+    {
+      "name": "base-model-README.md",
+      "url": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/resolve/cdbee75f17c01a7cc42f958dc650907174af0554/README.md",
+      "size": 8168,
+      "sha256": "8e3dd0c3b5b11897cc71092ccfe517bb7a9783479baa3665aad73c8d1a2041cd"
+    },
+    {
+      "name": "nlohmann-LICENSE.MIT",
+      "url": "https://raw.githubusercontent.com/nlohmann/json/v3.12.0/LICENSE.MIT",
+      "size": 1076,
+      "sha256": "46a65cffd1ea955132d95a8dd921640714a8d6b537d2e4e482d31145ae95b603"
+    }
+  ],
+  "modelDistribution": {
+    "quantizationPublisher": "Unsloth",
+    "modification": "Q4_K_M GGUF quantization",
+    "originalModel": "Qwen/Qwen3-4B-Instruct-2507",
+    "originalModelAttributionRevision": "cdbee75f17c01a7cc42f958dc650907174af0554",
+    "originalWeightEquivalenceVerified": false
+  }
+}
