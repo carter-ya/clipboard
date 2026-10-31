@@ -735,6 +735,9 @@ try:
     check('kind_counts_follow_pinned_tab_without_collapsing_library_total',
           has_text('(' + str(expected_all) + ')') and has_text('(1)') and not has_text('(2)'))
     click('All')
+    wait_for(lambda: has_text(str(expected_all) + ' items'), 'all_tab_clears_transient_kind')
+    check('all_tab_resets_kind_without_collapsing_counts', True)
+    click('Text')
     wait_for(lambda: has_text('2 items') and has_text('(2)'), 'all_tab_restores_text_count')
     wait_for(editor, 'counted_query_editor').queryEditableText().setTextContents('Legacy mixed fixture')
     wait_for(lambda: has_text('0 items') and not has_text('(' + str(expected_all) + ')'), 'query_updates_cross_kind_counts')
@@ -746,6 +749,92 @@ try:
     click('Quit Clipboard')
     app.wait(timeout=10)
     check('counted_history_quits_cleanly', app.returncode == 0)
+
+    # A distinct profile makes selection assertions independent of earlier Copy promotion.
+    history_root = out / ('history-selection-' + uuid.uuid4().hex)
+    history_root.mkdir()
+    selection_items = []
+    for index, name in enumerate(['Selection A', 'Selection file', 'Selection B', 'Selection C', 'Selection D', 'Selection E']):
+        file_item = index == 1
+        body = b'file:///synthetic/selection-fixture.txt' if file_item else name.encode()
+        selection_items.append(dict(id=str(uuid.uuid4()), createdAt='2023-11-14T22:13:20Z',
+                                    kind='file' if file_item else 'text', preview=name,
+                                    pinned=name in ['Selection B', 'Selection E'], sensitive=False,
+                                    sha256=hashlib.sha256(body).hexdigest(), sizeBytes=len(body),
+                                    payloads=[dict(pasteboardType='public.file-url' if file_item else 'public.utf8-plain-text',
+                                                   inlineData=base64.b64encode(body).decode())]))
+    (history_root / 'history.json').write_text(json.dumps({'version': 1, 'items': selection_items}))
+    app = subprocess.Popen([str(Path(args.executable).resolve()), '--data-root', str(history_root)],
+                           stdout=log, stderr=log, start_new_session=True)
+    wait_for(lambda: has_texts('Ready', '6 items'), 'selection_profile_ready')
+
+    def select_through_query(name, count):
+        wait_for(editor, 'selection_query_editor').queryEditableText().setTextContents(name)
+        wait_for(lambda: has_texts('1 items', name), 'selection_query_one_item')
+        editor().queryEditableText().setTextContents('')
+        wait_for(lambda: has_text(str(count) + ' items'), 'selection_query_cleared')
+
+    def copied_selection_is(name):
+        marker = b'Owned selection regression marker'
+        peer = subprocess.Popen(['xclip', '-selection', 'clipboard', '-in', '-quiet'], stdin=subprocess.PIPE,
+                                stdout=subprocess.DEVNULL, stderr=log, start_new_session=True)
+        try:
+            peer.stdin.write(marker)
+            peer.stdin.close()
+            def read_clipboard():
+                return subprocess.check_output(['xclip', '-selection', 'clipboard', '-out', '-target', 'UTF8_STRING'], timeout=10)
+            wait_for(lambda: read_clipboard() == marker, 'selection_marker_owned')
+            click('Copy')
+            wait_for(lambda: peer.poll() is not None and has_text('Copied to clipboard'), 'selection_copy_completed')
+            value = read_clipboard()
+            if value != name.encode():
+                return False
+            wait_for(lambda: json.loads((history_root / 'history.json').read_text())['items'][0]['preview'] == name,
+                     'selection_copy_promoted')
+            return True
+        finally:
+            if peer.poll() is None:
+                peer.terminate()
+            peer.wait(timeout=5)
+
+    select_through_query('Selection E', 6)
+    click('Hide')
+    wait_for(lambda: not window_visible(), 'selection_reopen_hidden')
+    wake_existing()
+    check('history_reopen_selects_first_matching_item', copied_selection_is('Selection A'))
+    click('File')
+    wait_for(lambda: has_text('1 items'), 'selection_file_filter')
+    click('Hide')
+    wait_for(lambda: not window_visible(), 'kind_reopen_hidden')
+    wake_existing()
+    wait_for(lambda: has_text('6 items'), 'history_reopen_clears_transient_kind')
+    check('history_reopen_clears_kind_without_losing_library', copied_selection_is('Selection A'))
+    click('File')
+    wait_for(lambda: has_text('1 items'), 'selection_file_filter_before_tab')
+    click('Pinned')
+    wait_for(lambda: has_text('2 items'), 'pinned_tab_resets_kind')
+    click('All')
+    wait_for(lambda: has_text('6 items'), 'all_tab_resets_kind')
+    check('tab_change_clears_kind_and_selects_first_row', copied_selection_is('Selection A'))
+    select_through_query('Selection E', 6)
+    click('Text')
+    wait_for(lambda: has_text('5 items'), 'selection_text_filter')
+    check('kind_change_selects_first_visible_row', copied_selection_is('Selection A'))
+    click('All types')
+    wait_for(lambda: has_text('6 items'), 'selection_all_types')
+    select_through_query('Selection C', 6)
+    click('Delete')
+    wait_for(lambda: has_texts('Item deleted', '5 items'), 'selection_middle_deleted')
+    check('deleting_middle_row_selects_next_visible_neighbor', copied_selection_is('Selection D'))
+    select_through_query('Selection E', 5)
+    click('Delete')
+    wait_for(lambda: has_texts('Item deleted', '4 items'), 'selection_last_deleted')
+    check('deleting_last_row_selects_previous_visible_neighbor', copied_selection_is('Selection B'))
+    click('Settings')
+    wait_for(lambda: has_text('Preferences'), 'selection_quit_settings')
+    click('Quit Clipboard')
+    app.wait(timeout=10)
+    check('selection_profile_quits_cleanly', app.returncode == 0)
 
     # Persist only synthetic rich payloads; the preview may be short, Copy must not be.
     history_root = out / ('rich-preview-' + uuid.uuid4().hex)

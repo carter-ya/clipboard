@@ -155,3 +155,5 @@ prevents zero-delay timer starvation of AccessKit idle actions. Native Windows
 focus/value/button behavior remains a hard CI gate.
 
 The automated and interactive acceptance checklist is in [TESTING.md](TESTING.md).
+
+Each history presentation starts at the first matching item and clears the transient type filter, retaining search, source and All/Pinned scope. Tab changes clear the type filter; type changes select the first visible item. Deleting a selected item keeps the next visible neighbor, or the previous item when deleting the last row.

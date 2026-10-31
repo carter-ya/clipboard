@@ -941,6 +941,9 @@ try {
     Wait-For { Find-Named '0 items' } 'empty_pinned_kind' | Out-Null
     Add-Check 'kind_counts_follow_pinned_tab_without_collapsing_library_total' ((Find-Named ('(' + $expectedAll + ')')) -and (Find-Named '(1)') -and !(Find-Named '(2)'))
     Invoke-Button 'All'
+    Wait-For { Find-Named ($expectedAll.ToString() + ' items') } 'all_tab_clears_transient_kind' | Out-Null
+    Add-Check 'all_tab_resets_kind_without_collapsing_counts' $true
+    Invoke-Button 'Text'
     Wait-For { (Find-Named '2 items') -and (Find-Named '(2)') } 'all_tab_restores_text_count' | Out-Null
     Set-Search 'Legacy mixed fixture'
     Wait-For { (Find-Named '0 items') -and !(Find-Named ('(' + $expectedAll + ')')) } 'query_updates_cross_kind_counts' | Out-Null
@@ -952,6 +955,88 @@ try {
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'counted_history_quit_timeout' }
     Add-Check 'counted_history_quits_cleanly' ($application.ExitCode -eq 0)
+
+    $historyRoot = Join-Path $OutputDirectory ('history-selection-' + [Guid]::NewGuid().ToString('N'))
+    [IO.Directory]::CreateDirectory($historyRoot) | Out-Null
+    $selectionItems = @()
+    foreach ($name in @('Selection A', 'Selection file', 'Selection B', 'Selection C', 'Selection D', 'Selection E')) {
+      $fileItem = $name -ceq 'Selection file'
+      $body = if ($fileItem) { 'file:///synthetic/selection-fixture.txt' } else { $name }
+      $bytes = [Text.Encoding]::UTF8.GetBytes($body)
+      $sha = [Security.Cryptography.SHA256]::Create()
+      try { $hash = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '').ToLowerInvariant() }
+      finally { $sha.Dispose() }
+      $selectionItems += @{
+        id = [Guid]::NewGuid().ToString(); createdAt = '2023-11-14T22:13:20Z';
+        kind = $(if ($fileItem) { 'file' } else { 'text' }); preview = $name;
+        pinned = $name -cin @('Selection B', 'Selection E'); sensitive = $false;
+        sha256 = $hash; sizeBytes = $bytes.Length;
+        payloads = @(@{ pasteboardType = $(if ($fileItem) { 'public.file-url' } else { 'public.utf8-plain-text' });
+          inlineData = [Convert]::ToBase64String($bytes) })
+      }
+    }
+    [IO.File]::WriteAllText((Join-Path $historyRoot 'history.json'),
+      (@{ version = 1; items = $selectionItems } | ConvertTo-Json -Depth 12), [Text.UTF8Encoding]::new($false))
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+      -ArgumentList @('--data-root', ('"' + $historyRoot + '"')) -PassThru `
+      -RedirectStandardOutput (Join-Path $OutputDirectory 'selection.stdout.log') `
+      -RedirectStandardError (Join-Path $OutputDirectory 'selection.stderr.log')
+    $null = $application.Handle
+    $nativeWindowHandle = Wait-For { $h = [PreviewNative]::FindWindow([uint32]$application.Id); if ($h -ne [IntPtr]::Zero) { $h } } 'selection_window'
+    $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '6 items') } 'selection_profile_ready' | Out-Null
+    function Select-ThroughQuery([string]$Name, [int]$Count) {
+      Set-Search $Name
+      Wait-For { (Find-Named '1 items') -and (Find-Named $Name) } 'selection_query_one_item' | Out-Null
+      Set-Search ''
+      Wait-For { Find-Named ($Count.ToString() + ' items') } 'selection_query_cleared' | Out-Null
+    }
+    function Test-CopiedSelection([string]$Name) {
+      $revision = [PreviewNative]::GetClipboardSequenceNumber()
+      Invoke-Button 'Copy'
+      Wait-For { [PreviewNative]::GetClipboardSequenceNumber() -ne $revision -and (Find-Named 'Copied to clipboard') } 'selection_copy_completed' | Out-Null
+      if ([PreviewNative]::ReadClipboard() -cne $Name) { return $false }
+      Wait-For { (Read-SharedJson (Join-Path $historyRoot 'history.json')).items[0].preview -ceq $Name } 'selection_copy_promoted' | Out-Null
+      return $true
+    }
+    Select-ThroughQuery 'Selection E' 6
+    Invoke-Button 'Hide'
+    Wait-For { [PreviewNative]::FindWindow([uint32]$application.Id) -eq [IntPtr]::Zero } 'selection_reopen_hidden' | Out-Null
+    Wake-Existing
+    Add-Check 'history_reopen_selects_first_matching_item' (Test-CopiedSelection 'Selection A')
+    Invoke-Button 'File'
+    Wait-For { Find-Named '1 items' } 'selection_file_filter' | Out-Null
+    Invoke-Button 'Hide'
+    Wait-For { [PreviewNative]::FindWindow([uint32]$application.Id) -eq [IntPtr]::Zero } 'kind_reopen_hidden' | Out-Null
+    Wake-Existing
+    Wait-For { Find-Named '6 items' } 'history_reopen_clears_transient_kind' | Out-Null
+    Add-Check 'history_reopen_clears_kind_without_losing_library' (Test-CopiedSelection 'Selection A')
+    Invoke-Button 'File'
+    Wait-For { Find-Named '1 items' } 'selection_file_filter_before_tab' | Out-Null
+    Invoke-Button 'Pinned'
+    Wait-For { Find-Named '2 items' } 'pinned_tab_resets_kind' | Out-Null
+    Invoke-Button 'All'
+    Wait-For { Find-Named '6 items' } 'all_tab_resets_kind' | Out-Null
+    Add-Check 'tab_change_clears_kind_and_selects_first_row' (Test-CopiedSelection 'Selection A')
+    Select-ThroughQuery 'Selection E' 6
+    Invoke-Button 'Text'
+    Wait-For { Find-Named '5 items' } 'selection_text_filter' | Out-Null
+    Add-Check 'kind_change_selects_first_visible_row' (Test-CopiedSelection 'Selection A')
+    Invoke-Button 'All types'
+    Wait-For { Find-Named '6 items' } 'selection_all_types' | Out-Null
+    Select-ThroughQuery 'Selection C' 6
+    Invoke-Button 'Delete'
+    Wait-For { (Find-Named 'Item deleted') -and (Find-Named '5 items') } 'selection_middle_deleted' | Out-Null
+    Add-Check 'deleting_middle_row_selects_next_visible_neighbor' (Test-CopiedSelection 'Selection D')
+    Select-ThroughQuery 'Selection E' 5
+    Invoke-Button 'Delete'
+    Wait-For { (Find-Named 'Item deleted') -and (Find-Named '4 items') } 'selection_last_deleted' | Out-Null
+    Add-Check 'deleting_last_row_selects_previous_visible_neighbor' (Test-CopiedSelection 'Selection B')
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'selection_quit_settings' | Out-Null
+    Invoke-Button 'Quit Clipboard'
+    if (!$application.WaitForExit(10000)) { throw 'selection_quit_timeout' }
+    Add-Check 'selection_profile_quits_cleanly' ($application.ExitCode -eq 0)
 
     $historyRoot = Join-Path $OutputDirectory ('rich-preview-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path (Join-Path $historyRoot 'blobs') -Force | Out-Null
