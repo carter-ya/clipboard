@@ -14,6 +14,7 @@ remain blocked by the open interactive gates below.
 | Linux native UI | Private Xvfb/DBus, native AT-SPI controls, search/pin/delete/settings/copy and shell lifecycle |
 | Native Wayland | Private Sway without XWayland, independent wl-clipboard peers, portal protocol fixture and pointer-only copy fallback |
 | Restricted Wayland | Weston reports absent data control; its unregistered headless AT-SPI tree is not a UI pass |
+| Windows stack reserve | The native chooser candidate reserves 8 MiB without increasing the initial commit. CI reads actual x64 PE headers for debug/optimized builds and retains numeric metadata. It is accepted only after real native chooser, complete UI and installation gates pass; a header check alone does not prove the crash fixed. |
 | Windows native UI | Actual GTK HWND, UI Automation focus/value/invoke, fresh native copy readback, OCR/theme/language and shell lifecycle pass (41158347664); physical gates remain below |
 | Linux installation | Optimized archive, no Swift SDK/network, Unicode/spaced prefix, complete runtime closure, guarded upgrade/uninstall, preserved history/startup and selective removal |
 | Linux compact layout | Full wide-action bounds plus 640×480 logical viewport at virtual scale 1/2, editor/header-control continuity, readable history row, native pointer Copy and Unicode readback |
