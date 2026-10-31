@@ -67,7 +67,14 @@ struct HistoryView: View {
     }
     .environment(\.colorScheme, model.effectiveDark ? .dark : .light)
     .inspectWindow { model.attachWindow($0) }
-    .task { await model.load() }
+    .task { @MainActor in
+      await model.load()
+      // Fixture input only: keep the real native chooser/default-name path,
+      // while its initial directory and untouched default save stay private.
+      if archiveDirectory == nil && CommandLine.arguments.contains("--smoke-root") {
+        archiveDirectory = DesktopApplicationContext.dataRoot
+      }
+    }
     .onChange(of: model.selectedID) { Task { @MainActor in await model.loadPreview() } }
   }
 
