@@ -107,13 +107,16 @@ function Get-Editor {
   return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
 }
 function Invoke-Button([string]$Label) {
-  $element = Wait-For { Find-Named $Label } ('button_' + $Label)
-  # A SwiftCrossUI Button wraps a composed label; UIA may name its Text child.
-  for ($depth = 0; $depth -lt 10 -and $element; $depth++) {
-    if ($element.Current.ControlType -eq [Windows.Automation.ControlType]::Button) { break }
-    $element = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($element)
-  }
-  if (!$element -or $element.Current.ControlType -ne [Windows.Automation.ControlType]::Button) { throw ('button_ancestor_' + $Label) }
+  $element = Wait-For {
+    $candidate = Find-Named $Label
+    # A composed label can name its Text child. Resolve the live button again
+    # while waiting for an asynchronous transition to enable the control.
+    for ($depth = 0; $depth -lt 10 -and $candidate; $depth++) {
+      if ($candidate.Current.ControlType -eq [Windows.Automation.ControlType]::Button) { break }
+      $candidate = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($candidate)
+    }
+    if ($candidate -and $candidate.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and $candidate.Current.IsEnabled) { return $candidate }
+  } ('enabled_button_' + $Label)
   $pattern = $element.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
   $pattern.Invoke()
 }
@@ -263,7 +266,13 @@ try {
           if (!$line.Wait(10000) -or $line.Result -ne 'ready') { throw 'rich_peer_startup' }
           $kind = if ($fixture -eq 'rich') { 'Image' } else { 'File' }
           Invoke-Button $kind
-          Wait-For { Find-Named '1 items' } ('capture_native_' + $fixture) | Out-Null
+          Wait-For {
+            if (!(Find-Named '1 items')) { return $false }
+            if ($fixture -eq 'files') { return Find-Named 'fixture 中文.txt' }
+            $imageCondition = [Windows.Automation.PropertyCondition]::new(
+              [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Image)
+            return $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $imageCondition)
+          } ('capture_native_' + $fixture) | Out-Null
           Add-Check ('native_' + $fixture + '_capture_reaches_type_filter_and_preview') $true
           # Establish a distinct status before Copy. A previous 'Copied' label
           # cannot acknowledge a new asynchronous invocation. Pause after native

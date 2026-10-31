@@ -103,3 +103,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Desktop primary item actions remain outside the history scroll viewport at every width. Wide layouts must keep Copy/Pin/Delete visible too; preview content must not own a duplicate action toolbar.
 - Windows rich UI tests pause after each capture before Copy, then require a new clipboard revision and a fresh status transition before checking native format bytes. An old Copied label or the fixture peer owning identical bytes cannot acknowledge a new asynchronous Copy.
+
+- Native Windows probes wait for the matching image/file preview and enabled button before invoking once. Equal result counts do not acknowledge a filter change; never retry an already submitted mutation.
