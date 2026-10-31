@@ -25,7 +25,7 @@ public final class NativeDesktopInstance: DesktopInstanceAccess, @unchecked Send
     handle = digest.withCString { identity in
       clipboard_instance_create(
         identity,
-        { context, _ in
+        { context, _, _ in
           guard let context else { return }
           Unmanaged<ActivationBridge>.fromOpaque(context).takeUnretainedValue().continuation.yield(
             ())

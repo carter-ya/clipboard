@@ -183,7 +183,10 @@ try:
     spoof.close()
 
     emit(lambda: portal.Activated(session.path, 'history', 1, {'activation_token': 'synthetic-activation-token'}))
-    check('activation_token_is_delivered_once', lines.get(timeout=3) == 'activated:true')
+    emit(lambda: portal.Activated(session.path, 'history', 2, {'activation_token': 'synthetic-second-token'}))
+    command('consume')
+    check('queued_activation_keeps_first_token', lines.get(timeout=3) == 'activated:true')
+    check('queued_activation_keeps_second_token', lines.get(timeout=3) == 'activated:true')
     emit(lambda: session.Closed())
     check('closed_portal_session_loses_shortcut_capability', status('status:5:false'))
     mode['deny'] = True

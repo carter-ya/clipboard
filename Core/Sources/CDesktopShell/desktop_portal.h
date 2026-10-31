@@ -8,6 +8,5 @@ clipboard_portal *cp_create(const char *key, uint32_t modifiers,
                             clipboard_shell_callback callback, void *context);
 unsigned cp_status(clipboard_portal *portal);
 void cp_request(clipboard_portal *portal);
-int cp_take_token(clipboard_portal *portal, char *buffer, unsigned capacity);
 void cp_destroy(clipboard_portal *portal);
 #endif

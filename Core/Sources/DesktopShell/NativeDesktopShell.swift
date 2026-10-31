@@ -3,16 +3,16 @@ import ClipboardCore
 import Foundation
 
 private final class ShellEventBridge: @unchecked Sendable {
-  let continuation: AsyncStream<DesktopShellAction>.Continuation
-  init(_ continuation: AsyncStream<DesktopShellAction>.Continuation) {
+  let continuation: AsyncStream<DesktopShellEvent>.Continuation
+  init(_ continuation: AsyncStream<DesktopShellEvent>.Continuation) {
     self.continuation = continuation
   }
 }
 
 /// Serializes native ownership; callers start/stop it away from the UI actor.
 public final class NativeDesktopShell: DesktopShellAccess, @unchecked Sendable {
-  public let actions: AsyncStream<DesktopShellAction>
-  private let continuation: AsyncStream<DesktopShellAction>.Continuation
+  public let actions: AsyncStream<DesktopShellEvent>
+  private let continuation: AsyncStream<DesktopShellEvent>.Continuation
   private let bridge: ShellEventBridge
   private let queue = DispatchQueue(label: "com.clipboard.desktop.shell")
   private var handle: OpaquePointer?
@@ -20,7 +20,7 @@ public final class NativeDesktopShell: DesktopShellAccess, @unchecked Sendable {
   private var started = false
 
   public init() {
-    let stream = AsyncStream.makeStream(of: DesktopShellAction.self)
+    let stream = AsyncStream.makeStream(of: DesktopShellEvent.self)
     actions = stream.stream
     continuation = stream.continuation
     bridge = ShellEventBridge(stream.continuation)
@@ -49,10 +49,11 @@ public final class NativeDesktopShell: DesktopShellAccess, @unchecked Sendable {
       let next = (shortcut?.key ?? "").withCString { key in
         clipboard_shell_create(
           key, shortcut?.modifiers.rawValue ?? 0, recording ? 1 : 0,
-          { context, rawAction in
+          { context, rawAction, token in
             guard let context, let action = DesktopShellAction(rawValue: rawAction) else { return }
             Unmanaged<ShellEventBridge>.fromOpaque(context).takeUnretainedValue()
-              .continuation.yield(action)
+              .continuation.yield(
+                .init(action: action, activationToken: token.map { String(cString: $0) }))
           }, context, &error)
       }
       guard let next else { throw DesktopShellError.unavailable }
@@ -75,16 +76,6 @@ public final class NativeDesktopShell: DesktopShellAccess, @unchecked Sendable {
   public func requestShortcutPermission() {
     queue.sync { clipboard_shell_request_shortcut(handle) }
   }
-  public func takeActivationToken() -> String? {
-    queue.sync {
-      var bytes = [CChar](repeating: 0, count: 4096)
-      guard clipboard_shell_take_activation_token(handle, &bytes, UInt32(bytes.count)) != 0 else {
-        return nil
-      }
-      return String(cString: bytes)
-    }
-  }
-
   public func updateLanguage(_ tag: String) {
     queue.sync { clipboard_shell_set_language(handle, tag.lowercased().hasPrefix("zh") ? 1 : 0) }
   }

@@ -16,14 +16,13 @@
 #define SHORTCUTS "org.freedesktop.portal.GlobalShortcuts"
 struct clipboard_portal {
   pthread_t thread;
-  pthread_mutex_t lock;
   atomic_int stopping, requested;
   atomic_uint status;
   int wake[2], stage, bound;
   double deadline;
   DBusConnection *bus;
   char *owner, *request, *session;
-  char trigger[128], token[4096];
+  char trigger[128];
   clipboard_shell_callback callback;
   void *context;
 };
@@ -34,7 +33,7 @@ static double monotonic(void) {
 }
 static void status(clipboard_portal *p, unsigned value) {
   if (atomic_exchange(&p->status, value) != value && !atomic_load(&p->stopping))
-    p->callback(p->context, 6);
+    p->callback(p->context, 6, NULL);
 }
 static void string(DBusMessageIter *iter, const char *value) {
   dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING, &value);
@@ -293,18 +292,15 @@ static DBusHandlerResult signal_received(DBusConnection *bus,
       return DBUS_HANDLER_RESULT_HANDLED;
     dbus_message_iter_next(&iter);
     options_iter = iter;
-    pthread_mutex_lock(&p->lock);
-    p->token[0] = 0;
+    const char *token = NULL;
     if (dictionary(&options_iter, "activation_token", &value) &&
         dbus_message_iter_get_arg_type(&value) == DBUS_TYPE_STRING) {
-      const char *token;
       dbus_message_iter_get_basic(&value, &token);
-      if (strlen(token) < sizeof(p->token))
-        strcpy(p->token, token);
+      if (!*token || strlen(token) >= 4096)
+        token = NULL;
     }
-    pthread_mutex_unlock(&p->lock);
     if (!atomic_load(&p->stopping))
-      p->callback(p->context, 2);
+      p->callback(p->context, 2, token);
     return DBUS_HANDLER_RESULT_HANDLED;
   }
   return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
@@ -411,14 +407,12 @@ clipboard_portal *cp_create(const char *key, uint32_t modifiers,
     return NULL;
   p->callback = callback;
   p->context = context;
-  pthread_mutex_init(&p->lock, NULL);
   atomic_init(&p->status, 1);
   snprintf(p->trigger, sizeof(p->trigger), "%s%s%s%s%s",
            modifiers & 1 ? "CTRL+" : "", modifiers & 2 ? "ALT+" : "",
            modifiers & 4 ? "SHIFT+" : "", modifiers & 8 ? "LOGO+" : "",
            !strcmp(key, "SPACE") ? "space" : key);
   if (pipe(p->wake) != 0) {
-    pthread_mutex_destroy(&p->lock);
     free(p);
     return NULL;
   }
@@ -429,7 +423,6 @@ clipboard_portal *cp_create(const char *key, uint32_t modifiers,
   if (pthread_create(&p->thread, NULL, worker, p) != 0) {
     close(p->wake[0]);
     close(p->wake[1]);
-    pthread_mutex_destroy(&p->lock);
     free(p);
     return NULL;
   }
@@ -446,18 +439,6 @@ void cp_request(clipboard_portal *p) {
     (void)ignored;
   }
 }
-int cp_take_token(clipboard_portal *p, char *buffer, unsigned capacity) {
-  if (!p || !buffer || !capacity)
-    return 0;
-  pthread_mutex_lock(&p->lock);
-  unsigned length = (unsigned)strlen(p->token);
-  int result = length && length < capacity;
-  if (result)
-    memcpy(buffer, p->token, length + 1);
-  p->token[0] = 0;
-  pthread_mutex_unlock(&p->lock);
-  return result;
-}
 void cp_destroy(clipboard_portal *p) {
   if (!p)
     return;
@@ -466,7 +447,6 @@ void cp_destroy(clipboard_portal *p) {
   pthread_join(p->thread, NULL);
   close(p->wake[0]);
   close(p->wake[1]);
-  pthread_mutex_destroy(&p->lock);
   free(p->owner);
   free(p->request);
   free(p->session);
