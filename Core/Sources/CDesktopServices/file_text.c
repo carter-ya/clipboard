@@ -23,6 +23,14 @@ static int cds_file_read_platform(const char *path, size_t limit,
   if (GetDriveTypeW(drive) == DRIVE_REMOTE) { free(wide); return -2; }
   for (int index = 0; index < count; ++index) if (local[index] == L'/') local[index] = L'\\';
   wide[0] = L'\\'; wide[1] = L'\\'; wide[2] = L'?'; wide[3] = L'\\';
+  /* CreateFile without backup semantics refuses directories before a handle
+     exists. Classify known nonregular paths, retaining the handle check below
+     for replacements between this metadata query and the actual open. */
+  DWORD attributes = GetFileAttributesW(wide);
+  if (attributes != INVALID_FILE_ATTRIBUTES &&
+      (attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT))) {
+    free(wide); return -2;
+  }
   HANDLE file = CreateFileW(wide, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
                            FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
   free(wide);
