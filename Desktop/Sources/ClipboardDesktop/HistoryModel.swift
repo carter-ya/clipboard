@@ -9,6 +9,8 @@ import SwiftCrossUI
 /// Presentation state; persistence, filters and native ownership stay in Core/adapters.
 final class HistoryModel: ObservableObject {
   @Published var analysisBusy = false
+  @Published var connectionBusy = false
+  @Published var connectionResult: DesktopAIConnectionResult?
   @Published var startupEnabled = false
   @Published var startupAvailable = false
   @Published var startupBusy = false
@@ -26,6 +28,15 @@ final class HistoryModel: ObservableObject {
   private var credentials = NativeDesktopCredentials()
   private let ocr = NativeDesktopOCR()
   private let transport = BoundedDesktopAITransport()
+  @MainActor private lazy var aiConnection: DesktopAIConnectionState = {
+    let probe = DesktopAIConnectionProbe(credentials: credentials, transport: transport)
+    return DesktopAIConnectionState(
+      run: { await probe.test(settings: $0) },
+      changed: { [weak self] busy, result in
+        self?.connectionBusy = busy
+        self?.connectionResult = result
+      })
+  }()
   @MainActor private var startup: DesktopStartupState?
   @MainActor private lazy var analysisScheduler = DesktopAnalysisScheduler(
     busyChanged: { [weak self] in self?.analysisBusy = $0 },
@@ -150,7 +161,10 @@ final class HistoryModel: ObservableObject {
     if nativeWindow == nil {
       let presenter = GtkDesktopWindow()
       nativeWindow = presenter
-      presenter.hidden = { [weak self] in self?.resetSensitivePreview() }
+      presenter.hidden = { [weak self] in
+        self?.resetSensitivePreview()
+        self?.invalidateAIConnection()
+      }
       presenter.presentationChanged = { [weak self] in
         Task { @MainActor in
           guard let self, self.showsSettings, !self.shuttingDown else { return }
@@ -463,6 +477,7 @@ final class HistoryModel: ObservableObject {
   }
 
   @MainActor func showHistory() async {
+    invalidateAIConnection()
     if !ready { startupActivationRequested = true }
     if showsSettings { showsSettings = false }
     await refresh()
@@ -789,6 +804,44 @@ final class HistoryModel: ObservableObject {
       status = "Copied to clipboard"
     } catch { status = "Clipboard is unavailable in this session." }
   }
+  @MainActor private var connectionConfiguration: DesktopAISettings {
+    var value = settings.ai
+    value.enabled = aiEnabledDraft
+    value.endpoint = aiEndpointDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    value.model = aiModelDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    value.usesCredential = aiCredentialDraft
+    return value
+  }
+  @MainActor var canTestAIConnection: Bool {
+    ready && !shuttingDown && aiEnabledDraft && (try? connectionConfiguration.validate()) != nil
+  }
+  @MainActor func testAIConnection() {
+    guard canTestAIConnection else { return }
+    aiConnection.start(settings: connectionConfiguration)
+  }
+  @MainActor func cancelAIConnection() { aiConnection.cancel() }
+  @MainActor func invalidateAIConnection() { aiConnection.invalidate() }
+  var connectionMessage: String? {
+    if connectionBusy { return "Testing connection…" }
+    guard let connectionResult else { return nil }
+    switch connectionResult {
+    case .connected: return "AI connection is ready."
+    case .disabled: return "Enable AI before testing the connection."
+    case .invalidConfiguration:
+      return "Check the model and endpoint. Use HTTPS, or HTTP for a loopback server."
+    case .credentialsUnavailable:
+      return "The saved API key is unavailable. Save or unlock it, then retry."
+    case .authenticationFailed: return "Access was denied. Check the saved API key and permissions."
+    case .notFound: return "Model or API path was not found. Check the model and endpoint."
+    case .rateLimited: return "The service is rate limited. Try again later."
+    case .requestRejected: return "The service rejected the test. Check the model and endpoint."
+    case .serverError: return "The service is unavailable. Try again later."
+    case .redirected: return "The service redirected the test. Set the final endpoint."
+    case .unusableResponse: return "The service did not return a usable chat completion."
+    case .networkFailure: return "Could not reach the service. Check the endpoint and network."
+    case .cancelled: return "Connection test cancelled."
+    }
+  }
   @MainActor func saveAISettings() async {
     guard let settingsStore else { return }
     await settingsSaveGate.acquire()
@@ -811,6 +864,7 @@ final class HistoryModel: ObservableObject {
   }
   @MainActor func saveAPIKey() async {
     guard ready, !aiKeyDraft.isEmpty else { return }
+    invalidateAIConnection()
     var configuration = settings.ai
     configuration.endpoint = aiEndpointDraft
     do {
@@ -824,6 +878,7 @@ final class HistoryModel: ObservableObject {
     }
   }
   @MainActor func deleteAPIKey() async {
+    invalidateAIConnection()
     var configuration = settings.ai
     configuration.endpoint = aiEndpointDraft
     do {
@@ -918,6 +973,7 @@ final class HistoryModel: ObservableObject {
     guard !shuttingDown else { return }
     shuttingDown = true
     startup?.stop()
+    aiConnection.stop()
     resetSensitivePreview()
     analysisScheduler.stop()
     captureTask?.cancel()

@@ -91,6 +91,8 @@ Remote OpenAI-compatible AI is disabled initially. Enable it explicitly and save
 a model/endpoint; image uploads and automatic analysis have separate switches.
 Requests use memory-only sessions, refuse redirects and bound responses while
 receiving. Sensitive/concealed items never enter OCR or the network pipeline.
+Test connection uses the current fields and the saved key only when selected. It sends a fixed tiny test message, never clipboard history, and does not save the configuration. The request can be cancelled; editing connection fields or leaving settings clears its result. Authentication, endpoint/model, rate-limit and network failures have separate localized guidance.
+
 Remote file-content summaries and Apple-only models are not offered here. OCR
 results can be copied separately without changing the original history item.
 

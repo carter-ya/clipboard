@@ -224,6 +224,58 @@ def wake_existing():
 
 
 
+def click_visible_public_control(label):
+    if sensitive_probe:
+        raise RuntimeError('settings_pointer_outside_private_phase')
+    x11 = ctypes.CDLL('libX11.so.6')
+    xtest = ctypes.CDLL('libXtst.so.6')
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    x11.XDefaultRootWindow.restype = ctypes.c_ulong
+    x11.XTranslateCoordinates.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong,
+                                          ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_int),
+                                          ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_ulong)]
+    x11.XFlush.argtypes = [ctypes.c_void_p]
+    x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+    xtest.XTestFakeMotionEvent.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
+    xtest.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+    display = x11.XOpenDisplay(None)
+    if not display: raise RuntimeError('settings_scroll_display')
+    try:
+        def visible():
+            control = button(label)
+            if not control: return None
+            parent = control.parent
+            while parent and parent.getRole() != pyatspi.ROLE_SCROLL_PANE:
+                parent = parent.parent
+            if not parent: return None
+            viewport = parent.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+            target = control.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+            if viewport.width <= 0 or viewport.height <= 0: return None
+            # GTK 4.6 omits SHOWING/ENABLED even for visible controls. Use
+            # actual window-relative viewport containment plus sensitivity.
+            if (target.width > 0 and target.height > 0 and
+                    viewport.x <= target.x and target.x + target.width <= viewport.x + viewport.width and
+                    viewport.y <= target.y and target.y + target.height <= viewport.y + viewport.height):
+                return control if control.getState().contains(pyatspi.STATE_SENSITIVE) else None
+            root_x, root_y, child = ctypes.c_int(), ctypes.c_int(), ctypes.c_ulong()
+            if not x11.XTranslateCoordinates(display, window_id(), x11.XDefaultRootWindow(display),
+                                              viewport.x + viewport.width // 2, viewport.y + viewport.height // 2,
+                                              ctypes.byref(root_x), ctypes.byref(root_y), ctypes.byref(child)):
+                return None
+            wheel = 4 if target.y < viewport.y else 5
+            if not xtest.XTestFakeMotionEvent(display, -1, root_x.value, root_y.value, 0): return None
+            for _ in range(3):
+                if not (xtest.XTestFakeButtonEvent(display, wheel, 1, 0) and
+                        xtest.XTestFakeButtonEvent(display, wheel, 0, 0)): return None
+            x11.XFlush(display)
+            return None
+        wait_for(visible, 'visible_control_' + label)
+    finally:
+        x11.XCloseDisplay(display)
+    click(label)
+
+
 def hover_public_image():
     if sensitive_probe:
         raise RuntimeError('image_pointer_outside_private_phase')
@@ -855,6 +907,59 @@ try:
     wait_for(lambda: has_text('Enter a capacity of 1–5000 and a size of 0–16 MiB.'), 'negative_size_preference_rejected')
     check('invalid_size_does_not_replace_disabled_preference',
           json.loads(saved_file.read_text()).get('maxClipSizeBytes') == 0)
+    server_environment = os.environ.copy()
+    server_environment['CLIPBOARD_PRIVATE_AI_TEST'] = '1'
+    server = subprocess.Popen(['/usr/bin/python3', str(Path(__file__).with_name('ai-probe-server.py'))],
+                              env=server_environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+    try:
+        if not select.select([server.stdout], [], [], 10)[0]:
+            raise RuntimeError('ai_probe_server_startup')
+        ready = server.stdout.readline(32).decode('ascii').strip()
+        if not ready.startswith('ready:') or not ready[6:].isdigit():
+            raise RuntimeError('ai_probe_server_ready')
+        endpoint = 'http://127.0.0.1:' + ready[6:] + '/v1'
+        endpoint_editor = wait_for(lambda: editor_with_value('https://api.openai.com/v1'), 'ai_connection_endpoint')
+        endpoint_editor.queryEditableText().setTextContents(endpoint)
+        model_editor = wait_for(lambda: editor_with_value(''), 'ai_connection_model')
+        model_editor.queryEditableText().setTextContents('fixture-model')
+        click('Enable remote AI')
+        click_visible_public_control('Test AI connection')
+        wait_for(lambda: has_text('AI connection is ready.'), 'ai_connection_success')
+        check('connection_test_preserves_native_editors_and_drafts',
+              editor_with_value(endpoint) == endpoint_editor and editor_with_value('fixture-model') == model_editor)
+        model_editor.queryEditableText().setTextContents('fixture-model-2')
+        wait_for(lambda: not has_text('AI connection is ready.'), 'ai_connection_result_invalidated_by_edit')
+        model_editor.queryEditableText().setTextContents('fixture-model')
+        click_visible_public_control('Test AI connection')
+        wait_for(lambda: has_text('Access was denied. Check the saved API key and permissions.'), 'ai_connection_auth_failure')
+        check('connection_test_explains_authentication_failure', True)
+        click_visible_public_control('Test AI connection')
+        wait_for(lambda: has_text('AI connection is ready.'), 'ai_connection_retry')
+        check('connection_test_can_retry_after_failure', True)
+        click_visible_public_control('Test AI connection')
+        wait_for(lambda: has_text('Testing connection…') and button('Cancel connection test'), 'ai_connection_progress')
+        if not select.select([server.stdout], [], [], 10)[0] or server.stdout.readline(32) != b'blocked\n':
+            raise RuntimeError('ai_connection_request_not_active')
+        click_visible_public_control('Cancel connection test')
+        wait_for(lambda: has_text('Connection test cancelled.'), 'ai_connection_cancelled')
+        check('connection_test_can_cancel_an_active_request', True)
+        saved = json.loads(saved_file.read_text())
+        check('connection_test_does_not_save_or_enable_ai',
+              not saved.get('ai', {}).get('enabled', False) and
+              saved.get('ai', {}).get('endpoint') == 'https://api.openai.com/v1' and
+              saved.get('ai', {}).get('model') == '')
+    finally:
+        server.stdin.close()
+        try:
+            server.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            server.kill()
+            server.wait(timeout=5)
+    report_line = server.stdout.readline(4096)
+    fixture_report = json.loads(report_line)
+    check('connection_requests_use_only_fixed_prompts_without_keys_or_cookies',
+          fixture_report.get('requests') == 4 and fixture_report.get('fixedTestsOnly') and
+          fixture_report.get('noAuthorization') and fixture_report.get('noCookies'))
     click('Quit Clipboard')
     app.wait(timeout=10)
     check('startup_state_profile_quits_cleanly', app.returncode == 0)
