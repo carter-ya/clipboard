@@ -102,4 +102,4 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Surviving Windows widgets keep their accessible node IDs through context recreation. Their identity records use weak root references and are released with the widget; reparenting to another root receives a new ID.
 
 - Desktop primary item actions remain outside the history scroll viewport at every width. Wide layouts must keep Copy/Pin/Delete visible too; preview content must not own a duplicate action toolbar.
-- Windows rich UI tests pause after each capture before Copy, then require a new clipboard revision owned by the application and a fresh status transition. An old Copied label or the fixture peer owning identical bytes cannot acknowledge a new asynchronous Copy.
+- Windows rich UI tests pause after each capture before Copy, then require a new clipboard revision and a fresh status transition before checking native format bytes. An old Copied label or the fixture peer owning identical bytes cannot acknowledge a new asynchronous Copy.
