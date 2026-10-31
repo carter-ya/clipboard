@@ -118,7 +118,7 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Automatic desktop analysis uses the bounded ID-only serial scheduler; a busy manual action must not discard inserted clips. Recheck live settings and the current item when dequeuing, exclude sensitive/concealed or already analyzed clips, report overflow, and cancel/clear work on shutdown. Keep manual duplicate actions guarded.
 
 - Wayland activation tokens belong to immutable shell events. Copy the borrowed native callback string into its matching showHistory event; unrelated or delayed actions must not consume a shared token slot. Keep the delayed-consumer, two-distinct-activations portal regression.
-- Every whole-settings save, including appearance and language, must hold the same MainActor applyingSettings guard from snapshot creation through persistence and in-memory update. Presentation saves must never restore stale AI/privacy opt-outs.
+- Every whole-settings save, including appearance and language, must await the same MainActor FIFO save gate before reading the latest settings, retain its lease through persistence and in-memory update, and release it with defer. Do not drop rapid presentation actions or restore stale AI/privacy opt-outs. Pending writers must skip work during shutdown.
 
 - CP1–CP8 are preview foundations. Follow `cross_platform_delivery.functional_parity` for remaining Mac-equivalent development. A successful desktop Copy must immediately promote the item through Core and refresh, including when capture is paused; do not rely on recapture. Native UI probes verify ordering and independent readback using private fixtures.
 
