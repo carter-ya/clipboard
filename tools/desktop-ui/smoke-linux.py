@@ -907,6 +907,18 @@ try:
     wait_for(lambda: has_text('Enter a capacity of 1–5000 and a size of 0–16 MiB.'), 'negative_size_preference_rejected')
     check('invalid_size_does_not_replace_disabled_preference',
           json.loads(saved_file.read_text()).get('maxClipSizeBytes') == 0)
+    click('Allow text summaries')
+    click_visible_public_control('Save AI settings')
+    wait_for(lambda: json.loads(saved_file.read_text())['ai'].get('allowText') is False,
+             'text_summary_opt_out_saved')
+    check('text_summary_opt_out_keeps_remote_and_image_opt_ins_off',
+          not json.loads(saved_file.read_text())['ai']['enabled'] and
+          not json.loads(saved_file.read_text())['ai']['allowImages'])
+    click('Allow text summaries')
+    click_visible_public_control('Save AI settings')
+    wait_for(lambda: json.loads(saved_file.read_text())['ai'].get('allowText') is True,
+             'text_summary_opt_in_restored')
+    check('text_summary_permission_round_trips_through_native_settings', True)
     server_environment = os.environ.copy()
     server_environment['CLIPBOARD_PRIVATE_AI_TEST'] = '1'
     server = subprocess.Popen(['/usr/bin/python3', str(Path(__file__).with_name('ai-probe-server.py'))],

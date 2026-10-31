@@ -1106,6 +1106,15 @@ try {
       Invoke-Button 'Save content settings'
       Wait-For { Find-Named 'Enter a capacity of 1–5000 and a size of 0–16 MiB.' } 'negative_size_preference_rejected' | Out-Null
       Add-Check 'invalid_size_does_not_replace_disabled_preference' ((Read-SharedJson $settingsFile).maxClipSizeBytes -eq 0)
+      Invoke-Button 'Allow text summaries'
+      Invoke-VisibleConnectionButton 'Save AI settings'
+      Wait-For { (Read-SharedJson $settingsFile).ai.allowText -eq $false } 'text_summary_opt_out_saved' | Out-Null
+      $optOut = (Read-SharedJson $settingsFile).ai
+      Add-Check 'text_summary_opt_out_keeps_remote_and_image_opt_ins_off' (!$optOut.enabled -and !$optOut.allowImages)
+      Invoke-Button 'Allow text summaries'
+      Invoke-VisibleConnectionButton 'Save AI settings'
+      Wait-For { (Read-SharedJson $settingsFile).ai.allowText -eq $true } 'text_summary_opt_in_restored' | Out-Null
+      Add-Check 'text_summary_permission_round_trips_through_native_settings' $true
       $serverInfo = New-Object Diagnostics.ProcessStartInfo
       $serverInfo.FileName = (Get-Command python).Source
       $serverInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'ai-probe-server.py') + '"'

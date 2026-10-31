@@ -15,6 +15,7 @@ final class HistoryModel: ObservableObject {
   @Published var startupAvailable = false
   @Published var startupBusy = false
   @Published var aiEnabledDraft = false
+  @Published var aiTextDraft = true
   @Published var aiImagesDraft = false
   @Published var aiCredentialDraft = false
   @Published var aiEndpointDraft = "https://api.openai.com/v1"
@@ -107,7 +108,7 @@ final class HistoryModel: ObservableObject {
   var selected: ClipItem? { items.first { $0.id == selectedID } }
 
   @MainActor var canSummarize: Bool {
-    guard settings.ai.enabled, let item = selected, !item.sensitive, item.kind != .file else {
+    guard let item = selected, !item.sensitive, settings.ai.allowsSummary(of: item.kind) else {
       return false
     }
     if item.kind == .image {
@@ -308,6 +309,7 @@ final class HistoryModel: ObservableObject {
       DesktopAppearance.apply(appearance)
       effectiveDark = DesktopAppearance.currentIsDark
       aiEnabledDraft = settings.ai.enabled
+      aiTextDraft = settings.ai.allowText
       aiImagesDraft = settings.ai.allowImages
       aiCredentialDraft = settings.ai.usesCredential
       aiEndpointDraft = settings.ai.endpoint
@@ -381,8 +383,7 @@ final class HistoryModel: ObservableObject {
           // for every captured item. Refresh once before the next presentation.
           if self.nativeWindow?.isVisible != false && !self.showsSettings { await self.refresh() }
           if case .inserted(let item) = event, !item.sensitive {
-            if self.settings.automaticSummaries && self.settings.ai.enabled && item.kind != .file
-              && (item.kind != .image || self.settings.ai.allowImages)
+            if self.settings.automaticSummaries && self.settings.ai.allowsSummary(of: item.kind)
             {
               self.enqueueAutomaticAnalysis(remote: true, item: item)
             } else if self.settings.automaticOCR && item.kind == .image {
@@ -849,6 +850,7 @@ final class HistoryModel: ObservableObject {
     guard !shuttingDown else { return }
     var next = settings
     next.ai.enabled = aiEnabledDraft
+    next.ai.allowText = aiTextDraft
     next.ai.allowImages = aiImagesDraft
     next.ai.usesCredential = aiCredentialDraft
     next.ai.endpoint = aiEndpointDraft.trimmingCharacters(in: .whitespacesAndNewlines)

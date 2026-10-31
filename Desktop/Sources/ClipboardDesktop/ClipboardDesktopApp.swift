@@ -350,6 +350,7 @@ struct HistoryView: View {
           "Remote AI is off by default. Enabling it sends eligible content to your chosen endpoint."
         ))
       Toggle(model.t("Enable remote AI"), isOn: connectionBinding($model.aiEnabledDraft))
+      Toggle(model.t("Allow text summaries"), isOn: $model.aiTextDraft)
       Toggle(model.t("Allow image uploads"), isOn: $model.aiImagesDraft)
       Toggle(model.t("Automatically summarize new items"), isOn: $model.automaticSummariesDraft)
       TextField(model.t("API endpoint"), text: connectionBinding($model.aiEndpointDraft))

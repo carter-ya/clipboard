@@ -88,7 +88,7 @@ profile's startup entry. The startup command uses `--background`; another launch
 reopens the same process safely.
 
 Remote OpenAI-compatible AI is disabled initially. Enable it explicitly and save
-a model/endpoint; image uploads and automatic analysis have separate switches.
+a model/endpoint; text summaries, image uploads and automatic analysis have separate switches. Turning off text summaries also excludes RTF and mixed text clips from manual and queued remote analysis. Local OCR and the explicit fixed-message connection test remain separate.
 Requests use memory-only sessions, refuse redirects and bound responses while
 receiving. Sensitive/concealed items never enter OCR or the network pipeline.
 Test connection uses the current fields and the saved key only when selected. It sends a fixed tiny test message, never clipboard history, and does not save the configuration. The request can be cancelled; editing connection fields or leaving settings clears its result. Authentication, endpoint/model, rate-limit and network failures have separate localized guidance.
