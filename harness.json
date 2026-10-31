@@ -228,7 +228,15 @@
           "scope": "Refresh owned startup registration on native settings restoration and activation without rebuilding drafts",
           "status": "in_progress",
           "implemented": "A main-actor state coordinator separates passive reads from explicit registration changes, rejects stale reads and duplicate writes, and ignores late shutdown completions. Native GTK map/activation signals refresh visible settings without polling. Private native fixtures use distinct identities and a nonexistent executable. OS policy overrides and ownership semantics remain separate follow-up work.",
-          "validation": "Linux arm64: 187 Core tests and 79 native UI checks pass, including private startup registration removal/restoration, explicit disable, retained capacity editor identity and unsaved draft. Windows probe syntax passes; real Windows and installed-runtime checks remain pending."
+          "validation": "Exact merged ce25b8d source passes all 188 Core tests and 79 native Linux arm64 UI checks; exact-head Codex review is clean. Windows/Linux native and installed CI remains running."
+        },
+        {
+          "id": "CP10_startup_ownership",
+          "branch": "codex/cross-platform-startup-ownership",
+          "scope": "Refuse conflicting per-user startup entries and expose OS policy limitations",
+          "status": "in_progress",
+          "implemented": "Windows compares existing command/type before write or removal. Linux reads a bounded regular desktop entry, preserves other commands/symlinks/malformed entries, tolerates presentation changes and respects Hidden, GNOME disable, session lists and TryExec. Conflict and system policy guidance is localized in seven languages. Registration presence does not establish Windows Startup apps approval or Linux system-wide policy.",
+          "validation": "The native conflict regression fails before the fix (replacement, removal and foreign-entry preservation) and passes afterward. Linux arm64 passes 188 Core tests, 25 isolated native service checks and nine focused native startup UI checks; the earlier full UI run passes all 79 checks. Final conflict wording passes all nine focused native checks and all seven-language catalog tests. Real Windows and installed execution remain pending."
         },
         {
           "id": "CP10",

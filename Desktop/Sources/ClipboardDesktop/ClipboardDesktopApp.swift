@@ -325,6 +325,10 @@ struct HistoryView: View {
       }.disabled(!model.startupAvailable || model.startupBusy)
       Text(
         model.t(
+          "System startup policy can override this registration. Check Startup apps or your desktop session settings."
+        ))
+      Text(
+        model.t(
           "Local OCR uses installed system language packs. Apple-only models are unavailable here.")
       )
       Toggle(model.t("Automatically recognize images"), isOn: $model.automaticOCRDraft)

@@ -741,7 +741,10 @@ final class HistoryModel: ObservableObject {
     guard let startup, showsSettings, !shuttingDown else { return }
     do { try await startup.refresh() } catch {
       if showsSettings, !shuttingDown {
-        status = "Startup integration is unavailable in this session."
+        status =
+          error as? DesktopServiceError == .startupConflict
+          ? "Startup entry conflicts with this installation. Check system startup settings before retrying."
+          : "Startup integration is unavailable in this session."
       }
     }
   }
@@ -756,7 +759,12 @@ final class HistoryModel: ObservableObject {
         status = "Startup setting saved"
       }
     } catch {
-      if showsSettings, !shuttingDown { status = "Startup setting could not be changed." }
+      if showsSettings, !shuttingDown {
+        status =
+          error as? DesktopServiceError == .startupConflict
+          ? "Startup entry conflicts with this installation. Check system startup settings before retrying."
+          : "Startup setting could not be changed."
+      }
     }
   }
   @MainActor func copyAnalysisResult() async {

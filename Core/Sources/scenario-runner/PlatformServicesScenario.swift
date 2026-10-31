@@ -56,6 +56,74 @@ import Foundation
         try await startup.setEnabled(true)
         let enabled = try await startup.isEnabled()
         check("startup_registers_user_owned_entry", enabled, into: &checks)
+        #if os(Linux)
+          let entry = root.appendingPathComponent("autostart")
+            .appendingPathComponent("com.clipboard.desktop.fixture." + identity + ".desktop")
+          let original = try Data(contentsOf: entry)
+          var decorated = Data("# desktop settings comment\n".utf8)
+          decorated.append(original)
+          decorated.append(Data("NoDisplay=true\n".utf8))
+          try decorated.write(to: entry, options: .atomic)
+          let unchanged = try await startup.isEnabled()
+          check("startup_ignores_presentation_only_edits", unchanged, into: &checks)
+          for (key, value) in [
+            ("Hidden", "true"), ("OnlyShowIn", "ClipboardFixture-" + identity + ";"),
+            ("TryExec", root.appendingPathComponent("not-installed").path),
+          ] {
+            var restricted = original
+            restricted.append(Data("\(key)=\(value)\n".utf8))
+            try restricted.write(to: entry, options: .atomic)
+            let disabled = try await startup.isEnabled()
+            let preserved = try Data(contentsOf: entry) == restricted
+            check("startup_honors_" + key, !disabled && preserved, into: &checks)
+            try await startup.setEnabled(true)
+          }
+          let tryProgram = root.appendingPathComponent("synthetic program")
+          try Data("#!/bin/sh\nexit 0\n".utf8).write(to: tryProgram)
+          try FileManager.default.setAttributes(
+            [.posixPermissions: 0o700], ofItemAtPath: tryProgram.path)
+          var executableEntry = original
+          executableEntry.append(
+            Data(
+              ("TryExec=" + tryProgram.path.replacingOccurrences(of: " ", with: "\\s") + "\n").utf8)
+          )
+          try executableEntry.write(to: entry, options: .atomic)
+          let installedProgram = try await startup.isEnabled()
+          check("startup_accepts_escaped_installed_tryexec", installedProgram, into: &checks)
+          let gnomeDisabled = String(decoding: original, as: UTF8.self)
+            .replacingOccurrences(
+              of: "X-GNOME-Autostart-enabled=true", with: "X-GNOME-Autostart-enabled=false")
+          try Data(gnomeDisabled.utf8).write(to: entry, options: .atomic)
+          let gnomeEnabled = try await startup.isEnabled()
+          check("startup_honors_session_disabled_flag", !gnomeEnabled, into: &checks)
+          try await startup.setEnabled(true)
+          for (suffix, body) in [
+            ("duplicate_command", original + Data("Exec=/not-this-installation\n".utf8)),
+            ("oversized_entry", Data(repeating: 32, count: 65537)),
+          ] {
+            try body.write(to: entry, options: .atomic)
+            var refused = false
+            do { try await startup.setEnabled(false) } catch {
+              refused = error as? DesktopServiceError == .startupConflict
+            }
+            let preserved = try Data(contentsOf: entry) == body
+            check("startup_preserves_" + suffix, refused && preserved, into: &checks)
+            try original.write(to: entry, options: .atomic)
+          }
+          let target = root.appendingPathComponent("unrelated-entry")
+          try original.write(to: target)
+          try FileManager.default.removeItem(at: entry)
+          try FileManager.default.createSymbolicLink(at: entry, withDestinationURL: target)
+          var refusedLink = false
+          do { try await startup.setEnabled(true) } catch {
+            refusedLink = error as? DesktopServiceError == .startupConflict
+          }
+          let targetPreserved = try Data(contentsOf: target) == original
+          check(
+            "startup_preserves_symlink_and_target", refusedLink && targetPreserved, into: &checks)
+          try FileManager.default.removeItem(at: entry)
+          try original.write(to: entry, options: .atomic)
+        #endif
       } catch {
         try? await startup.setEnabled(false)
         throw error
@@ -63,6 +131,32 @@ import Foundation
       try await startup.setEnabled(false)
       let removed = try await startup.isEnabled()
       check("startup_removes_only_fixture_entry", !removed, into: &checks)
+      let otherStartup = try NativeDesktopStartup(
+        executable: root.appendingPathComponent("another-installation"),
+        name: "com.clipboard.desktop.fixture." + identity, configRoot: root)
+      do {
+        try await otherStartup.setEnabled(true)
+        var readRefused = false
+        do { _ = try await startup.isEnabled() } catch {
+          readRefused = error as? DesktopServiceError == .startupConflict
+        }
+        check("startup_reports_other_installation_conflict", readRefused, into: &checks)
+        for desired in [true, false] {
+          var refused = false
+          do { try await startup.setEnabled(desired) } catch {
+            refused = error as? DesktopServiceError == .startupConflict
+          }
+          check(
+            desired ? "startup_refuses_foreign_replacement" : "startup_refuses_foreign_removal",
+            refused, into: &checks)
+        }
+        let foreignPreserved = try await otherStartup.isEnabled()
+        check("startup_preserves_other_installation_entry", foreignPreserved, into: &checks)
+        try await otherStartup.setEnabled(false)
+      } catch {
+        try? await otherStartup.setEnabled(false)
+        throw error
+      }
     } catch {
       check("native_startup_service", false, detail: "startup_fixture_unavailable", into: &checks)
     }
