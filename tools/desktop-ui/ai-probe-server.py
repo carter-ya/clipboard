@@ -81,7 +81,7 @@ print('ready:' + str(server.server_address[1]), flush=True)
 try:
     # EOF releases any slow request and shuts down only this fixture.
     for line in sys.stdin.buffer:
-        if line == b'release\n':
+        if line in (b'release\n', b'release\r\n'):
             release.set()
 finally:
     release.set()
