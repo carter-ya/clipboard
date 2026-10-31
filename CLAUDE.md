@@ -158,3 +158,9 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Desktop history activates through GTK row-activated or the native search-entry action. Capture IDs with rendered row order after List updates, copy through the existing writer/store path, and use the actual copy result before hiding a reachable window. Keep failed copies visible. Invalidate pending dismissal on hide/page/presentation changes and shutdown; never let a late completion close a newer session. Programmatic/native selection remains separate from activation. No keyboard/paste synthesis.
 
 - History metadata is display-only: build bounded localized date/source/image-result batches off the UI actor and reject stale refreshes. File names come only from copied URL references, without opening/statting targets, with 128-entry/64-KiB display limits and total-count/truncation guidance. Render names as individual rows, preserve original Copy payloads, and keep file metadata within existing sensitive-preview generation/revocation guards.
+
+- Private PowerShell fixture control pipes must explicitly use UTF-8 without a preamble before Process.Start. Retain the real BOM-refusal/EOF and held-request release regression; do not infer protocol success from an error screenshot taken after cleanup.
+
+- PowerShell wait diagnostic variables must not shadow predicate caller variables. Keep the real helper scope regression, exact public-control predicates and per-action deadlines; correct screenshots alone do not prove accessibility predicates succeeded.
+
+- The expanded offline Linux installed suite has a 1200-second aggregate budget within the 90-minute CI job. Preserve all native per-action deadlines, owned-service/process limits and assertions; a stalled individual operation must still fail promptly. This budget follows the recorded x64 600-second outer timeout during successful file/PDF checks.
