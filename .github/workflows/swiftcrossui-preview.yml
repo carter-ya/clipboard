@@ -48,11 +48,13 @@ jobs:
       CLIPBOARD_UI_DIAGNOSTICS: '1'
     steps:
       - uses: actions/checkout@v4
-      - name: Verify private fixture interpreter with an isolated PATH
+      - name: Verify private fixture interpreter and pipe encoding
         shell: pwsh
         run: |
           $FixturePython = (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
           ./tools/desktop-ui/test-private-fixture-python.ps1 -FixturePython $FixturePython
+          ./tools/desktop-ui/test-private-fixture-wire.ps1 -FixturePython $FixturePython
+          ./tools/desktop-ui/test-private-selection-scope.ps1
       - name: Verify private AI fixture response cancellation
         run: python tools/desktop-ui/test-ai-probe-errors.py
       - name: Verify private AI fixture pipe protocol
