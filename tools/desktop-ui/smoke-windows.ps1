@@ -50,6 +50,21 @@ public static class PreviewNative {
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr CreateWindowEx(
     uint extended, string className, string title, uint style, int x, int y, int width, int height,
     IntPtr parent, IntPtr menu, IntPtr instance, IntPtr parameter);
+  [UnmanagedFunctionPointer(CallingConvention.Winapi)] private delegate IntPtr WindowProcedure(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] private struct WindowClass {
+    public uint Style; public IntPtr Procedure; public int ClassExtra, WindowExtra;
+    public IntPtr Instance, Icon, Cursor, Background; public string MenuName, ClassName;
+  }
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr GetModuleHandle(string name);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern ushort RegisterClass(ref WindowClass windowClass);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern bool UnregisterClass(string name, IntPtr instance);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr DefWindowProc(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
+  [DllImport("user32.dll")] private static extern void PostQuitMessage(int code);
+  private static readonly WindowProcedure focusProcedure = FocusWindowProcedure;
+  private static IntPtr FocusWindowProcedure(IntPtr window, uint message, IntPtr wparam, IntPtr lparam) {
+    if (message == 0x0002) { PostQuitMessage(0); return IntPtr.Zero; }
+    return DefWindowProc(window, message, wparam, lparam);
+  }
   [StructLayout(LayoutKind.Sequential)] private struct Message {
     public IntPtr Window; public uint Id; public UIntPtr WParam; public IntPtr LParam;
     public uint Time; public int X, Y; public uint Private;
@@ -62,7 +77,8 @@ public static class PreviewNative {
   private static System.Threading.Thread focusThread;
   private static System.Threading.ManualResetEventSlim focusReady;
   private static uint focusThreadId;
-  private static IntPtr focusWindow;
+  private static IntPtr focusWindow, focusControl;
+  public static IntPtr GetFocusFixtureControl() { return focusControl; }
   public static IntPtr CreateFocusFixture() {
     if (focusThread != null) return IntPtr.Zero;
     var ready = focusReady = new System.Threading.ManualResetEventSlim(false);
@@ -71,23 +87,35 @@ public static class PreviewNative {
     // private focusable window on a separate STA thread with a real loop.
     focusThread = new System.Threading.Thread(() => {
       focusThreadId = GetCurrentThreadId();
-      focusWindow = CreateWindowEx(0, "EDIT", "Clipboard startup focus fixture", 0x10CF0000,
-                                 10, 10, 200, 100, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+      const string className = "ClipboardPrivateFocusFixture";
+      IntPtr instance = GetModuleHandle(null);
+      var windowClass = new WindowClass { Procedure = Marshal.GetFunctionPointerForDelegate(focusProcedure),
+        Instance = instance, Background = new IntPtr(6), ClassName = className };
+      if (RegisterClass(ref windowClass) == 0) { ready.Set(); return; }
+      focusWindow = CreateWindowEx(0, className, "Clipboard startup focus fixture", 0x12CF0000,
+                                 10, 10, 220, 120, IntPtr.Zero, IntPtr.Zero, instance, IntPtr.Zero);
+      if (focusWindow != IntPtr.Zero) {
+        focusControl = CreateWindowEx(0x200, "EDIT", "Synthetic focus target", 0x50010000,
+                                      10, 10, 180, 24, focusWindow, new IntPtr(1), instance, IntPtr.Zero);
+      }
       ready.Set();
-      if (focusWindow == IntPtr.Zero) return;
       try {
+        if (focusWindow == IntPtr.Zero || focusControl == IntPtr.Zero) return;
         Message message;
         while (GetMessage(out message, IntPtr.Zero, 0, 0) > 0) {
           TranslateMessage(ref message);
           DispatchMessage(ref message);
         }
-      } finally { DestroyWindow(focusWindow); }
+      } finally {
+        if (focusWindow != IntPtr.Zero) DestroyWindow(focusWindow);
+        UnregisterClass(className, instance);
+      }
     });
     focusThread.IsBackground = true;
     focusThread.SetApartmentState(System.Threading.ApartmentState.STA);
     focusThread.Start();
     if (!ready.Wait(10000)) { CloseFocusFixture(); return IntPtr.Zero; }
-    return focusWindow;
+    return focusControl == IntPtr.Zero ? IntPtr.Zero : focusWindow;
   }
   public static void CloseFocusFixture() {
     if (focusThread == null) return;
@@ -96,7 +124,7 @@ public static class PreviewNative {
       if (!focusThread.Join(5000)) return;
     }
     focusReady.Dispose(); focusReady = null;
-    focusThread = null; focusWindow = IntPtr.Zero; focusThreadId = 0;
+    focusThread = null; focusWindow = IntPtr.Zero; focusControl = IntPtr.Zero; focusThreadId = 0;
   }
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
   [DllImport("user32.dll")] public static extern bool OpenClipboard(IntPtr hwnd);
@@ -732,8 +760,9 @@ try {
       Add-Check 'startup_restore_preserves_native_editor_draft' (($currentEditor.GetRuntimeId() -join ',') -eq $settingsEditorID -and $currentEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -ceq '321')
       $focusFixture = [PreviewNative]::CreateFocusFixture()
       if ($focusFixture -eq [IntPtr]::Zero) { throw 'startup_focus_fixture' }
-      [Windows.Automation.AutomationElement]::FromHandle($focusFixture).SetFocus()
       [PreviewNative]::SetForegroundWindow($focusFixture) | Out-Null
+      $focusControl = [PreviewNative]::GetFocusFixtureControl()
+      [Windows.Automation.AutomationElement]::FromHandle($focusControl).SetFocus()
       Wait-For { [PreviewNative]::GetForegroundWindow() -eq $focusFixture } 'startup_settings_deactivated_without_unmap' | Out-Null
       $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath, $true)
       try { $key.SetValue($startupRegistrationName, $startupCommand, [Microsoft.Win32.RegistryValueKind]::String) }
