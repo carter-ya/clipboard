@@ -851,6 +851,13 @@ try:
                            stdout=log, stderr=log, start_new_session=True)
     wait_for(lambda: has_texts('Ready', '3 items'), 'activation_profile_ready')
     target = 'Welcome to Clipboard Preview'
+    def first_selection_is_release():
+        for node in nodes():
+            if node.getRole() == pyatspi.ROLE_LIST and 'Selection' in node.get_interfaces():
+                selection = node.querySelection()
+                if selection.nSelectedChildren == 1:
+                    return any(child.name == 'Release checklist · build, test, publish' for child in walk(selection.getSelectedChild(0)))
+        return False
     for round_index in range(2):
         peer = subprocess.Popen(['xclip', '-selection', 'clipboard', '-in', '-quiet'], stdin=subprocess.PIPE,
                                 stdout=subprocess.DEVNULL, stderr=log, start_new_session=True)
@@ -867,16 +874,9 @@ try:
                 check('filter_selection_does_not_copy_or_hide_history',
                       peer.poll() is None and read_activation_clipboard() == marker and window_visible())
                 editor().queryEditableText().setTextContents('Release checklist')
-                wait_for(lambda: has_text('1 items'), 'activation_select_other_item')
+                wait_for(lambda: has_text('1 items') and first_selection_is_release(), 'activation_select_other_item')
                 editor().queryEditableText().setTextContents('e')
                 wait_for(lambda: has_text('2 items'), 'activation_two_rows')
-                def first_selection_is_release():
-                    for node in nodes():
-                        if node.getRole() == pyatspi.ROLE_LIST and 'Selection' in node.get_interfaces():
-                            selection = node.querySelection()
-                            if selection.nSelectedChildren == 1:
-                                return any(child.name == 'Release checklist · build, test, publish' for child in walk(selection.getSelectedChild(0)))
-                    return False
                 wait_for(first_selection_is_release, 'activation_native_preview_selection')
                 check('native_selection_previews_without_activating',
                       peer.poll() is None and read_activation_clipboard() == marker and window_visible())
