@@ -741,8 +741,7 @@ try:
     click('Export history')
     name_entry = wait_for(lambda: next((n for n in nodes() if n.name == 'Name:' and 'EditableText' in n.get_interfaces()), None), 'archive_save_filename')
     check('native_archive_save_dialog_defaults_to_zip', name_entry.queryText().getText(0, name_entry.queryText().characterCount) == 'clipboard-history.zip')
-    archive_path = history_root / 'native-export.zip'
-    name_entry.queryEditableText().setTextContents(str(archive_path))
+    archive_path = history_root / 'clipboard-history.zip'
     click('Save')
     wait_for(lambda: archive_path.exists() and has_text('History exported. Sensitive items excluded.'), 'archive_export_finished')
     import zipfile
@@ -754,13 +753,13 @@ try:
     wait_for(lambda: has_text('History cleared'), 'archive_source_cleared')
     click('Import history')
     wait_for(lambda: has_text('Open'), 'archive_open_dialog')
-    activate_archive_file_with_pointer('native-export.zip')
+    activate_archive_file_with_pointer('clipboard-history.zip')
     wait_for(lambda: has_text('Imported 3 items; 0 skipped; 0 missing blobs.'), 'archive_native_round_trip')
     restored = json.loads((history_root / 'history.json').read_text())
     check('native_archive_import_preserves_original_order_and_content', [i['sha256'] for i in restored['items']] == [i['sha256'] for i in exported['items']])
     click('Import history')
     wait_for(lambda: has_text('Open'), 'archive_duplicate_dialog')
-    activate_archive_file_with_pointer('native-export.zip')
+    activate_archive_file_with_pointer('clipboard-history.zip')
     wait_for(lambda: has_text('Imported 0 items; 3 skipped; 0 missing blobs.'), 'archive_duplicate_result')
     check('native_archive_duplicate_import_is_counted', len(json.loads((history_root / 'history.json').read_text())['items']) == 3)
     click('Quit Clipboard')
