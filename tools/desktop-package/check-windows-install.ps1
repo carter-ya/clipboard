@@ -32,7 +32,7 @@ $Completed = $false
 $OriginalPath = $env:Path
 # Resolve the test-only interpreter before excluding development paths. Pass it
 # directly to the fixture; never add its directory to the application PATH.
-$FixturePython = (Get-Command python -CommandType Application -ErrorAction Stop).Source
+$FixturePython = (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 function Check([string]$Name, [bool]$Passed) {
   $Checks.Add(@{ name=$Name; passed=$Passed })
   Write-Host ($Name + ': ' + $Passed)
