@@ -109,3 +109,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - OCR replacement waits for the native image preview before deleting the old image; an equal one-item count from the previous File filter is not proof of selection.
 
 - Installer fixtures read an absent startup value as null through the registry key API; preserve the refusal of existing normal registrations. Cache compiled UI dependencies after a successful optimized build, before installation checks, and repair Windows tracked links on exact or fallback cache restores.
+
+- Responsive headers keep one HStack and one headerActions subtree. Change only the title branch; hidden zero-size geometry must not replace live Hide/Settings/recording buttons or retire their accessibility IDs.

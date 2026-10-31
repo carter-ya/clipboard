@@ -161,6 +161,10 @@ try:
     wait_for(lambda: all(button(label) and fully_visible(button(label), 960, 640)
                          for label in ['Copy', 'Pin / unpin', 'Delete']), 'wide_action_bounds')
     check('wide_item_actions_are_fully_visible', True)
+    header_controls = {label: wait_for(lambda label=label: button(label), 'header_' + label)
+                       for label in ['Start recording', 'Settings']}
+    if button('Hide'):
+        header_controls['Hide'] = button('Hide')
     screenshot('wide.png')
     resize(640, 480)
     wait_for(lambda: has_text('1 items') and editor(), 'compact_layout')
@@ -175,6 +179,15 @@ try:
         return rect.x >= 0 and rect.y >= 0 and rect.width > 0 and rect.height > 0 and rect.x + rect.width <= 640 and rect.y + rect.height <= 480
     wait_for(lambda: inside(copy), 'compact_copy_bounds')
     check('copy_toolbar_remains_inside_small_viewport', inside(copy))
+    def header_controls_still_live():
+        try:
+            return all(not node.getState().contains(pyatspi.STATE_DEFUNCT)
+                       and node.getState().contains(pyatspi.STATE_VISIBLE)
+                       and node == button(label)
+                       for label, node in header_controls.items())
+        except Exception:
+            return False
+    check('compact_layout_preserves_native_header_actions', header_controls_still_live())
     row = wait_for(lambda: next((node for node in nodes() if node.getRole() == pyatspi.ROLE_LIST_ITEM), None), 'visible_history_row')
     row_bounds = row.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
     check('history_row_remains_readable_inside_small_viewport', inside(row) and row_bounds.height >= 40)

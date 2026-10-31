@@ -67,19 +67,15 @@ struct HistoryView: View {
     .onChange(of: model.selectedID) { Task { @MainActor in await model.loadPreview() } }
   }
 
-  @ViewBuilder func header(compact: Bool) -> some View {
-    if compact {
-      HStack {
+  func header(compact: Bool) -> some View {
+    HStack {
+      if compact {
         Text(model.t("Clipboard")).font(.system(size: 22))
-        Spacer()
-        headerActions
-      }
-    } else {
-      HStack {
+      } else {
         title
-        Spacer()
-        headerActions
       }
+      Spacer()
+      headerActions
     }
   }
   var title: some View {
