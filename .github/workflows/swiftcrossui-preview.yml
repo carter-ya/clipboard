@@ -114,6 +114,7 @@ jobs:
           path: Desktop/.build
           key: desktop-release-v1-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved', 'Desktop/Package.swift', 'Core/Package.swift', 'Desktop/Patches/**') }}
           restore-keys: |
+            desktop-debug-v1-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved', 'Desktop/Package.swift', 'Core/Package.swift', 'Desktop/Patches/**') }}
             desktop-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved') }}
       - name: Restore dependency symbolic links on Windows
         if: runner.os == 'Windows' && steps.ui-cache.outputs.cache-matched-key != ''
@@ -143,6 +144,12 @@ jobs:
         run: |
           & swift build --package-path Core --scratch-path Desktop/.build --jobs 2 --product scenario-runner 2>&1 | Tee-Object -FilePath clipboard-peer-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save compiled debug dependencies before native UI validation
+        if: steps.ui-cache.outputs.cache-hit != 'true' && !startsWith(steps.ui-cache.outputs.cache-matched-key, 'desktop-debug-v1-')
+        uses: actions/cache/save@v4
+        with:
+          path: Desktop/.build
+          key: desktop-debug-v1-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved', 'Desktop/Package.swift', 'Core/Package.swift', 'Desktop/Patches/**') }}
       - name: Exercise GTK window and capture screenshots
         if: runner.os == 'Linux'
         shell: bash

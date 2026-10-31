@@ -33,6 +33,7 @@ limitations = [
 history_root = out / ('history-' + uuid.uuid4().hex)
 app = None
 wm = None
+sensitive_probe = False
 log = open(out / 'application.log', 'w')
 
 
@@ -447,21 +448,84 @@ try:
     wait_for(lambda: has_text('Preferences'), 'background_settings')
     click('Quit Clipboard')
     app.wait(timeout=10)
+    sensitive_probe = True
+    history_root = out / ('sensitive-preview-' + uuid.uuid4().hex)
+    app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root), '--smoke-sensitive'],
+                           stdout=log, stderr=log, start_new_session=True)
+    wait_for(lambda: has_text('Ready') and has_text('5 items'), 'sensitive_private_profile')
+    click('Image')
+    wait_for(lambda: has_text('1 items') and button('Reveal for this session') and has_text('Sensitive content is hidden.'), 'sensitive_image_masked')
+    check('sensitive_image_starts_masked', not any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()))
+    sensitive_type_control = button('Text')
+    click('Reveal for this session')
+    wait_for(lambda: any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()), 'sensitive_image_revealed')
+    check('explicit_sensitive_reveal_decodes_native_image', True)
+    check('revealed_sensitive_image_still_disables_ocr', not button('Recognize text').getState().contains(pyatspi.STATE_ENABLED))
+    click('Hide')
+    wait_for(lambda: not window_visible(), 'sensitive_window_hidden')
+    wake_existing()
+    wait_for(lambda: has_text('Sensitive content is hidden.') and button('Reveal for this session'), 'sensitive_remasked_after_hide')
+    check('hide_reopen_revokes_sensitive_reveal', not any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()))
+    check('sensitive_filter_identity_survives_one_hide', sensitive_type_control == button('Text') and
+          not sensitive_type_control.getState().contains(pyatspi.STATE_DEFUNCT))
+    click('Reveal for this session')
+    wait_for(lambda: any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()), 'sensitive_image_revealed_again')
+    click('Settings')
+    wait_for(lambda: has_text('Preferences'), 'sensitive_settings_handoff')
+    click('Back to history')
+    wait_for(lambda: has_text('Sensitive content is hidden.') and button('Reveal for this session'), 'sensitive_remasked_after_settings')
+    check('settings_handoff_revokes_sensitive_reveal', True)
+    sensitive_type_control = button('Text')  # Settings may legitimately rebuild history controls.
+    click('Reveal for this session')
+    click('Hide')
+    wait_for(lambda: not window_visible(), 'rapid_sensitive_hide')
+    wake_existing()
+    wait_for(lambda: has_text('Sensitive content is hidden.') and button('Reveal for this session'), 'rapid_reveal_remains_revoked')
+    check('rapid_reveal_hide_does_not_restore_sensitive_preview', not any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()))
+    check('sensitive_filter_controls_keep_native_identity', sensitive_type_control == button('Text') and
+          not sensitive_type_control.getState().contains(pyatspi.STATE_DEFUNCT))
+    click('Text')
+    wait_for(lambda: has_text('4 items') and button('Reveal for this session'), 'sensitive_text_masked')
+    secret = 'Sensitive synthetic preview fixture · 中文'
+    check('sensitive_text_starts_masked', not has_text(secret))
+    click('Reveal for this session')
+    wait_for(lambda: has_text(secret), 'sensitive_text_explicitly_revealed')
+    check('explicit_sensitive_reveal_displays_text', True)
+    wait_for(editor, 'sensitive_selection_change').queryEditableText().setTextContents('Welcome')
+    wait_for(lambda: has_text('1 items') and not has_text(secret), 'public_selection_after_reveal')
+    click('Image')
+    wait_for(lambda: has_text('0 items'), 'different_kind_after_reveal')
+    wait_for(editor, 'clear_sensitive_selection_search').queryEditableText().setTextContents('')
+    wait_for(lambda: has_text('1 items') and button('Reveal for this session'), 'selection_change_revoked_reveal')
+    check('selection_change_revokes_sensitive_reveal', not has_text(secret))
+    persisted = json.loads((history_root / 'history.json').read_text())
+    check('sensitive_reveal_keeps_history_memory_only', len(persisted['items']) == 3 and
+          all(not item['sensitive'] for item in persisted['items']) and not list((history_root / 'blobs').iterdir()))
+    click('Settings')
+    wait_for(lambda: has_text('Preferences'), 'sensitive_quit_settings')
+    click('Quit Clipboard')
+    app.wait(timeout=10)
+    check('sensitive_preview_quits_cleanly', app.returncode == 0)
+
 except Exception as error:
-    (out / 'probe-error.log').write_text(traceback.format_exc())
-    (out / 'x11-tree.txt').write_text(subprocess.check_output(['xwininfo', '-root', '-tree'], text=True))
-    diagnostic = []
-    for node in nodes():
+    if sensitive_probe:
+        checks.append({'name': 'sensitive_ui_probe', 'passed': False, 'detail': type(error).__name__})
+        (out / 'probe-error.log').write_text('Sensitive preview probe failed; content diagnostics suppressed.\n')
+    else:
+        (out / 'probe-error.log').write_text(traceback.format_exc())
+        (out / 'x11-tree.txt').write_text(subprocess.check_output(['xwininfo', '-root', '-tree'], text=True))
+        diagnostic = []
+        for node in nodes():
+            try:
+                diagnostic.append({'name': node.name, 'role': node.getRoleName(), 'interfaces': node.get_interfaces()})
+            except Exception:
+                pass
+        (out / 'accessibility-tree.json').write_text(json.dumps(diagnostic, ensure_ascii=False, indent=2))
+        checks.append({'name': 'ui_probe', 'passed': False, 'detail': str(error)[:160]})
         try:
-            diagnostic.append({'name': node.name, 'role': node.getRoleName(), 'interfaces': node.get_interfaces()})
+            screenshot('failure.png')
         except Exception:
             pass
-    (out / 'accessibility-tree.json').write_text(json.dumps(diagnostic, ensure_ascii=False, indent=2))
-    checks.append({'name': 'ui_probe', 'passed': False, 'detail': str(error)[:160]})
-    try:
-        screenshot('failure.png')
-    except Exception:
-        pass
 finally:
     if app and app.poll() is None:
         os.killpg(app.pid, signal.SIGTERM)
