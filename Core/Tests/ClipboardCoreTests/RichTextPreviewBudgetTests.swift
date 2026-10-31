@@ -46,6 +46,16 @@ final class RichTextPreviewBudgetTests: XCTestCase {
     XCTAssertTrue(rtfPreview.isTruncated)
   }
 
+  func testLegacyHTMLCharacterLimitsIncludeCombinedNumericEntities() {
+    let combined = String(repeating: "e&#769;", count: 256)
+    let payload = RawPayload(pasteboardType: "public.html", data: Data(combined.utf8))
+    XCTAssertEqual(
+      RichTextPreview.text(from: [payload], limit: 256), String(repeating: "e\u{301}", count: 256))
+    let family = String(repeating: "&#x1F468;&#x200D;&#x1F469;&#x200D;&#x1F467;", count: 8)
+    let emoji = RawPayload(pasteboardType: "public.html", data: Data(family.utf8))
+    XCTAssertEqual(RichTextPreview.text(from: [emoji], limit: 8), String(repeating: "👨‍👩‍👧", count: 8))
+  }
+
   func testRTFDisplayBudgetAndLegacyCallersRemainBounded() {
     let body = String(repeating: "x", count: 70_000)
     let payload = RawPayload(pasteboardType: "public.rtf", data: Data("{\\rtf1 \(body)}".utf8))

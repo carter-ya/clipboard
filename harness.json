@@ -212,7 +212,7 @@
           "scope": "Visible truncation and 64 KiB plain rendering for rich-only payloads",
           "status": "in_progress",
           "implemented": "HTML/RTF display previews expose truncation metadata, use the 64 KiB UTF-8 display budget, and report parser source/output-budget exhaustion. Rendering remains plain text without remote resources or embedded objects. Legacy row/analysis character limits and original Copy payloads stay intact. HTML parser output accounting is incremental.",
-          "validation": "Linux arm64: all 178 Core tests, optimized app build and all 61 native UI checks pass. Synthetic persisted HTML/RTF records show truncation notices, then independently read back the complete original native formats after Copy. Strict Swift formatting and Windows script syntax pass. Native Windows remains pending; upstream PR12 accessibility identity failure is still under investigation."
+          "validation": "Linux arm64: all 178 Core tests, optimized app build and all 61 native UI checks pass. Synthetic persisted HTML/RTF records show truncation notices, then independently read back the complete original native formats after Copy. Strict Swift formatting and Windows script syntax pass. Native Windows remains pending; upstream PR12 accessibility identity failure is still under investigation. Review regression: numeric combining entities and joined emoji reproduced premature legacy HTML truncation; legacy parsing now counts complete Swift Characters, independently of the incremental display scalar/UTF-8 budget. The confirming full Core suite has 179 tests."
         },
         {
           "id": "CP10",

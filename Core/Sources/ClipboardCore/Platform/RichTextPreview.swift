@@ -15,10 +15,12 @@ public enum RichTextPreview {
   }
 
   public static func text(from payloads: [RawPayload], limit: Int = 8000) -> String {
-    render(payloads, limit: min(16000, max(0, limit))).text
+    render(payloads, limit: min(16000, max(0, limit)), legacyCharacterLimit: true).text
   }
 
-  private static func render(_ payloads: [RawPayload], limit: Int) -> Result {
+  private static func render(
+    _ payloads: [RawPayload], limit: Int, legacyCharacterLimit: Bool = false
+  ) -> Result {
     for type in ["public.utf8-plain-text", "public.plain-text", "public.string"] {
       if let data = payloads.first(where: { $0.pasteboardType == type })?.data,
         let text = String(data: data, encoding: .utf8), !text.isEmpty
@@ -30,17 +32,20 @@ public enum RichTextPreview {
       return rtf(data, limit: limit)
     }
     if let data = payloads.first(where: { $0.pasteboardType == "public.html" })?.data {
-      return html(data, limit: limit)
+      return html(data, limit: limit, legacyCharacterLimit: legacyCharacterLimit)
     }
     return Result(text: "", isTruncated: false)
   }
-  private static func html(_ data: Data, limit: Int) -> Result {
+  private static func html(_ data: Data, limit: Int, legacyCharacterLimit: Bool) -> Result {
     let input = Array(String(decoding: data.prefix(256 * 1024), as: UTF8.self))
     var result = ""
     var index = 0
     var emitted = 0
     var hidden: String?
-    while index < input.count && emitted < limit {
+    // Legacy callers budget Swift Characters. Read through the next character
+    // so an entity extending the final grapheme is not cut off mid-cluster.
+    // Display rendering uses an incremental scalar budget before UTF-8 clipping.
+    while index < input.count && (legacyCharacterLimit ? result.count <= limit : emitted < limit) {
       let character = input[index]
       if character == "<" {
         let start = index + 1
