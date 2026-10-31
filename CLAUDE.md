@@ -157,7 +157,10 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Desktop history activates through GTK row-activated or the native search-entry action. Capture IDs with rendered row order after List updates, copy through the existing writer/store path, and use the actual copy result before hiding a reachable window. Keep failed copies visible. Invalidate pending dismissal on hide/page/presentation changes and shutdown; never let a late completion close a newer session. Programmatic/native selection remains separate from activation. No keyboard/paste synthesis.
 
-- Private PowerShell fixture control pipes must explicitly use UTF-8 without a preamble before Process.Start. Retain the real BOM-refusal/EOF and held-request release regression; do not infer protocol success from an error screenshot taken after cleanup.
+
+
+
+- Private PowerShell fixture control pipes use UTF-8 without a preamble when supported by modern .NET. Windows PowerShell 5.1 lacks ProcessStartInfo.StandardInputEncoding: guard that property and accept one optional UTF-8 BOM on the first private command in the server. Retain real held-request tests for BOM/no-BOM and LF/CRLF without EOF; never infer protocol success from a screenshot after cleanup.
 
 - PowerShell wait diagnostic variables must not shadow predicate caller variables. Keep the real helper scope regression, exact public-control predicates and per-action deadlines; correct screenshots alone do not prove accessibility predicates succeeded.
 
