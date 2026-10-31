@@ -22,7 +22,15 @@ using System.Reflection;
 using System.Windows.Automation;
 public static class ClipboardStandardProviders {
   public static void Register(AssemblyName assembly) {
-    ClientSettings.RegisterClientSideProviderAssembly(assembly);
+    try {
+      ClientSettings.RegisterClientSideProviderAssembly(assembly);
+    } catch (System.NullReferenceException) {
+      // .NET Framework marks its default-proxy attempt consumed before walking
+      // reflection-generated PowerShell frames. That first walk can throw;
+      // a single explicit retry registers the requested table without that walk.
+      // Other failures, and any failure of the second call, remain hard errors.
+      ClientSettings.RegisterClientSideProviderAssembly(assembly);
+    }
   }
 }
 '@
