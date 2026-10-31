@@ -504,6 +504,7 @@ try:
     click('Image')
     wait_for(lambda: has_text('1 items') and button('Reveal for this session') and has_text('Sensitive content is hidden.'), 'sensitive_image_masked')
     check('sensitive_image_starts_masked', not any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()))
+    sensitive_type_control = button('Text')
     click('Reveal for this session')
     wait_for(lambda: any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()), 'sensitive_image_revealed')
     check('explicit_sensitive_reveal_decodes_native_image', True)
@@ -513,6 +514,8 @@ try:
     wake_existing()
     wait_for(lambda: has_text('Sensitive content is hidden.') and button('Reveal for this session'), 'sensitive_remasked_after_hide')
     check('hide_reopen_revokes_sensitive_reveal', not any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()))
+    check('sensitive_filter_identity_survives_one_hide', sensitive_type_control == button('Text') and
+          not sensitive_type_control.getState().contains(pyatspi.STATE_DEFUNCT))
     click('Reveal for this session')
     wait_for(lambda: any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()), 'sensitive_image_revealed_again')
     click('Settings')
@@ -520,12 +523,15 @@ try:
     click('Back to history')
     wait_for(lambda: has_text('Sensitive content is hidden.') and button('Reveal for this session'), 'sensitive_remasked_after_settings')
     check('settings_handoff_revokes_sensitive_reveal', True)
+    sensitive_type_control = button('Text')  # Settings may legitimately rebuild history controls.
     click('Reveal for this session')
     click('Hide')
     wait_for(lambda: not window_visible(), 'rapid_sensitive_hide')
     wake_existing()
     wait_for(lambda: has_text('Sensitive content is hidden.') and button('Reveal for this session'), 'rapid_reveal_remains_revoked')
     check('rapid_reveal_hide_does_not_restore_sensitive_preview', not any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()))
+    check('sensitive_filter_controls_keep_native_identity', sensitive_type_control == button('Text') and
+          not sensitive_type_control.getState().contains(pyatspi.STATE_DEFUNCT))
     click('Text')
     wait_for(lambda: has_text('4 items') and button('Reveal for this session'), 'sensitive_text_masked')
     secret = 'Sensitive synthetic preview fixture · 中文'

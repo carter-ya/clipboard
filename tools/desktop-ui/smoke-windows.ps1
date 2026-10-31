@@ -83,12 +83,16 @@ $window = $null
 $nativeWindowHandle = [IntPtr]::Zero
 $probeStarted = Get-Date
 $sensitiveProbe = $false
+$sensitiveStage = ""
+$sensitiveInitialBounds = [PreviewNative+Rect]::new()
 
 function Add-Check([string]$Name, [bool]$Passed) {
+  if ($script:sensitiveProbe) { $script:sensitiveStage = $Name }
   $script:checks.Add(@{ name = $Name; passed = $Passed })
   if (!$Passed) { throw $Name }
 }
 function Wait-For([scriptblock]$Predicate, [string]$Name) {
+  if ($script:sensitiveProbe) { $script:sensitiveStage = $Name }
   $deadline = [DateTime]::UtcNow.AddSeconds(40)
   while ([DateTime]::UtcNow -lt $deadline) {
     if ($script:application -and $script:application.HasExited) { throw ('application_exited_code_' + $script:application.ExitCode) }
@@ -526,6 +530,9 @@ try {
     Invoke-Button 'Image'
     Wait-For { (Find-Named '1 items') -and (Find-Named 'Reveal for this session') -and (Find-Named 'Sensitive content is hidden.') } 'sensitive_image_masked' | Out-Null
     Add-Check 'sensitive_image_starts_masked' ($null -eq (Get-ImagePreview))
+    [PreviewNative]::GetWindowRect($nativeWindowHandle, [ref]$sensitiveInitialBounds) | Out-Null
+    $sensitiveStage = 'sensitive_filter_initial_identity'
+    $sensitiveFilterID = ((Find-Named 'Text').GetRuntimeId() -join ',')
     Invoke-Button 'Reveal for this session'
     Wait-For { Get-ImagePreview } 'sensitive_image_revealed' | Out-Null
     Add-Check 'explicit_sensitive_reveal_decodes_native_image' $true
@@ -539,6 +546,7 @@ try {
     Wake-Existing
     Wait-For { (Find-Named 'Sensitive content is hidden.') -and (Find-Named 'Reveal for this session') } 'sensitive_remasked_after_hide' | Out-Null
     Add-Check 'hide_reopen_revokes_sensitive_reveal' ($null -eq (Get-ImagePreview))
+    Add-Check 'sensitive_filter_identity_survives_one_hide' (((Find-Named 'Text').GetRuntimeId() -join ',') -eq $sensitiveFilterID)
     Invoke-Button 'Reveal for this session'
     Wait-For { Get-ImagePreview } 'sensitive_image_revealed_again' | Out-Null
     Invoke-Button 'Settings'
@@ -546,12 +554,14 @@ try {
     Invoke-Button 'Back to history'
     Wait-For { (Find-Named 'Sensitive content is hidden.') -and (Find-Named 'Reveal for this session') } 'sensitive_remasked_after_settings' | Out-Null
     Add-Check 'settings_handoff_revokes_sensitive_reveal' $true
+    $sensitiveFilterID = ((Find-Named 'Text').GetRuntimeId() -join ',')
     Invoke-Button 'Reveal for this session'
     Invoke-Button 'Hide'
     Wait-For { [PreviewNative]::FindWindow([uint32]$application.Id) -eq [IntPtr]::Zero } 'rapid_sensitive_hide' | Out-Null
     Wake-Existing
     Wait-For { (Find-Named 'Sensitive content is hidden.') -and (Find-Named 'Reveal for this session') } 'rapid_reveal_remains_revoked' | Out-Null
     Add-Check 'rapid_reveal_hide_does_not_restore_sensitive_preview' ($null -eq (Get-ImagePreview))
+    Add-Check 'sensitive_filter_identity_survives_rapid_hide' (((Find-Named 'Text').GetRuntimeId() -join ',') -eq $sensitiveFilterID)
     Invoke-Button 'Text'
     Wait-For { (Find-Named '4 items') -and (Find-Named 'Reveal for this session') } 'sensitive_text_masked' | Out-Null
     $secret = 'Sensitive synthetic preview fixture · 中文'
@@ -578,8 +588,22 @@ try {
   }
 } catch {
   if ($sensitiveProbe) {
-    $checks.Add(@{ name = 'sensitive_ui_probe'; passed = $false; detail = $_.Exception.GetType().FullName })
+    $checks.Add(@{ name = 'sensitive_ui_probe'; passed = $false; detail = $sensitiveStage; errorType = $_.Exception.GetType().FullName })
     'Sensitive preview probe failed; content diagnostics suppressed.' | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'probe-error.log')
+    try {
+      $bounds = [PreviewNative+Rect]::new()
+      [PreviewNative]::GetWindowRect($nativeWindowHandle, [ref]$bounds) | Out-Null
+      @{ stage = $sensitiveStage; width = $bounds.Right - $bounds.Left; height = $bounds.Bottom - $bounds.Top;
+         initialWidth = $sensitiveInitialBounds.Right - $sensitiveInitialBounds.Left;
+         initialHeight = $sensitiveInitialBounds.Bottom - $sensitiveInitialBounds.Top;
+         compactFiltersControl = [bool]((Find-Named 'Filters') -or (Find-Named 'Hide filters'));
+         textFilterControl = [bool](Find-Named 'Text'); fourItems = [bool](Find-Named '4 items');
+         masked = [bool](Find-Named 'Sensitive content is hidden.');
+         revealControl = [bool](Find-Named 'Reveal for this session');
+         emptyPreview = [bool](Find-Named 'Choose an item to preview its content.');
+         nativeImage = [bool](Get-ImagePreview) } | ConvertTo-Json -Depth 3 |
+        Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'sensitive-control-metadata.json')
+    } catch { }
   } else {
     $checks.Add(@{ name = 'ui_probe'; passed = $false; detail = $_.Exception.Message })
     try {
