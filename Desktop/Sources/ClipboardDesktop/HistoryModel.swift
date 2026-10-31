@@ -684,7 +684,9 @@ final class HistoryModel: ObservableObject {
     }
   }
   @MainActor func setAppearance(_ value: String) async {
-    guard let settingsStore else { return }
+    guard !applyingSettings, let settingsStore else { return }
+    applyingSettings = true
+    defer { applyingSettings = false }
     var next = settings
     next.appearance = value
     do {
@@ -697,7 +699,9 @@ final class HistoryModel: ObservableObject {
     } catch { status = "Settings could not be saved." }
   }
   @MainActor func setLanguage(_ value: String?) async {
-    guard let settingsStore else { return }
+    guard !applyingSettings, let settingsStore else { return }
+    applyingSettings = true
+    defer { applyingSettings = false }
     var next = settings
     next.languageOverride = value
     do {
