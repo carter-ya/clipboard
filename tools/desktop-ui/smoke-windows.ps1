@@ -1641,6 +1641,76 @@ try {
     Add-Check 'analysis_retry_sends_only_selected_synthetic_item_without_keys_or_cookies' ($fixtureReport.requests -eq 2 -and $fixtureReport.fixedTestsOnly -and $fixtureReport.noAuthorization -and $fixtureReport.noCookies)
     $probeServer.Dispose()
 
+    $serverInfo = New-Object Diagnostics.ProcessStartInfo
+    $serverInfo.FileName = (Resolve-PrivateFixturePython $FixturePython)
+    $serverInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'ai-probe-server.py') + '"'
+    $serverInfo.UseShellExecute = $false
+    $serverInfo.RedirectStandardInput = $true
+    $serverInfo.RedirectStandardOutput = $true
+    $serverInfo.RedirectStandardError = $true
+    $serverInfo.EnvironmentVariables['CLIPBOARD_PRIVATE_AI_TEST'] = '1'
+    $serverInfo.EnvironmentVariables['CLIPBOARD_PRIVATE_AI_MODE'] = 'fallback'
+    $probeServer = [Diagnostics.Process]::Start($serverInfo)
+    try {
+      $ready = $probeServer.StandardOutput.ReadLineAsync()
+      if (!$ready.Wait(10000) -or $ready.Result -notmatch '^ready:([0-9]+)$') { throw 'fallback_server_ready' }
+      $endpoint = 'http://127.0.0.1:' + $Matches[1] + '/v1'
+      $historyRoot = Join-Path $OutputDirectory ('analysis-fallback-' + [Guid]::NewGuid().ToString('N'))
+      [IO.Directory]::CreateDirectory($historyRoot) | Out-Null
+      $lead = 'Local fallback fixture begins with a useful sentence.'
+      $body = $lead + (' More local context.' * 10)
+      $bytes = [Text.Encoding]::UTF8.GetBytes($body)
+      $sha = [Security.Cryptography.SHA256]::Create()
+      try { $hash = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '').ToLowerInvariant() }
+      finally { $sha.Dispose() }
+      $item = @{ id = [Guid]::NewGuid().ToString(); createdAt = '2023-11-14T22:13:20Z';
+        kind = 'text'; preview = 'Fallback fixture'; pinned = $false; sensitive = $false;
+        sha256 = $hash; sizeBytes = $bytes.Length;
+        payloads = @(@{ pasteboardType = 'public.utf8-plain-text'; inlineData = [Convert]::ToBase64String($bytes) }) }
+      [IO.File]::WriteAllText((Join-Path $historyRoot 'history.json'),
+        (@{ version = 1; items = @($item) } | ConvertTo-Json -Depth 12), [Text.UTF8Encoding]::new($false))
+      $settingsFile = Join-Path $historyRoot 'desktop-settings.json'
+      $configuration = @{ ai = @{ enabled = $true; allowText = $true; allowImages = $false; allowFiles = $false;
+        usesCredential = $false; endpoint = $endpoint; model = 'fixture-model'; timeoutSeconds = 60 } }
+      [IO.File]::WriteAllText($settingsFile, ($configuration | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+      $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+        -ArgumentList @('--data-root', ('"' + $historyRoot + '"')) -PassThru `
+        -RedirectStandardOutput (Join-Path $OutputDirectory 'fallback.stdout.log') `
+        -RedirectStandardError (Join-Path $OutputDirectory 'fallback.stderr.log')
+      $null = $application.Handle
+      $nativeWindowHandle = Wait-For { $h = [PreviewNative]::FindWindow([uint32]$application.Id); if ($h -ne [IntPtr]::Zero) { $h } } 'fallback_window'
+      $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+      Wait-For { (Find-Named 'Ready') -and (Find-Named '1 items') } 'fallback_profile_ready' | Out-Null
+      Invoke-Button 'Summarize'
+      Wait-For { (Find-Named 'Could not generate a summary.') -and (Find-Named 'Retry summary') } 'fallback_without_permission_failed' | Out-Null
+      Add-Check 'remote_failure_does_not_run_unapproved_local_analysis' (!(Read-SharedJson (Join-Path $historyRoot 'history.json')).items[0].summary)
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Preferences' } 'fallback_preferences' | Out-Null
+      Invoke-VisibleConnectionButton 'Enable local text summaries'
+      Invoke-VisibleConnectionButton 'Save AI settings'
+      Wait-For { (Read-SharedJson $settingsFile).localTextSummariesEnabled } 'fallback_permission_saved' | Out-Null
+      Invoke-Button 'Back to history'
+      Invoke-Button 'Retry summary'
+      Wait-For { (Find-Named 'Summary ready') -and (Find-Named 'Local excerpt') -and (Find-Named $lead) } 'fallback_local_result_ready' | Out-Null
+      $savedItem = (Read-SharedJson (Join-Path $historyRoot 'history.json')).items[0]
+      Add-Check 'remote_failure_falls_back_to_explicitly_enabled_local_excerpt' ($savedItem.summarySource -ceq 'localExtractive' -and
+        $savedItem.summary -ceq $lead -and [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($savedItem.payloads[0].inlineData)) -ceq $body)
+      Save-Screenshot 'remote-local-fallback.png'
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Preferences' } 'fallback_quit_settings' | Out-Null
+      Invoke-Button 'Quit Clipboard'
+      if (!$application.WaitForExit(10000)) { throw 'fallback_quit_timeout' }
+      Add-Check 'fallback_profile_quits_cleanly' ($application.ExitCode -eq 0)
+    } finally {
+      $probeServer.StandardInput.Close()
+      if (!$probeServer.WaitForExit(10000)) { $probeServer.Kill(); $probeServer.WaitForExit() }
+    }
+    $reportRead = $probeServer.StandardOutput.ReadLineAsync()
+    if (!$reportRead.Wait(5000)) { throw 'fallback_server_report' }
+    $fixtureReport = $reportRead.Result | ConvertFrom-Json
+    Add-Check 'fallback_retries_send_only_two_fixed_requests_without_credentials_or_cookies' ($fixtureReport.requests -eq 2 -and $fixtureReport.fixedTestsOnly -and $fixtureReport.noAuthorization -and $fixtureReport.noCookies)
+    $probeServer.Dispose()
+
     $sensitiveProbe = $true
     $historyRoot = Join-Path $OutputDirectory ('sensitive-preview-' + [Guid]::NewGuid().ToString('N'))
     $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
