@@ -30,6 +30,9 @@ $Checks = [Collections.Generic.List[object]]::new()
 $App = $null
 $Completed = $false
 $OriginalPath = $env:Path
+# Resolve the test-only interpreter before excluding development paths. Pass it
+# directly to the fixture; never add its directory to the application PATH.
+$FixturePython = (Get-Command python -CommandType Application -ErrorAction Stop).Source
 function Check([string]$Name, [bool]$Passed) {
   $Checks.Add(@{ name=$Name; passed=$Passed })
   Write-Host ($Name + ': ' + $Passed)
@@ -80,7 +83,7 @@ try {
       $HiddenResources[$Hidden] = $_.FullName
     }
     & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
-      -ClipboardPeer $ClipboardPeer -OCRFixture $OCRFixture -LifecycleCycles 20 -OutputDirectory (Join-Path $Output 'ui')
+      -ClipboardPeer $ClipboardPeer -OCRFixture $OCRFixture -FixturePython $FixturePython -LifecycleCycles 20 -OutputDirectory (Join-Path $Output 'ui')
     Check 'installed_gui_and_services_pass_with_bundled_runtime' ($LASTEXITCODE -eq 0)
   } finally {
     foreach ($Hidden in $HiddenResources.Keys) {
