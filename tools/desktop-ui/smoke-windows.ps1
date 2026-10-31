@@ -163,6 +163,14 @@ public static class PreviewNative {
     GetWindowThreadProcessId(WindowFromPoint(new Point { X = x, Y = y }), out owner);
     return owner == processId && SetCursorPos(x, y);
   }
+  public static bool ClickOwnedControl(uint processId, int x, int y) {
+    if (!HoverOwnedControl(processId, x, y)) return false;
+    var inputs = new[] {
+      new PointerInput { Mouse = new MouseInput { Flags = 0x0002 } },
+      new PointerInput { Mouse = new MouseInput { Flags = 0x0004 } }
+    };
+    return SendInput(2, inputs, Marshal.SizeOf(typeof(PointerInput))) == 2;
+  }
   public static bool WheelOwnedControl(uint processId, int x, int y, bool down) {
     if (!HoverOwnedControl(processId, x, y)) return false;
     var input = new PointerInput { Mouse = new MouseInput {
@@ -972,6 +980,105 @@ try {
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'counted_history_quit_timeout' }
     Add-Check 'counted_history_quits_cleanly' ($application.ExitCode -eq 0)
+
+    if ($env:GITHUB_ACTIONS -ne 'true') { throw 'row_pointer_fixture_requires_isolated_runner' }
+    function Get-PublicHistoryRow([string]$Label) {
+      return Wait-For {
+        $candidate = Find-Named $Label
+        for ($depth = 0; $depth -lt 16 -and $candidate; $depth++) {
+          if ($candidate.Current.ControlType -eq [Windows.Automation.ControlType]::ListItem) {
+            if (!$candidate.Current.IsOffscreen -and $candidate.Current.IsEnabled) { return $candidate }
+            return $null
+          }
+          $candidate = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($candidate)
+        }
+        return $null
+      } 'native_history_row'
+    }
+    function Click-PublicHistoryRow([string]$Label) {
+      $row = Get-PublicHistoryRow $Label
+      $bounds = $row.Current.BoundingRectangle
+      if ($bounds.Width -le 0 -or $bounds.Height -le 0 -or
+          ![PreviewNative]::ClickOwnedControl([uint32]$application.Id, [int]($bounds.X + $bounds.Width / 2), [int]($bounds.Y + $bounds.Height / 2))) {
+        throw 'native_history_row_pointer'
+      }
+    }
+    $historyRoot = Join-Path $OutputDirectory ('history-activation-' + [Guid]::NewGuid().ToString('N'))
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+      -ArgumentList @('--smoke-root', ('"' + $historyRoot + '"')) -PassThru `
+      -RedirectStandardOutput (Join-Path $OutputDirectory 'activation.stdout.log') `
+      -RedirectStandardError (Join-Path $OutputDirectory 'activation.stderr.log')
+    $null = $application.Handle
+    $nativeWindowHandle = Wait-For { $h = [PreviewNative]::FindWindow([uint32]$application.Id); if ($h -ne [IntPtr]::Zero) { $h } } 'activation_window'
+    $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'activation_profile_ready' | Out-Null
+    $activationTarget = 'Welcome to Clipboard Preview'
+    foreach ($roundIndex in 0..1) {
+      $revision = [PreviewNative]::GetClipboardSequenceNumber()
+      if ($roundIndex -eq 0) {
+        Set-Search 'Welcome'
+        Wait-For { (Find-Named '1 items') -and (Find-Named $activationTarget) } 'activation_single_row' | Out-Null
+        Add-Check 'filter_selection_does_not_copy_or_hide_history' ([PreviewNative]::GetClipboardSequenceNumber() -eq $revision -and [PreviewNative]::FindWindow([uint32]$application.Id) -ne [IntPtr]::Zero)
+        Set-Search 'Release checklist'
+        Wait-For {
+          $selectedRow = Get-PublicHistoryRow 'Release checklist · build, test, publish'
+          (Find-Named '1 items') -and $selectedRow.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected
+        } 'activation_select_other_item' | Out-Null
+        Set-Search 'e'
+        Wait-For { Find-Named '2 items' } 'activation_two_rows' | Out-Null
+        Wait-For {
+          $selectedRow = Get-PublicHistoryRow 'Release checklist · build, test, publish'
+          $selectedRow.GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected
+        } 'activation_native_preview_selection' | Out-Null
+        Add-Check 'native_selection_previews_without_activating' ([PreviewNative]::GetClipboardSequenceNumber() -eq $revision -and [PreviewNative]::FindWindow([uint32]$application.Id) -ne [IntPtr]::Zero)
+      }
+      Click-PublicHistoryRow $activationTarget
+      Wait-For { [PreviewNative]::GetClipboardSequenceNumber() -ne $revision } 'native_row_copies_to_clipboard' | Out-Null
+      Add-Check ('native_row_activation_copies_original_' + $roundIndex) ([PreviewNative]::ReadClipboard() -ceq $activationTarget)
+      Wait-For { [PreviewNative]::FindWindow([uint32]$application.Id) -eq [IntPtr]::Zero } 'native_row_hides_after_success' | Out-Null
+      Add-Check ('native_row_activation_hides_after_success_' + $roundIndex) (!$application.HasExited)
+      $snapshot = (Read-SharedJson (Join-Path $historyRoot 'history.json')).items
+      Add-Check ('native_row_activation_promotes_original_' + $roundIndex) ($snapshot.Count -eq 3 -and $snapshot[0].preview -ceq $activationTarget)
+      Wake-Existing
+      Wait-For { (Find-Named '2 items') -and (Get-EditorWithValue 'e') } 'activation_reopen_retains_query' | Out-Null
+    }
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'activation_quit_settings' | Out-Null
+    Invoke-Button 'Quit Clipboard'
+    if (!$application.WaitForExit(10000)) { throw 'activation_quit_timeout' }
+    Add-Check 'activation_profile_quits_cleanly' ($application.ExitCode -eq 0)
+
+    $historyRoot = Join-Path $OutputDirectory ('activation-failure-' + [Guid]::NewGuid().ToString('N'))
+    [IO.Directory]::CreateDirectory($historyRoot) | Out-Null
+    $badID = [Guid]::NewGuid().ToString()
+    $badBytes = [Text.Encoding]::UTF8.GetBytes('synthetic unsupported')
+    $hasher = [Security.Cryptography.SHA256]::Create()
+    try { $badHash = ([BitConverter]::ToString($hasher.ComputeHash($badBytes))).Replace('-', '').ToLowerInvariant() }
+    finally { $hasher.Dispose() }
+    $badItem = @{ id=$badID; createdAt='2023-11-14T22:13:20Z'; kind='text'; preview='Unsupported activation fixture';
+      pinned=$false; sensitive=$false; sha256=$badHash; sizeBytes=$badBytes.Length;
+      payloads=@(@{ pasteboardType='com.clipboard.synthetic-unsupported'; inlineData=[Convert]::ToBase64String($badBytes) }) }
+    [IO.File]::WriteAllText((Join-Path $historyRoot 'history.json'),
+      (@{ version=1; items=@($badItem) } | ConvertTo-Json -Depth 12), [Text.UTF8Encoding]::new($false))
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+      -ArgumentList @('--data-root', ('"' + $historyRoot + '"')) -PassThru `
+      -RedirectStandardOutput (Join-Path $OutputDirectory 'activation-failure.stdout.log') `
+      -RedirectStandardError (Join-Path $OutputDirectory 'activation-failure.stderr.log')
+    $null = $application.Handle
+    $nativeWindowHandle = Wait-For { $h = [PreviewNative]::FindWindow([uint32]$application.Id); if ($h -ne [IntPtr]::Zero) { $h } } 'activation_failure_window'
+    $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '1 items') -and (Find-Named 'Unsupported activation fixture') } 'activation_failure_profile' | Out-Null
+    Click-PublicHistoryRow 'Unsupported activation fixture'
+    Wait-For { Find-Named 'Clipboard is unavailable in this session.' } 'activation_failed_copy_reported' | Out-Null
+    Add-Check 'failed_native_row_copy_keeps_window_visible' ([PreviewNative]::FindWindow([uint32]$application.Id) -ne [IntPtr]::Zero)
+    Save-Screenshot 'row-activation-copy-failure.png'
+    $snapshot = (Read-SharedJson (Join-Path $historyRoot 'history.json')).items
+    Add-Check 'failed_native_row_copy_does_not_promote_or_rewrite_original' ($snapshot[0].id -eq $badID -and $snapshot[0].createdAt -eq $badItem.createdAt)
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'activation_failure_quit_settings' | Out-Null
+    Invoke-Button 'Quit Clipboard'
+    if (!$application.WaitForExit(10000)) { throw 'activation_failure_quit_timeout' }
+    Add-Check 'activation_failure_profile_quits_cleanly' ($application.ExitCode -eq 0)
 
     $historyRoot = Join-Path $OutputDirectory ('history-selection-' + [Guid]::NewGuid().ToString('N'))
     [IO.Directory]::CreateDirectory($historyRoot) | Out-Null

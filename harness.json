@@ -177,9 +177,9 @@
           "status": "in_progress",
           "implemented": "A successful native copy immediately bumps the item to the top and flushes/refreshes even with capture paused; failures do not promote. Windows and Linux native UI fixtures now copy an older filtered item and require new persisted ordering plus independent clipboard readback.",
           "remaining": [
-            "Selection/reset and keyboard interaction audit against App/HistoryPanelViewModel.swift and App/HistoryPanelView.swift",
-            "Image hover/peek parity; sensitive reveal is tracked separately",
-            "Rich-only text truncation indicators and source/file display metadata"
+            "Readable source/file metadata and image-row analysis-result snippets",
+            "Final native Windows acceptance of selection/reset and activation follow-ups",
+            "Physical keyboard/IME/hotkey focus and mixed-DPI acceptance in Desktop/TESTING.md"
           ],
           "validation": "Optimized Linux arm64 app builds; all 34 native UI checks passed, including the older-item copy promotion regression, native text/image/file readback, OCR, language/theme, settings and hide/reopen. Windows script syntax passes; real Windows runtime and final platform CI are pending."
         },
@@ -191,7 +191,18 @@
           "implemented": "History presentation clears the transient kind and selects the first matching row while preserving query, tab and source filters. Changing tabs clears the kind; changing kinds selects the first visible row. Repeating an already active filter does not disturb selection. Deleting the selected row prefers the next visible neighbor, then the previous when deleting the last row. Sensitive preview revocation still follows selection.",
           "validation": "A new isolated native Linux profile reproduces the stale reopened selection on the previous build via independent original-content Copy readback. The fixed optimized build passes all nine focused checks, covering reopen, kind/tab reset, middle/last deletion, real fresh clipboard ownership and clean quit. Windows script syntax/native helper compilation pass. All 128 complete native Linux UI/privacy checks now pass, including inherited file, analysis, archive and sensitive-preview gates. Hosted Windows/installed checks remain pending.",
           "remaining": [
-            "Keyboard/IME and row activation audit; no synthesized keyboard input or physical-input acceptance is claimed."
+            "Physical keyboard/IME acceptance remains open; native row activation is tracked in CP9_history_activation."
+          ]
+        },
+        {
+          "id": "CP9_history_activation",
+          "branch": "codex/cross-platform-history-activation",
+          "scope": "Native history row activation copies the original and dismisses its successful presentation",
+          "status": "in_progress",
+          "implemented": "GTK row-activated handles actual single-click and native keyboard activation while leaving row selection intact. The current rendered order is captured after native List updates so a delayed row index cannot copy a differently ordered item. Search-entry activation shares the same path. Success uses the actual copy outcome, promotes/flushes through the existing store, and hides only when the existing shell can reopen the window. Failure retains the window and error. Core presentation epochs and duplicate suppression prevent a late copy closing a newer page/session; hide, history/preferences handoff and shutdown invalidate dismissal. No application keyboard or paste synthesis is introduced. History input and item actions are temporarily disabled during the owned activation copy, while Hide/Settings remain reachable; completion additionally checks the selected item and query/tab/kind/source context before dismissal.",
+          "validation": "All 253 Linux Core tests, two focused Mac activation-state tests, strict Core/App/Desktop lint and the existing Mac application Debug build pass. The previous binary fails the actual mouse-click/clipboard-ownership regression. The frozen optimized candidate passes all 14 focused and all 159 complete native Linux UI/privacy checks. A real native selection query proves another row is selected before clicking an older item; full independent clipboard readback, immediate persisted promotion, retained query and a second activation after row reordering all pass. Filter-driven selection neither copies nor hides. A private unsupported-payload item exercises real copy failure while retaining the visible error/window and original timestamp; its actual render is inspected. Both 100%/200% layout suites pass all eight checks. Offline runtime-only installation passes eight installation/upgrade/uninstall/integrity gates and all 189 complete installed UI/lifecycle checks without a Swift SDK or network. Windows probe syntax/native mouse helper definitions pass; exact-head hosted Windows remains required. No physical keyboard/IME/focus acceptance is claimed. Exact Windows 63ad67f passes all preceding controls but fails activation_native_preview_selection in 41228936342. The fixture waited only for an unchanged one-item count when replacing Welcome with Release, then immediately changed the query again. Require the actual Release row and native selected state before the second query, retaining the final two-row native selection proof and all clipboard/order/hide assertions. This is a fixture-order repair pending native confirmation. Exact 094f1ec Codex review identifies the same unchanged-count race in the Linux fixture. Move the existing native Selection-interface proof before the second query too; retain both pre-query and final two-row selected-state checks and all pointer/native-copy/hide/promotion assertions. No product behavior or timeout is changed. The tightened fixture passes all 14 actual native activation checks both against the optimized SDK build and the final packaged executable in a separate runtime-only, offline container. The stronger pre-query selected-row proof passes without changing any deadline or production code.",
+          "remaining": [
+            "Physical keyboard/IME/focus delivery remains an interactive gate; native key bindings are wired but no keyboard input is synthesized in tests."
           ]
         },
         {
@@ -263,8 +274,8 @@
           "scope": "Preferences and localization",
           "status": "in_progress",
           "remaining": [
-            "Fractional and larger-than-16-MiB size-policy parity; equivalent filter choices",
-            "Accurate OS startup policy/ownership semantics and discoverable capability/conflict guidance"
+            "Final native Windows acceptance of the implemented fractional/large size policy",
+            "Audit equivalent filter choices and system startup approval/conflict guidance on real desktop sessions"
           ],
           "source_filter_validation": {
             "branch": "codex/cross-platform-source-filter-case",
@@ -301,9 +312,8 @@
           "scope": "Analysis feature parity",
           "status": "in_progress",
           "remaining": [
-            "Per-item analysis progress/failure/retry and matching per-kind opt-ins",
-            "Equivalent supported local summary capability with truthful availability; Apple frameworks remain Mac-only",
-            "Image, text and file handling with the same privacy gates and bounded services"
+            "Audit local image description/classification beyond OCR against the Mac Vision behavior with truthful platform availability",
+            "Final Windows/native package acceptance of text/file/PDF opt-ins, progress/retry, local excerpts and fallback"
           ],
           "connection_diagnostics": {
             "branch": "codex/cross-platform-ai-connection",
@@ -346,7 +356,7 @@
           "scope": "Distribution and platform acceptance",
           "status": "in_progress",
           "remaining": [
-            "Equivalent update discovery/manual update flow and secure installation path",
+            "Final native acceptance of the implemented desktop update discovery and manual installation flow",
             "Windows/Linux build/package/lifecycle verification for final feature heads",
             "Physical IME, shortcut/focus, monitor DPI, real desktop permissions, user paste and long-session gates in Desktop/TESTING.md"
           ],

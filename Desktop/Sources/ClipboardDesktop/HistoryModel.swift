@@ -1,3 +1,4 @@
+import CGtk
 import ClipboardCore
 import DesktopClipboard
 import DesktopServices
@@ -8,6 +9,7 @@ import SwiftCrossUI
 
 /// Presentation state; persistence, filters and native ownership stay in Core/adapters.
 final class HistoryModel: ObservableObject {
+  @Published var historyActivationBusy = false
   @Published var analysisBusy = false
   @Published var itemAnalysisProgress: [UUID: DesktopItemAnalysisProgress] = [:]
   @Published var updateBusy = false
@@ -90,6 +92,7 @@ final class HistoryModel: ObservableObject {
       })
   }()
   @MainActor private var startup: DesktopStartupState?
+  @MainActor private lazy var historyActivation = DesktopHistoryActivationState()
   @MainActor private lazy var analysisProgress = DesktopAnalysisProgressState {
     [weak self] in self?.itemAnalysisProgress = $0
   }
@@ -225,6 +228,7 @@ final class HistoryModel: ObservableObject {
       let presenter = GtkDesktopWindow()
       nativeWindow = presenter
       presenter.hidden = { [weak self] in
+        self?.historyActivation.invalidatePresentation()
         self?.resetSensitivePreview()
         self?.invalidateAIConnection()
         self?.cancelUpdateCheck()
@@ -261,12 +265,39 @@ final class HistoryModel: ObservableObject {
     searchEntry = entry
     entry.activate = { [weak self] _ in
       Task { @MainActor in
-        guard let self else { return }
-        await self.copySelected()
-        if self.status == "Copied to clipboard" { self.hide() }
+        guard let self, let id = self.selectedID else { return }
+        await self.activateHistoryItem(id: id)
       }
     }
     nativeWindow?.attachSearch(entry)
+  }
+
+  @MainActor func attachHistoryList(_ list: Gtk.ListBox, itemIDs: [UUID]) {
+    list.activateOnSingleClick = true
+    // The ID snapshot belongs to this rendered row order; do not resolve a
+    // delayed native row index against a newer model ordering.
+    list.rowActivated = { [weak self] _, row in
+      let index = Int(gtk_list_box_row_get_index(row))
+      guard itemIDs.indices.contains(index) else { return }
+      let id = itemIDs[index]
+      Task { @MainActor [weak self] in await self?.activateHistoryItem(id: id) }
+    }
+  }
+  @MainActor func activateHistoryItem(id: UUID) async {
+    guard ready, !shuttingDown, !showsSettings, nativeWindow?.isVisible == true,
+      !historyActivation.busy, let item = items.first(where: { $0.id == id })
+    else { return }
+    historyActivationBusy = true
+    defer { historyActivationBusy = false }
+    selectedID = id
+    let context = (query, onlyPinned, kindFilter, sourceFilter)
+    let dismiss = await historyActivation.activate { await self.copyItem(item) }
+    if dismiss && !shuttingDown && !showsSettings && nativeWindow?.isVisible == true,
+      selectedID == id, query == context.0, onlyPinned == context.1,
+      kindFilter == context.2, sourceFilter == context.3
+    {
+      hide()
+    }
   }
 
   @MainActor func loadPreview() async {
@@ -564,6 +595,7 @@ final class HistoryModel: ObservableObject {
   }
 
   @MainActor func showHistory() async {
+    historyActivation.invalidatePresentation()
     cancelUpdateCheck()
     invalidateAIConnection()
     if !ready { startupActivationRequested = true }
@@ -576,6 +608,7 @@ final class HistoryModel: ObservableObject {
     windowCoordinator?.showHistory()
   }
   @MainActor func showPreferences() {
+    historyActivation.invalidatePresentation()
     resetSensitivePreview()
     if !ready { startupActivationRequested = true }
     if !showsSettings { showsSettings = true }
@@ -675,18 +708,28 @@ final class HistoryModel: ObservableObject {
       throw error
     }
   }
-  @MainActor func copySelected() async {
-    guard let selected else { return }
+  @MainActor @discardableResult func copySelected() async -> Bool {
+    guard let selected else { return false }
+    return await copyItem(selected)
+  }
+  @MainActor private func copyItem(_ item: ClipItem) async -> Bool {
+    guard !shuttingDown else { return false }
     do {
       let writer = RichPasteboardWriter(
         clipboard: try await nativeClipboard(), blobRoot: root?.appendingPathComponent("blobs"))
-      try await Task.detached(priority: .userInitiated) { try writer.write(selected) }.value
+      guard !shuttingDown, !Task.isCancelled else { return false }
+      try await Task.detached(priority: .userInitiated) { try writer.write(item) }.value
+      guard !shuttingDown else { return false }
       // Match macOS activation even when capture is paused: promote only after a successful copy.
-      await store?.bumpToTop(id: selected.id)
+      await store?.bumpToTop(id: item.id)
       await store?.flush()
       await refresh()
       status = "Copied to clipboard"
-    } catch { status = "Clipboard is unavailable in this session." }
+      return true
+    } catch {
+      status = "Clipboard is unavailable in this session."
+      return false
+    }
   }
 
   @MainActor func toggleRecording() async { await setRecording(!recording) }
@@ -1173,6 +1216,7 @@ final class HistoryModel: ObservableObject {
   @MainActor func shutdown() async {
     guard !shuttingDown else { return }
     shuttingDown = true
+    historyActivation.stop()
     startup?.stop()
     aiConnection.stop()
     updates.stop()
