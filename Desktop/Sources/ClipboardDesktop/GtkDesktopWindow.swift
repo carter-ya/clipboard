@@ -20,6 +20,7 @@ private final class GtkActionBox: @unchecked Sendable {
   private var application: UnsafeMutablePointer<GApplication>?
   private var signals: [(UnsafeMutableRawPointer, gulong)] = []
   private var focusRequested = false
+  private var lastMappedWidth: Double?
   var activationToken: String?
   var activationTimestamp: UInt32 = 0
   var closeRequested: (@MainActor () -> Void)?
@@ -31,8 +32,20 @@ private final class GtkActionBox: @unchecked Sendable {
     return gtk_widget_get_visible(window.widgetPointer) != 0
   }
 
+  /// GeometryReader also evaluates measurement proposals while GTK is hidden.
+  /// Responsive branches must follow the allocated native viewport, not those
+  /// temporary proposals, or live controls are removed and recreated.
+  func responsiveWidth(fallback: Double) -> Double {
+    if let window, gtk_widget_get_mapped(window.widgetPointer) != 0 {
+      let width = gtk_widget_get_width(window.widgetPointer)
+      if width > 0 { lastMappedWidth = Double(width) }
+    }
+    return lastMappedWidth ?? fallback
+  }
+
   func attach(_ native: Gtk.Window) {
     guard window !== native else { return }
+    lastMappedWidth = nil
     window = native
     let pointer = UnsafeMutablePointer<GtkWindow>(OpaquePointer(native.widgetPointer))
     gtk_window_set_hide_on_close(pointer, 1)

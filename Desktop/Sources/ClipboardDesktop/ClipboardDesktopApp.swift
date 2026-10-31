@@ -41,14 +41,15 @@ struct HistoryView: View {
 
   var body: some View {
     GeometryReader { geometry in
-      let compact = geometry.size.width < 820
+      let viewportWidth = model.responsiveWidth(proposed: geometry.size.width)
+      let compact = viewportWidth < 820
       VStack(alignment: .leading, spacing: 12) {
         header(compact: compact)
         ScrollView {
           if model.showsSettings {
             settings
           } else {
-            history(compact: compact, compactFilters: geometry.size.width < 1100)
+            history(compact: compact, compactFilters: viewportWidth < 1100)
           }
         }.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
         if !model.showsSettings { itemActions }
