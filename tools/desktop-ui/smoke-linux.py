@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise accessible GTK controls in an isolated Xvfb/DBus desktop, no key injection."""
 import argparse
+import ctypes
 import json
 import os
 from pathlib import Path
@@ -54,6 +55,10 @@ def wait_for(predicate, name, seconds=30):
 def walk(node, depth=0):
     if depth > 60:
         return
+    try:
+        node.clearCache()
+    except Exception:
+        pass
     yield node
     try:
         for child in node:
@@ -122,6 +127,60 @@ def editor():
     return None
 
 
+def window_id():
+    tree = subprocess.check_output(['xwininfo', '-root', '-tree'], text=True)
+    for line in tree.splitlines():
+        if '\"Clipboard\"' in line:
+            return int(line.strip().split()[0], 16)
+    raise RuntimeError('native_window_missing')
+
+
+def window_visible():
+    state = subprocess.check_output(['xwininfo', '-id', hex(window_id()), '-stats'], text=True)
+    return 'Map State: IsViewable' in state
+
+
+def request_close():
+    # A window manager close request, never a synthesized key or paste event.
+    class ClientData(ctypes.Union):
+        _fields_ = [('b', ctypes.c_char * 20), ('s', ctypes.c_short * 10), ('l', ctypes.c_long * 5)]
+    class ClientMessage(ctypes.Structure):
+        _fields_ = [('type', ctypes.c_int), ('serial', ctypes.c_ulong), ('send_event', ctypes.c_int),
+                    ('display', ctypes.c_void_p), ('window', ctypes.c_ulong), ('message_type', ctypes.c_ulong),
+                    ('format', ctypes.c_int), ('data', ClientData)]
+    class Event(ctypes.Union):
+        _fields_ = [('client', ClientMessage), ('pad', ctypes.c_long * 24)]
+    x11 = ctypes.CDLL('libX11.so.6')
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    x11.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+    x11.XInternAtom.restype = ctypes.c_ulong
+    x11.XSendEvent.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.c_long, ctypes.POINTER(Event)]
+    x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+    display = x11.XOpenDisplay(None)
+    if not display:
+        raise RuntimeError('close_display_unavailable')
+    try:
+        event = Event()
+        event.client.type = 33
+        event.client.display = display
+        event.client.window = window_id()
+        event.client.message_type = x11.XInternAtom(display, b'WM_PROTOCOLS', 0)
+        event.client.format = 32
+        event.client.data.l[0] = x11.XInternAtom(display, b'WM_DELETE_WINDOW', 0)
+        if not x11.XSendEvent(display, event.client.window, 0, 0, ctypes.byref(event)):
+            raise RuntimeError('close_request_failed')
+    finally:
+        x11.XCloseDisplay(display)
+
+
+def wake_existing():
+    peer = subprocess.run([str(Path(args.executable).resolve()), '--data-root', str(history_root)],
+                          stdout=log, stderr=log, timeout=15)
+    check('secondary_launch_exits_without_new_store_owner', peer.returncode == 0 and app.poll() is None)
+    wait_for(lambda: window_visible() and has_text('Clipboard') and editor(),
+             'existing_window_reopened')
+
+
 def screenshot(name):
     tree = subprocess.check_output(['xwininfo', '-root', '-tree'], text=True)
     for line in tree.splitlines():
@@ -141,7 +200,8 @@ try:
     screenshot('history.png')
     edit = wait_for(editor, 'search_editable_control')
     try:
-        edit.queryComponent().grabFocus()
+        if not edit.getState().contains(pyatspi.STATE_FOCUSED):
+            edit.queryComponent().grabFocus()
         wait_for(lambda: editor().getState().contains(pyatspi.STATE_FOCUSED), 'programmatic_search_focus', seconds=5)
         check('native_search_control_focus', True)
     except Exception as error:
@@ -168,6 +228,19 @@ try:
     wait_for(lambda: has_text('1 items') and editor(), 'history_restored')
     wait_for(lambda: editor().queryText().getText(0, editor().queryText().characterCount) == '中文', 'restored_search_value')
     check('settings_round_trip_preserves_search', True)
+    wait_for(lambda: editor().getState().contains(pyatspi.STATE_FOCUSED), 'settings_return_focus')
+    check('settings_return_focuses_native_search', True)
+    click('Hide')
+    wait_for(lambda: not window_visible(), 'window_hidden')
+    wake_existing()
+    wait_for(lambda: editor().queryText().getText(0, editor().queryText().characterCount) == '中文', 'wake_search_value')
+    wait_for(lambda: editor().getState().contains(pyatspi.STATE_FOCUSED), 'wake_native_search_focus')
+    check('hide_and_secondary_launch_preserve_search_and_focus', True)
+    request_close()
+    wait_for(lambda: not window_visible(), 'close_hides_window')
+    check('native_close_keeps_existing_process_alive', app.poll() is None)
+    wake_existing()
+    check('native_close_reopen_preserves_query', editor().queryText().getText(0, editor().queryText().characterCount) == '中文')
     click('Delete')
     wait_for(lambda: has_text('Item deleted') and has_text('0 items'), 'delete_in_pinned_list')
     check('delete_updates_real_store', True)
@@ -176,8 +249,29 @@ try:
     wait_for(lambda: has_text('2 items'), 'remaining_history')
     history = json.loads((history_root / 'history.json').read_text())
     check('store_persistence_matches_ui', len(history['items']) == 2)
+    click('Settings')
+    wait_for(lambda: has_text('Preferences'), 'preferences_for_save')
+    click('Save behavior')
+    settings_file = history_root / 'desktop-settings.json'
+    wait_for(lambda: settings_file.exists(), 'saved_settings_file')
+    saved = json.loads(settings_file.read_text())
+    check('behavior_saved_without_enabling_recording', saved['recordingEnabled'] is False and saved['closeToTray'] is True)
+    click('Quit Clipboard')
+    app.wait(timeout=10)
+    check('explicit_quit_flushes_and_exits', app.returncode == 0)
+    history_root = out / ('production-empty-' + uuid.uuid4().hex)
+    app = subprocess.Popen([str(Path(args.executable).resolve()), '--data-root', str(history_root)],
+                           stdout=log, stderr=log, start_new_session=True)
+    wait_for(lambda: has_text('Ready') and has_text('0 items'), 'fresh_production_history')
+    check('normal_launch_has_no_sample_history_and_starts_paused', bool(button('Start recording')))
+    click('Settings')
+    wait_for(lambda: has_text('Preferences'), 'fresh_settings')
+    click('Quit Clipboard')
+    app.wait(timeout=10)
+    check('normal_launch_quits_cleanly', app.returncode == 0)
 except Exception as error:
     (out / 'probe-error.log').write_text(traceback.format_exc())
+    (out / 'x11-tree.txt').write_text(subprocess.check_output(['xwininfo', '-root', '-tree'], text=True))
     diagnostic = []
     for node in nodes():
         try:
