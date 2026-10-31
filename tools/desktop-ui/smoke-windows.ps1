@@ -50,9 +50,53 @@ public static class PreviewNative {
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern IntPtr CreateWindowEx(
     uint extended, string className, string title, uint style, int x, int y, int width, int height,
     IntPtr parent, IntPtr menu, IntPtr instance, IntPtr parameter);
+  [StructLayout(LayoutKind.Sequential)] private struct Message {
+    public IntPtr Window; public uint Id; public UIntPtr WParam; public IntPtr LParam;
+    public uint Time; public int X, Y; public uint Private;
+  }
+  [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] private static extern int GetMessage(out Message message, IntPtr window, uint min, uint max);
+  [DllImport("user32.dll")] private static extern bool TranslateMessage(ref Message message);
+  [DllImport("user32.dll")] private static extern IntPtr DispatchMessage(ref Message message);
+  [DllImport("user32.dll")] private static extern bool PostThreadMessage(uint thread, uint message, UIntPtr wparam, IntPtr lparam);
+  private static System.Threading.Thread focusThread;
+  private static System.Threading.ManualResetEventSlim focusReady;
+  private static uint focusThreadId;
+  private static IntPtr focusWindow;
   public static IntPtr CreateFocusFixture() {
-    return CreateWindowEx(0, "STATIC", "Clipboard startup focus fixture", 0x10CF0000,
-                          10, 10, 200, 100, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+    if (focusThread != null) return IntPtr.Zero;
+    var ready = focusReady = new System.Threading.ManualResetEventSlim(false);
+    // A native HWND on the busy PowerShell thread has no message pump and
+    // cannot reliably participate in activation or UI Automation. Own this
+    // private focusable window on a separate STA thread with a real loop.
+    focusThread = new System.Threading.Thread(() => {
+      focusThreadId = GetCurrentThreadId();
+      focusWindow = CreateWindowEx(0, "EDIT", "Clipboard startup focus fixture", 0x10CF0000,
+                                 10, 10, 200, 100, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+      ready.Set();
+      if (focusWindow == IntPtr.Zero) return;
+      try {
+        Message message;
+        while (GetMessage(out message, IntPtr.Zero, 0, 0) > 0) {
+          TranslateMessage(ref message);
+          DispatchMessage(ref message);
+        }
+      } finally { DestroyWindow(focusWindow); }
+    });
+    focusThread.IsBackground = true;
+    focusThread.SetApartmentState(System.Threading.ApartmentState.STA);
+    focusThread.Start();
+    if (!ready.Wait(10000)) { CloseFocusFixture(); return IntPtr.Zero; }
+    return focusWindow;
+  }
+  public static void CloseFocusFixture() {
+    if (focusThread == null) return;
+    if (focusThread.IsAlive) {
+      PostThreadMessage(focusThreadId, 0x0012, UIntPtr.Zero, IntPtr.Zero);
+      if (!focusThread.Join(5000)) return;
+    }
+    focusReady.Dispose(); focusReady = null;
+    focusThread = null; focusWindow = IntPtr.Zero; focusThreadId = 0;
   }
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
   [DllImport("user32.dll")] public static extern bool OpenClipboard(IntPtr hwnd);
@@ -688,6 +732,7 @@ try {
       Add-Check 'startup_restore_preserves_native_editor_draft' (($currentEditor.GetRuntimeId() -join ',') -eq $settingsEditorID -and $currentEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -ceq '321')
       $focusFixture = [PreviewNative]::CreateFocusFixture()
       if ($focusFixture -eq [IntPtr]::Zero) { throw 'startup_focus_fixture' }
+      [Windows.Automation.AutomationElement]::FromHandle($focusFixture).SetFocus()
       [PreviewNative]::SetForegroundWindow($focusFixture) | Out-Null
       Wait-For { [PreviewNative]::GetForegroundWindow() -eq $focusFixture } 'startup_settings_deactivated_without_unmap' | Out-Null
       $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath, $true)
@@ -722,7 +767,7 @@ try {
       if (!$application.WaitForExit(10000)) { throw 'startup_state_quit_timeout' }
       Add-Check 'startup_state_profile_quits_cleanly' ($application.ExitCode -eq 0)
     } finally {
-      if ($focusFixture -ne [IntPtr]::Zero) { [PreviewNative]::DestroyWindow($focusFixture) | Out-Null }
+      [PreviewNative]::CloseFocusFixture()
       if ($startupRegistrationName -and $startupCommand) {
         $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath, $true)
         if ($key) {
