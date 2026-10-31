@@ -6,7 +6,7 @@ on:
     paths:
       - Core/**
       - tools/desktop-ui/check-linux-*
-      - tools/desktop-ui/check-x11-error-routing.c
+      - tools/desktop-ui/check-x11-*.c
       - .github/workflows/swift-portability.yml
   pull_request:
     paths:
@@ -14,7 +14,7 @@ on:
       - App/**
       - project.yml
       - tools/desktop-ui/check-linux-*
-      - tools/desktop-ui/check-x11-error-routing.c
+      - tools/desktop-ui/check-x11-*.c
       - .github/workflows/swift-portability.yml
   workflow_dispatch:
 
@@ -100,6 +100,16 @@ jobs:
             & swift run --package-path Core scenario-runner platform-shell 2>&1 | Tee-Object -FilePath platform-shell.log
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify X11 shortcut event filtering without injecting keys
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -D_POSIX_C_SOURCE=200809L -pthread \
+            -I Core/Sources/CDesktopShell/include $(pkg-config --cflags dbus-1) \
+            tools/desktop-ui/check-x11-shortcut-events.c \
+            $(pkg-config --libs dbus-1) -lX11 -o "$RUNNER_TEMP/check-x11-shortcut-events"
+          "$RUNNER_TEMP/check-x11-shortcut-events"
       - name: Verify Linux tray protocol and actions in a private desktop
         if: runner.os == 'Linux'
         shell: bash

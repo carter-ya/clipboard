@@ -91,3 +91,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Surviving Windows widgets keep their accessible node IDs through context recreation. Their identity records use weak root references and are released with the widget; reparenting to another root receives a new ID.
 - X11 selection requestors may disappear before a reply. The clipboard adapter recovers BadWindow only on registered private connections and delegates other connections/errors to the prior host handler. The portability workflow permanently exercises cancelled requests and registry cleanup in private Xvfb.
+
+- Native X11 shortcut dispatch must require an acquired registration and exact configured keyboard modifiers. Ignore Caps Lock and the discovered Num Lock mask, retain held-key suppression, and test the native dispatcher directly without synthesizing keyboard input.
