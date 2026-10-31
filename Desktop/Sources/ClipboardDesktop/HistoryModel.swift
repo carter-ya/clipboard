@@ -521,6 +521,9 @@ final class HistoryModel: ObservableObject {
     invalidateAIConnection()
     if !ready { startupActivationRequested = true }
     if showsSettings { showsSettings = false }
+    // Each presentation starts at the first matching row, retaining query/tab/source.
+    kindFilter = nil
+    selectedID = nil
     await refresh()
     await Task.yield()
     windowCoordinator?.showHistory()
@@ -533,6 +536,20 @@ final class HistoryModel: ObservableObject {
     Task { @MainActor [weak self] in await self?.refreshStartup() }
   }
   @MainActor func hide() { if canHide { windowCoordinator?.hide() } }
+
+  @MainActor func selectTab(onlyPinned next: Bool) async {
+    guard onlyPinned != next else { return }
+    onlyPinned = next
+    kindFilter = nil
+    selectedID = nil
+    await refresh()
+  }
+  @MainActor func selectKind(_ next: ClipKind?) async {
+    guard kindFilter != next else { return }
+    kindFilter = next
+    selectedID = nil
+    await refresh()
+  }
 
   @MainActor func refresh() async {
     guard let store else { return }
@@ -567,6 +584,10 @@ final class HistoryModel: ObservableObject {
   }
   @MainActor func deleteSelected() async {
     guard let store, let selectedID else { return }
+    if let index = items.firstIndex(where: { $0.id == selectedID }) {
+      self.selectedID =
+        index + 1 < items.count ? items[index + 1].id : index > 0 ? items[index - 1].id : nil
+    }
     analysisScheduler.cancel(id: selectedID)
     await store.delete(id: selectedID)
     await store.flush()

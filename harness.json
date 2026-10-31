@@ -184,6 +184,17 @@
           "validation": "Optimized Linux arm64 app builds; all 34 native UI checks passed, including the older-item copy promotion regression, native text/image/file readback, OCR, language/theme, settings and hide/reopen. Windows script syntax passes; real Windows runtime and final platform CI are pending."
         },
         {
+          "id": "CP9_history_selection",
+          "branch": "codex/cross-platform-history-selection",
+          "scope": "Fresh history presentation, filter selection and neighboring deletion",
+          "status": "in_progress",
+          "implemented": "History presentation clears the transient kind and selects the first matching row while preserving query, tab and source filters. Changing tabs clears the kind; changing kinds selects the first visible row. Repeating an already active filter does not disturb selection. Deleting the selected row prefers the next visible neighbor, then the previous when deleting the last row. Sensitive preview revocation still follows selection.",
+          "validation": "A new isolated native Linux profile reproduces the stale reopened selection on the previous build via independent original-content Copy readback. The fixed optimized build passes all nine focused checks, covering reopen, kind/tab reset, middle/last deletion, real fresh clipboard ownership and clean quit. Windows script syntax/native helper compilation pass. All 128 complete native Linux UI/privacy checks now pass, including inherited file, analysis, archive and sensitive-preview gates. Hosted Windows/installed checks remain pending.",
+          "remaining": [
+            "Keyboard/IME and row activation audit; no synthesized keyboard input or physical-input acceptance is claimed."
+          ]
+        },
+        {
           "id": "CP9_text_preview",
           "branch": "codex/cross-platform-text-preview",
           "scope": "Bounded plain-text previews with visible truncation and full-content Copy",
