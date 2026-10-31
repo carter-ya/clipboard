@@ -308,15 +308,15 @@ function Add-Check([string]$Name, [bool]$Passed) {
   $script:checks.Add(@{ name = $Name; passed = $Passed })
   if (!$Passed) { throw $Name }
 }
-function Wait-For([scriptblock]$Predicate, [string]$Name) {
-  if ($script:sensitiveProbe) { $script:sensitiveStage = $Name }
+function Wait-For([scriptblock]$Predicate, [string]$WaitCheckName) {
+  if ($script:sensitiveProbe) { $script:sensitiveStage = $WaitCheckName }
   $deadline = [DateTime]::UtcNow.AddSeconds(40)
   while ([DateTime]::UtcNow -lt $deadline) {
     if ($script:application -and $script:application.HasExited) { throw ('application_exited_code_' + $script:application.ExitCode) }
     try { $value = & $Predicate; if ($value) { return $value } } catch { }
     Start-Sleep -Milliseconds 150
   }
-  throw $Name
+  throw $WaitCheckName
 }
 function Find-Named([string]$Name) {
   $condition = [Windows.Automation.PropertyCondition]::new(
