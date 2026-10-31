@@ -446,6 +446,10 @@ final class HistoryModel: ObservableObject {
       let writer = RichPasteboardWriter(
         clipboard: try await nativeClipboard(), blobRoot: root?.appendingPathComponent("blobs"))
       try await Task.detached(priority: .userInitiated) { try writer.write(selected) }.value
+      // Match macOS activation even when capture is paused: promote only after a successful copy.
+      await store?.bumpToTop(id: selected.id)
+      await store?.flush()
+      await refresh()
       status = "Copied to clipboard"
     } catch { status = "Clipboard is unavailable in this session." }
   }

@@ -230,6 +230,13 @@ try:
     wait_for(lambda: has_text('Copied to clipboard'), 'copy_status')
     clipboard = subprocess.check_output(['xclip', '-selection', 'clipboard', '-out', '-target', 'UTF8_STRING'], timeout=10)
     check('copy_button_writes_native_clipboard', clipboard.decode('utf-8') == 'Release checklist · build, test, publish')
+    wait_for(editor, 'search_editable_control').queryEditableText().setTextContents('Welcome')
+    wait_for(lambda: has_text('1 items') and has_text('Welcome to Clipboard Preview'), 'older_item_selected')
+    click('Copy')
+    wait_for(lambda: json.loads((history_root / 'history.json').read_text())['items'][0]['preview'] ==
+             'Welcome to Clipboard Preview', 'copied_item_promoted_while_capture_paused')
+    copied_older = subprocess.check_output(['xclip', '-selection', 'clipboard', '-out', '-target', 'UTF8_STRING'], timeout=10)
+    check('copy_promotes_older_item_with_capture_paused', copied_older.decode('utf-8') == 'Welcome to Clipboard Preview')
     wait_for(editor, 'search_editable_control').queryEditableText().setTextContents('中文')
     wait_for(lambda: has_text('1 items') and has_text('中文笔记 · 设计评审与输入测试'), 'unicode_search_results')
     check('native_unicode_search_updates_list', True)
