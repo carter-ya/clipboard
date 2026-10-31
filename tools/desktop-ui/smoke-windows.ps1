@@ -331,10 +331,13 @@ function Invoke-VisibleConnectionButton([string]$Label) {
   $scroll = @{ attempted = $false }
   Wait-For {
     $control = Find-Named $Label
-    for ($depth = 0; $depth -lt 10 -and $control -and $control.Current.ControlType -ne [Windows.Automation.ControlType]::Button; $depth++) {
+    for ($depth = 0; $depth -lt 10 -and $control -and
+        $control.Current.ControlType -ne [Windows.Automation.ControlType]::Button -and
+        $control.Current.ControlType -ne [Windows.Automation.ControlType]::CheckBox; $depth++) {
       $control = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($control)
     }
-    if (!$control) { return $false }
+    if (!$control -or ($control.Current.ControlType -ne [Windows.Automation.ControlType]::Button -and
+        $control.Current.ControlType -ne [Windows.Automation.ControlType]::CheckBox)) { return $false }
     if (!$control.Current.IsOffscreen -and $control.Current.IsEnabled) { return $true }
     if (!$scroll.attempted) {
       $scroll.attempted = $true
@@ -393,18 +396,30 @@ function Read-SharedJson([string]$Path) {
   } finally { $stream.Dispose() }
 }
 function Invoke-Button([string]$Label) {
-  $element = Wait-For {
+  $operation = Wait-For {
     $candidate = Find-Named $Label
     # A composed label can name its Text child. Resolve the live button again
     # while waiting for an asynchronous transition to enable the control.
     for ($depth = 0; $depth -lt 10 -and $candidate; $depth++) {
-      if ($candidate.Current.ControlType -eq [Windows.Automation.ControlType]::Button) { break }
+      if ($candidate.Current.ControlType -eq [Windows.Automation.ControlType]::Button -or
+          $candidate.Current.ControlType -eq [Windows.Automation.ControlType]::CheckBox) { break }
       $candidate = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($candidate)
     }
-    if ($candidate -and $candidate.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and $candidate.Current.IsEnabled) { return $candidate }
+    if (!$candidate -or !$candidate.Current.IsEnabled -or
+        ($candidate.Current.ControlType -ne [Windows.Automation.ControlType]::Button -and
+         $candidate.Current.ControlType -ne [Windows.Automation.ControlType]::CheckBox)) { return $null }
+    $pattern = $null
+    if ($candidate.TryGetCurrentPattern([Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
+      return @{ pattern = $pattern; toggle = $false }
+    }
+    # Stateful GTK buttons may expose TogglePattern without InvokePattern.
+    # Keep real native accessibility actions and wait for a supported pattern.
+    if ($candidate.TryGetCurrentPattern([Windows.Automation.TogglePattern]::Pattern, [ref]$pattern)) {
+      return @{ pattern = $pattern; toggle = $true }
+    }
   } ('enabled_button_' + $Label)
-  $pattern = $element.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
-  $pattern.Invoke()
+  if ($operation.toggle) { $operation.pattern.Toggle() }
+  else { $operation.pattern.Invoke() }
 }
 function Get-ArchiveFilenamePattern($Element) {
   try {
