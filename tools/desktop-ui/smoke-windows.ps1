@@ -47,6 +47,13 @@ public static class PreviewNative {
   [DllImport("user32.dll")] public static extern bool OpenClipboard(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool CloseClipboard();
   [DllImport("user32.dll")] public static extern IntPtr GetClipboardData(uint format);
+  [DllImport("user32.dll")] private static extern IntPtr GetClipboardOwner();
+  [DllImport("user32.dll")] public static extern uint GetClipboardSequenceNumber();
+  public static bool OwnsClipboard(uint processId) {
+    uint owner;
+    GetWindowThreadProcessId(GetClipboardOwner(), out owner);
+    return owner == processId;
+  }
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern uint RegisterClipboardFormat(string name);
   [DllImport("shell32.dll", CharSet=CharSet.Unicode)] public static extern uint DragQueryFile(IntPtr drop, uint index, System.Text.StringBuilder path, uint length);
   public static bool HasPngClipboard() {
@@ -247,9 +254,9 @@ try {
     $history = Get-Content -Raw -Encoding UTF8 (Join-Path $historyRoot 'history.json') | ConvertFrom-Json
     Add-Check 'store_persistence_matches_ui' ($history.items.Count -eq 2)
     if ($ClipboardPeer) {
-      Invoke-Button 'Start recording'
-      Wait-For { Find-Named 'Recording clipboard' } 'rich_recording_enabled' | Out-Null
       foreach ($fixture in @('rich', 'files')) {
+        Invoke-Button 'Start recording'
+        Wait-For { Find-Named 'Recording clipboard' } 'rich_recording_enabled' | Out-Null
         $peerInfo = New-Object Diagnostics.ProcessStartInfo
         $peerInfo.FileName = [IO.Path]::GetFullPath($ClipboardPeer)
         $peerInfo.Arguments = 'rich-clipboard-peer ' + $fixture
@@ -264,6 +271,13 @@ try {
           Invoke-Button $kind
           Wait-For { Find-Named '1 items' } ('capture_native_' + $fixture) | Out-Null
           Add-Check ('native_' + $fixture + '_capture_reaches_type_filter_and_preview') $true
+          # Establish a distinct status before Copy. A previous 'Copied' label
+          # cannot acknowledge a new asynchronous invocation. Pause after native
+          # capture also proves this control works for each rich fixture.
+          Invoke-Button 'Pause recording'
+          Wait-For { (Find-Named 'Recording paused') -and (Find-Named 'Start recording') } 'rich_recording_paused' | Out-Null
+          Add-Check ('recording_can_pause_after_native_' + $fixture + '_capture') $true
+          $CopyRevision = [PreviewNative]::GetClipboardSequenceNumber()
           if ($fixture -eq 'rich') {
             $imageCondition = [Windows.Automation.PropertyCondition]::new(
               [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Image)
@@ -271,11 +285,11 @@ try {
             Add-Check 'image_preview_has_native_picture' $true
             Save-Screenshot 'image-preview.png'
             Invoke-Button 'Copy'
-            Wait-For { Find-Named 'Copied to clipboard' } 'copy_image_status' | Out-Null
+            Wait-For { (Find-Named 'Copied to clipboard') -and [PreviewNative]::GetClipboardSequenceNumber() -ne $CopyRevision -and [PreviewNative]::OwnsClipboard([uint32]$application.Id) } 'copy_image_status' | Out-Null
             Add-Check 'image_copy_keeps_original_native_png' ([PreviewNative]::HasPngClipboard())
           } else {
             Invoke-Button 'Copy'
-            Wait-For { Find-Named 'Copied to clipboard' } 'copy_files_status' | Out-Null
+            Wait-For { (Find-Named 'Copied to clipboard') -and [PreviewNative]::GetClipboardSequenceNumber() -ne $CopyRevision -and [PreviewNative]::OwnsClipboard([uint32]$application.Id) } 'copy_files_status' | Out-Null
             Add-Check 'file_copy_keeps_both_native_paths' ([PreviewNative]::ClipboardFileCount() -eq 2)
           }
         } finally {
@@ -284,9 +298,6 @@ try {
           $peer.Dispose()
         }
       }
-      Invoke-Button 'Pause recording'
-      Wait-For { Find-Named 'Recording paused' } 'rich_recording_paused' | Out-Null
-      Add-Check 'recording_can_pause_after_native_rich_capture' $true
       if ($OCRFixture) {
         Invoke-Button 'Image'
         Wait-For { Find-Named '1 items' } 'image_for_ocr_replacement' | Out-Null
