@@ -356,19 +356,42 @@ struct HistoryView: View {
         model.t(
           "Remote AI is off by default. Enabling it sends eligible content to your chosen endpoint."
         ))
-      Toggle(model.t("Enable remote AI"), isOn: $model.aiEnabledDraft)
+      Toggle(model.t("Enable remote AI"), isOn: connectionBinding($model.aiEnabledDraft))
       Toggle(model.t("Allow image uploads"), isOn: $model.aiImagesDraft)
       Toggle(model.t("Automatically summarize new items"), isOn: $model.automaticSummariesDraft)
-      TextField(model.t("API endpoint"), text: $model.aiEndpointDraft)
-      TextField(model.t("Model name"), text: $model.aiModelDraft)
+      TextField(model.t("API endpoint"), text: connectionBinding($model.aiEndpointDraft))
+      TextField(model.t("Model name"), text: connectionBinding($model.aiModelDraft))
       SecureField(model.t("API key"), text: $model.aiKeyDraft)
       HStack {
         Button(model.t("Save API key")) { Task { @MainActor in await model.saveAPIKey() } }
         Button(model.t("Delete API key")) { Task { @MainActor in await model.deleteAPIKey() } }
       }
-      Toggle(model.t("Use saved API key"), isOn: $model.aiCredentialDraft)
+      Toggle(model.t("Use saved API key"), isOn: connectionBinding($model.aiCredentialDraft))
       Button(model.t("Save AI settings")) { Task { @MainActor in await model.saveAISettings() } }
+      Text(
+        model.t(
+          "Tests these fields with the saved key when selected. Only a test message is sent; clipboard history is not included."
+        )
+      )
+      .font(.system(size: 12)).foregroundColor(.gray)
+      HStack {
+        Button(model.t("Test AI connection")) { model.testAIConnection() }
+          .disabled(!model.canTestAIConnection || model.connectionBusy)
+        if model.connectionBusy {
+          Button(model.t("Cancel connection test")) { model.cancelAIConnection() }
+        }
+      }
+      if let message = model.connectionMessage { Text(model.t(message)) }
     }
+  }
+  private func connectionBinding<Value: Equatable>(_ binding: Binding<Value>) -> Binding<Value> {
+    Binding(
+      get: { binding.wrappedValue },
+      set: { value in
+        guard binding.wrappedValue != value else { return }
+        binding.wrappedValue = value
+        model.invalidateAIConnection()
+      })
   }
   var presentationSettings: some View {
     VStack(alignment: .leading, spacing: 12) {

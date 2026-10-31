@@ -2,10 +2,12 @@
       [Parameter(Mandatory=$true)][string]$OutputDirectory,
       [string]$ClipboardPeer,
       [string]$OCRFixture,
+      [string]$FixturePython,
       [switch]$Baseline,
       [switch]$ValidateOnly,
       [int]$LifecycleCycles = 0)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'private-fixture-python.ps1')
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 # GTK has server-side AccessKit providers; native common-dialog controls use
@@ -160,6 +162,12 @@ public static class PreviewNative {
     uint owner;
     GetWindowThreadProcessId(WindowFromPoint(new Point { X = x, Y = y }), out owner);
     return owner == processId && SetCursorPos(x, y);
+  }
+  public static bool WheelOwnedControl(uint processId, int x, int y, bool down) {
+    if (!HoverOwnedControl(processId, x, y)) return false;
+    var input = new PointerInput { Mouse = new MouseInput {
+      Flags = 0x0800, Data = down ? unchecked((uint)-360) : 360u } };
+    return SendInput(1, new[] { input }, Marshal.SizeOf(typeof(PointerInput))) == 1;
   }
   [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(Point point);
   [DllImport("user32.dll")] private static extern uint SendInput(uint count, PointerInput[] inputs, int size);
@@ -320,6 +328,33 @@ function Get-Editor {
     [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)
   return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
 }
+function Invoke-VisibleConnectionButton([string]$Label) {
+  if ($env:GITHUB_ACTIONS -ne 'true') { throw 'connection_pointer_fixture_requires_isolated_runner' }
+  $scroll = @{ attempted = $false }
+  Wait-For {
+    $control = Find-Named $Label
+    for ($depth = 0; $depth -lt 10 -and $control -and
+        $control.Current.ControlType -ne [Windows.Automation.ControlType]::Button -and
+        $control.Current.ControlType -ne [Windows.Automation.ControlType]::CheckBox; $depth++) {
+      $control = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($control)
+    }
+    if (!$control -or ($control.Current.ControlType -ne [Windows.Automation.ControlType]::Button -and
+        $control.Current.ControlType -ne [Windows.Automation.ControlType]::CheckBox)) { return $false }
+    if (!$control.Current.IsOffscreen -and $control.Current.IsEnabled) { return $true }
+    if (!$scroll.attempted) {
+      $scroll.attempted = $true
+      try { $control.GetCurrentPattern([Windows.Automation.ScrollItemPattern]::Pattern).ScrollIntoView() } catch {}
+      return $false
+    }
+    $viewport = $script:window.Current.BoundingRectangle
+    $target = $control.Current.BoundingRectangle
+    if (![PreviewNative]::WheelOwnedControl([uint32]$script:application.Id,
+          [int]($viewport.X + $viewport.Width * 0.75), [int]($viewport.Y + $viewport.Height / 2),
+          ($target.Y -gt $viewport.Y + $viewport.Height / 2))) { throw 'connection_scroll_motion' }
+    return $false
+  } ('visible_control_' + $Label) | Out-Null
+  Invoke-Button $Label
+}
 function Get-EditorWithValue([string]$Value) {
   if ($script:sensitiveProbe) { throw 'public_editor_lookup_after_sensitive_phase' }
   $condition = [Windows.Automation.PropertyCondition]::new(
@@ -363,18 +398,30 @@ function Read-SharedJson([string]$Path) {
   } finally { $stream.Dispose() }
 }
 function Invoke-Button([string]$Label) {
-  $element = Wait-For {
+  $operation = Wait-For {
     $candidate = Find-Named $Label
     # A composed label can name its Text child. Resolve the live button again
     # while waiting for an asynchronous transition to enable the control.
     for ($depth = 0; $depth -lt 10 -and $candidate; $depth++) {
-      if ($candidate.Current.ControlType -eq [Windows.Automation.ControlType]::Button) { break }
+      if ($candidate.Current.ControlType -eq [Windows.Automation.ControlType]::Button -or
+          $candidate.Current.ControlType -eq [Windows.Automation.ControlType]::CheckBox) { break }
       $candidate = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($candidate)
     }
-    if ($candidate -and $candidate.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and $candidate.Current.IsEnabled) { return $candidate }
+    if (!$candidate -or !$candidate.Current.IsEnabled -or
+        ($candidate.Current.ControlType -ne [Windows.Automation.ControlType]::Button -and
+         $candidate.Current.ControlType -ne [Windows.Automation.ControlType]::CheckBox)) { return $null }
+    $pattern = $null
+    if ($candidate.TryGetCurrentPattern([Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
+      return @{ pattern = $pattern; toggle = $false }
+    }
+    # Stateful GTK buttons may expose TogglePattern without InvokePattern.
+    # Keep real native accessibility actions and wait for a supported pattern.
+    if ($candidate.TryGetCurrentPattern([Windows.Automation.TogglePattern]::Pattern, [ref]$pattern)) {
+      return @{ pattern = $pattern; toggle = $true }
+    }
   } ('enabled_button_' + $Label)
-  $pattern = $element.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
-  $pattern.Invoke()
+  if ($operation.toggle) { $operation.pattern.Toggle() }
+  else { $operation.pattern.Invoke() }
 }
 function Get-ArchiveFilenamePattern($Element) {
   try {
@@ -1116,6 +1163,71 @@ try {
       Invoke-Button 'Save content settings'
       Wait-For { Find-Named 'Enter a capacity of 1–5000 and a size of 0–16 MiB.' } 'negative_size_preference_rejected' | Out-Null
       Add-Check 'invalid_size_does_not_replace_disabled_preference' ((Read-SharedJson $settingsFile).maxClipSizeBytes -eq 0)
+      $serverInfo = New-Object Diagnostics.ProcessStartInfo
+      $serverInfo.FileName = (Resolve-PrivateFixturePython $FixturePython)
+      $serverInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'ai-probe-server.py') + '"'
+      $serverInfo.UseShellExecute = $false
+      $serverInfo.RedirectStandardInput = $true
+      $serverInfo.RedirectStandardOutput = $true
+      $serverInfo.RedirectStandardError = $true
+      $serverInfo.EnvironmentVariables['CLIPBOARD_PRIVATE_AI_TEST'] = '1'
+      $probeServer = [Diagnostics.Process]::Start($serverInfo)
+      try {
+        $ready = $probeServer.StandardOutput.ReadLineAsync()
+        if (!$ready.Wait(10000) -or $ready.Result -notmatch '^ready:([0-9]+)$') { throw 'ai_probe_server_ready' }
+        $endpoint = 'http://127.0.0.1:' + $Matches[1] + '/v1'
+        $endpointEditor = Wait-For { Get-EditorWithValue 'https://api.openai.com/v1' } 'ai_connection_endpoint'
+        $endpointID = $endpointEditor.GetRuntimeId() -join ','
+        $endpointEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue($endpoint)
+        $modelEditor = Wait-For { Get-EditorWithValue '' } 'ai_connection_model'
+        $modelID = $modelEditor.GetRuntimeId() -join ','
+        $modelEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('fixture-model')
+        Invoke-Button 'Enable remote AI'
+        Invoke-VisibleConnectionButton 'Test AI connection'
+        Wait-For { Find-Named 'AI connection is ready.' } 'ai_connection_success' | Out-Null
+        $currentEndpoint = Get-EditorWithValue $endpoint
+        $currentModel = Get-EditorWithValue 'fixture-model'
+        Add-Check 'connection_test_preserves_native_editors_and_drafts' (($currentEndpoint.GetRuntimeId() -join ',') -eq $endpointID -and ($currentModel.GetRuntimeId() -join ',') -eq $modelID)
+        $modelEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('fixture-model-2')
+        Wait-For { $null -eq (Find-Named 'AI connection is ready.') } 'ai_connection_result_invalidated_by_edit' | Out-Null
+        $modelEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('fixture-model')
+        Invoke-VisibleConnectionButton 'Test AI connection'
+        Wait-For { Find-Named 'Access was denied. Check the saved API key and permissions.' } 'ai_connection_auth_failure' | Out-Null
+        Add-Check 'connection_test_explains_authentication_failure' $true
+        Invoke-VisibleConnectionButton 'Test AI connection'
+        Wait-For { Find-Named 'AI connection is ready.' } 'ai_connection_retry' | Out-Null
+        Add-Check 'connection_test_can_retry_after_failure' $true
+        Invoke-VisibleConnectionButton 'Test AI connection'
+        Wait-For { (Find-Named 'Testing connection…') -and (Find-Named 'Cancel connection test') } 'ai_connection_progress' | Out-Null
+        $blocked = $probeServer.StandardOutput.ReadLineAsync()
+        if (!$blocked.Wait(10000) -or $blocked.Result -ne 'blocked') { throw 'ai_connection_request_not_active' }
+        Invoke-VisibleConnectionButton 'Cancel connection test'
+        Wait-For { Find-Named 'Connection test cancelled.' } 'ai_connection_cancelled' | Out-Null
+        Add-Check 'connection_test_can_cancel_an_active_request' $true
+        $saved = Read-SharedJson $settingsFile
+        Add-Check 'connection_test_does_not_save_or_enable_ai' (!$saved.ai.enabled -and $saved.ai.endpoint -ceq 'https://api.openai.com/v1' -and $saved.ai.model -ceq '')
+      } finally {
+        $probeServer.StandardInput.Close()
+        if (!$probeServer.WaitForExit(10000)) { $probeServer.Kill(); $probeServer.WaitForExit() }
+      }
+      $reportRead = $probeServer.StandardOutput.ReadLineAsync()
+      if (!$reportRead.Wait(5000)) { throw 'ai_probe_server_report' }
+      $fixtureReport = $reportRead.Result | ConvertFrom-Json
+      # Retain only numeric/boolean evidence. Never include request content,
+      # headers, endpoint, exception text or the fixture's raw output.
+      $connectionAudit = @{
+        requests = [int]$fixtureReport.requests
+        invalidRequests = [int]$fixtureReport.invalidRequests
+        modelMismatches = [int]$fixtureReport.modelMismatches
+        handlerFailures = [int]$fixtureReport.handlerFailures
+        responseDisconnects = [int]$fixtureReport.responseDisconnects
+        fixedTestsOnly = $fixtureReport.fixedTestsOnly -eq $true
+        noAuthorization = $fixtureReport.noAuthorization -eq $true
+        noCookies = $fixtureReport.noCookies -eq $true
+      }
+      [IO.File]::WriteAllText((Join-Path $OutputDirectory 'connection-audit.json'), ($connectionAudit | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+      Add-Check 'connection_requests_use_only_fixed_prompts_without_keys_or_cookies' ($fixtureReport.requests -eq 4 -and $fixtureReport.fixedTestsOnly -and $fixtureReport.noAuthorization -and $fixtureReport.noCookies)
+      $probeServer.Dispose()
       Invoke-Button 'Quit Clipboard'
       if (!$application.WaitForExit(10000)) { throw 'startup_state_quit_timeout' }
       Add-Check 'startup_state_profile_quits_cleanly' ($application.ExitCode -eq 0)
