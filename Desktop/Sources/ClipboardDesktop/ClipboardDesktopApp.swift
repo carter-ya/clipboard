@@ -224,8 +224,8 @@ struct HistoryView: View {
             DesktopImagePreview(image: image).frame(
               minWidth: 250, maxWidth: .infinity, minHeight: 180, maxHeight: 240)
           }
-          Text(
-            model.canRevealSensitivePreview
+          DesktopTextPreviewView(
+            text: model.canRevealSensitivePreview
               ? model.t("Sensitive content is hidden.") : model.previewText
           )
           .frame(maxWidth: .infinity, alignment: .leading)

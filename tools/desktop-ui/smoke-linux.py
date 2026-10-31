@@ -106,6 +106,23 @@ def has_text(text):
     return False
 
 
+def has_texts(*texts):
+    # One live tree snapshot for one checkpoint. Repeated walks can spend the
+    # deadline on DBus round trips when a large preview is being updated.
+    remaining = set(texts)
+    for node in nodes():
+        try:
+            if node.name in remaining:
+                remaining.discard(node.name)
+            elif 'Text' in node.get_interfaces():
+                remaining.discard(node.queryText().getText(0, node.queryText().characterCount))
+            if not remaining:
+                return True
+        except Exception:
+            pass
+    return False
+
+
 def button(label):
     for node in nodes():
         try:
@@ -516,7 +533,9 @@ try:
     wait_for(lambda: has_text('Ready') and has_text('2 items'), 'rich_budget_profile')
     for name, kind, body, target in fixtures:
         wait_for(editor, 'rich_budget_editor').queryEditableText().setTextContents(name)
-        wait_for(lambda: has_text('1 items') and has_text(name) and has_text('Preview truncated. Copy keeps the full text.'), 'rich_budget_notice')
+        expected_preview = (('中😀' * 12000 + ' HTML_COPY_TAIL').encode()[:64 * 1024].decode('utf-8', errors='ignore')
+                            if target == 'text/html' else 'x' * (64 * 1024))
+        wait_for(lambda: has_texts('1 items', name, expected_preview, 'Preview truncated. Copy keeps the full text.'), 'rich_budget_notice')
         check('rich_' + target.split('/')[1] + '_reports_truncation',
               not has_text('HTML_COPY_TAIL') and not has_text('RTF_COPY_TAIL'))
         click('Pin / unpin')
