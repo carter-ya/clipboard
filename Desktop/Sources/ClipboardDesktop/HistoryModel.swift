@@ -9,6 +9,7 @@ import SwiftCrossUI
 /// Presentation state; persistence, filters and native ownership stay in Core/adapters.
 final class HistoryModel: ObservableObject {
   @Published var analysisBusy = false
+  @Published var itemAnalysisProgress: [UUID: DesktopItemAnalysisProgress] = [:]
   @Published var connectionBusy = false
   @Published var connectionResult: DesktopAIConnectionResult?
   @Published var startupEnabled = false
@@ -39,6 +40,9 @@ final class HistoryModel: ObservableObject {
       })
   }()
   @MainActor private var startup: DesktopStartupState?
+  @MainActor private lazy var analysisProgress = DesktopAnalysisProgressState {
+    [weak self] in self?.itemAnalysisProgress = $0
+  }
   @MainActor private lazy var analysisScheduler = DesktopAnalysisScheduler(
     busyChanged: { [weak self] in self?.analysisBusy = $0 },
     perform: { [weak self] in await self?.performAnalysis($0) })
@@ -379,6 +383,11 @@ final class HistoryModel: ObservableObject {
       eventsTask = Task { @MainActor [weak self] in
         for await event in events {
           guard !Task.isCancelled, let self else { break }
+          switch event {
+          case .deleted(let id), .evicted(let id, _, _): self.analysisProgress.remove(id: id)
+          case .cleared: self.analysisProgress.clear()
+          default: break
+          }
           // Keep native editors/drafts while hidden, without rerendering history
           // for every captured item. Refresh once before the next presentation.
           if self.nativeWindow?.isVisible != false && !self.showsSettings { await self.refresh() }
@@ -903,6 +912,14 @@ final class HistoryModel: ObservableObject {
       status = "Automatic analysis queue is full. Analyze skipped items manually."
     }
   }
+  var selectedAnalysisProgress: DesktopItemAnalysisProgress? {
+    guard let item = selected, !item.sensitive else { return nil }
+    return itemAnalysisProgress[item.id]
+  }
+  @MainActor func retryAnalysis() {
+    guard case .failed(let remote)? = selectedAnalysisProgress else { return }
+    analyze(remote: remote)
+  }
   @MainActor func analyze(remote: Bool, item requested: ClipItem? = nil) {
     guard !shuttingDown, let item = requested ?? selected, !item.sensitive else { return }
     analysisScheduler.submit(.init(id: item.id, remote: remote, automatic: false))
@@ -912,6 +929,7 @@ final class HistoryModel: ObservableObject {
     // Recheck live preferences after waiting; disabling automation revokes queued work.
     guard !shuttingDown, !Task.isCancelled, request.isAllowed(item: item, settings: settings)
     else { return }
+    guard let ticket = analysisProgress.begin(id: item.id, remote: request.remote) else { return }
     let remote = request.remote
     let configuration = settings.ai
     let service = DesktopAnalysis(
@@ -926,7 +944,14 @@ final class HistoryModel: ObservableObject {
         : service.recognize(item, language: language))
       try Task.checkCancellation()
       guard !result.isEmpty else {
+        analysisProgress.finish(ticket, succeeded: false)
         status = "No text was recognized."
+        return
+      }
+      guard let current = await store?.item(id: item.id), !shuttingDown,
+        analysisProgress.isCurrent(ticket), request.isAllowed(item: current, settings: settings)
+      else {
+        analysisProgress.remove(id: item.id)
         return
       }
       await store?.updateSummary(
@@ -934,8 +959,13 @@ final class HistoryModel: ObservableObject {
       await store?.flush()
       loadedPreviewID = nil
       await refresh()
+      analysisProgress.finish(ticket, succeeded: true)
       status = remote ? "Summary ready" : "OCR text ready"
-    } catch is CancellationError { status = "Analysis cancelled" } catch {
+    } catch is CancellationError {
+      analysisProgress.remove(id: item.id)
+      status = "Analysis cancelled"
+    } catch {
+      analysisProgress.finish(ticket, succeeded: false)
       status =
         remote
         ? "Summary unavailable. Check AI settings and the connection."
@@ -983,6 +1013,7 @@ final class HistoryModel: ObservableObject {
     startup?.stop()
     aiConnection.stop()
     resetSensitivePreview()
+    analysisProgress.stop()
     analysisScheduler.stop()
     captureTask?.cancel()
     captureSkipsTask?.cancel()

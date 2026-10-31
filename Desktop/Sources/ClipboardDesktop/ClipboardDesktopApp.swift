@@ -244,6 +244,15 @@ struct HistoryView: View {
             Text(model.t("Preview truncated. Copy keeps the full text."))
               .font(.system(size: 12)).foregroundColor(.gray)
           }
+          if case .running(let remote)? = model.selectedAnalysisProgress {
+            Text(model.t(remote ? "Generating summary…" : "Recognizing text…"))
+          }
+          if case .failed(let remote)? = model.selectedAnalysisProgress {
+            Text(model.t(remote ? "Could not generate a summary." : "Could not recognize text."))
+            Button(model.t(remote ? "Retry summary" : "Retry text recognition")) {
+              model.retryAnalysis()
+            }.disabled(model.analysisBusy || (remote && !model.canSummarize))
+          }
           if let summary = model.selected?.summary, model.selected?.sensitive != true {
             Text(model.t("OCR / AI result")).font(.system(size: 14))
             Text(summary).frame(maxWidth: .infinity, alignment: .leading)

@@ -9,6 +9,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 if os.environ.get('CLIPBOARD_PRIVATE_AI_TEST') != '1':
     raise SystemExit(2)
 
+analysis_mode = os.environ.get("CLIPBOARD_PRIVATE_AI_MODE") == "analysis"
+
 lock = threading.Lock()
 release = threading.Event()
 report = dict(requests=0, fixedTestsOnly=True, noAuthorization=True, noCookies=True)
@@ -40,18 +42,24 @@ class Handler(BaseHTTPRequestHandler):
                      messages[-1].get('role') == 'user' and
                      isinstance(messages[-1].get('content'), str) and
                      messages[-1]['content'].endswith('\n\nreply OK'))
+            if analysis_mode:
+                fixed = (self.path == '/v1/chat/completions' and
+                         body.get('model') == 'fixture-model' and 'max_tokens' not in body and
+                         len(messages) == 2 and messages[-1].get('role') == 'user' and
+                         isinstance(messages[-1].get('content'), str) and
+                         messages[-1]['content'].endswith('\n\nRelease checklist · build, test, publish'))
             with lock:
                 report['requests'] += 1
                 index = report['requests']
                 report['fixedTestsOnly'] &= fixed
                 report['noAuthorization'] &= self.headers.get('Authorization') is None
                 report['noCookies'] &= self.headers.get('Cookie') is None
-            if index >= 4:
+            if (analysis_mode and index == 1) or (not analysis_mode and index >= 4):
                 print('blocked', flush=True)
-                release.wait(10)
-            status = 401 if index == 2 else 200
+                release.wait(45 if analysis_mode else 10)
+            status = (503 if index == 1 else 200) if analysis_mode else (401 if index == 2 else 200)
             response = ({'error': 'synthetic authentication failure'} if status == 401 else
-                        {'choices': [{'message': {'content': 'OK'}}]})
+                        {'choices': [{'message': {'content': 'Private summary fixture' if analysis_mode else 'OK'}}]})
             data = json.dumps(response).encode()
             self.send_response(status)
             self.send_header('Content-Type', 'application/json')
@@ -72,7 +80,9 @@ thread.start()
 print('ready:' + str(server.server_address[1]), flush=True)
 try:
     # EOF releases any slow request and shuts down only this fixture.
-    sys.stdin.buffer.read()
+    for line in sys.stdin.buffer:
+        if line == b'release\n':
+            release.set()
 finally:
     release.set()
     server.shutdown()
