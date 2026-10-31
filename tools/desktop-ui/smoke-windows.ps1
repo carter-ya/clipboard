@@ -915,6 +915,7 @@ try {
     $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
       -ArgumentList @('--smoke-root', ('"' + $historyRoot + '"')) -PassThru `
       -RedirectStandardOutput (Join-Path $OutputDirectory 'archive.stdout.log') -RedirectStandardError (Join-Path $OutputDirectory 'archive.stderr.log')
+    $null = $application.Handle
     $nativeWindowHandle = Wait-For {
       $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
       if ($handle -ne [IntPtr]::Zero) { $handle }
@@ -949,6 +950,12 @@ try {
     Add-Check 'native_archive_duplicate_import_is_counted' ((Read-SharedJson (Join-Path $historyRoot 'history.json')).items.Count -eq 3)
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'archive_state_quit_timeout' }
+    if ($application.ExitCode -ne 0) {
+      # Process metadata only: retain a nullable numeric code for a real crash
+      # or an unexpected process-object lifetime issue, never payload/log text.
+      $exitMetadata = @{ hasExited = $application.HasExited; exitCode = $application.ExitCode }
+      [IO.File]::WriteAllText((Join-Path $OutputDirectory 'archive-exit.json'), ($exitMetadata | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+    }
     Add-Check 'archive_state_profile_quits_cleanly' ($application.ExitCode -eq 0)
 
     $historyRoot = Join-Path $OutputDirectory ('startup-state-' + [Guid]::NewGuid().ToString('N'))
