@@ -496,6 +496,41 @@ try:
     app.wait(timeout=10)
     check('counted_history_quits_cleanly', app.returncode == 0)
 
+    # Persist only synthetic rich payloads; the preview may be short, Copy must not be.
+    history_root = out / ('rich-preview-' + uuid.uuid4().hex)
+    history_root.mkdir()
+    (history_root / 'blobs').mkdir()
+    template = json.loads((primary_history_root / 'history.json').read_text())
+    fixtures = [
+        ('HTML budget fixture', 'public.html', '<p>' + '中😀' * 12000 + ' HTML_COPY_TAIL</p>', 'text/html'),
+        ('RTF budget fixture', 'public.rtf', '{\\rtf1 ' + 'x' * 70000 + ' RTF_COPY_TAIL}', 'text/rtf'),
+    ]
+    template['items'] = [dict(id=str(uuid.uuid4()), createdAt=template['items'][0]['createdAt'],
+                            kind='rtf', preview=name, pinned=False, sensitive=False,
+                            sha256=hashlib.sha256(body.encode()).hexdigest(), sizeBytes=len(body.encode()),
+                            payloads=[dict(pasteboardType=kind, inlineData=base64.b64encode(body.encode()).decode())])
+                         for name, kind, body, target in fixtures]
+    (history_root / 'history.json').write_text(json.dumps(template))
+    app = subprocess.Popen([str(Path(args.executable).resolve()), '--data-root', str(history_root)],
+                           stdout=log, stderr=log, start_new_session=True)
+    wait_for(lambda: has_text('Ready') and has_text('2 items'), 'rich_budget_profile')
+    for name, kind, body, target in fixtures:
+        wait_for(editor, 'rich_budget_editor').queryEditableText().setTextContents(name)
+        wait_for(lambda: has_text('1 items') and has_text(name) and has_text('Preview truncated. Copy keeps the full text.'), 'rich_budget_notice')
+        check('rich_' + target.split('/')[1] + '_reports_truncation',
+              not has_text('HTML_COPY_TAIL') and not has_text('RTF_COPY_TAIL'))
+        click('Pin / unpin')
+        wait_for(lambda: has_text('Item pinned'), 'rich_budget_copy_transition')
+        click('Copy')
+        wait_for(lambda: has_text('Copied to clipboard'), 'rich_budget_copied')
+        copied = subprocess.check_output(['xclip', '-selection', 'clipboard', '-t', target, '-o'], timeout=10)
+        check('rich_' + target.split('/')[1] + '_copy_preserves_complete_payload', copied == body.encode())
+    click('Settings')
+    wait_for(lambda: has_text('Preferences'), 'rich_budget_quit_settings')
+    click('Quit Clipboard')
+    app.wait(timeout=10)
+    check('rich_budget_profile_quits_cleanly', app.returncode == 0)
+
     sensitive_probe = True
     history_root = out / ('sensitive-preview-' + uuid.uuid4().hex)
     app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root), '--smoke-sensitive'],

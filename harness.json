@@ -196,7 +196,7 @@
           "scope": "Explicit in-memory reveal of sensitive text and images for one presentation",
           "status": "in_progress",
           "implemented": "Sensitive previews stay masked until the user selects Reveal for this session. Selection changes, settings handoff, native GTK unmap and shutdown revoke the reveal. Generation checks reject late asynchronous results, and their load cache is invalidated too. Sensitive decoding has no blob root and uses memory-only image loading; the sensitive flag and AI/OCR gates remain intact. Synthetic text/image injection requires both --smoke-root and --smoke-sensitive. Sensitive-phase probes suppress content diagnostics and screenshots.",
-          "validation": "Linux arm64 optimized app builds and all 49 native UI checks pass, including explicit text/image reveal, re-mask after hide/settings/selection, rapid reveal/hide/reopen, disabled OCR and a history snapshot containing only the three non-sensitive fixtures with no image blobs. Sensitive-phase content diagnostics and screenshots are suppressed. Windows fixture syntax and strict Swift formatting pass; native Windows execution remains pending."
+          "validation": "Linux arm64 optimized app builds and all 49 native UI checks pass, including explicit text/image reveal, re-mask after hide/settings/selection, rapid reveal/hide/reopen, disabled OCR and a history snapshot containing only the three non-sensitive fixtures with no image blobs. Sensitive-phase content diagnostics and screenshots are suppressed. Windows fixture syntax and strict Swift formatting pass; native Windows execution remains pending. Diagnostic Windows run 41173176463 reproduces a changed Text filter accessibility identity across one hide/reopen while outer bounds stay 988x669, the filter remains present, and the sensitive image remains masked. Root cause is still under investigation; this is not a privacy leak or a passing Windows acceptance."
         },
         {
           "id": "CP9_history_counts",
@@ -204,7 +204,15 @@
           "scope": "Query-wide tab counts, tab-scoped type counts and the legacy mixed filter",
           "status": "in_progress",
           "implemented": "One portable projection computes All/Pinned totals from the query/source-matched snapshot, type counts within the active All/Pinned tab, and the final kind-filtered rows while preserving order. Desktop buttons retain their names, show fixed-width count badges, and expose the legacy Mixed kind. Type controls use a two-row layout below 1100 logical pixels.",
-          "validation": "Linux arm64: 174 Core tests and 54 native UI checks pass, including a persisted legacy mixed fixture, pinning it, empty pinned-kind results and query-scoped counts. Both display scale 1 and 2 pass all 8 compact/wide layout checks; the rendered count layout was inspected. Strict Swift formatting and Windows fixture syntax pass. Native Windows execution and the upstream PR12 hide/restore issue remain pending."
+          "validation": "Linux arm64: 174 Core tests and 54 native UI checks pass, including a persisted legacy mixed fixture, pinning it, empty pinned-kind results and query-scoped counts. Both display scale 1 and 2 pass all 8 compact/wide layout checks; the rendered count layout was inspected. Strict Swift formatting and Windows fixture syntax pass. Native Windows execution and the upstream PR12 hide/restore issue remain pending. The merged 0b7234d source passes all 56 native Linux checks, including both per-hide identity checks."
+        },
+        {
+          "id": "CP9_rich_preview",
+          "branch": "codex/cross-platform-rich-preview",
+          "scope": "Visible truncation and 64 KiB plain rendering for rich-only payloads",
+          "status": "in_progress",
+          "implemented": "HTML/RTF display previews expose truncation metadata, use the 64 KiB UTF-8 display budget, and report parser source/output-budget exhaustion. Rendering remains plain text without remote resources or embedded objects. Legacy row/analysis character limits and original Copy payloads stay intact. HTML parser output accounting is incremental.",
+          "validation": "Linux arm64: all 178 Core tests, optimized app build and all 61 native UI checks pass. Synthetic persisted HTML/RTF records show truncation notices, then independently read back the complete original native formats after Copy. Strict Swift formatting and Windows script syntax pass. Native Windows remains pending; upstream PR12 accessibility identity failure is still under investigation."
         },
         {
           "id": "CP10",

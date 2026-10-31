@@ -2,13 +2,28 @@ import Foundation
 
 /// Plain previews only: no HTML engine, remote resource loading or embedded RTF objects.
 public enum RichTextPreview {
+  public struct Result: Equatable, Sendable {
+    public let text: String
+    public let isTruncated: Bool
+  }
+
+  /// Display-only rendering; parser budgets never change the original payload.
+  public static func preview(from payloads: [RawPayload]) -> Result {
+    let parsed = render(payloads, limit: 64 * 1024 + 1)
+    let display = DesktopTextPreview(parsed.text)
+    return Result(text: display.text, isTruncated: parsed.isTruncated || display.isTruncated)
+  }
+
   public static func text(from payloads: [RawPayload], limit: Int = 8000) -> String {
-    let limit = min(16000, max(0, limit))
+    render(payloads, limit: min(16000, max(0, limit))).text
+  }
+
+  private static func render(_ payloads: [RawPayload], limit: Int) -> Result {
     for type in ["public.utf8-plain-text", "public.plain-text", "public.string"] {
       if let data = payloads.first(where: { $0.pasteboardType == type })?.data,
         let text = String(data: data, encoding: .utf8), !text.isEmpty
       {
-        return String(text.prefix(limit))
+        return Result(text: String(text.prefix(limit)), isTruncated: text.count > limit)
       }
     }
     if let data = payloads.first(where: { $0.pasteboardType == "public.rtf" })?.data {
@@ -17,14 +32,15 @@ public enum RichTextPreview {
     if let data = payloads.first(where: { $0.pasteboardType == "public.html" })?.data {
       return html(data, limit: limit)
     }
-    return ""
+    return Result(text: "", isTruncated: false)
   }
-  private static func html(_ data: Data, limit: Int) -> String {
+  private static func html(_ data: Data, limit: Int) -> Result {
     let input = Array(String(decoding: data.prefix(256 * 1024), as: UTF8.self))
     var result = ""
     var index = 0
+    var emitted = 0
     var hidden: String?
-    while index < input.count && result.count < limit {
+    while index < input.count && emitted < limit {
       let character = input[index]
       if character == "<" {
         let start = index + 1
@@ -40,7 +56,10 @@ public enum RichTextPreview {
         } else if hidden == nil, !tag.hasPrefix("/"), ["script", "style", "head"].contains(name) {
           hidden = name
         }
-        if hidden == nil && ["br", "p", "div", "li", "tr"].contains(name) { result.append("\n") }
+        if hidden == nil && ["br", "p", "div", "li", "tr"].contains(name) {
+          result.append("\n")
+          emitted += 1
+        }
         index = end + 1
         continue
       }
@@ -56,6 +75,7 @@ public enum RichTextPreview {
           let common = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": " "]
           if let replacement = common[entity] {
             result += replacement
+            emitted += 1
             index = end + 1
             continue
           }
@@ -65,23 +85,29 @@ public enum RichTextPreview {
             : entity.hasPrefix("#") ? UInt32(entity.dropFirst()) : nil
           if let value, let scalar = UnicodeScalar(value) {
             result.unicodeScalars.append(scalar)
+            emitted += 1
             index = end + 1
             continue
           }
         }
       }
       result.append(character)
+      emitted += 1
       index += 1
     }
-    return String(result.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines)
+    return Result(
+      text: String(result.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines),
+      isTruncated: index < input.count || data.count > 256 * 1024)
   }
   private struct RTFState {
     var hidden = false
     var unicodeSkip = 1
   }
-  private static func rtf(_ data: Data, limit: Int) -> String {
+  private static func rtf(_ data: Data, limit: Int) -> Result {
     let bytes = Array(data.prefix(256 * 1024))
-    guard bytes.starts(with: Array("{\\rtf".utf8)) else { return "" }
+    guard bytes.starts(with: Array("{\\rtf".utf8)) else {
+      return Result(text: "", isTruncated: false)
+    }
     var state = RTFState()
     var stack: [RTFState] = []
     var units: [UInt16] = []
@@ -162,7 +188,12 @@ public enum RichTextPreview {
         emit(0x2022)
       }
     }
-    return String(String(decoding: units, as: UTF16.self).prefix(limit)).trimmingCharacters(
-      in: .whitespacesAndNewlines)
+    let unfinished = index < bytes.count || data.count > 256 * 1024
+    // A parser budget may end between a UTF-16 surrogate pair.
+    if unfinished, let last = units.last, (0xD800...0xDBFF).contains(last) { units.removeLast() }
+    let decoded = String(decoding: units, as: UTF16.self)
+    return Result(
+      text: String(decoded.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines),
+      isTruncated: unfinished || decoded.count > limit)
   }
 }
