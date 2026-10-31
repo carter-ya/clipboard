@@ -119,7 +119,7 @@ Private compositor/protocol fixtures do not prove physical keyboard/IME focus.
 
 ## Installable previews
 
-CP8 uses `Desktop/VERSION`, independently from the macOS release. CI builds
+CP8 uses `Desktop/Sources/ClipboardDesktop/Resources/VERSION`, independently from the macOS release. CI builds
 optimized executables and uploads preview archives, installers, checksums, native
 UI reports and a separate verified GTK dependency source bundle. These are
 unsigned preview artifacts; no public release or automatic update is performed.
@@ -159,3 +159,24 @@ The automated and interactive acceptance checklist is in [TESTING.md](TESTING.md
 Each history presentation starts at the first matching item and clears the transient type filter, retaining search, source and All/Pinned scope. Tab changes clear the type filter; type changes select the first visible item. Deleting a selected item keeps the next visible neighbor, or the previous item when deleting the last row.
 
 The native build helper builds and verifies `clipboard-pdf-worker` plus a fixed non-V8/non-XFA PDFium runtime. It checks published archive hashes and packages all PDFium dependency notices and provenance. PDF input/output use private pipes without document paths or contents in command arguments. The decoder has memory/CPU limits, a parent deadline and explicit owned cancellation.
+
+## Desktop update discovery
+
+Preferences → Desktop updates checks public metadata only after an explicit
+click. It uses the fixed official repository and never sends history or AI
+configuration. Stable installations ignore previews. Preview installations may
+also discover stable versions. The newest compatible uploaded package must
+include `SHA256SUMS`; Mac-only releases do not qualify. If none of the latest
+20 releases contains one, the UI says no compatible desktop release was found.
+
+Desktop releases may use `desktop-v<SemVer>` tags, or `v<SemVer>` when shared
+with the existing release process. Upload the matching
+`ClipboardDesktop-<SemVer>-windows-x64-setup.exe` or
+`ClipboardDesktop-<SemVer>-linux-{x64,arm64}.tar.gz`, and `SHA256SUMS`.
+The application opens only a constructed official release page on a separate
+user click. It does not download or execute an update. Quit every Clipboard
+profile, verify the package SHA-256 against that release, and follow the
+included per-user upgrade instructions. Signing and public desktop publishing
+remain separate release gates. The version source is
+`Desktop/Sources/ClipboardDesktop/Resources/VERSION` and ships in the native
+resource bundle; both packagers read that same file.
