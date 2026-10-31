@@ -622,7 +622,10 @@ try {
             Add-Check 'image_preview_has_native_picture' $true
             Save-Screenshot 'image-preview.png'
             if ($env:GITHUB_ACTIONS -ne 'true') { throw 'image_pointer_fixture_requires_isolated_runner' }
-            $anchor = Get-ImagePreview
+            $anchor = Wait-For {
+              $candidate = Get-ImagePreview
+              if ($candidate -and !$candidate.Current.IsOffscreen) { $candidate }
+            } 'image_hover_anchor_visible'
             $bounds = $anchor.Current.BoundingRectangle
             if (![PreviewNative]::HoverOwnedControl([uint32]$application.Id, [int]($bounds.X + $bounds.Width / 2), [int]($bounds.Y + $bounds.Height / 2))) { throw 'image_hover_motion' }
             $peek = Wait-For { Get-ImagePeek } 'image_hover_tooltip'
@@ -699,7 +702,10 @@ try {
           if (!$line.Wait(10000) -or $line.Result -ne 'ready') { throw 'ocr_peer_startup' }
           Wait-For { (Find-Named '1 items') -and (Get-ImagePreview) -and (Find-Named 'Recognize text') } 'ocr_image_captured' | Out-Null
           if ($env:GITHUB_ACTIONS -ne 'true') { throw 'image_pointer_fixture_requires_isolated_runner' }
-          $anchor = Get-ImagePreview
+          $anchor = Wait-For {
+            $candidate = Get-ImagePreview
+            if ($candidate -and !$candidate.Current.IsOffscreen) { $candidate }
+          } 'large_image_hover_anchor_visible'
           $anchorBounds = $anchor.Current.BoundingRectangle
           if (![PreviewNative]::HoverOwnedControl([uint32]$application.Id, [int]($anchorBounds.X + $anchorBounds.Width / 2), [int]($anchorBounds.Y + $anchorBounds.Height / 2))) { throw 'large_image_hover_motion' }
           $peek = Wait-For { Get-ImagePeek } 'large_image_hover_tooltip'
