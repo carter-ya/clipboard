@@ -106,7 +106,13 @@ def main():
     print('ready:' + str(server.server_address[1]), flush=True)
     try:
         # EOF releases any slow request and shuts down only this fixture.
+        first_command = True
         for line in sys.stdin.buffer:
+            if first_command:
+                # Legacy .NET StreamWriter can emit a UTF-8 preamble before
+                # its first ASCII command. Later commands remain exact matches.
+                line = line.removeprefix(b'\xef\xbb\xbf')
+                first_command = False
             if line in (b'release\n', b'release\r\n'):
                 release.set()
     finally:
