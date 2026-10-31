@@ -1251,6 +1251,72 @@ try {
       }
     }
 
+    # Separate private profile: per-item progress/failure/retry, never real history.
+    $serverInfo = New-Object Diagnostics.ProcessStartInfo
+    $serverInfo.FileName = (Resolve-PrivateFixturePython $FixturePython)
+    $serverInfo.Arguments = '"' + (Join-Path $PSScriptRoot 'ai-probe-server.py') + '"'
+    $serverInfo.UseShellExecute = $false
+    $serverInfo.RedirectStandardInput = $true
+    $serverInfo.RedirectStandardOutput = $true
+    $serverInfo.RedirectStandardError = $true
+    $serverInfo.EnvironmentVariables['CLIPBOARD_PRIVATE_AI_TEST'] = '1'
+    $serverInfo.EnvironmentVariables['CLIPBOARD_PRIVATE_AI_MODE'] = 'analysis'
+    $probeServer = [Diagnostics.Process]::Start($serverInfo)
+    try {
+      $ready = $probeServer.StandardOutput.ReadLineAsync()
+      if (!$ready.Wait(10000) -or $ready.Result -notmatch '^ready:([0-9]+)$') { throw 'analysis_server_ready' }
+      $endpoint = 'http://127.0.0.1:' + $Matches[1] + '/v1'
+      $historyRoot = Join-Path $OutputDirectory ('analysis-progress-' + [Guid]::NewGuid().ToString('N'))
+      [IO.Directory]::CreateDirectory($historyRoot) | Out-Null
+      $configuration = @{ ai = @{ enabled = $true; allowText = $true; allowImages = $false; usesCredential = $false; endpoint = $endpoint; model = 'fixture-model'; timeoutSeconds = 60 } }
+      [IO.File]::WriteAllText((Join-Path $historyRoot 'desktop-settings.json'), ($configuration | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
+      $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+        -ArgumentList @('--smoke-root', ('"' + $historyRoot + '"')) -PassThru `
+        -RedirectStandardOutput (Join-Path $OutputDirectory 'analysis.stdout.log') `
+        -RedirectStandardError (Join-Path $OutputDirectory 'analysis.stderr.log')
+      $null = $application.Handle
+      $nativeWindowHandle = Wait-For { $h = [PreviewNative]::FindWindow([uint32]$application.Id); if ($h -ne [IntPtr]::Zero) { $h } } 'analysis_profile_window'
+      [PreviewNative]::SetWindowPos($nativeWindowHandle, [IntPtr]::Zero, 16, 16, 0, 0, 0x0005) | Out-Null
+      $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+      Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'analysis_profile_ready' | Out-Null
+      Set-Search 'Release'
+      Wait-For { Find-Named '1 items' } 'analysis_item_selected' | Out-Null
+      Invoke-Button 'Summarize'
+      Wait-For { Find-Named 'Generating summary…' } 'analysis_progress_visible' | Out-Null
+      $blocked = $probeServer.StandardOutput.ReadLineAsync()
+      if (!$blocked.Wait(10000) -or $blocked.Result -ne 'blocked') { throw 'analysis_request_not_active' }
+      Set-Search 'Welcome'
+      Wait-For { (Find-Named '1 items') -and !(Find-Named 'Generating summary…') } 'other_item_has_no_progress' | Out-Null
+      Add-Check 'analysis_progress_is_scoped_to_the_selected_item' (!(Find-Named 'Could not generate a summary.'))
+      Set-Search 'Release'
+      Wait-For { Find-Named 'Generating summary…' } 'analysis_progress_restored' | Out-Null
+      $probeServer.StandardInput.WriteLine('release')
+      $probeServer.StandardInput.Flush()
+      Wait-For { (Find-Named 'Could not generate a summary.') -and (Find-Named 'Retry summary') } 'analysis_failure_with_retry' | Out-Null
+      Add-Check 'analysis_failure_offers_item_retry' $true
+      Save-Screenshot 'analysis-failure-retry.png'
+      Invoke-Button 'Retry summary'
+      Wait-For { (Find-Named 'Summary ready') -and (Find-Named 'Private summary fixture') } 'analysis_retry_succeeded' | Out-Null
+      $snapshot = Read-SharedJson (Join-Path $historyRoot 'history.json')
+      Add-Check 'analysis_retry_updates_only_the_original_item' (@($snapshot.items | Where-Object { $_.summary -ceq 'Private summary fixture' }).Count -eq 1)
+      Set-Search 'Welcome'
+      Wait-For { !(Find-Named 'Private summary fixture') } 'analysis_result_not_on_other_item' | Out-Null
+      Add-Check 'analysis_result_and_failure_do_not_follow_selection' (!(Find-Named 'Could not generate a summary.'))
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Preferences' } 'analysis_settings_for_quit' | Out-Null
+      Invoke-Button 'Quit Clipboard'
+      if (!$application.WaitForExit(10000)) { throw 'analysis_profile_quit_timeout' }
+      Add-Check 'analysis_progress_profile_quits_cleanly' ($application.ExitCode -eq 0)
+    } finally {
+      $probeServer.StandardInput.Close()
+      if (!$probeServer.WaitForExit(10000)) { $probeServer.Kill(); $probeServer.WaitForExit() }
+    }
+    $reportRead = $probeServer.StandardOutput.ReadLineAsync()
+    if (!$reportRead.Wait(5000)) { throw 'analysis_server_report' }
+    $fixtureReport = $reportRead.Result | ConvertFrom-Json
+    Add-Check 'analysis_retry_sends_only_selected_synthetic_item_without_keys_or_cookies' ($fixtureReport.requests -eq 2 -and $fixtureReport.fixedTestsOnly -and $fixtureReport.noAuthorization -and $fixtureReport.noCookies)
+    $probeServer.Dispose()
+
     $sensitiveProbe = $true
     $historyRoot = Join-Path $OutputDirectory ('sensitive-preview-' + [Guid]::NewGuid().ToString('N'))
     $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `

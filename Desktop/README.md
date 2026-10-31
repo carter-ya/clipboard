@@ -94,7 +94,7 @@ receiving. Sensitive/concealed items never enter OCR or the network pipeline.
 Test connection uses the current fields and the saved key only when selected. It sends a fixed tiny test message, never clipboard history, and does not save the configuration. The request can be cancelled; editing connection fields or leaving settings clears its result. Authentication, endpoint/model, rate-limit and network failures have separate localized guidance.
 
 Remote file-content summaries and Apple-only models are not offered here. OCR
-results can be copied separately without changing the original history item.
+results can be copied separately without changing the original history item. Analysis progress and failures belong to each item; switching selection shows that item’s state. A failed attempt offers a retry using the same engine. Progress metadata stays in memory and is discarded when the item is removed or the app quits.
 
 English/Simplified Chinese labels and native tray menus update live. System,
 light and dark appearance synchronize GTK controls and SwiftCrossUI foregrounds
