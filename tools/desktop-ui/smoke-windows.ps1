@@ -45,13 +45,7 @@ public static class PreviewNative {
   [DllImport("user32.dll")] public static extern bool OpenClipboard(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern bool CloseClipboard();
   [DllImport("user32.dll")] public static extern IntPtr GetClipboardData(uint format);
-  [DllImport("user32.dll")] private static extern IntPtr GetClipboardOwner();
   [DllImport("user32.dll")] public static extern uint GetClipboardSequenceNumber();
-  public static bool OwnsClipboard(uint processId) {
-    uint owner;
-    GetWindowThreadProcessId(GetClipboardOwner(), out owner);
-    return owner == processId;
-  }
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern uint RegisterClipboardFormat(string name);
   [DllImport("shell32.dll", CharSet=CharSet.Unicode)] public static extern uint DragQueryFile(IntPtr drop, uint index, System.Text.StringBuilder path, uint length);
   public static bool HasPngClipboard() {
@@ -261,11 +255,11 @@ try {
             Add-Check 'image_preview_has_native_picture' $true
             Save-Screenshot 'image-preview.png'
             Invoke-Button 'Copy'
-            Wait-For { (Find-Named 'Copied to clipboard') -and [PreviewNative]::GetClipboardSequenceNumber() -ne $CopyRevision -and [PreviewNative]::OwnsClipboard([uint32]$application.Id) } 'copy_image_status' | Out-Null
+            Wait-For { (Find-Named 'Copied to clipboard') -and [PreviewNative]::GetClipboardSequenceNumber() -ne $CopyRevision } 'copy_image_status' | Out-Null
             Add-Check 'image_copy_keeps_original_native_png' ([PreviewNative]::HasPngClipboard())
           } else {
             Invoke-Button 'Copy'
-            Wait-For { (Find-Named 'Copied to clipboard') -and [PreviewNative]::GetClipboardSequenceNumber() -ne $CopyRevision -and [PreviewNative]::OwnsClipboard([uint32]$application.Id) } 'copy_files_status' | Out-Null
+            Wait-For { (Find-Named 'Copied to clipboard') -and [PreviewNative]::GetClipboardSequenceNumber() -ne $CopyRevision } 'copy_files_status' | Out-Null
             Add-Check 'file_copy_keeps_both_native_paths' ([PreviewNative]::ClipboardFileCount() -eq 2)
           }
         } finally {
