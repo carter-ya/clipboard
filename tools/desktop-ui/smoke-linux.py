@@ -332,6 +332,35 @@ try:
         click('Pause recording')
         wait_for(lambda: has_text('Recording paused'), 'rich_recording_paused')
         check('recording_can_pause_after_native_rich_capture', True)
+        click('Text')
+        wait_for(editor, 'long_preview_search').queryEditableText().setTextContents('Long preview fixture')
+        click('Start recording')
+        wait_for(lambda: has_text('Recording clipboard'), 'long_preview_recording')
+        peer = subprocess.Popen([str(Path(args.clipboard_peer).resolve()), 'rich-clipboard-peer', 'preview-long'],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+        try:
+            if not select.select([peer.stdout], [], [], 10)[0] or peer.stdout.readline() != b'ready\n':
+                raise RuntimeError('long_preview_peer_startup')
+            wait_for(lambda: has_text('1 items') and has_text('Preview truncated. Copy keeps the full text.'), 'long_preview_truncation_notice')
+            check('long_text_preview_reports_truncation', True)
+            screenshot('long-text-preview.png')
+            click('Pause recording')
+            wait_for(lambda: has_text('Recording paused'), 'long_preview_pause_before_copy')
+            click('Copy')
+            wait_for(lambda: has_text('Copied to clipboard'), 'long_preview_copied')
+            copied = subprocess.check_output(['xclip', '-selection', 'clipboard', '-out', '-target', 'UTF8_STRING'], timeout=10)
+            expected = ('Long preview fixture 中文😀\n' * 4096 + 'end-of-full-preview-fixture').encode('utf-8')
+            check('truncated_preview_copy_keeps_full_unicode_payload', copied == expected)
+        finally:
+            peer.stdin.close()
+            try:
+                peer.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                peer.kill()
+                peer.wait(timeout=5)
+        click('Delete')
+        wait_for(lambda: has_text('0 items'), 'long_preview_fixture_removed')
+        wait_for(editor, 'search_after_long_preview').queryEditableText().setTextContents('')
         if args.ocr_fixture:
             click('Image')
             wait_for(lambda: has_text('1 items'), 'image_for_ocr_replacement')

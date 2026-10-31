@@ -316,6 +316,38 @@ try {
           $peer.Dispose()
         }
       }
+      Invoke-Button 'Text'
+      Set-Search 'Long preview fixture'
+      Invoke-Button 'Start recording'
+      Wait-For { Find-Named 'Recording clipboard' } 'long_preview_recording' | Out-Null
+      $peerInfo = New-Object Diagnostics.ProcessStartInfo
+      $peerInfo.FileName = [IO.Path]::GetFullPath($ClipboardPeer)
+      $peerInfo.Arguments = 'rich-clipboard-peer preview-long'
+      $peerInfo.UseShellExecute = $false
+      $peerInfo.RedirectStandardInput = $true
+      $peerInfo.RedirectStandardOutput = $true
+      $peer = [Diagnostics.Process]::Start($peerInfo)
+      try {
+        $line = $peer.StandardOutput.ReadLineAsync()
+        if (!$line.Wait(10000) -or $line.Result -ne 'ready') { throw 'long_preview_peer_startup' }
+        Wait-For { (Find-Named '1 items') -and (Find-Named 'Preview truncated. Copy keeps the full text.') } 'long_preview_truncation_notice' | Out-Null
+        Add-Check 'long_text_preview_reports_truncation' $true
+        Save-Screenshot 'long-text-preview.png'
+        Invoke-Button 'Pause recording'
+        Wait-For { Find-Named 'Recording paused' } 'long_preview_pause_before_copy' | Out-Null
+        $CopyRevision = [PreviewNative]::GetClipboardSequenceNumber()
+        Invoke-Button 'Copy'
+        Wait-For { (Find-Named 'Copied to clipboard') -and [PreviewNative]::GetClipboardSequenceNumber() -ne $CopyRevision } 'long_preview_copied' | Out-Null
+        $expected = ("Long preview fixture 中文😀`r`n" * 4096) + 'end-of-full-preview-fixture'
+        Add-Check 'truncated_preview_copy_keeps_full_unicode_payload' ([PreviewNative]::ReadClipboard() -ceq $expected)
+      } finally {
+        $peer.StandardInput.Close()
+        if (!$peer.WaitForExit(5000)) { $peer.Kill(); $peer.WaitForExit() }
+        $peer.Dispose()
+      }
+      Invoke-Button 'Delete'
+      Wait-For { Find-Named '0 items' } 'long_preview_fixture_removed' | Out-Null
+      Set-Search ''
       if ($OCRFixture) {
         Invoke-Button 'Image'
         Wait-For { (Find-Named '1 items') -and (Get-ImagePreview) } 'image_for_ocr_replacement' | Out-Null
