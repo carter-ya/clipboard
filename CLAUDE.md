@@ -137,3 +137,5 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Desktop responsive breakpoints follow the mapped GTK viewport allocation, retaining its last width while hidden. GeometryReader measurement proposals still control frame constraints but must not switch responsive control subtrees. Keep native per-hide identity and compact/wide scale checks; Windows confirmation is required before accepting the candidate fix.
 
 - Long desktop previews use a native multi-line label with bounded current-text width metrics. Skip full-content shaping for zero-width minimum queries, preserve the backend multi-line ellipsizing behavior, and invalidate metrics on text/font/context/scale changes. The pinned GTK representable patch must update its current input value while retaining the widget/coordinator. Native tests require exact complete display text and original HTML/RTF Copy bytes; do not hide layout delays by extending timeouts.
+
+- The runtime-only Linux installer probe allows 600 seconds for the expanded full UI suite and 25 hide/reopen cycles. Individual action deadlines remain unchanged; a larger total coverage budget must not mask a stalled action or remove native checks.
