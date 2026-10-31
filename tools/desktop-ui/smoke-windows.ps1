@@ -760,8 +760,9 @@ try {
       $focusFixture = [PreviewNative]::CreateFocusFixture()
       if ($focusFixture -eq [IntPtr]::Zero) { throw 'startup_focus_fixture' }
       [PreviewNative]::SetForegroundWindow($focusFixture) | Out-Null
-      $focusControl = [PreviewNative]::GetFocusFixtureControl()
-      [Windows.Automation.AutomationElement]::FromHandle($focusControl).SetFocus()
+      # Activation is the fixture contract. UI Automation cannot reliably
+      # SetFocus on a control hosted by its own client process; the actual
+      # foreground HWND assertion below proves the GTK app was deactivated.
       Wait-For { [PreviewNative]::GetForegroundWindow() -eq $focusFixture } 'startup_settings_deactivated_without_unmap' | Out-Null
       $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath, $true)
       try { $key.SetValue($startupRegistrationName, $startupCommand, [Microsoft.Win32.RegistryValueKind]::String) }
