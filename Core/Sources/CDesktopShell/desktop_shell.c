@@ -391,19 +391,27 @@ static int bind_x11(clipboard_shell *s, uint32_t modifiers) {
   atomic_fetch_or(&s->capabilities, 2);
   return 0;
 }
+static void dispatch_x11_key_press(clipboard_shell *s, const XKeyEvent *event) {
+  unsigned keyboard_modifiers = ShiftMask | ControlMask | Mod1Mask | Mod2Mask |
+                                Mod3Mask | Mod4Mask | Mod5Mask;
+  unsigned state = event->state & keyboard_modifiers & ~s->num_lock;
+  if ((atomic_load(&s->capabilities) & 2) && event->keycode == s->keycode &&
+      state == s->modifiers) {
+    if (!s->pressed) {
+      atomic_store(&s->activation_time, (unsigned)event->time);
+      emit(s, 1);
+    }
+    s->pressed = 1;
+  }
+}
 static void pump_x11(clipboard_shell *s) {
   if (!s->display)
     return;
   while (XPending(s->display)) {
     XEvent event;
     XNextEvent(s->display, &event);
-    if (event.type == KeyPress && event.xkey.keycode == s->keycode) {
-      if (!s->pressed) {
-        atomic_store(&s->activation_time, (unsigned)event.xkey.time);
-        emit(s, 1);
-      }
-      s->pressed = 1;
-    } else if (event.type == KeyRelease && event.xkey.keycode == s->keycode) {
+    if (event.type == KeyPress) {
+      dispatch_x11_key_press(s, &event.xkey);    } else if (event.type == KeyRelease && event.xkey.keycode == s->keycode) {
       if (!s->detectable_repeat && XPending(s->display)) {
         XEvent next;
         XPeekEvent(s->display, &next);

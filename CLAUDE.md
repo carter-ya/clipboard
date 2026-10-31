@@ -102,3 +102,8 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Native Windows probes wait for the matching image/file preview and enabled button before invoking once. Equal result counts do not acknowledge a filter change; never retry an already submitted mutation.
 
 - OCR replacement waits for the native image preview before deleting the old image; an equal one-item count from the previous File filter is not proof of selection.
+- X11 selection requestors may disappear before a reply. The clipboard adapter recovers BadWindow only on registered private connections and delegates other connections/errors to the prior host handler. The portability workflow permanently exercises cancelled requests and registry cleanup in private Xvfb.
+
+- Native X11 shortcut dispatch must require an acquired registration and exact configured keyboard modifiers. Ignore Caps Lock and the discovered Num Lock mask, retain held-key suppression, and test the native dispatcher directly without synthesizing keyboard input.
+
+- Automatic desktop analysis uses the bounded ID-only serial scheduler; a busy manual action must not discard inserted clips. Recheck live settings and the current item when dequeuing, exclude sensitive/concealed or already analyzed clips, report overflow, and cancel/clear work on shutdown. Keep manual duplicate actions guarded.
