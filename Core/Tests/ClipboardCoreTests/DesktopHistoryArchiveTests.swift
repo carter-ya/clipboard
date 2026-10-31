@@ -38,6 +38,43 @@ final class DesktopHistoryArchiveTests: XCTestCase {
     }
   }
 
+  private enum MacSummarySource: String, Decodable {
+    case vision, naturalLanguage, foundationModels, remoteOpenAI
+  }
+  private struct MacSummaryItem: Decodable {
+    var summary: String?
+    var summarySource: MacSummarySource?
+  }
+  private struct MacSummaryEnvelope: Decodable { var items: [MacSummaryItem] }
+  func testZIPDesktopSummarySourcesRemainReadableByCurrentMac() throws {
+    let directory = try root()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let file = directory.appendingPathComponent("desktop-summaries.zip")
+    let sources: [SummarySource] = [
+      .vision, .naturalLanguage, .foundationModels, .remoteOpenAI, .localOCR,
+    ]
+    let items = sources.enumerated().map { index, source in
+      var value = item("archive-source-\(index)")
+      value.summary = "Synthetic summary retained"
+      value.summarySource = source
+      return value
+    }
+    try DesktopHistoryArchive.write(items: items, blobRoot: nil, to: file)
+    let archive = try Archive(url: file, accessMode: .read)
+    let entry = try XCTUnwrap(archive["history.json"])
+    var data = Data()
+    _ = try archive.extract(entry) { data.append($0) }
+    // This deliberately uses main's four-case enum, rather than the extended
+    // desktop enum shared by the rest of this test target.
+    let legacy = try JSONDecoder().decode(MacSummaryEnvelope.self, from: data)
+    XCTAssertEqual(legacy.items.count, sources.count)
+    XCTAssertTrue(legacy.items.allSatisfy { $0.summary == "Synthetic summary retained" })
+    XCTAssertEqual(
+      legacy.items.prefix(4).compactMap { $0.summarySource?.rawValue },
+      sources.prefix(4).map(\.rawValue))
+    XCTAssertNil(legacy.items.last?.summarySource)
+  }
+
   func testZIPRoundTripExcludesSensitiveAndConcealedAndResolvesStoredBlobs() async throws {
     let directory = try root()
     defer { try? FileManager.default.removeItem(at: directory) }
