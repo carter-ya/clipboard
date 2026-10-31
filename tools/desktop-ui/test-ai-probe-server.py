@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise both native pipe line endings against an owned loopback fixture."""
+"""Exercise native pipe encodings and line endings against an owned loopback fixture."""
 from concurrent.futures import ThreadPoolExecutor
 import http.client
 import json
@@ -11,9 +11,9 @@ import unittest
 
 
 class ProbeReleaseTests(unittest.TestCase):
-    def test_lf_and_crlf_release_an_active_request_without_waiting_for_fallback(self):
-        for ending in (b'\n', b'\r\n'):
-            with self.subTest(ending=repr(ending)):
+    def test_native_encodings_release_an_active_request_without_waiting_for_fallback(self):
+        for prefix, ending in ((prefix, ending) for prefix in (b'', b'\xef\xbb\xbf') for ending in (b'\n', b'\r\n')):
+            with self.subTest(prefix=repr(prefix), ending=repr(ending)):
                 environment = os.environ.copy()
                 environment.update(CLIPBOARD_PRIVATE_AI_TEST='1', CLIPBOARD_PRIVATE_AI_MODE='analysis')
                 server = subprocess.Popen([sys.executable, str(Path(__file__).with_name('ai-probe-server.py'))],
@@ -42,7 +42,7 @@ class ProbeReleaseTests(unittest.TestCase):
                     pending = pool.submit(request)
                     blocked = pool.submit(server.stdout.readline).result(timeout=5)
                     self.assertEqual(blocked.strip(), b'blocked')
-                    server.stdin.write(b'release' + ending)
+                    server.stdin.write(prefix + b'release' + ending)
                     server.stdin.flush()
                     self.assertEqual(pending.result(timeout=10), 503)
                 finally:
