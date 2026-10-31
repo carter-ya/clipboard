@@ -28,6 +28,7 @@ remain blocked by the open interactive gates below.
 | PDF text extraction | Six actual decoder checks cover text, Chinese/astral Unicode, malformed/empty PDFs, byte/page bounds. Native services exercise a Unicode copied PDF path and refusal cases. Four Linux real-pipe tests cover cancellation, deadline, output cap and failed-exit rejection; cancellation reproduces SIGPIPE before the thread-local fix. Native UI verifies automatic local PDF excerpts and explicitly allowed body-only uploads. Packages require the pinned worker/runtime and all notices. Windows/installed confirmation remains required. |
 | Local text excerpts | Four native checks use a private preseeded item and independent native writer to verify manual/automatic results, original-payload preservation, accurate local engine label, remote/image opt-outs and owned cleanup. Core tests cover Unicode/control/output budgets, rich text and sensitivity before resolution. Final hosted Windows and inherited Mac ZIP compatibility remain required. |
 | Remote-to-local fallback | Private loopback service fails both requests. Native controls first prove local analysis is refused without its opt-in, then explicitly enable local processing and Retry; verify the actual local result, original bytes, clean quit and exactly two credential/cookie-free requests. Core tests cover per-kind automatic consent, stale/private items, original retry identity and cancellation after local-permission revocation. Hosted Windows/installed confirmation remains required. |
+| Local image analysis | Native controls run OCR-first offline analysis, retain its progress/retry mode across selection, and independently read back the complete original PNG. Separate default-off automatic labels are saved without uploads; live revocation cancels the held classifier while keeping OCR enabled. Sensitive images remain ineligible after reveal. The private held-worker gate is available only in an isolated smoke profile; actual successful inference uses the bundled native helper. Hosted Windows/installed confirmation remains required. |
 | Per-item analysis progress | Private loopback fixture holds a request while selection changes, returns a failure and accepts retry. The selected result is persisted once; progress/failure never follow another item. Core tests cover duplicate starts, stale retry tickets, deletion/clear/stop and bounded metadata. Windows/installed confirmation remains required. |
 | Analysis type permissions | Old complete configurations retain text behavior; explicit false/null/type parsing, denied payload resolution, independent image/OCR permissions and queued/manual revocation are tested. Native settings must persist text opt-out without enabling remote AI or image uploads, then restore it. File text permissions are covered separately below; PDF extraction remains open. |
 | Explicit AI connection diagnostics | Five bounded Core tests cover fixed requests, credential opt-in, status classes and stale-result cancellation. Private native loopback fixture verifies success/401/retry/active cancellation, unchanged saved settings and no key/cookie/history transmission; 97 full Linux native checks pass. Exact-head Windows and installed execution remain required. |
@@ -78,7 +79,7 @@ A supported alternative does not establish identical model behavior.
 | --- | --- | --- |
 | History filters | All/Pinned; Text/Image/File/Rtf/Mixed and All types; query-scoped counts | Same choices and count scopes through portable Core. The additional source-ID field is an explicit filter, not an installed-app picker. |
 | Local image text | Vision OCR, with Chinese/English recognition | Native OCR uses available system/Tesseract language packs; missing languages or services remain capability failures. |
-| Local image scene labels | Vision returns up to three classification labels when no text is recognized, then image dimensions as a last fallback | A verified offline SqueezeNet/ONNX Runtime CPU backend now ships. Native UI and automatic scheduling integration are the next stack layer. Its ImageNet labels and accuracy differ from Vision. |
+| Local image scene labels | Vision returns up to three classification labels when no text is recognized, then image dimensions as a last fallback | Analyze image locally runs OCR first, then the bundled offline SqueezeNet/ONNX Runtime CPU backend. Automatic labels require both automatic recognition and a separate default-off permission. Its ImageNet labels and accuracy differ from Vision. |
 | Image descriptions through AI | Explicit image permission and configured endpoint | Supported only after the independent remote/image opt-ins, using a compatible image-capable endpoint. This does not supply offline classification. |
 | Local text/file summaries | Mac NaturalLanguage/Foundation Models when supported | Bounded local excerpts, including text-file/PDF extraction. These are labelled excerpts, not generative summaries or identical Apple-model output. |
 | Startup approval | OS login-item approval and user policy | Native registration/ownership and failure guidance are implemented; Windows Startup apps and Linux session policy can override registration. Real OS permission UI remains an interactive gate. |
@@ -91,8 +92,15 @@ through owned pipes, disables telemetry and applies process memory/CPU limits;
 parent cancellation kills/reaps only that worker. Sensitive/concealed images are
 refused before payload resolution. Installation checks execute the helper from
 the real installed prefix without SDK paths and require its notices/provenance.
-The application never downloads a model at runtime. This backend layer leaves
-the existing Recognize text action intact; user-facing local image analysis and
-automatic scheduling remain the next integration step. Hosted Windows and the
+The application never downloads a model at runtime. Recognize text keeps its OCR-only behavior. Analyze image locally has its own
+per-item progress, failure and retry mode; the original image remains separately
+copyable. Automatic labels require both saved automatic-recognition and local-label
+permissions; old settings keep OCR-only behavior. Saving revocation synchronously
+cancels active automatic classification and rejects queued or late results, while
+leaving OCR enabled. No remote or image-upload permission is enabled by this action.
+Private native-control fixtures exercise failure/retry, selection changes, original
+PNG readback, opt-ins and live revocation using synthetic images and the actual
+classifier. Their held-worker fixture requires an isolated smoke profile and cannot
+be enabled through normal settings. Hosted Windows and the
 physical release gates remain required; backend tests do not establish identical
 Vision labels or generative image descriptions.

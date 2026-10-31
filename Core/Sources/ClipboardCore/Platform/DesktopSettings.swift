@@ -17,6 +17,7 @@ public struct DesktopSettings: Codable, Equatable, Sendable {
   public var ai = DesktopAISettings()
   public var automaticSummaries = false
   public var automaticOCR = false
+  public var automaticLocalImageSummaries = false
   public var localTextSummariesEnabled = false
   public var automaticLocalSummaries = false
   public var localFileSummariesEnabled = false
@@ -27,6 +28,7 @@ public struct DesktopSettings: Codable, Equatable, Sendable {
     case recordingEnabled, shortcutEnabled, shortcut, closeToTray, showOnLaunch
     case historyCapacity, maxClipSizeBytes, skipSensitive, blocklistEnabled, blockedAppIDs
     case appearance, languageOverride, ai, automaticSummaries, automaticOCR
+    case automaticLocalImageSummaries
     case localTextSummariesEnabled, automaticLocalSummaries
     case localFileSummariesEnabled, automaticLocalFileSummaries
   }
@@ -55,6 +57,8 @@ public struct DesktopSettings: Codable, Equatable, Sendable {
     automaticSummaries =
       try values.decodeIfPresent(Bool.self, forKey: .automaticSummaries) ?? automaticSummaries
     automaticOCR = try values.decodeIfPresent(Bool.self, forKey: .automaticOCR) ?? automaticOCR
+    automaticLocalImageSummaries =
+      try values.decodeIfPresent(Bool.self, forKey: .automaticLocalImageSummaries) ?? false
     localTextSummariesEnabled =
       try values.decodeIfPresent(Bool.self, forKey: .localTextSummariesEnabled) ?? false
     automaticLocalSummaries =

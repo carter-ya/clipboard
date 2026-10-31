@@ -72,6 +72,7 @@ final class HistoryModel: ObservableObject {
   @Published var aiKeyDraft = ""
   @Published var automaticSummariesDraft = false
   @Published var automaticOCRDraft = false
+  @Published var automaticLocalImageSummariesDraft = false
   @Published var localTextSummariesDraft = false
   @Published var automaticLocalSummariesDraft = false
   @Published var localFileSummariesDraft = false
@@ -81,6 +82,7 @@ final class HistoryModel: ObservableObject {
   @Published var uiLanguage: String?
   private var credentials = NativeDesktopCredentials()
   private let ocr = NativeDesktopOCR()
+  @MainActor private lazy var imageClassifier = DesktopImageAnalysisFixture.classifier()
   private let transport = BoundedDesktopAITransport()
   @MainActor private lazy var aiConnection: DesktopAIConnectionState = {
     let probe = DesktopAIConnectionProbe(credentials: credentials, transport: transport)
@@ -426,6 +428,7 @@ final class HistoryModel: ObservableObject {
       aiModelDraft = settings.ai.model
       automaticSummariesDraft = settings.automaticSummaries
       automaticOCRDraft = settings.automaticOCR
+      automaticLocalImageSummariesDraft = settings.automaticLocalImageSummaries
       localTextSummariesDraft = settings.localTextSummariesEnabled
       automaticLocalSummariesDraft = settings.automaticLocalSummaries
       localFileSummariesDraft = settings.localFileSummariesEnabled
@@ -519,7 +522,8 @@ final class HistoryModel: ObservableObject {
             {
               self.enqueueAutomaticAnalysis(remote: false, item: item)
             } else if self.settings.automaticOCR && item.kind == .image {
-              self.enqueueAutomaticAnalysis(remote: false, item: item)
+              self.enqueueAutomaticAnalysis(
+                remote: false, item: item, imageSummary: self.settings.automaticLocalImageSummaries)
             }
           }
         }
@@ -1048,6 +1052,7 @@ final class HistoryModel: ObservableObject {
     next.ai.model = aiModelDraft.trimmingCharacters(in: .whitespacesAndNewlines)
     next.automaticSummaries = automaticSummariesDraft
     next.automaticOCR = automaticOCRDraft
+    next.automaticLocalImageSummaries = automaticLocalImageSummariesDraft
     next.localTextSummariesEnabled = localTextSummariesDraft
     next.automaticLocalSummaries = automaticLocalSummariesDraft
     next.localFileSummariesEnabled = localFileSummariesDraft
@@ -1100,9 +1105,12 @@ final class HistoryModel: ObservableObject {
       status = "API key deleted. Save AI settings to update the connection."
     } catch { status = "Secure credential storage is unavailable or locked." }
   }
-  @MainActor private func enqueueAutomaticAnalysis(remote: Bool, item: ClipItem) {
+  @MainActor private func enqueueAutomaticAnalysis(
+    remote: Bool, item: ClipItem, imageSummary: Bool = false
+  ) {
     guard !shuttingDown, !item.sensitive, item.summary == nil else { return }
-    let result = analysisScheduler.submit(.init(id: item.id, remote: remote, automatic: true))
+    let result = analysisScheduler.submit(
+      .init(id: item.id, remote: remote, automatic: true, imageSummary: imageSummary))
     if result == .full {
       status = "Automatic analysis queue is full. Analyze skipped items manually."
     }
@@ -1112,37 +1120,51 @@ final class HistoryModel: ObservableObject {
     return itemAnalysisProgress[item.id]
   }
   @MainActor func retryAnalysis() {
-    guard case .failed(let remote)? = selectedAnalysisProgress else { return }
-    analyze(remote: remote)
+    guard case .failed(let remote, let imageSummary)? = selectedAnalysisProgress else { return }
+    analyze(remote: remote, imageSummary: imageSummary)
   }
-  @MainActor func analyze(remote: Bool, item requested: ClipItem? = nil) {
+  @MainActor func analyze(remote: Bool, item requested: ClipItem? = nil, imageSummary: Bool = false)
+  {
     guard !shuttingDown, let item = requested ?? selected, !item.sensitive else { return }
-    analysisScheduler.submit(.init(id: item.id, remote: remote, automatic: false))
+    analysisScheduler.submit(
+      .init(id: item.id, remote: remote, automatic: false, imageSummary: imageSummary))
   }
   @MainActor private func performAnalysis(_ request: DesktopAnalysisScheduler.Request) async {
     guard let item = await store?.item(id: request.id) else { return }
     // Recheck live preferences after waiting; disabling automation revokes queued work.
     guard !shuttingDown, !Task.isCancelled, request.isAllowed(item: item, settings: settings)
     else { return }
-    guard let ticket = analysisProgress.begin(id: item.id, remote: request.remote) else { return }
+    guard
+      let ticket = analysisProgress.begin(
+        id: item.id, remote: request.remote, imageSummary: request.imageSummary)
+    else { return }
     let remote = request.remote
     let localText = !remote && item.kind != .image
     let configuration = settings.ai
     let service = DesktopAnalysis(
       credentials: credentials, transport: transport, ocr: ocr,
-      blobRoot: root?.appendingPathComponent("blobs"), fileReader: NativeDesktopFileTextReader())
+      blobRoot: root?.appendingPathComponent("blobs"), fileReader: NativeDesktopFileTextReader(),
+      imageClassifier: imageClassifier)
     let language = settings.languageOverride
     var activeRequest = request
     var resultKind = item.kind
+    var resultSource: SummarySource?
     do {
       let result: String
       do {
-        let first =
-          try await
-          (remote
-          ? service.summarize(item, settings: configuration, language: language)
-          : localText
-            ? service.summarizeLocally(item) : service.recognize(item, language: language))
+        let first: String
+        if request.imageSummary {
+          let image = try await service.summarizeImageLocally(item, language: language)
+          first = image.text
+          resultSource = image.source
+        } else {
+          first =
+            try await
+            (remote
+            ? service.summarize(item, settings: configuration, language: language)
+            : localText
+              ? service.summarizeLocally(item) : service.recognize(item, language: language))
+        }
         if remote && first.isEmpty { throw DesktopServiceError.networkFailure }
         result = first
       } catch {
@@ -1178,13 +1200,17 @@ final class HistoryModel: ObservableObject {
       }
       await store?.updateSummary(
         id: item.id, summary: result,
-        source: activeRequest.remote
-          ? .remoteOpenAI : resultKind == .image ? .localOCR : .localExtractive)
+        source: resultSource
+          ?? (activeRequest.remote
+            ? .remoteOpenAI : resultKind == .image ? .localOCR : .localExtractive))
       await store?.flush()
       loadedPreviewID = nil
       await refresh()
       analysisProgress.finish(ticket, succeeded: true)
-      status = activeRequest.remote || resultKind != .image ? "Summary ready" : "OCR text ready"
+      status =
+        request.imageSummary
+        ? "Image analysis ready"
+        : activeRequest.remote || resultKind != .image ? "Summary ready" : "OCR text ready"
     } catch is CancellationError {
       analysisProgress.remove(id: item.id)
       if !shuttingDown && !showsSettings && selectedID == item.id
@@ -1211,7 +1237,9 @@ final class HistoryModel: ObservableObject {
           ? "Summary unavailable. Check AI settings and the connection."
           : localText
             ? "Local excerpts need at least 100 characters of readable text."
-            : "OCR unavailable. Check the image and installed OCR language packs."
+            : request.imageSummary
+              ? "Image analysis unavailable. Check the image and local components."
+              : "OCR unavailable. Check the image and installed OCR language packs."
       }
     }
   }
