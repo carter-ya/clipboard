@@ -1305,6 +1305,15 @@ try {
       $reportRead = $probeServer.StandardOutput.ReadLineAsync()
       if (!$reportRead.Wait(5000)) { throw 'ai_probe_server_report' }
       $fixtureReport = $reportRead.Result | ConvertFrom-Json
+      # Retain only numeric/boolean evidence. Never include request content,
+      # headers, endpoint, exception text or the fixture's raw output.
+      $connectionAudit = @{
+        requests = [int]$fixtureReport.requests
+        fixedTestsOnly = $fixtureReport.fixedTestsOnly -eq $true
+        noAuthorization = $fixtureReport.noAuthorization -eq $true
+        noCookies = $fixtureReport.noCookies -eq $true
+      }
+      [IO.File]::WriteAllText((Join-Path $OutputDirectory 'connection-audit.json'), ($connectionAudit | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
       Add-Check 'connection_requests_use_only_fixed_prompts_without_keys_or_cookies' ($fixtureReport.requests -eq 4 -and $fixtureReport.fixedTestsOnly -and $fixtureReport.noAuthorization -and $fixtureReport.noCookies)
       $probeServer.Dispose()
       Invoke-Button 'Quit Clipboard'
