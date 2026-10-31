@@ -30,6 +30,16 @@ public static class PreviewNative {
     }, IntPtr.Zero);
     return result.ToArray();
   }
+  public static IntPtr DialogButton(IntPtr parent, int id) {
+    IntPtr result = IntPtr.Zero;
+    EnumChildWindows(parent, (control, _) => {
+      var type = new System.Text.StringBuilder(128);
+      GetClassName(control, type, type.Capacity);
+      if (GetDlgCtrlID(control) == id && type.ToString() == "Button") { result = control; return false; }
+      return true;
+    }, IntPtr.Zero);
+    return result;
+  }
   public static string DescribeDialogField(IntPtr control) {
     var type = new System.Text.StringBuilder(128);
     GetClassName(control, type, type.Capacity);
@@ -307,6 +317,18 @@ function Invoke-Button([string]$Label) {
   $pattern = $element.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
   $pattern.Invoke()
 }
+function Get-ArchiveFilenamePattern($Element) {
+  try {
+    $pattern = $Element.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
+    if (!$pattern.Current.IsReadOnly) { return $pattern }
+  } catch {}
+  try {
+    $pattern = $Element.GetCurrentPattern([Windows.Automation.LegacyIAccessiblePattern]::Pattern)
+    # Standard editable text/combobox roles; reject disabled/read-only controls.
+    if ($pattern.Current.Role -in @(42, 46) -and ($pattern.Current.State -band 0x41) -eq 0) { return $pattern }
+  } catch {}
+  return $null
+}
 function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefault = $false) {
   $handle = Wait-For {
     $candidate = [PreviewNative]::FindDialog([uint32]$application.Id, $Title)
@@ -315,17 +337,17 @@ function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefau
   $dialog = [Windows.Automation.AutomationElement]::FromHandle($handle)
   # Windows common dialogs may expose the filename as an editable ComboBox
   # rather than an Edit node. Anchor only to known filename host/control IDs,
-  # then require its native ValuePattern; never pick the address/search editor.
+  # then require a writable native accessibility value; never pick the address/search editor.
   $value = $null
   try {
     $value = Wait-For {
     # Native child handles also cover controls omitted from the dialog's
-    # provider fragment. ValuePattern remains mandatory; no text messages/keys.
+    # provider fragment. Accessibility remains mandatory; no text messages/keys.
     foreach ($native in [PreviewNative]::DialogFields($handle, $true)) {
       try {
         $candidate = [Windows.Automation.AutomationElement]::FromHandle($native)
-        $pattern = $candidate.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
-        if ($candidate.Current.IsEnabled -and !$pattern.Current.IsReadOnly) { return $pattern }
+        $pattern = Get-ArchiveFilenamePattern $candidate
+        if ($pattern) { return $pattern }
       } catch {}
     }
     foreach ($id in @('1001', '1148', 'FileNameControlHost')) {
@@ -340,7 +362,8 @@ function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefau
         }
         foreach ($control in $controls) {
           if (!$control.Current.IsEnabled) { continue }
-          try { return $control.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern) } catch {}
+          $pattern = Get-ArchiveFilenamePattern $control
+          if ($pattern) { return $pattern }
         }
       }
     }
@@ -351,13 +374,15 @@ function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefau
     $metadata = @()
     foreach ($native in [PreviewNative]::DialogFields($handle, $false)) {
       $supportsValue = $false
+      $supportsLegacy = $false
       try {
         $element = [Windows.Automation.AutomationElement]::FromHandle($native)
         $supportsValue = [bool]$element.GetCurrentPropertyValue([Windows.Automation.AutomationElement]::IsValuePatternAvailableProperty)
+        $supportsLegacy = [bool]$element.GetCurrentPropertyValue([Windows.Automation.AutomationElement]::IsLegacyIAccessiblePatternAvailableProperty)
       } catch {}
-      $metadata += @{ control = [PreviewNative]::DescribeDialogField($native); valuePattern = $supportsValue }
+      $metadata += @{ control = [PreviewNative]::DescribeDialogField($native); valuePattern = $supportsValue; legacyPattern = $supportsLegacy }
     }
-    [IO.File]::WriteAllText((Join-Path $OutputDirectory 'archive-native-controls.json'), ($metadata | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText((Join-Path $OutputDirectory 'archive-native-controls.json'), (ConvertTo-Json -InputObject $metadata), [Text.UTF8Encoding]::new($false))
     throw 'archive_filename_editor'
   }
   if ($CheckDefault) { Add-Check 'native_archive_save_dialog_defaults_to_zip' ($value.Current.Value -ceq 'clipboard-history.zip') }
@@ -366,10 +391,25 @@ function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefau
     [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Button),
     [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, '1'))
   $accept = Wait-For {
-    $button = $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, $acceptCondition)
-    if ($button -and $button.Current.IsEnabled) { $button }
+    $native = [PreviewNative]::DialogButton($handle, 1)
+    $button = if ($native -ne [IntPtr]::Zero) { [Windows.Automation.AutomationElement]::FromHandle($native) }
+              else { $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, $acceptCondition) }
+    if (!$button) { return $null }
+    try {
+      if ($button.Current.IsEnabled) {
+        return @{ kind = 'invoke'; pattern = $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern) }
+      }
+    } catch {}
+    try {
+      $legacy = $button.GetCurrentPattern([Windows.Automation.LegacyIAccessiblePattern]::Pattern)
+      if ($legacy.Current.Role -eq 43 -and ($legacy.Current.State -band 1) -eq 0) {
+        return @{ kind = 'legacy'; pattern = $legacy }
+      }
+    } catch {}
+    return $null
   } 'archive_dialog_accept'
-  $accept.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+  if ($accept.kind -eq 'invoke') { $accept.pattern.Invoke() }
+  else { $accept.pattern.DoDefaultAction() }
 }
 function Set-Search([string]$Text) {
   $element = Wait-For { Get-Editor } 'search_control'
