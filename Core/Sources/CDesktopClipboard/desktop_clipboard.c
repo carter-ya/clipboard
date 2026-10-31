@@ -166,9 +166,46 @@ int cb_write_utf8(cb_session *s, const char *text, size_t length,
 #include <X11/extensions/Xfixes.h>
 #include <errno.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <sys/select.h>
 #include <time.h>
 
+// X11 requestors can disappear before asynchronous replies are processed.
+// Only recover BadWindow on our own connections; preserve the host handler.
+static _Atomic(Display *) clipboard_displays[32];
+static pthread_mutex_t clipboard_display_lock = PTHREAD_MUTEX_INITIALIZER;
+static _Atomic(XErrorHandler) previous_clipboard_error;
+static int clipboard_error_installed;
+static int clipboard_error(Display *display, XErrorEvent *event) {
+  if (event->error_code == BadWindow) {
+    for (unsigned i = 0; i < 32; ++i)
+      if (atomic_load(&clipboard_displays[i]) == display)
+        return 0;
+  }
+  XErrorHandler previous = atomic_load(&previous_clipboard_error);
+  return previous ? previous(display, event) : 0;
+}
+static int register_display(Display *display) {
+  int registered = 0;
+  pthread_mutex_lock(&clipboard_display_lock);
+  for (unsigned i = 0; i < 32; ++i)
+    if (!atomic_load(&clipboard_displays[i])) {
+      if (!clipboard_error_installed) {
+        atomic_store(&previous_clipboard_error, XSetErrorHandler(clipboard_error));
+        clipboard_error_installed = 1;
+      }
+      atomic_store(&clipboard_displays[i], display);
+      registered = 1;
+      break;
+    }
+  pthread_mutex_unlock(&clipboard_display_lock);
+  return registered;
+}
+static void unregister_display(Display *display) {
+  for (unsigned i = 0; i < 32; ++i)
+    if (atomic_load(&clipboard_displays[i]) == display)
+      atomic_store(&clipboard_displays[i], NULL);
+}
 struct cb_session {
   Display *display;
   Window window;
@@ -197,8 +234,14 @@ cb_session *cb_open(void) {
     free(s);
     return NULL;
   }
+  if (!register_display(s->display)) {
+    XCloseDisplay(s->display);
+    free(s);
+    return NULL;
+  }
   int error;
   if (!XFixesQueryExtension(s->display, &s->fixes_event, &error)) {
+    unregister_display(s->display);
     XCloseDisplay(s->display);
     free(s);
     return NULL;
@@ -223,6 +266,8 @@ void cb_close(cb_session *s) {
   if (!s)
     return;
   XDestroyWindow(s->display, s->window);
+  XSync(s->display, False);
+  unregister_display(s->display);
   XCloseDisplay(s->display);
   free(s->owned);
   free(s);
