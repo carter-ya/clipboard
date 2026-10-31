@@ -161,7 +161,12 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Offline image classification uses the verified CPU-only helper and embedded model, not runtime model paths/downloads or uploaded data. Keep the Core OCR-first service and distinct localImage source; sensitive/concealed and cancelled work must fail before resolving payloads or starting a fallback. Bound image input/metadata/pixels and owned process memory/CPU/wall time; disable telemetry and retain every model/runtime notice. Each native build must verify the official reference tensor and RGB/crop/normalization/postprocessing, and runtime-only installs must execute the helper with bundled dependencies. The generic pipe writer allows 16 MiB, while the legacy PDF entry point and PDF worker keep their 1 MiB limits and thread-local SIGPIPE handling. UI/automatic integration is tracked separately from backend acceptance.
 
-- Private PowerShell fixture control pipes must explicitly use UTF-8 without a preamble before Process.Start. Retain the real BOM-refusal/EOF and held-request release regression; do not infer protocol success from an error screenshot taken after cleanup.
+
+
+
+
+
+- Private PowerShell fixture control pipes use UTF-8 without a preamble when supported by modern .NET. Windows PowerShell 5.1 lacks ProcessStartInfo.StandardInputEncoding: guard that property and accept one optional UTF-8 BOM on the first private command in the server. Retain real held-request tests for BOM/no-BOM and LF/CRLF without EOF; never infer protocol success from a screenshot after cleanup.
 
 - PowerShell wait diagnostic variables must not shadow predicate caller variables. Keep the real helper scope regression, exact public-control predicates and per-action deadlines; correct screenshots alone do not prove accessibility predicates succeeded.
 
