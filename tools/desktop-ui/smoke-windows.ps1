@@ -269,6 +269,25 @@ public static class PreviewNative {
     try { return DragQueryFile(GetClipboardData(15), 0xffffffff, null, 0); }
     finally { CloseClipboard(); }
   }
+  public static string[] ReadClipboardFiles() {
+    if (!OpenClipboard(IntPtr.Zero)) throw new Exception("clipboard_busy");
+    try {
+      IntPtr drop = GetClipboardData(15);
+      uint count = DragQueryFile(drop, 0xffffffff, null, 0);
+      if (count == 0 || count > 4096) throw new Exception("fixture_file_count");
+      var paths = new string[(int)count];
+      int total = 0;
+      for (uint index = 0; index < count; index++) {
+        uint length = DragQueryFile(drop, index, null, 0);
+        if (length == 0 || length > 32768 || total + length > 1024 * 1024) throw new Exception("fixture_file_budget");
+        var path = new System.Text.StringBuilder((int)length + 1);
+        if (DragQueryFile(drop, index, path, length + 1) != length) throw new Exception("fixture_file_read");
+        paths[index] = path.ToString();
+        total += (int)length;
+      }
+      return paths;
+    } finally { CloseClipboard(); }
+  }
   [DllImport("kernel32.dll")] public static extern IntPtr GlobalLock(IntPtr handle);
   [DllImport("kernel32.dll")] public static extern bool GlobalUnlock(IntPtr handle);
   [DllImport("kernel32.dll")] public static extern UIntPtr GlobalSize(IntPtr handle);
@@ -980,6 +999,88 @@ try {
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'counted_history_quit_timeout' }
     Add-Check 'counted_history_quits_cleanly' ($application.ExitCode -eq 0)
+
+    $historyRoot = Join-Path $OutputDirectory ('metadata-' + [Guid]::NewGuid().ToString('N'))
+    [IO.Directory]::CreateDirectory($historyRoot) | Out-Null
+    $metadataPng = if ($OCRFixture) { [IO.File]::ReadAllBytes([IO.Path]::GetFullPath($OCRFixture)) } else {
+      [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGUlEQVR4nGPQyLvznxLMMGrAqAGjBgwXAwBc3HEfVZuzFAAAAABJRU5ErkJggg==')
+    }
+    $metadataPaths = @((Join-Path $OutputDirectory 'absent reference files/设计 😀.txt'), (Join-Path $OutputDirectory 'absent reference files/second.pdf'))
+    $metadataUris = (($metadataPaths | ForEach-Object { ([Uri]$_).AbsoluteUri }) -join "`r`n")
+    $metadataFileBytes = [Text.Encoding]::UTF8.GetBytes($metadataUris)
+    $imageID, $filesID = [Guid]::NewGuid().ToString(), [Guid]::NewGuid().ToString()
+    $metadataSummary = 'Image row analysis fixture'
+    function Get-MetadataHash([byte[]]$Bytes) {
+      $algorithm = [Security.Cryptography.SHA256]::Create()
+      try { return ([BitConverter]::ToString($algorithm.ComputeHash($Bytes))).Replace('-', '').ToLowerInvariant() }
+      finally { $algorithm.Dispose() }
+    }
+    $metadataItems = @(
+      @{ id=$imageID; createdAt='2023-11-14T22:13:20Z'; kind='image'; preview='<image>'; pinned=$false; sensitive=$false;
+         sha256=(Get-MetadataHash $metadataPng); sizeBytes=$metadataPng.Length; sourceBundleID='windows:C:\Synthetic\PhotoTool.exe';
+         summary=$metadataSummary; summarySource='localOCR'; payloads=@(@{ pasteboardType='public.png'; inlineData=[Convert]::ToBase64String($metadataPng) }) },
+      @{ id=$filesID; createdAt='2023-11-14T22:12:20Z'; kind='file'; preview='Files metadata fixture'; pinned=$false; sensitive=$false;
+         sha256=(Get-MetadataHash $metadataFileBytes); sizeBytes=$metadataFileBytes.Length; sourceBundleID='linux:FixtureFiles';
+         payloads=@(@{ pasteboardType='public.file-url'; inlineData=[Convert]::ToBase64String($metadataFileBytes) }) })
+    [IO.File]::WriteAllText((Join-Path $historyRoot 'history.json'),
+      (@{ version=1; items=$metadataItems } | ConvertTo-Json -Depth 12), [Text.UTF8Encoding]::new($false))
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+      -ArgumentList @('--data-root', ('"' + $historyRoot + '"')) -PassThru `
+      -RedirectStandardOutput (Join-Path $OutputDirectory 'metadata.stdout.log') `
+      -RedirectStandardError (Join-Path $OutputDirectory 'metadata.stderr.log')
+    $null = $application.Handle
+    $nativeWindowHandle = Wait-For { $h = [PreviewNative]::FindWindow([uint32]$application.Id); if ($h -ne [IntPtr]::Zero) { $h } } 'metadata_window'
+    $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '2 items') } 'metadata_profile_ready' | Out-Null
+    Wait-For {
+      $rows = $window.FindAll([Windows.Automation.TreeScope]::Descendants,
+        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ListItem))
+      foreach ($row in $rows) {
+        $label = $row.FindFirst([Windows.Automation.TreeScope]::Descendants,
+          [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, $metadataSummary))
+        if ($label) { return $true }
+      }
+      return $false
+    } 'metadata_image_row_result' | Out-Null
+    Add-Check 'image_row_displays_its_analysis_result' $true
+    Wait-For { Find-Named 'Source: PhotoTool.exe' } 'metadata_readable_source' | Out-Null
+    Add-Check 'preview_source_uses_readable_executable_name' $true
+    Wait-For {
+      $labels = $window.FindAll([Windows.Automation.TreeScope]::Descendants,
+        [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Text))
+      foreach ($label in $labels) {
+        if ($label.Current.Name.Contains('2023') -and $label.Current.Name.Contains($metadataPng.Length.ToString() + ' bytes')) { return $true }
+      }
+      return $false
+    } 'metadata_capture_time_and_bytes' | Out-Null
+    Add-Check 'preview_reports_capture_time_and_recorded_bytes' $true
+    Save-Screenshot 'history-image-metadata.png'
+    Invoke-Button 'File'
+    Wait-For { (Find-Named '1 items') -and (Find-Named 'Files: 2') -and (Find-Named 'Source: FixtureFiles') -and
+      (Find-Named '设计 😀.txt') -and (Find-Named 'second.pdf') } 'metadata_file_names' | Out-Null
+    Add-Check 'file_preview_shows_decoded_names_and_reference_count' (@($metadataPaths | Where-Object { [IO.File]::Exists($_) }).Count -eq 0)
+    Save-Screenshot 'history-file-metadata.png'
+    $revision = [PreviewNative]::GetClipboardSequenceNumber()
+    Invoke-Button 'Copy'
+    Wait-For { (Find-Named 'Copied to clipboard') -and [PreviewNative]::GetClipboardSequenceNumber() -ne $revision } 'metadata_file_copy' | Out-Null
+    $readPaths = Wait-For { [PreviewNative]::ReadClipboardFiles() } 'metadata_native_file_references'
+    $copiedNames = @($readPaths | ForEach-Object { $_.Replace('/', '\') })
+    $originalNames = @($metadataPaths | ForEach-Object { $_.Replace('/', '\') })
+    Add-Check 'file_name_display_keeps_complete_native_references' ($copiedNames.Count -eq 2 -and
+      $copiedNames[0] -ceq $originalNames[0] -and $copiedNames[1] -ceq $originalNames[1])
+    $savedItems = (Read-SharedJson (Join-Path $historyRoot 'history.json')).items
+    $unchanged = $true
+    foreach ($original in $metadataItems) {
+      $saved = $savedItems | Where-Object { $_.id -eq $original.id }
+      $unchanged = $unchanged -and $saved.preview -ceq $original.preview -and $saved.sourceBundleID -ceq $original.sourceBundleID -and
+        $saved.payloads[0].pasteboardType -ceq $original.payloads[0].pasteboardType -and $saved.payloads[0].inlineData -ceq $original.payloads[0].inlineData
+    }
+    Add-Check 'metadata_presentation_does_not_rewrite_original_records' $unchanged
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'metadata_quit_settings' | Out-Null
+    Invoke-Button 'Quit Clipboard'
+    if (!$application.WaitForExit(10000)) { throw 'metadata_quit_timeout' }
+    Add-Check 'metadata_profile_quits_cleanly' ($application.ExitCode -eq 0)
 
     if ($env:GITHUB_ACTIONS -ne 'true') { throw 'row_pointer_fixture_requires_isolated_runner' }
     function Get-PublicHistoryRow([string]$Label) {

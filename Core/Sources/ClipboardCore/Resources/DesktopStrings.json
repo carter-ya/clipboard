@@ -72,6 +72,9 @@
     "Export failed. Check the destination and archive size (256 MiB maximum).": "Export fehlgeschlagen. Prüfe Ziel und Archivgröße (maximal 256 MiB).",
     "Export history": "Verlauf exportieren",
     "File": "Datei",
+    "File list truncated. Copy keeps every original file reference.": "Dateiliste gekürzt. Beim Kopieren bleiben alle ursprünglichen Dateiverweise erhalten.",
+    "File references are unavailable.": "Dateiverweise sind nicht verfügbar.",
+    "Files": "Dateien",
     "Filters": "Filter",
     "Generating summary…": "Zusammenfassung wird erstellt…",
     "GitHub refused this check. Try again later.": "GitHub hat diese Prüfung abgelehnt. Versuche es später erneut.",
@@ -198,6 +201,7 @@
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland erkennt keine Quell-Apps. App-Ausschlüsse greifen bei unbekannten Quellen nicht; Hinweise auf vertrauliche Inhalte gelten weiterhin.",
     "Your clipboard history, on this device.": "Dein Zwischenablageverlauf auf diesem Gerät.",
     "ZIP archives work with Mac. Use .json for the legacy export format.": "ZIP-Archive funktionieren mit Mac. Verwende .json für das bisherige Exportformat.",
+    "bytes": "Byte",
     "{count} items": "{count} Einträge"
   },
   "en": {
@@ -273,6 +277,9 @@
     "Export failed. Check the destination and archive size (256 MiB maximum).": "Export failed. Check the destination and archive size (256 MiB maximum).",
     "Export history": "Export history",
     "File": "File",
+    "File list truncated. Copy keeps every original file reference.": "File list truncated. Copy keeps every original file reference.",
+    "File references are unavailable.": "File references are unavailable.",
+    "Files": "Files",
     "Filters": "Filters",
     "Generating summary…": "Generating summary…",
     "GitHub refused this check. Try again later.": "GitHub refused this check. Try again later.",
@@ -399,6 +406,7 @@
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.",
     "Your clipboard history, on this device.": "Your clipboard history, on this device.",
     "ZIP archives work with Mac. Use .json for the legacy export format.": "ZIP archives work with Mac. Use .json for the legacy export format.",
+    "bytes": "bytes",
     "{count} items": "{count} items"
   },
   "es": {
@@ -474,6 +482,9 @@
     "Export failed. Check the destination and archive size (256 MiB maximum).": "Error al exportar. Comprueba el destino y el tamaño del archivo (máximo 256 MiB).",
     "Export history": "Exportar historial",
     "File": "Archivo",
+    "File list truncated. Copy keeps every original file reference.": "Lista de archivos truncada. Copiar conserva todas las referencias originales.",
+    "File references are unavailable.": "Las referencias de archivos no están disponibles.",
+    "Files": "Archivos",
     "Filters": "Filtros",
     "Generating summary…": "Generando resumen…",
     "GitHub refused this check. Try again later.": "GitHub rechazó la consulta. Inténtalo más tarde.",
@@ -600,6 +611,7 @@
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland no identifica las apps de origen. Las exclusiones no se aplican a orígenes desconocidos; las marcas de contenido sensible siguen vigentes.",
     "Your clipboard history, on this device.": "Tu historial del portapapeles, en este dispositivo.",
     "ZIP archives work with Mac. Use .json for the legacy export format.": "Los archivos ZIP son compatibles con Mac. Usa .json para el formato de exportación anterior.",
+    "bytes": "bytes",
     "{count} items": "{count} elementos"
   },
   "ja": {
@@ -675,6 +687,9 @@
     "Export failed. Check the destination and archive size (256 MiB maximum).": "書き出しに失敗しました。保存先とアーカイブのサイズ（最大 256 MiB）を確認してください。",
     "Export history": "履歴を書き出す",
     "File": "ファイル",
+    "File list truncated. Copy keeps every original file reference.": "ファイル一覧を省略しました。コピーには元のファイル参照がすべて含まれます。",
+    "File references are unavailable.": "ファイル参照を利用できません。",
+    "Files": "ファイル",
     "Filters": "絞り込み",
     "Generating summary…": "要約を生成中…",
     "GitHub refused this check. Try again later.": "GitHub が確認を拒否しました。後で再試行してください。",
@@ -801,6 +816,7 @@
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland はコピー元アプリを識別しません。不明なコピー元にはアプリ除外を適用できませんが、機密フラグは有効です。",
     "Your clipboard history, on this device.": "このデバイスに保存されるクリップボード履歴。",
     "ZIP archives work with Mac. Use .json for the legacy export format.": "ZIP アーカイブは Mac と共有できます。従来の形式で書き出すには .json を使用してください。",
+    "bytes": "バイト",
     "{count} items": "{count} 件"
   },
   "ko": {
@@ -876,6 +892,9 @@
     "Export failed. Check the destination and archive size (256 MiB maximum).": "내보내기에 실패했습니다. 대상 위치와 아카이브 크기(최대 256 MiB)를 확인하세요.",
     "Export history": "기록 내보내기",
     "File": "파일",
+    "File list truncated. Copy keeps every original file reference.": "파일 목록이 잘렸습니다. 복사하면 원본 파일 참조가 모두 유지됩니다.",
+    "File references are unavailable.": "파일 참조를 사용할 수 없습니다.",
+    "Files": "파일",
     "Filters": "필터",
     "Generating summary…": "요약 생성 중…",
     "GitHub refused this check. Try again later.": "GitHub가 확인을 거부했습니다. 나중에 다시 시도하세요.",
@@ -1002,6 +1021,7 @@
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland는 클립보드의 원본 앱을 식별하지 않습니다. 알 수 없는 원본에는 앱 제외 규칙이 적용되지 않지만 민감 정보 표시는 유효합니다.",
     "Your clipboard history, on this device.": "이 기기에 저장되는 클립보드 기록입니다.",
     "ZIP archives work with Mac. Use .json for the legacy export format.": "ZIP 보관 파일은 Mac과 호환됩니다. 기존 형식으로 내보내려면 .json을 사용하세요.",
+    "bytes": "바이트",
     "{count} items": "{count}개 항목"
   },
   "zh-Hans": {
@@ -1077,6 +1097,9 @@
     "Export failed. Check the destination and archive size (256 MiB maximum).": "导出失败，请检查目标位置和归档大小（最大 256 MiB）。",
     "Export history": "导出历史",
     "File": "文件",
+    "File list truncated. Copy keeps every original file reference.": "文件列表已截断。复制会保留所有原始文件引用。",
+    "File references are unavailable.": "文件引用不可用。",
+    "Files": "文件",
     "Filters": "筛选",
     "Generating summary…": "正在生成摘要…",
     "GitHub refused this check. Try again later.": "GitHub 拒绝了本次检查，请稍后重试。",
@@ -1203,6 +1226,7 @@
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland 不提供剪贴板来源应用信息，应用排除规则无法匹配未知来源；敏感标记仍然有效。",
     "Your clipboard history, on this device.": "此设备上的剪贴板历史。",
     "ZIP archives work with Mac. Use .json for the legacy export format.": "ZIP 归档可与 Mac 互通。使用 .json 可导出旧格式。",
+    "bytes": "字节",
     "{count} items": "{count} 条"
   },
   "zh-Hant": {
@@ -1278,6 +1302,9 @@
     "Export failed. Check the destination and archive size (256 MiB maximum).": "導出失敗，請檢查目標位置和歸檔大小（最大 256 MiB）。",
     "Export history": "導出歷程",
     "File": "檔案",
+    "File list truncated. Copy keeps every original file reference.": "檔案清單已截斷。複製會保留所有原始檔案參照。",
+    "File references are unavailable.": "檔案參照無法使用。",
+    "Files": "檔案",
     "Filters": "篩選",
     "Generating summary…": "正在產生摘要…",
     "GitHub refused this check. Try again later.": "GitHub 拒絕了本次檢查，請稍後重試。",
@@ -1404,6 +1431,7 @@
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland 不提供剪貼簿來源應用資訊，應用排除規則無法匹配未知來源；敏感標記仍然有效。",
     "Your clipboard history, on this device.": "此裝置上的剪貼簿歷程。",
     "ZIP archives work with Mac. Use .json for the legacy export format.": "ZIP 封存可與 Mac 互通。使用 .json 可匯出舊格式。",
+    "bytes": "位元組",
     "{count} items": "{count} 條"
   }
 }
