@@ -49,11 +49,35 @@ public actor FakeDesktopOCR: DesktopOCRRecognizing {
 public struct DesktopAISettings: Codable, Equatable, Sendable {
   public var enabled = false
   public var allowImages = false
+  public var allowText = true
   public var usesCredential = false
   public var endpoint = "https://api.openai.com/v1"
   public var model = ""
   public var timeoutSeconds = 60
   public init() {}
+  private enum CodingKeys: String, CodingKey {
+    case enabled, allowImages, allowText, usesCredential, endpoint, model, timeoutSeconds
+  }
+  public init(from decoder: any Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    // Existing complete configurations keep their opt-ins and gain the prior
+    // text behavior. Malformed/missing existing fields still fail closed.
+    enabled = try values.decode(Bool.self, forKey: .enabled)
+    allowImages = try values.decode(Bool.self, forKey: .allowImages)
+    allowText = values.contains(.allowText) ? try values.decode(Bool.self, forKey: .allowText) : true
+    usesCredential = try values.decode(Bool.self, forKey: .usesCredential)
+    endpoint = try values.decode(String.self, forKey: .endpoint)
+    model = try values.decode(String.self, forKey: .model)
+    timeoutSeconds = try values.decode(Int.self, forKey: .timeoutSeconds)
+  }
+  public func allowsSummary(of kind: ClipKind) -> Bool {
+    guard enabled else { return false }
+    switch kind {
+    case .image: return allowImages
+    case .text, .rtf, .mixed: return allowText
+    case .file: return false
+    }
+  }
   public func validate() throws {
     guard let url = validateRemoteAIBaseURL(endpoint),
       let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
@@ -141,7 +165,7 @@ public struct DesktopAnalysis: Sendable {
     async throws -> String
   {
     try allow(item)
-    guard settings.enabled else { throw DesktopServiceError.disabled }
+    guard settings.allowsSummary(of: item.kind) else { throw DesktopServiceError.disabled }
     try settings.validate()
     try Task.checkCancellation()
     guard let base = validateRemoteAIBaseURL(settings.endpoint) else {
