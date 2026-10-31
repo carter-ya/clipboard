@@ -49,7 +49,7 @@ struct HistoryView: View {
           if model.showsSettings {
             settings
           } else {
-            history(compact: compact)
+            history(compact: compact, compactFilters: viewportWidth < 1100)
           }
         }.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
         if !model.showsSettings { itemActions }
@@ -95,19 +95,25 @@ struct HistoryView: View {
     }
   }
 
-  func history(compact: Bool) -> some View {
+  func history(compact: Bool, compactFilters: Bool) -> some View {
     VStack(alignment: .leading, spacing: 14) {
       TextField(model.t("Search history"), text: $model.query)
         .inspect { model.attachSearch($0) }
         .onChange(of: model.query) { Task { @MainActor in await model.refresh() } }
       HStack(spacing: 10) {
-        Button(model.t("All")) {
-          model.onlyPinned = false
-          Task { @MainActor in await model.refresh() }
+        HStack(spacing: 4) {
+          Button(model.t("All")) {
+            model.onlyPinned = false
+            Task { @MainActor in await model.refresh() }
+          }
+          countBadge(model.allItemsCount)
         }
-        Button(model.t("Pinned")) {
-          model.onlyPinned = true
-          Task { @MainActor in await model.refresh() }
+        HStack(spacing: 4) {
+          Button(model.t("Pinned")) {
+            model.onlyPinned = true
+            Task { @MainActor in await model.refresh() }
+          }
+          countBadge(model.pinnedItemsCount)
         }
         if compact {
           Button(model.t(showsCompactFilters ? "Hide filters" : "Filters")) {
@@ -118,7 +124,7 @@ struct HistoryView: View {
         Text(model.t("\(model.items.count) items")).foregroundColor(.gray)
       }
       if !compact || showsCompactFilters {
-        if compact {
+        if compactFilters {
           VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
               allTypesButton
@@ -128,13 +134,14 @@ struct HistoryView: View {
             HStack(spacing: 8) {
               typeButton(.image)
               typeButton(.file)
+              typeButton(.mixed)
               Spacer()
             }
           }
         } else {
           HStack(spacing: 8) {
             allTypesButton
-            ForEach(ClipKind.allCases.filter { $0 != .mixed }, id: \.self) { kind in
+            ForEach(ClipKind.allCases, id: \.self) { kind in
               typeButton(kind)
             }
           }
@@ -169,17 +176,27 @@ struct HistoryView: View {
       }
     }
   }
+  func countBadge(_ count: Int) -> some View {
+    Text("(\(count))").font(.system(size: 12)).foregroundColor(.gray)
+      .lineLimit(1).frame(width: 44)
+  }
   var allTypesButton: some View {
-    Button(model.t("All types")) {
-      model.kindFilter = nil
-      Task { @MainActor in await model.refresh() }
-    }.frame(minWidth: 88)
+    HStack(spacing: 4) {
+      Button(model.t("All types")) {
+        model.kindFilter = nil
+        Task { @MainActor in await model.refresh() }
+      }.frame(minWidth: 104)
+      countBadge(model.allTypesCount)
+    }
   }
   func typeButton(_ kind: ClipKind) -> some View {
-    Button(model.t(kind.rawValue.capitalized)) {
-      model.kindFilter = kind
-      Task { @MainActor in await model.refresh() }
-    }.frame(minWidth: 72)
+    HStack(spacing: 4) {
+      Button(model.t(kind.rawValue.capitalized)) {
+        model.kindFilter = kind
+        Task { @MainActor in await model.refresh() }
+      }.frame(minWidth: 96)
+      countBadge(model.kindCounts[kind, default: 0])
+    }
   }
   var historyItems: some View {
     ScrollView {

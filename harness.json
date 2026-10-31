@@ -178,7 +178,7 @@
           "remaining": [
             "Selection/reset and keyboard interaction audit against App/HistoryPanelViewModel.swift and App/HistoryPanelView.swift",
             "Image hover/peek parity; sensitive reveal is tracked separately",
-            "Long text truncation indicators, kind counts and source/file display metadata"
+            "Rich-only text truncation indicators and source/file display metadata"
           ],
           "validation": "Optimized Linux arm64 app builds; all 34 native UI checks passed, including the older-item copy promotion regression, native text/image/file readback, OCR, language/theme, settings and hide/reopen. Windows script syntax passes; real Windows runtime and final platform CI are pending."
         },
@@ -197,6 +197,14 @@
           "status": "in_progress",
           "implemented": "Sensitive previews stay masked until the user selects Reveal for this session. Selection changes, settings handoff, native GTK unmap and shutdown revoke the reveal. Generation checks reject late asynchronous results, and their load cache is invalidated too. Sensitive decoding has no blob root and uses memory-only image loading; the sensitive flag and AI/OCR gates remain intact. Synthetic text/image injection requires both --smoke-root and --smoke-sensitive. Sensitive-phase probes suppress content diagnostics and screenshots.",
           "validation": "Linux arm64: optimized app, all 51 native UI checks, and all 8 layout checks at each of scale 1/2 pass. Windows diagnostic run 41173176463 reproduces a changed Text-filter accessibility identity across one hide/reopen; outer bounds remain 988x669 and sensitive content stays masked. A candidate fix takes responsive breakpoints from the mapped GTK allocation and retains that width while hidden; transient GeometryReader measurement proposals no longer choose those branches. GeometryReader still owns frame constraints. Exact-head Windows validation is pending; no Windows fix is accepted yet."
+        },
+        {
+          "id": "CP9_history_counts",
+          "branch": "codex/cross-platform-history-counts",
+          "scope": "Query-wide tab counts, tab-scoped type counts and the legacy mixed filter",
+          "status": "in_progress",
+          "implemented": "One portable projection computes All/Pinned totals from the query/source-matched snapshot, type counts within the active All/Pinned tab, and the final kind-filtered rows while preserving order. Desktop buttons retain their names, show fixed-width count badges, and expose the legacy Mixed kind. Type controls use a two-row layout below 1100 logical pixels.",
+          "validation": "Linux arm64: 174 Core tests and 54 native UI checks pass, including a persisted legacy mixed fixture, pinning it, empty pinned-kind results and query-scoped counts. Both display scale 1 and 2 pass all 8 compact/wide layout checks; the rendered count layout was inspected. Strict Swift formatting and Windows fixture syntax pass. Native Windows execution and the upstream PR12 hide/restore issue remain pending."
         },
         {
           "id": "CP10",

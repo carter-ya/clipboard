@@ -30,6 +30,10 @@ final class HistoryModel: ObservableObject {
     busyChanged: { [weak self] in self?.analysisBusy = $0 },
     perform: { [weak self] in await self?.performAnalysis($0) })
   @Published var items: [ClipItem] = []
+  @Published var allItemsCount = 0
+  @Published var pinnedItemsCount = 0
+  @Published var allTypesCount = 0
+  @Published var kindCounts: [ClipKind: Int] = [:]
   @Published var query = ""
   @Published var onlyPinned = false
   @Published var selectedID: UUID? {
@@ -446,12 +450,17 @@ final class HistoryModel: ObservableObject {
     let found = await store.search(
       query: requestedQuery,
       filters: SearchFilters(
-        kinds: requestedKind.map { Set([$0]) },
         sourceBundleID: requestedSource.isEmpty ? nil : requestedSource))
     guard query == requestedQuery, onlyPinned == requestedPinned, kindFilter == requestedKind,
       sourceFilter == requestedSource
     else { return }
-    items = requestedPinned ? found.filter(\.pinned) : found
+    let projection = DesktopHistoryProjection(
+      matching: found, onlyPinned: requestedPinned, kind: requestedKind)
+    allItemsCount = projection.allCount
+    pinnedItemsCount = projection.pinnedCount
+    allTypesCount = projection.allTypesCount
+    kindCounts = projection.kindCounts
+    items = projection.items
     if !items.contains(where: { $0.id == selectedID }) { selectedID = items.first?.id }
     await loadPreview()
   }
