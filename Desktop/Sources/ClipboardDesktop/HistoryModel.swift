@@ -40,6 +40,7 @@ final class HistoryModel: ObservableObject {
   @Published var ready = false
   @Published var previewText = "Choose an item to preview its content."
   @Published var previewImage: DesktopPreviewImage?
+  @Published var previewTruncated = false
   @Published var kindFilter: ClipKind?
   @Published var sourceFilter = ""
   @Published var confirmsClearHistory = false
@@ -139,12 +140,14 @@ final class HistoryModel: ObservableObject {
     guard let selected else {
       loadedPreviewID = nil
       previewImage = nil
+      previewTruncated = false
       previewText = "Choose an item to preview its content."
       return
     }
     guard loadedPreviewID != selected.id else { return }
     loadedPreviewID = selected.id
     previewImage = nil
+    previewTruncated = false
     if selected.sensitive {
       previewText = "Sensitive content is hidden."
       return
@@ -152,21 +155,21 @@ final class HistoryModel: ObservableObject {
     previewText = "Loading preview…"
     let resolver = PayloadResolver(blobRoot: root?.appendingPathComponent("blobs"))
     let result = await Task.detached(priority: .userInitiated) {
-      () -> (String, DesktopPreviewImage?) in
+      () -> (String, DesktopPreviewImage?, Bool) in
       if selected.kind == .image,
         let payload = selected.payloads.first(where: {
           ClipKind.imagePayloadTypes.contains($0.pasteboardType)
         }),
         let bytes = try? resolver.data(for: payload)
       {
-        return ("Image · \(selected.sizeBytes) bytes", DesktopPreviewImage.decode(bytes))
+        return ("Image · \(selected.sizeBytes) bytes", DesktopPreviewImage.decode(bytes), false)
       }
       if selected.kind == .file,
         let payload = selected.payloads.first(where: { $0.pasteboardType == "public.file-url" }),
         let bytes = try? resolver.data(for: payload),
         let urls = try? ClipboardFormats.fileURLs(from: bytes)
       {
-        return (urls.map(\.path).joined(separator: "\n"), nil)
+        return (urls.map(\.path).joined(separator: "\n"), nil, false)
       }
       if let payload = selected.payloads.first(where: {
         ["public.utf8-plain-text", "public.plain-text", "public.string"].contains($0.pasteboardType)
@@ -174,7 +177,8 @@ final class HistoryModel: ObservableObject {
         let bytes = try? resolver.data(for: payload),
         let text = String(data: bytes, encoding: .utf8)
       {
-        return (String(text.prefix(8000)), nil)
+        let preview = DesktopTextPreview(text)
+        return (preview.text, nil, preview.isTruncated)
       }
       let rich = selected.payloads.compactMap { payload -> RawPayload? in
         guard ["public.html", "public.rtf"].contains(payload.pasteboardType),
@@ -186,12 +190,14 @@ final class HistoryModel: ObservableObject {
       return (
         text.isEmpty
           ? (selected.preview.isEmpty
-            ? "Rich content · copy to use its original formatting." : selected.preview) : text, nil
+            ? "Rich content · copy to use its original formatting." : selected.preview) : text, nil,
+        false
       )
     }.value
     guard selectedID == selected.id else { return }
     previewText = result.0
     previewImage = result.1
+    previewTruncated = result.2
   }
 
   @MainActor func load() async {

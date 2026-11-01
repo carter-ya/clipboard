@@ -5,6 +5,12 @@ import Foundation
   import DesktopClipboard
 
   private func richFixtures(_ name: String) -> [RawPayload] {
+    if name == "preview-long" {
+      let text =
+        String(repeating: "Long preview fixture 中文😀\n", count: 4096)
+        + "end-of-full-preview-fixture"
+      return [.init(pasteboardType: "public.utf8-plain-text", data: Data(text.utf8))]
+    }
     if name == "files" {
       return [
         .init(
