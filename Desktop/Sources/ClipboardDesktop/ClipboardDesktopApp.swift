@@ -214,11 +214,18 @@ struct HistoryView: View {
     return ScrollView {
       List(items, selection: $model.selectedID) { item in
         VStack(alignment: .leading, spacing: 7) {
-          Text(item.sensitive ? model.t("Sensitive content") : item.preview).lineLimit(2)
+          Text(
+            item.sensitive
+              ? model.t("Sensitive content")
+              : model.itemPresentations[item.id]?.rowText
+                ?? DesktopTextPreview(item.preview, maxUTF8Bytes: 512).text
+          ).lineLimit(2)
           Text(
             (item.pinned ? model.t("Pinned") + " · " : "") + model.t(item.kind.rawValue.capitalized)
+              + (model.itemPresentations[item.id].map { " · " + $0.createdText } ?? "")
+              + (model.itemPresentations[item.id]?.sourceName.map { " · " + $0 } ?? "")
           )
-          .font(.system(size: 12)).foregroundColor(.gray)
+          .font(.system(size: 12)).foregroundColor(.gray).lineLimit(1)
         }.padding(10)
       }.inspect([.onCreate, .afterUpdate]) { list in
         model.attachHistoryList(list, itemIDs: itemIDs)
@@ -229,9 +236,16 @@ struct HistoryView: View {
   func preview(imageHeight: Double) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       Text(model.t("Preview")).font(.system(size: 18))
-      if let source = model.selected?.sourceBundleID {
-        Text(model.t("Source: ") + source).font(.system(size: 12)).foregroundColor(.gray)
-          .lineLimit(1).help(source)
+      if let item = model.selected, let presentation = model.itemPresentations[item.id] {
+        if let source = presentation.sourceName {
+          Text(model.t("Source: ") + source).font(.system(size: 12)).foregroundColor(.gray)
+            .lineLimit(1).help(
+              DesktopTextPreview(item.sourceBundleID ?? "", maxUTF8Bytes: 4096).text)
+        }
+        Text(
+          presentation.createdText + " · " + String(max(0, item.sizeBytes)) + " " + model.t("bytes")
+        )
+        .font(.system(size: 12)).foregroundColor(.gray).lineLimit(1)
       }
       ScrollView {
         VStack(alignment: .leading, spacing: 12) {
@@ -277,20 +291,35 @@ struct HistoryView: View {
             DesktopImagePreview(image: image, accessibilityLabel: model.t("Image preview")).frame(
               minWidth: 250, maxWidth: .infinity, maxHeight: imageHeight)
           }
-          DesktopTextPreviewView(
-            text: model.canRevealSensitivePreview
-              ? model.t("Sensitive content is hidden.")
-              : (model.previewMessage.map { model.t($0) } ?? model.previewText)
-          )
-          .frame(maxWidth: .infinity, alignment: .leading)
+          if let count = model.previewFileCount {
+            Text(model.t("Files") + ": " + String(count)).font(.system(size: 12)).foregroundColor(
+              .gray)
+            ForEach(
+              Array(model.previewText.components(separatedBy: "\n").enumerated()), id: \.offset
+            ) { entry in
+              Text(entry.element).frame(maxWidth: .infinity, alignment: .leading)
+            }
+          } else {
+            DesktopTextPreviewView(
+              text: model.canRevealSensitivePreview
+                ? model.t("Sensitive content is hidden.")
+                : (model.previewMessage.map { model.t($0) } ?? model.previewText)
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+          }
           if model.canRevealSensitivePreview {
             Button(model.t("Reveal for this session")) {
               Task { @MainActor in await model.revealSensitivePreview() }
             }
           }
           if model.previewTruncated {
-            Text(model.t("Preview truncated. Copy keeps the full text."))
-              .font(.system(size: 12)).foregroundColor(.gray)
+            Text(
+              model.t(
+                model.previewFileCount == nil
+                  ? "Preview truncated. Copy keeps the full text."
+                  : "File list truncated. Copy keeps every original file reference.")
+            )
+            .font(.system(size: 12)).foregroundColor(.gray)
           }
 
         }
