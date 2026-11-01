@@ -38,6 +38,28 @@ final class NativeLanguageProcessTests: XCTestCase {
       return file
     }
 
+    func testUnsupportedCPUIsUnavailableWithoutMaskingOtherWorkerFailures() async throws {
+      for (code, expected) in [
+        (11, DesktopServiceError.unavailable), (3, .unavailable), (2, .invalidValue),
+      ] {
+        let file = try fixture("import sys\nsys.stdin.buffer.read()\nsys.exit(\(code))")
+        do {
+          _ = try await NativeDesktopLanguageModel(
+            model: URL(fileURLWithPath: "/tmp/synthetic.gguf"), executable: file
+          ).process(text: "Synthetic", task: .summary, language: "en")
+          XCTFail("Failed worker succeeded")
+        } catch { XCTAssertEqual(error as? DesktopServiceError, expected) }
+        if code == 11 {
+          do {
+            _ = try await NativeDesktopByteWorker(
+              executable: file, timeout: 2, inputLimit: 1024, outputLimit: 1024
+            ).run(Data("{}".utf8))
+            XCTFail("Generic worker accepted an unexpected exit")
+          } catch { XCTAssertEqual(error as? DesktopServiceError, .invalidValue) }
+        }
+      }
+    }
+
     func testUnicodeModelAndTextUsePrivateJSONPipesAndWrongTaskIsRefused() async throws {
       let file = try fixture(
         """

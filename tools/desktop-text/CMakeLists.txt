@@ -24,6 +24,7 @@ if(MSVC)
   target_compile_definitions(clipboard-fasttext PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 if(WIN32)
+  target_compile_definitions(clipboard-text-worker PRIVATE NOMINMAX)
   target_link_options(clipboard-text-worker PRIVATE "LINKER:/SUBSYSTEM:WINDOWS" "LINKER:/ENTRY:mainCRTStartup")
 else()
   # Installed helpers cannot silently fall back to a development SDK directory.
