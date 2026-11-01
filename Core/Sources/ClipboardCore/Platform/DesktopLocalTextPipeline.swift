@@ -65,6 +65,7 @@ public enum DesktopLocalTextEngine: String, CaseIterable, Equatable, Sendable {
     for engine in DesktopLocalTextEngine.allCases {
       try Task.checkCancellation()
       guard allowed(await context(), engine) != nil else { continue }
+      try Task.checkCancellation()
       do {
         let analyzer = try await service(engine)
         try Task.checkCancellation()

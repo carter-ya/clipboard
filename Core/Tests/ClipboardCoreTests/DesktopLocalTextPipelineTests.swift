@@ -264,4 +264,34 @@ final class DesktopLocalTextPipelineTests: XCTestCase {
     }
   }
 
+  @MainActor func testCancellationDuringContextLookupNeverResolvesAnotherModel() async {
+    let candidate = item()
+    let started = expectation(description: "live metadata lookup suspended")
+    var release: CheckedContinuation<Void, Never>?
+    var factoryCalls = 0
+    let task = Task { @MainActor in
+      do {
+        _ = try await DesktopLocalTextPipeline.run(
+          id: candidate.id, automatic: false,
+          context: {
+            await withCheckedContinuation {
+              release = $0
+              started.fulfill()
+            }
+            return .init(item: candidate, settings: self.enabled())
+          },
+          service: { _ in
+            factoryCalls += 1
+            return self.service()
+          })
+        XCTFail("Cancelled context lookup produced analysis")
+      } catch { XCTAssertTrue(error is CancellationError) }
+    }
+    await fulfillment(of: [started], timeout: 3)
+    task.cancel()
+    release?.resume()
+    await task.value
+    XCTAssertEqual(factoryCalls, 0)
+  }
+
 }
