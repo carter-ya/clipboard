@@ -554,7 +554,8 @@ try:
             control = button('Verify local models')
             return control and control.getState().contains(pyatspi.STATE_SENSITIVE)
         def no_pending():
-            return not list((history_root / 'models').glob('*/.pending-*'))
+            return all(not list((history_root / 'models').glob('*/' + pattern))
+                       for pattern in ['.pending-*', '.stage-owner-*', '.stage-lease-*'])
         def no_analysis_permission():
             settings = json.loads((history_root / 'desktop-settings.json').read_text())
             return not settings.get('ai', {}).get('enabled', False) and all(not settings.get(key, False) for key in [

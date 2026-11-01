@@ -327,9 +327,9 @@
           "scope": "Analysis feature parity",
           "status": "in_progress",
           "remaining": [
-            "Complete native UI/automatic scheduling integration of the offline image classifier and final Windows acceptance",
-            "Implement and verify local language detection/entities and actual on-device generative text/file/PDF summaries; excerpts alone do not complete Mac analysis parity",
-            "Final Windows/native package acceptance of text/file/PDF opt-ins, progress/retry, local excerpts and fallback"
+            "Final native Windows and installed acceptance of image/text/file/PDF permissions, retry, revocation and model removal",
+            "Actual native model inference on imported text/PDF file bodies, including automatic eligibility and original file Copy",
+            "Final rebuilt Windows/Linux packages and model import/cancel/repair/recovery controls"
           ],
           "connection_diagnostics": {
             "branch": "codex/cross-platform-ai-connection",
@@ -459,11 +459,11 @@
                 "branch": "codex/cross-platform-model-operation-acceptance",
                 "status": "in_progress",
                 "implemented": "Private native-control tests exercise explicit transfer failure/retry/cancellation through a nonproduction downloader that never reaches the network or publishes fake model bytes. Actual fixed model files pass the native file chooser, bounded copy and digest verification; failed replacement retains verified bytes and consent, explicit verification disables tampered bytes, reimport repairs the owned asset, actual trained entity inference uses the repaired file, and relaunch verifies it without passive transfers. Local imports report verification rather than a network download and remember their own source directory independently of history archives. Production always uses the bounded anonymous downloader. Both installed checkers run these controls with optional weights outside packages and artifacts.",
-                "validation": "Linux arm64 actual native model operations pass all fourteen checks with networking disabled. All 334 Linux Core tests pass (two pre-existing opt-in model fixture skips), sixteen related macOS model-store tests pass, and strict changed Swift lint passes. Windows script parsing, helper-definition and wait-scope checks pass; workflow scripts parse. Final runtime-only installed and native Windows execution remain pending.",
+                "validation": "All fourteen Linux arm64 native model-operation checks pass offline, including actual visible repaired inference. First complete hermetic installed acceptance passes fourteen installation gates, 211 full UI/lifecycle checks, eight model settings, nineteen actual text-model checks and fourteen model-operation checks without mounted build resources or an SDK. Both virtual 100% and 200% layout suites pass eight checks. Subsequent interruption-recovery repair passes all 337 final merged Linux Core tests with two existing optional fixture skips, nineteen related macOS model-store tests, strict formatting and the existing Mac app build. Native independent-peer validation passes all 27 checks including the new distinct text fixture. Final rebuilt package and Windows exact-head confirmation remain required; do not claim the earlier package proves the later recovery implementation.",
                 "remaining": [
-                  "Final Linux runtime-only installed model-operation acceptance",
-                  "Native Windows model-operation controls and installed acceptance",
-                  "Resolve current parent UI CI failures without weakening gates"
+                  "Final rebuilt Linux native and runtime-only installed model-operation acceptance including all stage metadata cleanup",
+                  "Native Windows model-operation, actual-model and installed acceptance",
+                  "Exact-head Codex reviews and green platform CI after follow-up repairs"
                 ]
               }
             }

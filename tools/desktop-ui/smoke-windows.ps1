@@ -701,7 +701,9 @@ function Test-ModelOperationCounter([int]$Count, [bool]$Finished = $false) {
 function Test-ModelOperationStagingClean {
   $modelRoot = Join-Path $historyRoot 'models'
   if (!(Test-Path -LiteralPath $modelRoot)) { return $true }
-  return @(Get-ChildItem -LiteralPath $modelRoot -Recurse -Force -Filter '.pending-*').Count -eq 0
+  return @(Get-ChildItem -LiteralPath $modelRoot -Recurse -Force | Where-Object {
+    $_.Name -like '.pending-*' -or $_.Name -like '.stage-owner-*' -or $_.Name -like '.stage-lease-*'
+  }).Count -eq 0
 }
 function Test-ModelOperationAnalysisDisabled {
   $saved = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')

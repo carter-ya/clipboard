@@ -223,3 +223,15 @@ hard link: only the imported copy may be corrupted. Both installed checkers run
 the same controls while development bundles remain unavailable. Linux arm64
 currently passes all fourteen native model-operation checks; native Windows and
 final installed confirmation remain pending.
+
+The first complete hermetic package now passes fourteen installation gates,
+211 full UI/lifecycle checks, eight model settings, nineteen actual-model text
+checks and fourteen model-operation checks. The repaired inference screenshot
+waits for the real result, source label and idle control state. Both virtual
+100% and 200% layout suites pass eight checks. Subsequent process-interruption
+recovery adds persisted stage ownership and native noninheritable leases;
+explicit retries/removal reclaim only abandoned recorded files. Stage cleanup
+acceptance checks pending data, ownership records and leases together. The
+rebuilt package containing this later recovery change and native Windows
+execution still need final confirmation. Actual generated text/PDF file-body
+inference remains separate from earlier local-excerpt and remote file checks.
