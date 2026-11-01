@@ -34,7 +34,13 @@ foreach(feature AVX AVX2 AVX512 AVX512_VBMI AVX512_VNNI AVX512_BF16 AVX_VNNI BMI
   set(GGML_${feature} OFF CACHE BOOL "" FORCE)
 endforeach()
 set(FETCHCONTENT_FULLY_DISCONNECTED ON CACHE BOOL "" FORCE)
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|amd64|x86_64)$")
+  foreach(feature AVX AVX2 FMA F16C)
+    set(GGML_${feature} ON CACHE BOOL "" FORCE)
+  endforeach()
+endif()
 add_subdirectory("${LLAMA_SOURCE}" llama EXCLUDE_FROM_ALL)
+add_executable(language-cpu-check cpu-check.cpp)
 add_executable(clipboard-language-worker language-worker.cpp "${LLAMA_SOURCE}/vendor/hash/sha256/sha256.c")
 target_include_directories(clipboard-language-worker PRIVATE
   "${LLAMA_SOURCE}/vendor/nlohmann" "${LLAMA_SOURCE}/vendor/hash"
