@@ -7,13 +7,14 @@
       [switch]$ValidateOnly,
       [switch]$ModelSettingsOnly,
       [switch]$LocalTextOnly,
+      [switch]$LocalFileModelsOnly,
       [switch]$ModelOperationsOnly,
       [string]$SummaryModel,
       [string]$EntityModel,
       [string]$ModelDefinitions,
       [int]$LifecycleCycles = 0)
 $ErrorActionPreference = 'Stop'
-if (@($ModelSettingsOnly, $LocalTextOnly, $ModelOperationsOnly | Where-Object { $_ }).Count -gt 1) {
+if (@($ModelSettingsOnly, $LocalTextOnly, $ModelOperationsOnly, $LocalFileModelsOnly | Where-Object { $_ }).Count -gt 1) {
   throw 'private_model_modes_are_mutually_exclusive'
 }
 . (Join-Path $PSScriptRoot 'private-fixture-python.ps1')
@@ -635,6 +636,8 @@ function Set-LocalTextSettings([string[]]$Labels, [string]$Query) {
     'Enable local generated summaries' = 'localGenerativeSummariesEnabled'
     'Automatically generate local summaries' = 'automaticLocalGenerativeSummaries'
     'Enable local language and names' = 'localLanguageSummariesEnabled'
+    'Allow local file analysis' = 'localFileSummariesEnabled'
+    'Automatically summarize files locally' = 'automaticLocalFileSummaries'
   }
   $previousTextSettings = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
   $expectedTextSettings = @{}
@@ -667,10 +670,16 @@ function Test-LocalTextModelInUse([string]$Path) {
     return ($cause -is [IO.IOException]) -and (($cause.HResult -band 0xffff) -in @(32, 33))
   } finally { if ($probeStream) { $probeStream.Dispose() } }
 }
-function Start-LocalTextPeer([string]$Fixture) {
+function Start-LocalTextPeer([string]$Fixture, [string]$Path) {
   $peerInfo = [Diagnostics.ProcessStartInfo]::new()
   $peerInfo.FileName = [IO.Path]::GetFullPath($ClipboardPeer)
   $peerInfo.Arguments = 'rich-clipboard-peer ' + $Fixture
+  if ($Path) {
+    $fixturePath = [IO.Path]::GetFullPath($Path)
+    if ($Fixture -cne 'file-summary' -or [IO.Path]::GetDirectoryName($fixturePath) -ine [IO.Path]::GetFullPath($historyRoot) -or
+        !(Test-Path -LiteralPath $fixturePath -PathType Leaf)) { throw 'local_text_peer_path_outside_owned_fixture' }
+    $peerInfo.Arguments += ' "' + $fixturePath + '"'
+  }
   $peerInfo.UseShellExecute = $false
   $peerInfo.RedirectStandardInput = $true
   $peerInfo.RedirectStandardOutput = $true
@@ -719,13 +728,51 @@ function Test-ModelOperationAnalysisDisabled {
 function Get-ModelOperationDigest([string]$Path) {
   return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
+function Get-LocalFileModelCapture([string]$Filename) {
+  $previousIDs = @(Get-LocalTextRecords | ForEach-Object { $_.id })
+  $ownedFilePeer = Start-LocalTextPeer 'file-summary' (Join-Path $historyRoot $Filename)
+  try {
+    Wait-For { @((Get-LocalTextRecords) | Where-Object { $_.id -notin $previousIDs }).Count -eq 1 } 'local_file_model_native_capture' | Out-Null
+    $captured = Get-LocalTextRecords | Where-Object { $_.id -notin $previousIDs } | Select-Object -First 1
+    if ($captured.kind -cne 'file') { throw 'local_file_model_capture_kind' }
+    return $captured
+  } finally { Stop-LocalTextPeer $ownedFilePeer }
+}
+function Assert-LocalFileModelResult($Original, [string[]]$Expected, [string]$CheckName,
+    [string]$Source = 'localGenerative', [string]$ResultLabel = 'Local generated summary') {
+  $resultWaitSeconds = if ($Source -ceq 'localGenerative') { 100 } else { 40 }
+  Wait-For { (Get-LocalTextRecord $Original.id).summarySource -ceq $Source } ($CheckName + '_real_inference') $resultWaitSeconds | Out-Null
+  $result = Get-LocalTextRecord $Original.id
+  Wait-For { (Find-Named 'Summary ready') -and (Find-Named $ResultLabel) -and
+    (Find-Named $result.summary) -and (Test-PublicControlEnabled 'Summarize locally') } ($CheckName + '_visible_result') | Out-Null
+  $factsMatch = $true
+  foreach ($word in $Expected) { if ($result.summary.IndexOf($word, [StringComparison]::OrdinalIgnoreCase) -lt 0) { $factsMatch = $false } }
+  foreach ($filename in @('private-body.txt', 'private-body.pdf', 'automatic-body.txt')) {
+    if ($result.summary.Contains($filename)) { $factsMatch = $false }
+  }
+  Add-Check ($CheckName + '_summarizes_body_facts_without_filename') $factsMatch
+  $metadataMatch = $true
+  foreach ($key in @('id', 'createdAt', 'kind', 'preview', 'sha256', 'sizeBytes', 'payloads')) {
+    if ((ConvertTo-Json -InputObject $result.$key -Depth 8 -Compress) -cne
+        (ConvertTo-Json -InputObject $Original.$key -Depth 8 -Compress)) { $metadataMatch = $false }
+  }
+  Add-Check ($CheckName + '_preserves_original_file_record') $metadataMatch
+  Save-Screenshot ($CheckName + '.png')
+}
+function Assert-LocalFileModelCopy([string]$Filename, [string]$CheckName) {
+  Invoke-Button 'Copy'
+  Wait-For { Find-Named 'Copied to clipboard' } ($CheckName + '_original_copy') | Out-Null
+  $copied = @([PreviewNative]::ReadClipboardFiles())
+  Add-Check ($CheckName + '_copy_keeps_original_native_file_reference') ($copied.Count -eq 1 -and
+    [IO.Path]::GetFullPath($copied[0]) -ieq [IO.Path]::GetFullPath((Join-Path $historyRoot $Filename)))
+}
 function Import-ModelOperationFile([string]$Title, [string]$Filename) {
   Invoke-VisibleConnectionButton $Title
   Complete-ArchiveDialog $Title (Join-Path $historyRoot $Filename)
 }
 function Initialize-LocalTextFixture {
   if ($env:GITHUB_ACTIONS -ne 'true') { throw 'local_text_fixture_requires_isolated_runner' }
-  if (!$SummaryModel -or !$EntityModel -or !$ModelDefinitions -or ($LocalTextOnly -and !$ClipboardPeer)) { throw 'local_text_model_fixture_arguments_required' }
+  if (!$SummaryModel -or !$EntityModel -or !$ModelDefinitions -or (($LocalTextOnly -or $LocalFileModelsOnly) -and !$ClipboardPeer)) { throw 'local_text_model_fixture_arguments_required' }
   $script:privateTextRoot = Join-Path (Split-Path ([IO.Path]::GetFullPath($SummaryModel))) ('.clipboard-text-ui-' + [Guid]::NewGuid().ToString('N'))
   New-Item -ItemType Directory -Path $script:privateTextRoot -ErrorAction Stop | Out-Null
   $script:ownsPrivateTextRoot = $true
@@ -774,14 +821,20 @@ function Initialize-LocalTextFixture {
   }
   [IO.File]::WriteAllText((Join-Path $historyRoot 'history.json'), (@{ version = 1; items = $fixtureItems } | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
   $initialModelSettings = @{ languageOverride = 'en' }
-  if ($LocalTextOnly) { $initialModelSettings.localGenerativeSummariesEnabled = $true }
+  if ($LocalTextOnly -or $LocalFileModelsOnly) { $initialModelSettings.localGenerativeSummariesEnabled = $true }
+  if ($LocalFileModelsOnly) { $initialModelSettings.automaticLocalGenerativeSummaries = $true }
   [IO.File]::WriteAllText((Join-Path $historyRoot 'desktop-settings.json'), ($initialModelSettings | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+  if ($LocalFileModelsOnly) {
+    $fileFixturePython = Resolve-PrivateFixturePython $FixturePython
+    & $fileFixturePython (Join-Path $PSScriptRoot 'local_file_model_fixture.py') --directory $historyRoot
+    if ($LASTEXITCODE -ne 0) { throw 'local_file_model_fixture_creation_failed' }
+  }
 }
 
 try {
   $historyRoot = Join-Path $OutputDirectory ('history-' + [Guid]::NewGuid().ToString('N'))
   $primaryHistoryRoot = $historyRoot
-  if ($LocalTextOnly -or $ModelOperationsOnly) { Initialize-LocalTextFixture }
+  if ($LocalTextOnly -or $LocalFileModelsOnly -or $ModelOperationsOnly) { Initialize-LocalTextFixture }
   $launchArguments = @('--smoke-root', ('"' + $historyRoot + '"'))
   if ($LocalTextOnly) { $launchArguments += '--smoke-local-text' }
   if ($ModelOperationsOnly) { $launchArguments += '--smoke-model-transfers' }
@@ -815,6 +868,65 @@ try {
   } else {
     Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'initial_history' | Out-Null
     Add-Check 'native_window_and_history_visible' $true
+    if ($LocalFileModelsOnly) {
+      $sourceDigests = @{}
+      foreach ($filename in @('private-body.txt', 'private-body.pdf', 'automatic-body.txt')) {
+        $sourceDigests[$filename] = Get-ModelOperationDigest (Join-Path $historyRoot $filename)
+      }
+      Invoke-Button 'Start recording'
+      Wait-For { Find-Named 'Recording clipboard' } 'local_file_model_recording_ready' | Out-Null
+      $textFile = Get-LocalFileModelCapture 'private-body.txt'
+      Set-LocalTextSearch 'private-body.txt'
+      $fileSettings = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
+      Add-Check 'file_permission_is_independent_of_enabled_manual_and_automatic_text_models' ($fileSettings.localGenerativeSummariesEnabled -and
+        $fileSettings.automaticLocalGenerativeSummaries -and !$fileSettings.localFileSummariesEnabled -and
+        !(Test-PublicControlEnabled 'Summarize locally') -and $null -eq (Get-LocalTextRecord $textFile.id).summary)
+      Set-LocalTextSettings @('Allow local file analysis') 'private-body.txt'
+      Invoke-Button 'Summarize locally'
+      Assert-LocalFileModelResult $textFile @('Mars', 'Friday') 'real_text_file_generation'
+      Assert-LocalFileModelCopy 'private-body.txt' 'real_text_file_generation'
+      Set-Search 'private-body.pdf'
+      $pdfFile = Get-LocalFileModelCapture 'private-body.pdf'
+      Set-LocalTextSearch 'private-body.pdf'
+      $fileSettings = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
+      Add-Check 'file_automatic_permission_remains_separate_from_text_automatic_permission' ($fileSettings.automaticLocalGenerativeSummaries -and
+        !$fileSettings.automaticLocalFileSummaries -and $null -eq (Get-LocalTextRecord $pdfFile.id).summary)
+      Invoke-Button 'Summarize locally'
+      Assert-LocalFileModelResult $pdfFile @('Tim Cook', 'Tokyo') 'real_pdf_body_generation'
+      Assert-LocalFileModelCopy 'private-body.pdf' 'real_pdf_body_generation'
+      Set-LocalTextSettings @('Automatically summarize files locally') 'private-body.pdf'
+      Set-Search 'automatic-body.txt'
+      $automaticFile = Get-LocalFileModelCapture 'automatic-body.txt'
+      Set-LocalTextSearch 'automatic-body.txt'
+      Assert-LocalFileModelResult $automaticFile @('Mars', 'Friday') 'real_automatic_file_generation'
+      Assert-LocalFileModelCopy 'automatic-body.txt' 'real_automatic_file_generation'
+      $fileSettings = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
+      Add-Check 'file_permissions_do_not_enable_remote_or_other_local_engines' (!$fileSettings.ai.enabled -and
+        !$fileSettings.localTextSummariesEnabled -and !$fileSettings.localLanguageSummariesEnabled)
+      Set-LocalTextSettings @('Enable local generated summaries', 'Enable local language and names') 'automatic-body.txt'
+      Set-LocalTextSearch 'private-body.pdf'
+      # Explicit Copy promoted its timestamp; compare to the current record.
+      $languagePDF = Get-LocalTextRecord $pdfFile.id
+      Invoke-Button 'Summarize locally'
+      Assert-LocalFileModelResult $languagePDF @('Apple Inc', 'Tim Cook', 'Tokyo') 'real_pdf_language_and_names' 'localLanguage' 'Local language and names'
+      Assert-LocalFileModelCopy 'private-body.pdf' 'real_pdf_language_and_names'
+      $fileSettings = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
+      Add-Check 'automatic_file_consent_does_not_grant_language_engine_automatic_permission' ($fileSettings.automaticLocalFileSummaries -and
+        $fileSettings.localLanguageSummariesEnabled -and !$fileSettings.automaticLocalLanguageSummaries)
+      $sourcesUnchanged = $true
+      foreach ($filename in $sourceDigests.Keys) {
+        if ((Get-ModelOperationDigest (Join-Path $historyRoot $filename)) -cne $sourceDigests[$filename]) { $sourcesUnchanged = $false }
+      }
+      Add-Check 'actual_generation_leaves_all_original_file_bytes_unchanged' $sourcesUnchanged
+      Invoke-Button 'Pause recording'
+      Wait-For { Find-Named 'Recording paused' } 'local_file_model_recording_stopped' | Out-Null
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Preferences' } 'local_file_model_quit_settings' | Out-Null
+      Invoke-VisibleConnectionButton 'Quit Clipboard'
+      if (!$application.WaitForExit(10000)) { throw 'local_file_model_quit_timeout' }
+      Add-Check 'local_file_model_profile_quits_with_owned_work_drained' ($application.ExitCode -eq 0)
+      return
+    }
     if ($ModelOperationsOnly) {
       $summaryPin = Read-SharedJson (Join-Path $ModelDefinitions 'DesktopLocalLanguageModel.json')
       $entityPin = Read-SharedJson (Join-Path $ModelDefinitions 'DesktopLocalEntityModel.json')
@@ -2299,7 +2411,7 @@ try {
         Add-Check 'file_summary_defaults_do_not_analyze_copied_files' (@($snapshot.items | Where-Object { $_.summary }).Count -eq 0 -and !(Find-Named 'Summarize'))
         Invoke-Button 'Settings'
         Wait-For { Find-Named 'Preferences' } 'file_summary_preferences' | Out-Null
-        Invoke-VisibleConnectionButton 'Enable local file excerpts'
+        Invoke-VisibleConnectionButton 'Allow local file analysis'
         Invoke-VisibleConnectionButton 'Save AI settings'
         Wait-For { (Read-SharedJson $settingsFile).localFileSummariesEnabled -eq $true } 'local_file_permission_saved' | Out-Null
         Add-Check 'local_file_opt_in_does_not_enable_file_uploads' (!(Read-SharedJson $settingsFile).ai.allowFiles)
