@@ -27,7 +27,13 @@ let package = Package(
       ],
       linkerSettings: [
         .unsafeFlags(
-          ["-Xlinker", "/SUBSYSTEM:WINDOWS", "-Xlinker", "/ENTRY:mainCRTStartup"],
+          [
+            "-Xlinker", "/SUBSYSTEM:WINDOWS", "-Xlinker", "/ENTRY:mainCRTStartup",
+            // GTK's native chooser also creates threads using the executable's
+            // default reserve. Match the 8 MiB stack used by the Linux runner;
+            // leave the initial committed memory at the linker default.
+            "-Xlinker", "/STACK:8388608",
+          ],
           .when(platforms: [.windows]))
       ]
     )

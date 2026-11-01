@@ -19,12 +19,17 @@ public final class DesktopAnalysisScheduler {
         !item.payloads.contains(where: { $0.pasteboardType == SensitivityFilter.concealedType })
       else { return false }
       if remote && !settings.ai.allowsSummary(of: item.kind) { return false }
+      if !remote && item.kind != .image {
+        guard settings.localTextSummariesEnabled,
+          [.text, .rtf, .mixed].contains(item.kind)
+        else { return false }
+      }
       guard automatic else { return true }
       guard item.summary == nil else { return false }
       if remote {
         return settings.automaticSummaries
       }
-      return settings.automaticOCR && item.kind == .image
+      return item.kind == .image ? settings.automaticOCR : settings.automaticLocalSummaries
     }
   }
   public enum Submission: Equatable { case started, queued, duplicate, full, busy, stopped }

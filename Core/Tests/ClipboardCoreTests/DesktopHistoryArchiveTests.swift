@@ -51,7 +51,7 @@ final class DesktopHistoryArchiveTests: XCTestCase {
     defer { try? FileManager.default.removeItem(at: directory) }
     let file = directory.appendingPathComponent("desktop-summaries.zip")
     let sources: [SummarySource] = [
-      .vision, .naturalLanguage, .foundationModels, .remoteOpenAI, .localOCR,
+      .vision, .naturalLanguage, .foundationModels, .remoteOpenAI, .localOCR, .localExtractive,
     ]
     let items = sources.enumerated().map { index, source in
       var value = item("archive-source-\(index)")
@@ -72,7 +72,7 @@ final class DesktopHistoryArchiveTests: XCTestCase {
     XCTAssertEqual(
       legacy.items.prefix(4).compactMap { $0.summarySource?.rawValue },
       sources.prefix(4).map(\.rawValue))
-    XCTAssertNil(legacy.items.last?.summarySource)
+    XCTAssertTrue(legacy.items.dropFirst(4).allSatisfy { $0.summarySource == nil })
   }
 
   func testZIPRoundTripExcludesSensitiveAndConcealedAndResolvesStoredBlobs() async throws {
