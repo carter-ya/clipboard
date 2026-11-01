@@ -104,6 +104,27 @@ for notice in ['provenance.json', 'onnxruntime-LICENSE', 'onnxruntime-ThirdParty
     if not (image_notices / notice).is_file():
         raise RuntimeError('Verified image model/runtime notices are required')
 shutil.copytree(image_notices, licenses / 'image-model')
+language_worker = 'clipboard-language-worker' + ('.exe' if args.platform == 'windows' else '')
+text_worker = 'clipboard-text-worker' + ('.exe' if args.platform == 'windows' else '')
+for component in [language_worker, text_worker, 'clipboard-language-id.ftz', 'clipboard-text-vocab.txt']:
+    source = binary.parent / component
+    if not source.is_file():
+        raise RuntimeError('Build the verified local text workers and language resources before packaging')
+    shutil.copy2(source, bin_dir / component)
+    runtime_files.append(component)
+for folder, required, bundled_key in [
+        ('language-model-notices', ['LICENSE', 'model-LICENSE', 'model-README.md', 'base-model-README.md'], 'weightsBundled'),
+        ('text-model-notices', ['AFL-3.0.txt', 'CC-BY-SA-3.0.txt', 'Google-BERT-README.md', 'Entity-original-README.md',
+                               'Entity-converter-README.md', 'language-attribution.txt', 'onnxruntime-LICENSE',
+                               'onnxruntime-ThirdPartyNotices.txt', 'fastText-LICENSE', 'Tokenizers-LICENSE',
+                               'OpenCC-LICENSE'], 'entityWeightsBundled')]:
+    source = binary.parent / folder
+    if not all((source / notice).is_file() for notice in required + ['provenance.json']):
+        raise RuntimeError('Complete local text model notices are required')
+    provenance = json.loads((source / 'provenance.json').read_text(encoding='utf-8'))
+    if provenance.get(bundled_key) is not False or provenance.get('cpuOnly') is not True:
+        raise RuntimeError('Optional weights must remain separate from the application package')
+    shutil.copytree(source, licenses / folder.removesuffix('-notices'))
 if args.platform == 'linux':
     if platform.system() != 'Linux':
         raise RuntimeError('Linux packages must be assembled on their native Linux builder')
@@ -197,7 +218,8 @@ else:
     copy_licenses(installation, 'swift-runtime')
     system = Path(os.environ['SystemRoot']) / 'System32'
     processed = set()
-    pending = [bin_dir / binary.name, bin_dir / pdf_worker, bin_dir / image_worker] + list(bin_dir.glob('*.dll')) + list(lib_dir.rglob('*.dll'))
+    pending = [bin_dir / binary.name, bin_dir / pdf_worker, bin_dir / image_worker,
+               bin_dir / language_worker, bin_dir / text_worker] + list(bin_dir.glob('*.dll')) + list(lib_dir.rglob('*.dll'))
     while pending:
         file = pending.pop()
         if file.name.lower() in processed:

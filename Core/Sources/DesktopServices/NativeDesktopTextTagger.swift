@@ -10,16 +10,14 @@ public struct NativeDesktopTextTagger: DesktopLocalLanguageProcessing, Sendable 
 
   public init(model: URL? = nil, executable: URL? = nil, timeout: TimeInterval = 20) {
     self.model = model
-    #if os(Windows)
-      let name = "clipboard-text-worker.exe"
-    #else
-      let name = "clipboard-text-worker"
-    #endif
-    self.executable =
-      executable
-      ?? (Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0]))
-      .deletingLastPathComponent().appendingPathComponent(name)
+    self.executable = NativeDesktopModelCapability.executable(
+      executable, name: "clipboard-text-worker")
     self.timeout = timeout
+  }
+
+  public static func isSupported(executable: URL? = nil) async throws -> Bool {
+    try await NativeDesktopModelCapability.isSupported(
+      NativeDesktopModelCapability.executable(executable, name: "clipboard-text-worker"))
   }
 
   public func process(text: String, task: DesktopLocalLanguageTask, language: String?) async throws

@@ -26,6 +26,7 @@ parser.add_argument('--clipboard-peer')
 parser.add_argument('--ocr-fixture')
 parser.add_argument('--lifecycle-cycles', type=int, default=0, help='Bounded private hide/reopen resource regression')
 parser.add_argument('--install-package', help='Private package fixture for installation-lock checks')
+parser.add_argument('--model-settings-only', action='store_true', help='Private model-control checks without any download')
 args = parser.parse_args()
 out = Path(args.output).resolve()
 out.mkdir(parents=True, exist_ok=True)
@@ -472,6 +473,50 @@ try:
                            stdout=log, stderr=log, start_new_session=True)
     wait_for(lambda: has_text('Ready') and has_text('3 items'), 'initial_history')
     check('native_window_and_history_visible', True)
+    if args.model_settings_only:
+        click('Settings')
+        wait_for(lambda: has_texts('Local text models', 'Summary model', 'Language and names'), 'model_cards_visible')
+        def enabled(label):
+            control = button(label)
+            return control is not None and control.getState().contains(pyatspi.STATE_SENSITIVE)
+        wait_for(lambda: enabled('Download summary model') and enabled('Verify local models'), 'model_support_ready')
+        check('model_cards_query_real_bundled_workers_without_creating_model_root', not (history_root / 'models').exists())
+        check('entity_download_and_import_require_visible_license_assent',
+              not enabled('Download names model') and not enabled('Import names model'))
+        click_visible_public_control('Download summary model', activate=False)
+        screenshot('model-settings-summary.png')
+        click_visible_public_control('I agree to the names model license')
+        wait_for(lambda: enabled('Download names model') and enabled('Import names model'), 'entity_license_assent')
+        check('explicit_entity_assent_enables_only_model_controls', True)
+        screenshot('model-settings-names.png')
+        click_visible_public_control('Import names model')
+        def owned_model_chooser():
+            # GTK 4.6 exposes this chooser as a filler rather than ROLE_DIALOG.
+            # Require its actual mapped X11 window and application ownership.
+            tree = subprocess.check_output(['xwininfo', '-root', '-tree'], text=True)
+            for line in tree.splitlines():
+                if '"Import names model"' not in line:
+                    continue
+                handle = int(line.strip().split()[0], 16)
+                state = subprocess.check_output(['xwininfo', '-id', hex(handle), '-stats'], text=True)
+                owner = subprocess.check_output(['xprop', '-id', hex(handle), '_NET_WM_PID'], text=True)
+                if 'Map State: IsViewable' in state and owner.strip().endswith('= ' + str(app.pid)):
+                    return True
+            return False
+        wait_for(owned_model_chooser, 'native_model_import_chooser')
+        click('Cancel')
+        wait_for(lambda: enabled('Import names model'), 'model_import_cancelled')
+        check('native_model_import_cancel_releases_owned_ui_and_creates_no_files', not (history_root / 'models').exists())
+        click_visible_public_control('I agree to the names model license')
+        wait_for(lambda: not enabled('Download names model') and not enabled('Import names model'), 'entity_assent_revoked')
+        check('entity_assent_is_rechecked_before_a_new_operation', True)
+        click_visible_public_control('Verify local models')
+        wait_for(lambda: enabled('Verify local models') and enabled('Download summary model'), 'passive_model_verification_done')
+        check('explicit_passive_model_verification_does_not_download_or_create_root', not (history_root / 'models').exists())
+        click_visible_public_control('Quit Clipboard')
+        app.wait(timeout=10)
+        check('model_settings_profile_quits_cleanly', app.returncode == 0)
+        raise SystemExit(0)
     if args.install_package:
         package = Path(args.install_package).resolve()
         installation = Path(args.executable).resolve().parent.parent

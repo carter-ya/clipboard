@@ -5,6 +5,7 @@
       [string]$FixturePython,
       [switch]$Baseline,
       [switch]$ValidateOnly,
+      [switch]$ModelSettingsOnly,
       [int]$LifecycleCycles = 0)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'private-fixture-python.ps1')
@@ -357,6 +358,15 @@ function Get-Editor {
     [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)
   return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
 }
+function Test-PublicControlEnabled([string]$Label) {
+  $control = Find-Named $Label
+  for ($depth = 0; $depth -lt 10 -and $control; $depth++) {
+    if ($control.Current.ControlType -eq [Windows.Automation.ControlType]::Button -or
+        $control.Current.ControlType -eq [Windows.Automation.ControlType]::CheckBox) { return $control.Current.IsEnabled }
+    $control = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($control)
+  }
+  return $false
+}
 function Invoke-VisibleConnectionButton([string]$Label, [bool]$Activate = $true) {
   if ($env:GITHUB_ACTIONS -ne 'true') { throw 'connection_pointer_fixture_requires_isolated_runner' }
   $scroll = @{ attempted = $false }
@@ -624,6 +634,54 @@ try {
   } else {
     Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'initial_history' | Out-Null
     Add-Check 'native_window_and_history_visible' $true
+    if ($ModelSettingsOnly) {
+      Invoke-Button 'Settings'
+      Wait-For { (Find-Named 'Local text models') -and (Find-Named 'Language and names') -and
+        (Test-PublicControlEnabled 'Download summary model') -and (Test-PublicControlEnabled 'Verify local models') } 'model_support_ready' | Out-Null
+      Add-Check 'model_cards_query_real_bundled_workers_without_creating_model_root' (!(Test-Path (Join-Path $historyRoot 'models')))
+      Add-Check 'entity_download_and_import_require_visible_license_assent' (
+        !(Test-PublicControlEnabled 'Download names model') -and !(Test-PublicControlEnabled 'Import names model'))
+      Invoke-VisibleConnectionButton 'Download summary model' $false
+      Save-Screenshot 'model-settings-summary.png'
+      Invoke-VisibleConnectionButton 'I agree to the names model license'
+      Wait-For { (Test-PublicControlEnabled 'Download names model') -and
+        (Test-PublicControlEnabled 'Import names model') } 'entity_license_assent' | Out-Null
+      Add-Check 'explicit_entity_assent_enables_only_model_controls' $true
+      Save-Screenshot 'model-settings-names.png'
+      Invoke-VisibleConnectionButton 'Import names model'
+      $dialogHandle = Wait-For {
+        $candidate = [PreviewNative]::FindDialog([uint32]$application.Id, 'Import names model')
+        if ($candidate -ne [IntPtr]::Zero) { $candidate }
+      } 'native_model_import_chooser'
+      $dialog = [Windows.Automation.AutomationElement]::FromHandle($dialogHandle)
+      $cancel = Wait-For {
+        # Numeric IDs can also occur on invokable shell list items. Select only
+        # the owned native Button with IDCANCEL, never the first ID-only node.
+        $native = [PreviewNative]::DialogButton($dialogHandle, 2)
+        $control = if ($native -ne [IntPtr]::Zero) { [Windows.Automation.AutomationElement]::FromHandle($native) }
+        if ($control -and $control.Current.IsEnabled -and
+            $control.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and
+            $control.Current.Name -ceq 'Cancel' -and $control.Current.ProcessId -eq $application.Id) {
+          return $control.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
+        }
+      } 'native_model_import_cancel_control'
+      $cancel.Invoke()
+      Wait-For { ([PreviewNative]::FindDialog([uint32]$application.Id, 'Import names model') -eq [IntPtr]::Zero) -and
+        (Test-PublicControlEnabled 'Import names model') } 'model_import_cancelled' | Out-Null
+      Add-Check 'native_model_import_cancel_releases_owned_ui_and_creates_no_files' (!(Test-Path (Join-Path $historyRoot 'models')))
+      Invoke-VisibleConnectionButton 'I agree to the names model license'
+      Wait-For { !(Test-PublicControlEnabled 'Download names model') -and
+        !(Test-PublicControlEnabled 'Import names model') } 'entity_assent_revoked' | Out-Null
+      Add-Check 'entity_assent_is_rechecked_before_a_new_operation' $true
+      Invoke-VisibleConnectionButton 'Verify local models'
+      Wait-For { (Test-PublicControlEnabled 'Verify local models') -and
+        (Test-PublicControlEnabled 'Download summary model') } 'passive_model_verification_done' | Out-Null
+      Add-Check 'explicit_passive_model_verification_does_not_download_or_create_root' (!(Test-Path (Join-Path $historyRoot 'models')))
+      Invoke-VisibleConnectionButton 'Quit Clipboard'
+      if (!$application.WaitForExit(10000)) { throw 'model_settings_quit_timeout' }
+      Add-Check 'model_settings_profile_quits_cleanly' ($application.ExitCode -eq 0)
+      return
+    }
     Save-Screenshot 'history.png'
     $edit = Wait-For { Get-Editor } 'search_control'
     $edit.SetFocus()

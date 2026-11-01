@@ -295,6 +295,12 @@ int main() {
         }
         if (ferror(stdin) || bytes.empty()) return 2;
         json input = json::parse(bytes, [](int depth, json::parse_event_t, json &) { if (depth > 8) throw 1; return true; });
+        if (input.is_object() && input.size() == 1 && input.value("task", "") == "capability") {
+            verified_file(asset_path("clipboard-text-vocab.txt"), vocabulary_size, vocabulary_sha256);
+            language("A private synthetic capability check.");
+            const char response[] = "{\"available\":true}";
+            return fwrite(response, 1, sizeof(response) - 1, stdout) == sizeof(response) - 1 && !fflush(stdout) ? 0 : 2;
+        }
         if (!input.is_object() || input.size() != 3 || !input.contains("text") || !input.contains("task") || !input.contains("model")) return 2;
         std::string text = input.at("text").get<std::string>();
         if (text.empty() || text.size() > 65536 || input.at("task").get<std::string>() != "enrichment") return 2;

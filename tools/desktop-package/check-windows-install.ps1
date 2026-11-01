@@ -48,6 +48,8 @@ try {
   # Exclude Swift and GTK development paths. Every application/peer DLL must
   # resolve from the installed bin directory or standard Windows system folders.
   $env:Path = (Join-Path $Installed 'bin') + ';' + $env:SystemRoot + '\System32;' + $env:SystemRoot + '\System32\WindowsPowerShell\v1.0'
+  & $FixturePython (Join-Path (Split-Path ([IO.Path]::GetFullPath($Probe))) 'check-local-model-runtime.py') --directory (Join-Path $Installed 'bin')
+  Check 'installed_local_text_workers_and_offline_notices_without_optional_weights' ($LASTEXITCODE -eq 0)
   $ImageInfo = New-Object Diagnostics.ProcessStartInfo
   $ImageInfo.FileName = Join-Path $Installed 'bin/clipboard-image-worker.exe'
   $ImageInfo.UseShellExecute = $false
@@ -118,6 +120,9 @@ try {
     & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
       -ClipboardPeer $ClipboardPeer -OCRFixture $OCRFixture -FixturePython $FixturePython -LifecycleCycles 20 -OutputDirectory (Join-Path $Output 'ui')
     Check 'installed_gui_and_services_pass_with_bundled_runtime' ($LASTEXITCODE -eq 0)
+    & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
+      -ModelSettingsOnly -OutputDirectory (Join-Path $Output 'model-settings')
+    Check 'installed_model_settings_pass_native_consent_and_cancel_controls' ($LASTEXITCODE -eq 0)
   } finally {
     foreach ($Hidden in $HiddenResources.Keys) {
       Move-Item -LiteralPath $Hidden -Destination $HiddenResources[$Hidden]

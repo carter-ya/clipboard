@@ -10,16 +10,15 @@ public struct NativeDesktopLanguageModel: DesktopLocalLanguageProcessing, Sendab
 
   public init(model: URL, executable: URL? = nil, timeout: TimeInterval = 90) {
     self.model = model
-    #if os(Windows)
-      let name = "clipboard-language-worker.exe"
-    #else
-      let name = "clipboard-language-worker"
-    #endif
-    self.executable =
-      executable
-      ?? (Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0]))
-      .deletingLastPathComponent().appendingPathComponent(name)
+    self.executable = NativeDesktopModelCapability.executable(
+      executable, name: "clipboard-language-worker")
     self.timeout = timeout
+  }
+
+  public static func isSupported(executable: URL? = nil) async throws -> Bool {
+    try await NativeDesktopModelCapability.isSupported(
+      NativeDesktopModelCapability.executable(executable, name: "clipboard-language-worker"),
+      unavailable: [3, 11])
   }
 
   public func process(text: String, task: DesktopLocalLanguageTask, language: String?) async throws

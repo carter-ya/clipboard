@@ -25,7 +25,7 @@ let package = Package(
         .product(name: "SwiftCrossUI", package: "swift-cross-ui"),
         .product(name: "GtkBackend", package: "swift-cross-ui"),
       ],
-      resources: [.copy("Resources/VERSION")],
+      resources: [.copy("Resources/VERSION"), .copy("Resources/ModelLicenses")],
       linkerSettings: [
         .unsafeFlags(
           [

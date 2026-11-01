@@ -214,6 +214,10 @@ int main() {
             if (depth > 8) throw 1;
             return true;
         });
+        if (request.is_object() && request.size() == 1 && request.value("task", "") == "capability") {
+            const char response[] = "{\"available\":true}";
+            return fwrite(response, 1, sizeof(response) - 1, stdout) == sizeof(response) - 1 && !fflush(stdout) ? 0 : 10;
+        }
         if (!request.is_object() || request.size() < 3 || request.size() > 4) return 2;
         for (auto entry = request.begin(); entry != request.end(); ++entry) {
             if (entry.key() != "model" && entry.key() != "text" && entry.key() != "task" && entry.key() != "language") return 2;

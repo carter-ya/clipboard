@@ -10,6 +10,8 @@ on:
       - tools/desktop-package/**
       - tools/desktop-pdf/**
       - tools/desktop-image/**
+      - tools/desktop-language/**
+      - tools/desktop-text/**
       - .github/workflows/swiftcrossui-preview.yml
   pull_request:
     paths:
@@ -19,6 +21,8 @@ on:
       - tools/desktop-package/**
       - tools/desktop-pdf/**
       - tools/desktop-image/**
+      - tools/desktop-language/**
+      - tools/desktop-text/**
       - .github/workflows/swiftcrossui-preview.yml
   workflow_dispatch:
 
@@ -197,6 +201,9 @@ jobs:
           dbus-run-session -- xvfb-run --auto-servernum \
             /usr/bin/python3 tools/desktop-ui/smoke-linux.py \
             --executable "$binary_dir/ClipboardDesktop" --clipboard-peer "$binary_dir/scenario-runner" --ocr-fixture Core/Fixtures/ocr.png --output ui-artifacts
+          dbus-run-session -- xvfb-run --auto-servernum \
+            /usr/bin/python3 tools/desktop-ui/smoke-linux.py \
+            --executable "$binary_dir/ClipboardDesktop" --model-settings-only --output ui-artifacts/local-model-settings
       - name: Exercise native Wayland GTK controls in a private compositor
         if: runner.os == 'Linux'
         shell: bash
@@ -222,6 +229,9 @@ jobs:
               -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -OutputDirectory ui-artifacts/baseline -Baseline
             exit $UiExitCode
           }
+          & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
+            -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ModelSettingsOnly -OutputDirectory ui-artifacts/local-model-settings
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build optimized desktop artifacts
         shell: pwsh
         run: |
