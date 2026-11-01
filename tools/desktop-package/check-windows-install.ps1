@@ -48,6 +48,39 @@ try {
   # Exclude Swift and GTK development paths. Every application/peer DLL must
   # resolve from the installed bin directory or standard Windows system folders.
   $env:Path = (Join-Path $Installed 'bin') + ';' + $env:SystemRoot + '\System32;' + $env:SystemRoot + '\System32\WindowsPowerShell\v1.0'
+  $ImageInfo = New-Object Diagnostics.ProcessStartInfo
+  $ImageInfo.FileName = Join-Path $Installed 'bin/clipboard-image-worker.exe'
+  $ImageInfo.UseShellExecute = $false
+  $ImageInfo.CreateNoWindow = $true
+  $ImageInfo.RedirectStandardInput = $true
+  $ImageInfo.RedirectStandardOutput = $true
+  $ImageInfo.RedirectStandardError = $true
+  $ImageProcess = [Diagnostics.Process]::Start($ImageInfo)
+  try {
+    $ImageErrorDrain = $ImageProcess.StandardError.BaseStream.CopyToAsync([IO.Stream]::Null)
+    $ImageBytes = [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGUlEQVR4nGPQyLvznxLMMGrAqAGjBgwXAwBc3HEfVZuzFAAAAABJRU5ErkJggg==')
+    $ImageProcess.StandardInput.BaseStream.Write($ImageBytes, 0, $ImageBytes.Length)
+    $ImageProcess.StandardInput.BaseStream.Close()
+    if (!$ImageProcess.WaitForExit(15000)) { $ImageProcess.Kill(); throw 'installed_image_worker_timeout' }
+    $ImageOutput = $ImageProcess.StandardOutput.ReadToEnd()
+    $ImageMetadata = $null
+    if ([Text.Encoding]::UTF8.GetByteCount($ImageOutput) -le 4096) {
+      try { $ImageMetadata = $ImageOutput | ConvertFrom-Json } catch { $ImageMetadata = $null }
+    }
+    Check 'installed_image_classifier_works_with_bundled_runtime' ($ImageProcess.ExitCode -eq 0 -and
+      $null -ne $ImageMetadata -and $ImageMetadata.width -eq 16 -and $ImageMetadata.height -eq 16 -and
+      $ImageMetadata.labels -is [Array] -and @($ImageMetadata.labels).Count -le 3)
+  } finally {
+    if (!$ImageProcess.HasExited) { $ImageProcess.Kill(); $ImageProcess.WaitForExit() }
+    $ImageProcess.Dispose()
+  }
+  $ImageNotices = Join-Path $Installed 'share/licenses/image-model'
+  $ImageProvenance = Get-Content -Raw (Join-Path $ImageNotices 'provenance.json') | ConvertFrom-Json
+  $MissingImageNotices = @('onnxruntime-LICENSE','onnxruntime-ThirdPartyNotices.txt','MODELS-LICENSE','MODEL-README.md','synset.txt') |
+    Where-Object { !(Test-Path (Join-Path $ImageNotices $_)) }
+  Check 'installed_image_model_keeps_verified_provenance_and_notices' ($ImageProvenance.cpu_only -and
+    $ImageProvenance.model_embedded -and $ImageProvenance.reference_tensor_verified -and
+    $ImageProvenance.preprocessing_reference_verified -and @($MissingImageNotices).Count -eq 0)
   $App = Start-Process -FilePath $Executable -ArgumentList @('--data-root', ('"' + (Join-Path $Root 'running-profile') + '"'), '--background') -PassThru
   $null = $App.Handle
   $Deadline = [DateTime]::UtcNow.AddSeconds(20)

@@ -154,6 +154,7 @@ struct ClipPreviewView: View {
     case .vision: return "Vision"
     case .localOCR: return "OCR"
     case .localExtractive: return NSLocalizedString("summary.badge.localExcerpt", comment: "")
+    case .localImage: return NSLocalizedString("summary.badge.localImage", comment: "")
     case .naturalLanguage: return "NL"
     case .foundationModels: return "FM"
     case .remoteOpenAI: return NSLocalizedString("remoteAI.badge.remote", comment: "")

@@ -159,6 +159,9 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - History metadata is display-only: build bounded localized date/source/image-result batches off the UI actor and reject stale refreshes. File names come only from copied URL references, without opening/statting targets, with 128-entry/64-KiB display limits and total-count/truncation guidance. Render names as individual rows, preserve original Copy payloads, and keep file metadata within existing sensitive-preview generation/revocation guards.
 
+- Offline image classification uses the verified CPU-only helper and embedded model, not runtime model paths/downloads or uploaded data. Keep the Core OCR-first service and distinct localImage source; sensitive/concealed and cancelled work must fail before resolving payloads or starting a fallback. Bound image input/metadata/pixels and owned process memory/CPU/wall time; disable telemetry and retain every model/runtime notice. Each native build must verify the official reference tensor and RGB/crop/normalization/postprocessing, and runtime-only installs must execute the helper with bundled dependencies. The generic pipe writer allows 16 MiB, while the legacy PDF entry point and PDF worker keep their 1 MiB limits and thread-local SIGPIPE handling. UI/automatic integration is tracked separately from backend acceptance.
+
+
 
 
 

@@ -43,3 +43,9 @@ subprocess.run([sys.executable,
 subprocess.run([sys.executable, str(repo / 'tools/desktop-pdf/check-worker.py'),
                 '--executable', str(Path(binary_dir) / (
                     'clipboard-pdf-worker.exe' if sys.platform == 'win32' else 'clipboard-pdf-worker'))], check=True)
+subprocess.run([sys.executable, str(repo / 'tools/desktop-image/build-worker.py'), '--output', binary_dir,
+                '--cache', str((Path(args.cache_path).resolve() if args.cache_path else build) / 'local-image-sdk-1.31.1')],
+               check=True)
+subprocess.run([sys.executable, str(repo / 'tools/desktop-image/check-worker.py'),
+                '--executable', str(Path(binary_dir) / (
+                    'clipboard-image-worker.exe' if sys.platform == 'win32' else 'clipboard-image-worker'))], check=True)

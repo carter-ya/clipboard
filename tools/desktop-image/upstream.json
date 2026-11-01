@@ -1,0 +1,53 @@
+{
+  "version": "v1.31.1",
+  "assets": [
+    {
+      "name": "onnxruntime-linux-aarch64-1.31.1.tgz",
+      "size": 10332381,
+      "sha256": "5317505e2da99be65f8e2775ba3c2afd6d2961fd78aba1bd8f56159f48820c78",
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.31.1/onnxruntime-linux-aarch64-1.31.1.tgz"
+    },
+    {
+      "name": "onnxruntime-linux-x64-1.31.1.tgz",
+      "size": 11413655,
+      "sha256": "c849e36a1ef3e22d4ff217b9d1ce4a3cf5b9467b975610913ae959ad5b16bdc9",
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.31.1/onnxruntime-linux-x64-1.31.1.tgz"
+    },
+    {
+      "name": "onnxruntime-win-x64-1.31.1.zip",
+      "size": 82929944,
+      "sha256": "5869e26bb25314375f2d5ef1877e3ea06b1543d6c710e6e4a1ec2f7177ab4b2c",
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.31.1/onnxruntime-win-x64-1.31.1.zip"
+    }
+  ],
+  "modelCommit": "4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177",
+  "models": {
+    "squeezenet1.1-7.onnx": {
+      "sha256": "1eeff551a67ae8d565ca33b572fc4b66e3ef357b0eb2863bb9ff47a918cc4088",
+      "size": 4956208,
+      "url": "https://media.githubusercontent.com/media/onnx/models/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.1-7.onnx"
+    },
+    "squeezenet1.1-7.tar.gz": {
+      "sha256": "95dc7fbafbc7372aabe75555db9e89f05e0715ab7472cf7f8fb751ff54543c3e",
+      "size": 5156484,
+      "url": "https://media.githubusercontent.com/media/onnx/models/4c46cd00fbdb7cd30b6c1c17ab54f2e1f4f7b177/validated/vision/classification/squeezenet/model/squeezenet1.1-7.tar.gz"
+    }
+  },
+  "texts": [
+    {
+      "name": "synset.txt",
+      "path": "validated/vision/classification/synset.txt",
+      "sha256": "acf75ef0abe89694b19056e0796401068b459c457baa30335f240c7692857355"
+    },
+    {
+      "name": "MODELS-LICENSE",
+      "path": "LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "name": "MODEL-README.md",
+      "path": "validated/vision/classification/squeezenet/README.md",
+      "sha256": "37c9978227b7fc5c481342d81cf8b892febea6c5e342827f8b8247457500312d"
+    }
+  ]
+}
