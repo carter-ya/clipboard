@@ -29,6 +29,9 @@ struct Character {
 // [CLS]/[SEP] in copied text are ordinary punctuation/letters, never controls.
 class Tokenizer {
     std::unordered_map<std::string, int64_t> vocabulary;
+    // Match the pinned model tokenizer, including its 0x2b820..0x2b91f gap.
+    // This is BERT compatibility, not a general Unicode ideograph predicate:
+    // https://github.com/huggingface/tokenizers/blob/v0.22.1/tokenizers/src/normalizers/bert.rs
     static bool chinese(uint32_t value) {
         return (value >= 0x4e00 && value <= 0x9fff) || (value >= 0x3400 && value <= 0x4dbf) ||
             (value >= 0x20000 && value <= 0x2a6df) || (value >= 0x2a700 && value <= 0x2b73f) ||
@@ -89,8 +92,10 @@ public:
             size_t start = offset;
             uint32_t value = unicode_cpt_from_utf8(text, offset);
             auto flags = unicode_cpt_flags_from_cpt(value);
+            // The pinned normalizer retains unassigned codepoints. Missing
+            // Unicode table metadata must not silently remove copied characters.
             if (value == 0 || value == 0xfffd ||
-                ((flags.is_control || flags.is_undefined) && value != 9 && value != 10 && value != 13)) continue;
+                (flags.is_control && value != 9 && value != 10 && value != 13)) continue;
             if (flags.is_whitespace || value == 9 || value == 10 || value == 13) { flush(); continue; }
             bool isolated = chinese(value) || ascii_punctuation(value) || flags.is_punctuation;
             if (isolated) flush();
