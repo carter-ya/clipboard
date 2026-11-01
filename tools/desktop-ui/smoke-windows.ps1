@@ -966,10 +966,11 @@ try {
       Set-LocalTextSettings @('Automatically generate local summaries') 'This synthetic local summary'
       Set-LocalTextRelease 'generative' $true
       $existingAutoIDs = @(Get-LocalTextRecords | ForEach-Object { $_.id })
-      $automaticPeer = Start-LocalTextPeer 'rich'
+      $automaticPeer = Start-LocalTextPeer 'local-summary-success'
       try {
         Wait-For { (Test-LocalTextCounter 'generative' 4) -and @((Get-LocalTextRecords) | Where-Object { $_.id -notin $existingAutoIDs }).Count -eq 1 } 'second_automatic_local_generation_started' | Out-Null
         $automaticSuccess = Get-LocalTextRecords | Where-Object { $_.id -notin $existingAutoIDs } | Select-Object -First 1
+        Add-Check 'successful_automatic_generation_uses_distinct_text_without_images' ($automaticSuccess.kind -ceq 'text' -and $automaticSuccess.preview.StartsWith('Automatic success fixture.'))
         Wait-For { (Get-LocalTextRecord $automaticSuccess.id).summarySource -ceq 'localGenerative' } 'automatic_real_generation' 100 | Out-Null
         Add-Check 'automatic_capture_runs_real_generation_without_remote_permission' (!(Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')).ai.enabled)
       } finally { Stop-LocalTextPeer $automaticPeer }
