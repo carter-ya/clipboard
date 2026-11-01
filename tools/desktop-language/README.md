@@ -67,3 +67,12 @@ Review the saved sentences against the fixtures, including newly added facts.
 The smaller 0.6B/1.7B candidates produced fabricated/common-noun entities and
 incorrect multilingual summaries. Generative entity extraction is therefore
 excluded; it is not a substitute for a trained tagger or the Mac baseline.
+
+Native verification failures report a fixed check stage, completed-check count,
+optional worker exit code and stderr byte count only. Worker exit stages 3/6/7/
+8/9/10 identify resource limits, model open, digest, SDK load, generation and
+serialization; malformed requests still fail without content diagnostics. No
+model path, input text, generated text or network exception enters this report.
+Windows CMake cache values use forward slashes so drive paths cannot become
+CMake string escapes. Linux x64 failure in run 41255422473 requires the new
+stage evidence before a specific inference repair can be claimed.

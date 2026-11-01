@@ -19,11 +19,23 @@ def main():
     args = parser.parse_args()
     executable = Path(args.executable).resolve()
     checks = 0
+    stage = 'protocol'
 
     def invoke(data, accepted=False, timeout=90):
         nonlocal checks
-        result = subprocess.run([str(executable)], input=data, capture_output=True, timeout=timeout)
+        try:
+            result = subprocess.run([str(executable)], input=data, capture_output=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            print(json.dumps({'native_language_check_failed': stage, 'completed': checks,
+                              'timedOut': True}), flush=True)
+            raise
+        if accepted and result.returncode != 0:
+            print(json.dumps({'native_language_check_failed': stage, 'completed': checks,
+                              'exitCode': result.returncode, 'stderrBytes': len(result.stderr)}), flush=True)
         if result.stderr or len(result.stdout) > 4096:
+            print(json.dumps({'native_language_check_failed': stage, 'completed': checks,
+                              'reason': 'output_bound', 'exitCode': result.returncode,
+                              'stderrBytes': len(result.stderr)}), flush=True)
             raise RuntimeError('Worker diagnostic/output bound failed')
         if accepted:
             if result.returncode != 0:
@@ -33,6 +45,8 @@ def main():
                     value['task'] != 'summary' or value['language'] is not None or value['entities'] != [] or
                     not isinstance(value['inputTruncated'], bool) or not isinstance(value['summary'], str) or
                     not value['summary'].strip() or len(value['summary'].encode()) > 2048):
+                print(json.dumps({'native_language_check_failed': stage, 'completed': checks,
+                                  'reason': 'protocol'}), flush=True)
                 raise RuntimeError('Worker inference protocol failed')
             checks += 1
             return value
@@ -69,19 +83,24 @@ def main():
                 text = ('The project team met on Tuesday to review schedules and paperwork. '
                         'After inspecting a damaged fuel valve, NASA engineers postponed the Mars launch '
                         'until Friday to complete repairs and safety checks.')
+                stage = 'real_inference'
                 value = invoke(request(link, text=text), accepted=True)
                 summary = value['summary'].lower()
                 if ('nasa' not in summary or 'mars' not in summary or
                         not any(word in summary for word in ('postpon', 'delay')) or
                         not any(word in summary for word in ('repair', 'fuel', 'valve')) or
                         summary.startswith('the project team met')):
+                    print(json.dumps({'native_language_check_failed': stage, 'completed': checks,
+                                      'reason': 'held_out_concepts'}), flush=True)
                     raise RuntimeError('Held-out summary omitted the main event')
                 if os.name != 'nt':
+                    stage = 'model_symlink'
                     alias = root / 'model-symlink.gguf'
                     alias.symlink_to(model)
                     invoke(request(alias), timeout=5)
                 # An exact-size sparse impostor exercises the SHA256 check,
                 # rather than merely failing at the size/type gate.
+                stage = 'model_digest'
                 invalid = root / 'same-size-invalid.gguf'
                 with invalid.open('wb') as stream:
                     stream.truncate(model.stat().st_size)

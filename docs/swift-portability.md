@@ -346,3 +346,11 @@ line with the full identity in native help. The candidate passes all 91 full
 Linux native UI/privacy checks and all eight layout checks at each scale 1/2.
 Windows probes now require the anchor to be onscreen before pointer movement;
 exact-head Windows confirmation and low-height/physical display audit remain open.
+
+Windows UI run 41255310855 confirms both real history activations and all manual
+local-image progress, retry, native inference and original PNG Copy checks. The
+automatic image fixture then races the asynchronous return from settings: a
+generic Edit lookup can still target the outgoing settings tree. The fixture
+now waits for the visible restored history query before clearing it, retaining
+the exact two-item check and the existing action deadline. Native confirmation
+of this candidate remains required.

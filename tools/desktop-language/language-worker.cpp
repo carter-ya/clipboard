@@ -195,7 +195,8 @@ static std::string generate(llama_model *model, const std::string &text,
 }
 
 int main() {
-    if (!limits()) return 2;
+    if (!limits()) return 3;
+    int stage = 4;
     // No SDK diagnostics, prompts, paths or generated text enter stderr logs.
     llama_log_set([](ggml_log_level, const char *, void *) {}, nullptr);
     try {
@@ -206,6 +207,7 @@ int main() {
             bytes.append(chunk.data(), count);
         }
         if (ferror(stdin) || bytes.empty()) return 2;
+        stage = 5;
         json request = json::parse(bytes, [](int depth, json::parse_event_t, json &) {
             if (depth > 8) throw 1;
             return true;
@@ -224,7 +226,9 @@ int main() {
         })) return 2;
         if (text.empty() || text.size() > text_limit || task != "summary") return 2;
         std::unique_ptr<FILE, decltype(&fclose)> file(open_model(path), fclose);
-        if (!file || !verify_model(file.get())) return 2;
+        if (!file) return 6;
+        if (!verify_model(file.get())) return 7;
+        stage = 8;
         llama_backend_init();
         llama_model_params parameters = llama_model_default_params();
         parameters.n_gpu_layers = 0;
@@ -232,15 +236,17 @@ int main() {
         parameters.load_mode = LLAMA_LOAD_MODE_MMAP;
         parameters.lazy_mode = LLAMA_LAZY_MODE_OFF;
         std::unique_ptr<llama_model, decltype(&llama_model_free)> model(llama_model_load_from_file_ptr(file.get(), parameters), llama_model_free);
-        if (!model) return 2;
+        if (!model) return 8;
+        stage = 9;
         bool truncated = false;
         std::string output = generate(model.get(), text, language, truncated);
         json response{{"task", task}, {"summary", nullptr}, {"language", nullptr},
                       {"entities", json::array()}, {"inputTruncated", truncated}};
-        if (output.find_first_not_of(" \t\r\n") == std::string::npos) return 2;
+        if (output.find_first_not_of(" \t\r\n") == std::string::npos) return 9;
+        stage = 10;
         response["summary"] = output;
         std::string serialized = response.dump();
         if (serialized.size() > 4096 || fwrite(serialized.data(), 1, serialized.size(), stdout) != serialized.size() || fflush(stdout)) return 2;
         return 0;
-    } catch (...) { return 2; }
+    } catch (...) { return stage; }
 }
