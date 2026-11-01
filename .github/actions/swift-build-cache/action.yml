@@ -1,0 +1,40 @@
+name: Restore compiled Swift dependencies
+description: Freeze a cache key from committed dependency recipes and the selected compiler.
+inputs:
+  package:
+    description: Core or Desktop package
+    required: true
+  configuration:
+    description: Swift build configuration
+    default: debug
+outputs:
+  key:
+    description: Exact key to reuse when saving, including after dependency resolution
+    value: ${{ steps.identity.outputs.key }}
+  cache-hit:
+    description: Whether this exact dependency cache was restored
+    value: ${{ steps.restore.outputs.cache-hit }}
+  cache-matched-key:
+    description: Restored dependency cache key, if present
+    value: ${{ steps.restore.outputs.cache-matched-key }}
+runs:
+  using: composite
+  steps:
+    - id: identity
+      shell: bash
+      env:
+        CACHE_PACKAGE: ${{ inputs.package }}
+        CACHE_CONFIGURATION: ${{ inputs.configuration }}
+      run: |
+        set -euo pipefail
+        if [[ "$RUNNER_OS" == 'Windows' ]]; then
+          interpreter=python
+        else
+          interpreter=python3
+        fi
+        "$interpreter" tools/ci/cache-key.py --package "$CACHE_PACKAGE" --configuration "$CACHE_CONFIGURATION"
+    - id: restore
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ inputs.package }}/.build
+        key: ${{ steps.identity.outputs.key }}

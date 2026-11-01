@@ -12,6 +12,8 @@ on:
       - tools/desktop-image/**
       - tools/desktop-language/**
       - tools/desktop-text/**
+      - tools/ci/**
+      - .github/actions/swift-build-cache/**
       - .github/workflows/swiftcrossui-preview.yml
   pull_request:
     paths:
@@ -23,8 +25,22 @@ on:
       - tools/desktop-image/**
       - tools/desktop-language/**
       - tools/desktop-text/**
+      - tools/ci/**
+      - .github/actions/swift-build-cache/**
       - .github/workflows/swiftcrossui-preview.yml
   workflow_dispatch:
+    inputs:
+      full_validation:
+        description: Run complete native UI, real-model and installation acceptance
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FULL_VALIDATION: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.full_validation) }}
 
 permissions:
   contents: read
@@ -45,7 +61,7 @@ jobs:
             display: win32
             accessibility: accesskit
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 45 || 90 }}
     env:
       SCUI_DEFAULT_BACKEND: ${{ matrix.backend }}
       GDK_BACKEND: ${{ matrix.display }}
@@ -54,6 +70,11 @@ jobs:
       CLIPBOARD_UI_DIAGNOSTICS: '1'
     steps:
       - uses: actions/checkout@v4
+      - name: Verify CI policy and stable cache identifiers
+        if: runner.os == 'Linux'
+        run: |
+          python -m pip install --disable-pip-version-check PyYAML==6.0.3
+          python -m unittest discover -s tools/ci -p 'test_*.py' -v
       - name: Verify private fixture interpreter and pipe encoding
         shell: pwsh
         run: |
@@ -141,15 +162,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $VersionOutput
           if (($VersionOutput -join "`n") -notmatch 'Swift version 6\.3\.3(?:\s|$)') { throw 'Unexpected Swift toolchain' }
-      - name: Restore compiled UI dependencies
+      - name: Restore compiled debug dependencies
         id: ui-cache
-        uses: actions/cache/restore@v4
+        uses: ./.github/actions/swift-build-cache
         with:
-          path: Desktop/.build
-          key: desktop-release-v1-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved', 'Desktop/Package.swift', 'Core/Package.swift', 'Desktop/Patches/**') }}
-          restore-keys: |
-            desktop-debug-v1-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved', 'Desktop/Package.swift', 'Core/Package.swift', 'Desktop/Patches/**') }}
-            desktop-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved') }}
+          package: Desktop
+          configuration: debug
       - name: Restore dependency symbolic links on Windows
         if: runner.os == 'Windows' && steps.ui-cache.outputs.cache-matched-key != ''
         shell: pwsh
@@ -183,23 +201,81 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & python tools/desktop-ui/check-windows-stack.py --executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') --output ui-artifacts/windows-stack.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Build independent native clipboard peer
-        shell: pwsh
-        run: |
-          & swift build --package-path Core --scratch-path Desktop/.build --jobs 2 --product scenario-runner 2>&1 | Tee-Object -FilePath clipboard-peer-build.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Save compiled debug dependencies before native UI validation
-        if: steps.ui-cache.outputs.cache-hit != 'true' && !startsWith(steps.ui-cache.outputs.cache-matched-key, 'desktop-debug-v1-')
+        if: steps.ui-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: Desktop/.build
-          key: desktop-debug-v1-${{ runner.os }}-${{ matrix.backend }}-swift6.3.3-${{ hashFiles('Desktop/Package.resolved', 'Core/Package.resolved', 'Desktop/Package.swift', 'Core/Package.swift', 'Desktop/Patches/**') }}
-      - name: Exercise GTK window and capture screenshots
+          key: ${{ steps.ui-cache.outputs.key }}
+      - name: Check the native Linux window and model consent controls
         if: runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
-          binary_dir=$(swift build --package-path Desktop --show-bin-path)
+          binary_dir=$(swift build --package-path Desktop --configuration debug --show-bin-path)
+          dbus-run-session -- xvfb-run --auto-servernum \
+            /usr/bin/python3 tools/desktop-ui/smoke-linux.py \
+            --executable "$binary_dir/ClipboardDesktop" --model-settings-only --output ui-artifacts/pr-smoke
+      - name: Check the native Windows window and model consent controls
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $BinaryDirectory = (& swift build --package-path Desktop --configuration debug --show-bin-path).Trim()
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
+            -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ModelSettingsOnly -OutputDirectory ui-artifacts/pr-smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Restore compiled release dependencies
+        if: env.FULL_VALIDATION == 'true'
+        id: release-cache
+        uses: ./.github/actions/swift-build-cache
+        with:
+          package: Desktop
+          configuration: release
+      - name: Restore release dependency symbolic links on Windows
+        if: env.FULL_VALIDATION == 'true' && runner.os == 'Windows' && steps.release-cache.outputs.cache-matched-key != ''
+        shell: pwsh
+        run: |
+          # Windows cache extraction can leave relative directory links unresolved.
+          # Recreate only tracked links from Git, retaining original dependency sources.
+          Get-ChildItem Desktop/.build/checkouts -Directory | ForEach-Object {
+            $CheckoutDirectory = $_.FullName
+            $TrackedEntries = & git -C $CheckoutDirectory ls-files --stage
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            foreach ($Entry in $TrackedEntries) {
+              if ($Entry -match '^120000 [0-9a-f]+ 0\t(.+)$') {
+                $LinkPath = $Matches[1]
+                & git -C $CheckoutDirectory -c core.symlinks=true checkout-index --force -- $LinkPath
+                if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              }
+            }
+          }
+      - name: Build optimized desktop artifacts
+        if: env.FULL_VALIDATION == 'true'
+        shell: pwsh
+        run: |
+          & python tools/desktop-ui/build-desktop.py --configuration release --jobs 2 2>&1 | Tee-Object -FilePath release-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($env:RUNNER_OS -eq 'Windows') {
+            $ReleaseDirectory = (& swift build --package-path Desktop --configuration release --show-bin-path).Trim()
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & python tools/desktop-ui/check-windows-stack.py --executable (Join-Path $ReleaseDirectory 'ClipboardDesktop.exe') --output ui-artifacts/windows-release-stack.json
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          & swift build --package-path Core --scratch-path Desktop/.build --configuration release --jobs 2 --product scenario-runner
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save compiled release dependencies before full acceptance
+        if: env.FULL_VALIDATION == 'true' && steps.release-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: Desktop/.build
+          key: ${{ steps.release-cache.outputs.key }}
+      - name: Exercise GTK window and capture screenshots
+        if: env.FULL_VALIDATION == 'true' && runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary_dir=$(swift build --package-path Desktop --configuration release --show-bin-path)
           dbus-run-session -- xvfb-run --auto-servernum \
             /usr/bin/python3 tools/desktop-ui/smoke-linux.py \
             --executable "$binary_dir/ClipboardDesktop" --clipboard-peer "$binary_dir/scenario-runner" --ocr-fixture Core/Fixtures/ocr.png --output ui-artifacts
@@ -207,20 +283,20 @@ jobs:
             /usr/bin/python3 tools/desktop-ui/smoke-linux.py \
             --executable "$binary_dir/ClipboardDesktop" --model-settings-only --output ui-artifacts/local-model-settings
       - name: Exercise native Wayland GTK controls in a private compositor
-        if: runner.os == 'Linux'
+        if: env.FULL_VALIDATION == 'true' && runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
-          binary_dir=$(swift build --package-path Desktop --show-bin-path)
+          binary_dir=$(swift build --package-path Desktop --configuration release --show-bin-path)
           dbus-run-session -- /usr/bin/python3 tools/desktop-ui/check-linux-wayland.py \
             --executable "$binary_dir/scenario-runner" --ui-executable "$binary_dir/ClipboardDesktop" --output ui-artifacts/wayland-sway
           dbus-run-session -- /usr/bin/python3 tools/desktop-ui/check-linux-wayland.py \
             --executable "$binary_dir/scenario-runner" --ui-executable "$binary_dir/ClipboardDesktop" --copy-only --output ui-artifacts/wayland-copy-only
       - name: Exercise Windows GTK window and capture screenshots
-        if: runner.os == 'Windows'
+        if: env.FULL_VALIDATION == 'true' && runner.os == 'Windows'
         shell: pwsh
         run: |
-          $BinaryDirectory = (& swift build --package-path Desktop --show-bin-path).Trim()
+          $BinaryDirectory = (& swift build --package-path Desktop --configuration release --show-bin-path).Trim()
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
             -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png -OutputDirectory ui-artifacts
@@ -235,9 +311,10 @@ jobs:
             -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ModelSettingsOnly -OutputDirectory ui-artifacts/local-model-settings
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Prepare pinned optional models outside application and artifact caches
+        if: env.FULL_VALIDATION == 'true'
         shell: pwsh
         run: |
-          $BinaryDirectory = (& swift build --package-path Desktop --show-bin-path).Trim()
+          $BinaryDirectory = (& swift build --package-path Desktop --configuration release --show-bin-path).Trim()
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $ModelCache = Join-Path $env:RUNNER_TEMP 'clipboard-optional-model-fixtures'
           & python tools/desktop-language/build-worker.py --output $BinaryDirectory --cache $ModelCache --download-test-model-only
@@ -254,10 +331,10 @@ jobs:
           & python tools/desktop-ui/check-model-fixture-preparation.py --summary-model $SummaryPath --entity-model $EntityPath
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Exercise actual local models through native Windows controls
-        if: runner.os == 'Windows'
+        if: env.FULL_VALIDATION == 'true' && runner.os == 'Windows'
         shell: pwsh
         run: |
-          $BinaryDirectory = (& swift build --package-path Desktop --show-bin-path).Trim()
+          $BinaryDirectory = (& swift build --package-path Desktop --configuration release --show-bin-path).Trim()
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
             -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') `
@@ -265,10 +342,10 @@ jobs:
             -ModelDefinitions Core/Sources/ClipboardCore/Resources -OutputDirectory ui-artifacts/local-text
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Exercise model import cancellation and repair through native Windows controls
-        if: runner.os == 'Windows'
+        if: env.FULL_VALIDATION == 'true' && runner.os == 'Windows'
         shell: pwsh
         run: |
-          $BinaryDirectory = (& swift build --package-path Desktop --show-bin-path).Trim()
+          $BinaryDirectory = (& swift build --package-path Desktop --configuration release --show-bin-path).Trim()
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
             -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') `
@@ -276,37 +353,18 @@ jobs:
             -ModelDefinitions Core/Sources/ClipboardCore/Resources -OutputDirectory ui-artifacts/model-operations
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Exercise actual file and PDF models through native Windows controls
-        if: runner.os == 'Windows'
+        if: env.FULL_VALIDATION == 'true' && runner.os == 'Windows'
         shell: pwsh
         run: |
-          $BinaryDirectory = (& swift build --package-path Desktop --show-bin-path).Trim()
+          $BinaryDirectory = (& swift build --package-path Desktop --configuration release --show-bin-path).Trim()
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
             -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') `
             -LocalFileModelsOnly -SummaryModel $env:CLIPBOARD_TEST_SUMMARY_MODEL -EntityModel $env:CLIPBOARD_TEST_ENTITY_MODEL `
             -ModelDefinitions Core/Sources/ClipboardCore/Resources -OutputDirectory ui-artifacts/local-file-models
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Build optimized desktop artifacts
-        shell: pwsh
-        run: |
-          & python tools/desktop-ui/build-desktop.py --configuration release --jobs 2 2>&1 | Tee-Object -FilePath release-build.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if ($env:RUNNER_OS -eq 'Windows') {
-            $ReleaseDirectory = (& swift build --package-path Desktop --configuration release --show-bin-path).Trim()
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            & python tools/desktop-ui/check-windows-stack.py --executable (Join-Path $ReleaseDirectory 'ClipboardDesktop.exe') --output ui-artifacts/windows-release-stack.json
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-          & swift build --package-path Core --scratch-path Desktop/.build --configuration release --jobs 2 --product scenario-runner
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Save compiled debug and optimized UI dependencies
-        if: steps.ui-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: Desktop/.build
-          key: ${{ steps.ui-cache.outputs.cache-primary-key }}
       - name: Package Linux runtime and verify installation without a Swift SDK
-        if: runner.os == 'Linux'
+        if: env.FULL_VALIDATION == 'true' && runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
@@ -327,7 +385,7 @@ jobs:
               --executable "/packages/$package_name/bin/ClipboardDesktop" --scale "$scale" --output "/reports/scale-$scale"
           done
       - name: Build and exercise Windows user installer
-        if: runner.os == 'Windows'
+        if: env.FULL_VALIDATION == 'true' && runner.os == 'Windows'
         shell: pwsh
         env:
           CLIPBOARD_PRIVATE_INSTALL_TEST: '1'
@@ -339,6 +397,7 @@ jobs:
           $Installer = (Get-ChildItem dist/*-setup.exe | Select-Object -First 1).FullName
           ./tools/desktop-package/check-windows-install.ps1 -Installer $Installer -Output ui-artifacts/package -Probe tools/desktop-ui/smoke-windows.ps1 -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png -SummaryModel $env:CLIPBOARD_TEST_SUMMARY_MODEL -EntityModel $env:CLIPBOARD_TEST_ENTITY_MODEL -ModelDefinitions Core/Sources/ClipboardCore/Resources
       - name: Upload installable previews and checksums
+        if: env.FULL_VALIDATION == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: clipboard-desktop-preview-${{ runner.os }}
@@ -356,6 +415,5 @@ jobs:
           path: |
             ui-build.log
             release-build.log
-            clipboard-peer-build.log
             ui-artifacts
           if-no-files-found: ignore

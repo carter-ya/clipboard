@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - Core/**
+      - App/**
+      - project.yml
       - tools/desktop-ui/install-windows-zlib.ps1
       - tools/desktop-pdf/**
       - tools/desktop-image/**
@@ -13,6 +15,8 @@ on:
       - tools/desktop-ui/check-services.py
       - tools/desktop-ui/check-linux-*
       - tools/desktop-ui/check-x11-*.c
+      - tools/ci/**
+      - .github/actions/swift-build-cache/**
       - .github/workflows/swift-portability.yml
   pull_request:
     paths:
@@ -27,8 +31,22 @@ on:
       - tools/desktop-ui/check-services.py
       - tools/desktop-ui/check-linux-*
       - tools/desktop-ui/check-x11-*.c
+      - tools/ci/**
+      - .github/actions/swift-build-cache/**
       - .github/workflows/swift-portability.yml
   workflow_dispatch:
+    inputs:
+      full_validation:
+        description: Run complete native UI, real-model and installation acceptance
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FULL_VALIDATION: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.full_validation) }}
 
 permissions:
   contents: read
@@ -83,11 +101,22 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./tools/desktop-ui/install-windows-zlib.ps1 -Prefix (Join-Path $env:RUNNER_TEMP 'clipboard-zlib-sdk')
+      - name: Restore compiled Core dependencies
+        id: core-cache
+        uses: ./.github/actions/swift-build-cache
+        with:
+          package: Core
       - name: Test real core sources
         shell: pwsh
         run: |
           & swift test --package-path Core 2>&1 | Tee-Object -FilePath core-tests.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save compiled Core dependencies before native validation
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: Core/.build
+          key: ${{ steps.core-cache.outputs.key }}
       - name: Run synthetic clipboard scenario
         shell: pwsh
         run: |
@@ -132,7 +161,7 @@ jobs:
             -o "$RUNNER_TEMP/check-linux-wayland-pipe"
           "$RUNNER_TEMP/check-linux-wayland-pipe"
       - name: Verify native Wayland capture and restricted-compositor capabilities
-        if: runner.os == 'Linux'
+        if: env.FULL_VALIDATION == 'true' && runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
@@ -162,6 +191,7 @@ jobs:
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify pinned CPU-local language worker and Swift adapter
+        if: env.FULL_VALIDATION == 'true'
         shell: pwsh
         run: |
           $LanguageCache = Join-Path $env:RUNNER_TEMP 'clipboard-language-sdk'
@@ -187,6 +217,7 @@ jobs:
           & python tools/desktop-language/check-quality.py --executable (Join-Path $LanguageOutput $WorkerName) --model $ModelPath --output local-language-quality.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify trained local language and entity recognition
+        if: env.FULL_VALIDATION == 'true'
         shell: pwsh
         run: |
           $TextCache = Join-Path $env:RUNNER_TEMP 'clipboard-language-sdk'
@@ -286,12 +317,23 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Restore compiled Core dependencies
+        id: core-cache
+        uses: ./.github/actions/swift-build-cache
+        with:
+          package: Core
       - name: Test Core and synthetic scenario
         run: |
           set -euo pipefail
           swift --version
           swift test --package-path Core
           swift run --package-path Core scenario-runner rich-types
+      - name: Save compiled Core dependencies before native validation
+        if: steps.core-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: Core/.build
+          key: ${{ steps.core-cache.outputs.key }}
       - name: Build existing macOS application
         run: |
           set -euo pipefail

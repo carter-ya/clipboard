@@ -1,6 +1,7 @@
 name: Desktop runtime sources
 on:
-  pull_request:
+  push:
+    branches: [main]
     paths:
       - Desktop/Packaging/**
       - tools/desktop-package/**
@@ -11,6 +12,10 @@ on:
       - tools/desktop-ui/normalize-windows-pkgconfig.py
       - .github/workflows/desktop-runtime-sources.yml
   workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 jobs:
