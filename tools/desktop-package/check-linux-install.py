@@ -17,7 +17,13 @@ parser.add_argument('--probe', required=True)
 parser.add_argument('--output', required=True)
 parser.add_argument('--clipboard-peer')
 parser.add_argument('--ocr-fixture')
+parser.add_argument('--summary-model')
+parser.add_argument('--entity-model')
+parser.add_argument('--model-definitions')
 args = parser.parse_args()
+model_arguments = [args.summary_model, args.entity_model, args.model_definitions]
+if any(model_arguments) and not all(model_arguments):
+    raise RuntimeError('All actual-model fixture paths are required together')
 if shutil.which('swift') is not None:
     raise RuntimeError('Use the runtime-only image; the Swift SDK must not mask missing dependencies')
 package, output = Path(args.package).resolve(), Path(args.output).resolve()
@@ -94,6 +100,15 @@ try:
              '--executable', str(executable), '--model-settings-only', '--output', str(output / 'model-settings')],
             env=probe_environment, timeout=180)
         check('installed_model_settings_pass_native_consent_and_cancel_controls', model_ui.returncode == 0)
+        if all(model_arguments):
+            actual_models = subprocess.run(
+                ['dbus-run-session', '--', 'xvfb-run', '-a', '/usr/bin/python3', args.probe,
+                 '--executable', str(executable), '--local-text-only',
+                 '--summary-model', str(Path(args.summary_model).resolve()),
+                 '--entity-model', str(Path(args.entity_model).resolve()),
+                 '--model-definitions', str(Path(args.model_definitions).resolve()),
+                 '--output', str(output / 'local-text')], env=probe_environment, timeout=600)
+            check('installed_actual_local_models_pass_analysis_revocation_and_removal', actual_models.returncode == 0)
         history_files = list((output / 'ui').glob('history-*/history.json'))
         check('private_history_was_persisted', bool(history_files))
         history = {str(file): hashlib.sha256(file.read_bytes()).hexdigest() for file in history_files}

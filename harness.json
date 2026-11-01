@@ -439,7 +439,18 @@
                 "Final native Linux and installed acceptance at both scales",
                 "Native Windows actual-model controls, auto/retry/revocation/removal and installed acceptance",
                 "Real-model file import/cancel/repair and deterministic download failure/cancellation UI acceptance"
-              ]
+              ],
+              "platform_acceptance": {
+                "branch": "codex/cross-platform-local-text-acceptance",
+                "status": "in_progress",
+                "implemented": "Native Windows actual-model controls mirror Linux generation/entities, original Copy, progress/retry, independent manual/automatic consent, revocation, language-only retention and selective removal checks. Only new real-generation result waits use a 100-second publication bound around the unchanged 90-second native worker; all existing action deadlines remain unchanged. A private file-sharing probe observes an overlapping model handle before removal without scanning processes. Large verified fixture weights and owned profiles stay in runner temporary storage outside build caches, packages and uploaded artifacts. New explicit model-only builder flags verify just the optional weights without rebuilding or changing worker output. Both installed checkers accept explicit fixture paths and run actual-model controls while development resources/SDK fallbacks remain unavailable.",
+                "validation": "PowerShell source parsing and all visible-control/local-text helper and wait-scope regressions pass locally. Four cached preparation checks pass with network/process building disabled, covering output preservation and corrupt-cache refusal. Workflow YAML, all five Bash run blocks and all eighteen PowerShell run blocks parse. Strictly isolated final Linux installed acceptance is running. Parent product validation passes 334 Linux Core/platform tests, 28 related Mac tests, three localization tests and nineteen actual-model native controls. Current backend temporal repair passes all three native Core CI platforms; all ten Windows synthetic summaries have been inspected against source facts. Actual Windows execution of the new controls remains pending CI.",
+                "remaining": [
+                  "Native Windows actual-model and installed confirmation at the final acceptance head",
+                  "Final Linux runtime-only checks including selective removal with no mounted build resources",
+                  "Positive model import, cancellation/repair and deterministic download-failure/cancellation UI acceptance"
+                ]
+              }
             }
           }
         },

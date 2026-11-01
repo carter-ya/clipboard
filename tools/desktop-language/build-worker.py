@@ -37,7 +37,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', required=True)
     parser.add_argument('--cache', required=True)
-    parser.add_argument('--download-test-model', action='store_true')
+    model_download = parser.add_mutually_exclusive_group()
+    model_download.add_argument('--download-test-model', action='store_true')
+    model_download.add_argument('--download-test-model-only', action='store_true',
+                                help='Verify optional weights in a private test cache without rebuilding or changing worker output')
     args = parser.parse_args()
     system, machine = platform.system(), platform.machine().lower()
     if (system not in ('Windows', 'Linux') or machine not in ('amd64', 'x86_64', 'arm64', 'aarch64') or
@@ -93,6 +96,11 @@ def main():
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
+
+    if args.download_test_model_only:
+        verified(model['url'], model['filename'], model['size'], model['sha256'])
+        print('Verified optional summary model in test cache; worker output unchanged', flush=True)
+        return
 
     archive = verified(pins['sourceURL'], 'llama-' + pins['commit'][:7] + '.tar.gz',
                        pins['sourceSize'], pins['sourceSHA256'])

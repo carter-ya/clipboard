@@ -41,7 +41,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', required=True)
     parser.add_argument('--cache', required=True)
-    parser.add_argument('--download-test-model', action='store_true')
+    model_download = parser.add_mutually_exclusive_group()
+    model_download.add_argument('--download-test-model', action='store_true')
+    model_download.add_argument('--download-test-model-only', action='store_true',
+                                help='Verify optional weights in a private test cache without rebuilding or changing worker output')
     args = parser.parse_args()
     system, machine = platform.system(), platform.machine().lower()
     architecture = 'x64' if machine in ('amd64', 'x86_64') else 'aarch64' if machine in ('arm64', 'aarch64') else ''
@@ -97,6 +100,12 @@ def main():
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
+
+    if args.download_test_model_only:
+        verified({'name': entity['filename'], 'size': entity['size'],
+                  'sha256': entity['sha256'], 'url': entity['url']})
+        print('Verified optional entity model in test cache; worker output unchanged', flush=True)
+        return
 
     def extract(archive, target, prefix, selected):
         if target.is_symlink():

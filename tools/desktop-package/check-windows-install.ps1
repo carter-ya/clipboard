@@ -2,8 +2,19 @@
       [Parameter(Mandatory=$true)][string]$Output,
       [Parameter(Mandatory=$true)][string]$Probe,
       [Parameter(Mandatory=$true)][string]$ClipboardPeer,
-      [Parameter(Mandatory=$true)][string]$OCRFixture)
+      [Parameter(Mandatory=$true)][string]$OCRFixture,
+      [string]$SummaryModel,
+      [string]$EntityModel,
+      [string]$ModelDefinitions)
 $ErrorActionPreference = 'Stop'
+if (($SummaryModel -or $EntityModel -or $ModelDefinitions) -and !($SummaryModel -and $EntityModel -and $ModelDefinitions)) {
+  throw 'All actual-model fixture paths are required together'
+}
+if ($SummaryModel) {
+  $SummaryModel = [IO.Path]::GetFullPath($SummaryModel)
+  $EntityModel = [IO.Path]::GetFullPath($EntityModel)
+  $ModelDefinitions = [IO.Path]::GetFullPath($ModelDefinitions)
+}
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:CLIPBOARD_PRIVATE_INSTALL_TEST -ne '1') {
   throw 'Installer integration tests require an isolated GitHub Actions desktop'
 }
@@ -123,6 +134,12 @@ try {
     & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
       -ModelSettingsOnly -OutputDirectory (Join-Path $Output 'model-settings')
     Check 'installed_model_settings_pass_native_consent_and_cancel_controls' ($LASTEXITCODE -eq 0)
+    if ($SummaryModel) {
+      & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
+        -ClipboardPeer $ClipboardPeer -LocalTextOnly -SummaryModel $SummaryModel -EntityModel $EntityModel `
+        -ModelDefinitions $ModelDefinitions -OutputDirectory (Join-Path $Output 'local-text')
+      Check 'installed_actual_local_models_pass_analysis_revocation_and_removal' ($LASTEXITCODE -eq 0)
+    }
   } finally {
     foreach ($Hidden in $HiddenResources.Keys) {
       Move-Item -LiteralPath $Hidden -Destination $HiddenResources[$Hidden]
