@@ -24,6 +24,8 @@ args = parser.parse_args()
 model_arguments = [args.summary_model, args.entity_model, args.model_definitions]
 if any(model_arguments) and not all(model_arguments):
     raise RuntimeError('All actual-model fixture paths are required together')
+if all(model_arguments) and not args.clipboard_peer:
+    raise RuntimeError('Actual-model acceptance requires an independent clipboard peer')
 if shutil.which('swift') is not None:
     raise RuntimeError('Use the runtime-only image; the Swift SDK must not mask missing dependencies')
 package, output = Path(args.package).resolve(), Path(args.output).resolve()
@@ -117,6 +119,14 @@ try:
                  '--model-definitions', str(Path(args.model_definitions).resolve()),
                  '--output', str(output / 'model-operations')], env=probe_environment, timeout=600)
             check('installed_model_import_cancel_failure_and_repair_pass_native_controls', model_operations.returncode == 0)
+            file_models = subprocess.run(
+                ['dbus-run-session', '--', 'xvfb-run', '-a', '/usr/bin/python3', args.probe,
+                 '--executable', str(executable), '--local-file-models-only', '--clipboard-peer', str(wrapper),
+                 '--summary-model', str(Path(args.summary_model).resolve()),
+                 '--entity-model', str(Path(args.entity_model).resolve()),
+                 '--model-definitions', str(Path(args.model_definitions).resolve()),
+                 '--output', str(output / 'local-file-models')], env=probe_environment, timeout=600)
+            check('installed_actual_file_pdf_models_and_original_copy_pass_native_controls', file_models.returncode == 0)
         history_files = list((output / 'ui').glob('history-*/history.json'))
         check('private_history_was_persisted', bool(history_files))
         history = {str(file): hashlib.sha256(file.read_bytes()).hexdigest() for file in history_files}

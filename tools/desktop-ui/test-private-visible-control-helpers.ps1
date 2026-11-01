@@ -13,6 +13,7 @@ foreach ($definition in $ast.FindAll({ param($node)
 $calls = 0
 $localTextCalls = 0
 $modelOperationCalls = 0
+$localFileModelCalls = 0
 foreach ($command in $ast.FindAll({ param($node)
   $node -is [Management.Automation.Language.CommandAst]
 }, $true)) {
@@ -24,6 +25,10 @@ foreach ($command in $ast.FindAll({ param($node)
   if ($name -and $name -like '*-ModelOperation*') {
     $modelOperationCalls++
     if (!$definitions.Contains($name)) { throw 'model_operation_probe_helper_missing' }
+  }
+  if ($name -and $name -like '*-LocalFileModel*') {
+    $localFileModelCalls++
+    if (!$definitions.Contains($name)) { throw 'local_file_model_probe_helper_missing' }
   }
   if ($name -and $name.StartsWith('Invoke-Visible', [StringComparison]::OrdinalIgnoreCase)) {
     $calls++
@@ -37,3 +42,5 @@ if ($localTextCalls -lt 20) { throw 'local_text_fixture_calls_missing' }
 Write-Host 'Every local text fixture call resolves to an actual probe helper'
 if ($modelOperationCalls -lt 10) { throw 'model_operation_fixture_calls_missing' }
 Write-Host 'Every model operation fixture call resolves to an actual probe helper'
+if ($localFileModelCalls -lt 6) { throw 'local_file_model_fixture_calls_missing' }
+Write-Host 'Every local file model fixture call resolves to an actual probe helper'

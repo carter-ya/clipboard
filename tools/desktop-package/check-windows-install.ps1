@@ -143,6 +143,11 @@ try {
         -ModelOperationsOnly -SummaryModel $SummaryModel -EntityModel $EntityModel `
         -ModelDefinitions $ModelDefinitions -OutputDirectory (Join-Path $Output 'model-operations')
       Check 'installed_model_import_cancel_failure_and_repair_pass_native_controls' ($LASTEXITCODE -eq 0)
+      & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
+        -LocalFileModelsOnly -ClipboardPeer $ClipboardPeer -FixturePython $FixturePython `
+        -SummaryModel $SummaryModel -EntityModel $EntityModel -ModelDefinitions $ModelDefinitions `
+        -OutputDirectory (Join-Path $Output 'local-file-models')
+      Check 'installed_actual_file_pdf_models_and_original_copy_pass_native_controls' ($LASTEXITCODE -eq 0)
     }
   } finally {
     foreach ($Hidden in $HiddenResources.Keys) {

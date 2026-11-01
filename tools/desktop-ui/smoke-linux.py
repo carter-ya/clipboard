@@ -29,12 +29,13 @@ parser.add_argument('--lifecycle-cycles', type=int, default=0, help='Bounded pri
 parser.add_argument('--install-package', help='Private package fixture for installation-lock checks')
 parser.add_argument('--model-settings-only', action='store_true', help='Private model-control checks without any download')
 parser.add_argument('--model-operations-only', action='store_true', help='Private explicit transfer/import/cancel/repair controls')
+parser.add_argument('--local-file-models-only', action='store_true', help='Private actual text/PDF file-body model inference')
 parser.add_argument('--local-text-only', action='store_true', help='Private actual-model analysis/revocation checks')
 parser.add_argument('--summary-model')
 parser.add_argument('--entity-model')
 parser.add_argument('--model-definitions')
 args = parser.parse_args()
-if sum([args.model_settings_only, args.local_text_only, args.model_operations_only]) > 1:
+if sum([args.model_settings_only, args.local_text_only, args.model_operations_only, args.local_file_models_only]) > 1:
     parser.error('Choose one private model test mode')
 out = Path(args.output).resolve()
 out.mkdir(parents=True, exist_ok=True)
@@ -498,7 +499,7 @@ try:
                 payloads=[dict(pasteboardType='public.utf8-plain-text', inlineData=base64.b64encode(label.encode()).decode())]))
         (history_root / 'history.json').write_text(json.dumps(dict(version=1, items=operations_items)))
         (history_root / 'desktop-settings.json').write_text(json.dumps(dict(languageOverride='en')))
-    if args.local_text_only:
+    if args.local_text_only or args.local_file_models_only:
         if not all([args.summary_model, args.entity_model, args.model_definitions]):
             raise RuntimeError('local_text_model_fixture_arguments_required')
         # Keep hard-linked optional weights outside uploaded artifacts. Startup
@@ -536,6 +537,11 @@ try:
         (history_root / 'history.json').write_text(json.dumps(dict(version=1, items=items)))
         (history_root / 'desktop-settings.json').write_text(json.dumps(dict(
             languageOverride='en', localGenerativeSummariesEnabled=True)))
+        if args.local_file_models_only:
+            from local_file_model_fixture import create
+            create(history_root)
+            (history_root / 'desktop-settings.json').write_text(json.dumps(dict(
+                languageOverride='en', localGenerativeSummariesEnabled=True, automaticLocalGenerativeSummaries=True)))
     wm = subprocess.Popen(['openbox', '--sm-disable'], stdout=log, stderr=log)
     app = subprocess.Popen([args.launch_command or str(Path(args.executable).resolve()), '--smoke-root', str(history_root)] + (['--smoke-local-text'] if args.local_text_only else []) + (['--smoke-model-transfers'] if args.model_operations_only else []),
                            stdout=log, stderr=log, start_new_session=True)
@@ -650,6 +656,112 @@ try:
         click_visible_public_control('Quit Clipboard')
         app.wait(timeout=10)
         check('verified_import_relaunch_quits_cleanly', app.returncode == 0)
+        raise SystemExit(0)
+    if args.local_file_models_only:
+        if not args.clipboard_peer:
+            raise RuntimeError('local_file_model_peer_required')
+        def file_records():
+            return json.loads((history_root / 'history.json').read_text())['items']
+        def file_record(identifier):
+            return next(item for item in file_records() if item['id'].lower() == identifier.lower())
+        def file_settings():
+            return json.loads((history_root / 'desktop-settings.json').read_text())
+        def file_search(query):
+            wait_for(editor, 'local_file_model_search').queryEditableText().setTextContents(query)
+            wait_for(lambda: editor_with_value(query) and has_text('1 items'), 'local_file_model_selection')
+        def change_file_permission(label, key, query):
+            expected = not file_settings().get(key, False)
+            click('Settings')
+            wait_for(lambda: has_text('Preferences'), 'local_file_model_preferences')
+            click_visible_public_control(label)
+            click_visible_public_control('Save AI settings')
+            wait_for(lambda: has_text('AI settings saved') and file_settings().get(key) == expected,
+                     'local_file_model_permission_saved')
+            click_visible_public_control('Back to history')
+            wait_restored_history_search(query, 'local_file_model_history_handoff')
+        def capture_file(filename):
+            previous = {item['id'].lower() for item in file_records()}
+            peer = subprocess.Popen([str(Path(args.clipboard_peer).resolve()), 'rich-clipboard-peer',
+                                     'file-summary', str(history_root / filename)],
+                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+            try:
+                if not select.select([peer.stdout], [], [], 10)[0] or peer.stdout.readline(32) != b'ready\n':
+                    raise RuntimeError('local_file_model_peer_startup')
+                wait_for(lambda: len([item for item in file_records() if item['id'].lower() not in previous]) == 1,
+                         'local_file_model_native_capture')
+                captured = next(item for item in file_records() if item['id'].lower() not in previous)
+                if captured['kind'] != 'file':
+                    raise RuntimeError('local_file_model_capture_kind')
+                return captured
+            finally:
+                peer.stdin.close()
+                try:
+                    peer.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    peer.kill()
+                    peer.wait(timeout=5)
+        def actual_file_result(original, expected, name):
+            wait_for(lambda: file_record(original['id']).get('summarySource') == 'localGenerative',
+                     name + '_real_generation', seconds=100)
+            result = file_record(original['id'])
+            wait_for(lambda: has_texts('Summary ready', 'Local generated summary', result['summary']) and
+                     button('Summarize locally').getState().contains(pyatspi.STATE_SENSITIVE), name + '_visible_result')
+            check(name + '_summarizes_body_facts_without_filename',
+                  all(word.lower() in result['summary'].lower() for word in expected) and
+                  not any(filename in result['summary'] for filename in ['private-body.txt', 'private-body.pdf', 'automatic-body.txt']))
+            check(name + '_preserves_original_file_record', all(result[key] == original[key] for key in
+                  ['id', 'createdAt', 'kind', 'preview', 'sha256', 'sizeBytes', 'payloads']))
+            screenshot(name + '.png')
+        def copy_original_file(filename, name):
+            click('Copy')
+            wait_for(lambda: has_text('Copied to clipboard'), name + '_original_copy')
+            copied = subprocess.check_output(['xclip', '-selection', 'clipboard', '-out', '-target', 'text/uri-list'], timeout=10)
+            check(name + '_copy_keeps_original_native_file_reference',
+                  copied.decode().splitlines() == [(history_root / filename).as_uri()])
+        source_hashes = {name: hashlib.sha256((history_root / name).read_bytes()).hexdigest()
+                         for name in ['private-body.txt', 'private-body.pdf', 'automatic-body.txt']}
+        click('Start recording')
+        wait_for(lambda: has_text('Recording clipboard'), 'local_file_model_recording_ready')
+        text_file = capture_file('private-body.txt')
+        file_search('private-body.txt')
+        unavailable_file_action = button('Summarize locally')
+        check('file_permission_is_independent_of_enabled_manual_and_automatic_text_models',
+              file_settings()['localGenerativeSummariesEnabled'] and file_settings()['automaticLocalGenerativeSummaries'] and
+              not file_settings().get('localFileSummariesEnabled', False) and
+              (unavailable_file_action is None or not unavailable_file_action.getState().contains(pyatspi.STATE_SENSITIVE)) and
+              file_record(text_file['id']).get('summary') is None)
+        change_file_permission('Allow local file analysis', 'localFileSummariesEnabled', 'private-body.txt')
+        click('Summarize locally')
+        actual_file_result(text_file, ['Mars', 'Friday'], 'real_text_file_generation')
+        copy_original_file('private-body.txt', 'real_text_file_generation')
+        editor().queryEditableText().setTextContents('private-body.pdf')
+        pdf_file = capture_file('private-body.pdf')
+        file_search('private-body.pdf')
+        check('file_automatic_permission_remains_separate_from_text_automatic_permission',
+              file_settings()['automaticLocalGenerativeSummaries'] and
+              not file_settings().get('automaticLocalFileSummaries', False) and
+              file_record(pdf_file['id']).get('summary') is None)
+        click('Summarize locally')
+        actual_file_result(pdf_file, ['Tim Cook', 'Tokyo'], 'real_pdf_body_generation')
+        copy_original_file('private-body.pdf', 'real_pdf_body_generation')
+        change_file_permission('Automatically summarize files locally', 'automaticLocalFileSummaries', 'private-body.pdf')
+        editor().queryEditableText().setTextContents('automatic-body.txt')
+        automatic_file = capture_file('automatic-body.txt')
+        file_search('automatic-body.txt')
+        actual_file_result(automatic_file, ['Mars', 'Friday'], 'real_automatic_file_generation')
+        copy_original_file('automatic-body.txt', 'real_automatic_file_generation')
+        check('actual_local_file_models_never_enable_remote_or_other_local_engines',
+              not file_settings().get('ai', {}).get('enabled', False) and
+              not any(file_settings().get(key, False) for key in ['localTextSummariesEnabled', 'localLanguageSummariesEnabled']))
+        check('actual_generation_leaves_all_original_file_bytes_unchanged', all(
+              hashlib.sha256((history_root / name).read_bytes()).hexdigest() == digest for name, digest in source_hashes.items()))
+        click('Pause recording')
+        wait_for(lambda: has_text('Recording paused'), 'local_file_model_recording_stopped')
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'local_file_model_quit_settings')
+        click_visible_public_control('Quit Clipboard')
+        app.wait(timeout=10)
+        check('local_file_model_profile_quits_with_owned_work_drained', app.returncode == 0)
         raise SystemExit(0)
     if args.local_text_only:
         def records():
@@ -1889,7 +2001,7 @@ try:
                   all(item.get('summary') is None for item in snapshot['items']) and not button('Summarize'))
             click('Settings')
             wait_for(lambda: has_text('Preferences'), 'file_summary_preferences')
-            click_visible_public_control('Enable local file excerpts')
+            click_visible_public_control('Allow local file analysis')
             click_visible_public_control('Save AI settings')
             wait_for(lambda: json.loads(settings_file.read_text()).get('localFileSummariesEnabled') is True,
                      'local_file_permission_saved')

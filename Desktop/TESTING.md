@@ -235,3 +235,14 @@ acceptance checks pending data, ownership records and leases together. The
 rebuilt package containing this later recovery change and native Windows
 execution still need final confirmation. Actual generated text/PDF file-body
 inference remains separate from earlier local-excerpt and remote file checks.
+
+The dependent real file-model mode is `smoke-linux.py --local-file-models-only`
+or `smoke-windows.ps1 -LocalFileModelsOnly`, with explicit model paths, model
+definitions and an independent clipboard peer. It creates three fixed private
+text/PDF inputs, verifies separate file/automatic permissions, performs real
+manual text-file and PDF-body generation plus automatic file generation, and
+checks original native file Copy, immutable metadata and unchanged source bytes.
+Successful inference uses the real worker without held/fake analysis fixtures.
+Windows uses the selected fixture Python to create the same fixed PDF. Both
+installed checkers include this mode. Final native and installed validation of
+this dependent layer remains open.

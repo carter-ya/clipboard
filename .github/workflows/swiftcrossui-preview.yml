@@ -271,6 +271,17 @@ jobs:
             -ModelOperationsOnly -SummaryModel $env:CLIPBOARD_TEST_SUMMARY_MODEL -EntityModel $env:CLIPBOARD_TEST_ENTITY_MODEL `
             -ModelDefinitions Core/Sources/ClipboardCore/Resources -OutputDirectory ui-artifacts/model-operations
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Exercise actual file and PDF models through native Windows controls
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $BinaryDirectory = (& swift build --package-path Desktop --show-bin-path).Trim()
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
+            -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') `
+            -LocalFileModelsOnly -SummaryModel $env:CLIPBOARD_TEST_SUMMARY_MODEL -EntityModel $env:CLIPBOARD_TEST_ENTITY_MODEL `
+            -ModelDefinitions Core/Sources/ClipboardCore/Resources -OutputDirectory ui-artifacts/local-file-models
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build optimized desktop artifacts
         shell: pwsh
         run: |

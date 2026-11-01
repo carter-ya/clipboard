@@ -465,7 +465,7 @@ struct HistoryView: View {
 
   var localFileSettings: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Toggle(model.t("Enable local file excerpts"), isOn: $model.localFileSummariesDraft)
+      Toggle(model.t("Allow local file analysis"), isOn: $model.localFileSummariesDraft)
       Text(
         model.t(
           "Reads the first copied UTF-8 text or PDF file on this device. File and extracted text: at most 1 MiB; PDF: at most 256 pages."
