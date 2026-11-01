@@ -406,7 +406,18 @@
               "Native Windows filesystem and HTTP implementation confirmation",
               "User-visible model cards, complete packaged notices/consent, explicit controls and private native UI acceptance",
               "Analysis shutdown before model removal, permission revocation and feature/scheduler/retry integration"
-            ]
+            ],
+            "ui_integration": {
+              "branch": "codex/cross-platform-local-model-ui",
+              "status": "in_progress",
+              "implemented": "Seven-language model cards expose fixed sizes, complete offline model licenses, explicit entity-license assent, download/import/cancel/remove and passive re-verification. Content-free bounded worker queries check actual local runtime/CPU capability before offering a download; they contain neither a model path nor clipboard data. Passive startup only probes bundled resources and verifies already installed files. Explicit downloads continue while the app runs and drain on quit. The package includes both native text workers, small verified language/vocabulary assets, provenance and complete notices; optional summary/entity weights remain separate. The Windows DLL closure includes both new workers. Native and installed test paths add isolated model consent/import-cancel checks without activating network downloads.",
+              "validation": "Linux arm64: all 317 Core/platform tests pass with two existing real-model fixture skips; the three capability tests verify exact content-free requests, strict Boolean output, unavailable workers and owned cancellation. Optimized application/default helper builds and runtime/notices/offline-license checks pass, with no optional weights. All 181 complete native UI/privacy regressions and all eight focused model settings controls pass in isolated Xvfb/DBus without networking. The model card renders were inspected. GTK 4.6 reports its actual file chooser as a filler, so the focused fixture verifies the mapped X11 dialog and its owning PID instead of assuming an accessibility role. Native Windows, macOS regression, both layout scales and runtime-only installed acceptance remain in progress. Mac passes all twenty-four related model/download/catalog tests and the existing application Debug build. Offline runtime-only Linux acceptance passes all twelve installation/helper/notices/upgrade/uninstall/integrity gates, all 211 full installed UI/lifecycle checks and all eight installed model controls. Both 100%/200% layout suites pass eight checks each, and the dedicated 200% model control suite passes all eight. The first runtime attempt used a debug reference peer and failed on its debug-only Swift library; the successful rerun uses a current optimized peer without changing the application. The later parent FIFO validation repair is incorporated and still awaits native Windows UI revalidation.",
+              "remaining": [
+                "Real-model file import, cancel/repair/remove UI acceptance and deterministic download failure/cancellation controls",
+                "Native Windows model card/chooser and installed runtime confirmation",
+                "Actual analysis actions, independent automatic policy, per-item progress/retry/fallback, analysis draining before removal and Mac archive source compatibility"
+              ]
+            }
           }
         },
         {

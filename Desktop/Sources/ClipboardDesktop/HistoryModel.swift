@@ -73,6 +73,14 @@ final class HistoryModel: ObservableObject {
   @Published var automaticSummariesDraft = false
   @Published var automaticOCRDraft = false
   @Published var automaticLocalImageSummariesDraft = false
+  @Published var modelAssets: [DesktopModelKind: DesktopModelAsset] = [:]
+  @Published var modelAssetStates: [DesktopModelKind: DesktopModelAssetState] = [:]
+  @Published var modelAssetSupport: [DesktopModelKind: Bool] = [:]
+  @Published var modelWorkBusy = false
+  @Published var entityModelLicenseAccepted = false
+  private var modelStore: DesktopModelStore?
+  private var modelTask: Task<Void, Never>?
+  private var modelObservationTask: Task<Void, Never>?
   @Published var localTextSummariesDraft = false
   @Published var automaticLocalSummariesDraft = false
   @Published var localFileSummariesDraft = false
@@ -465,6 +473,7 @@ final class HistoryModel: ObservableObject {
       recordOnLaunchDraft = settings.recordingEnabled
       let store = try await JSONSnapshotClipStore(root: directory, cap: settings.historyCapacity)
       self.store = store
+      await configureModels(directory)
       if args.contains("--smoke-root"), await store.all().isEmpty {
         for text in Self.fixtures {
           let data = Data(text.utf8)
@@ -1280,9 +1289,113 @@ final class HistoryModel: ObservableObject {
     DesktopLocalization.text(value, language: uiLanguage)
   }
 
+  @MainActor private func configureModels(_ directory: URL) async {
+    do {
+      let models = try DesktopModelStore(
+        root: directory.appendingPathComponent("models", isDirectory: true),
+        downloader: BoundedDesktopModelDownloader())
+      modelStore = models
+      for kind in DesktopModelKind.allCases { modelAssets[kind] = await models.asset(kind) }
+      modelObservationTask = Task { @MainActor [weak self] in
+        let events = await models.changes()
+        for await states in events {
+          guard let self, !self.shuttingDown, !Task.isCancelled else { break }
+          self.modelAssetStates = states
+        }
+      }
+      refreshModels()
+    } catch { modelAssetSupport = [.generative: false, .entities: false] }
+  }
+  @MainActor func refreshModels() {
+    guard let models = modelStore, !modelWorkBusy, !shuttingDown else { return }
+    modelWorkBusy = true
+    modelTask = Task { @MainActor [weak self] in
+      guard let self else { return }
+      defer {
+        self.modelWorkBusy = false
+        self.modelTask = nil
+      }
+      do {
+        self.modelAssetSupport[.generative] = try await NativeDesktopLanguageModel.isSupported()
+        self.modelAssetSupport[.entities] = try await NativeDesktopTextTagger.isSupported()
+        for kind in DesktopModelKind.allCases {
+          try Task.checkCancellation()
+          do { try await models.refresh(kind) } catch is CancellationError {
+            throw CancellationError()
+          } catch {
+            // The store publishes the bounded failure for this card.
+          }
+        }
+      } catch {
+        // Cancellation leaves previously published model files intact.
+      }
+    }
+  }
+  @MainActor func canInstallModel(_ kind: DesktopModelKind) -> Bool {
+    ready && !shuttingDown && modelStore != nil && modelAssetSupport[kind] == true
+      && (kind != .entities || entityModelLicenseAccepted)
+  }
+  @MainActor func modelLicenseURL(_ kind: DesktopModelKind) -> URL? {
+    Bundle.module.url(
+      forResource: kind == .generative ? "Apache-2.0" : "AFL-3.0", withExtension: "txt",
+      subdirectory: "ModelLicenses") ?? modelAssets[kind]?.licenseURL
+  }
+  @MainActor func beginModelImport(_ kind: DesktopModelKind) -> Bool {
+    guard !modelWorkBusy, canInstallModel(kind) else { return false }
+    modelWorkBusy = true
+    return true
+  }
+  @MainActor func finishModelImport(_ kind: DesktopModelKind, from file: URL?) {
+    modelWorkBusy = false
+    guard let file, canInstallModel(kind) else { return }
+    installModel(kind, from: file)
+  }
+  @MainActor func installModel(_ kind: DesktopModelKind, from source: URL? = nil) {
+    guard canInstallModel(kind) else { return }
+    let accepted = entityModelLicenseAccepted
+    runModelOperation(kind) { models in
+      if let source {
+        try await models.importFile(kind, from: source, licenseAccepted: accepted)
+      } else {
+        try await models.install(kind, licenseAccepted: accepted)
+      }
+    }
+  }
+  @MainActor func removeModel(_ kind: DesktopModelKind) {
+    // No analysis engine uses these optional assets yet. The dependent analysis
+    // layer must drain its owned worker before calling the same removal path.
+    runModelOperation(kind) { try await $0.remove(kind) }
+  }
+  @MainActor func cancelModel(_ kind: DesktopModelKind) {
+    modelTask?.cancel()
+    guard let models = modelStore else { return }
+    Task { await models.cancel(kind) }
+  }
+  @MainActor private func runModelOperation(
+    _ kind: DesktopModelKind, run: @escaping @Sendable (DesktopModelStore) async throws -> Void
+  ) {
+    guard let models = modelStore, !modelWorkBusy, !shuttingDown else { return }
+    modelWorkBusy = true
+    modelTask = Task { @MainActor [weak self] in
+      guard let self else { return }
+      defer {
+        self.modelWorkBusy = false
+        self.modelTask = nil
+      }
+      do { try await run(models) } catch is CancellationError {} catch {
+        guard !self.shuttingDown else { return }
+        let prior = await models.state(kind)
+        self.modelAssetStates[kind] = .init(
+          status: .failed((error as? DesktopModelAssetError) ?? .unavailable),
+          installed: prior.installed)
+      }
+    }
+  }
+
   @MainActor func shutdown() async {
     guard !shuttingDown else { return }
     shuttingDown = true
+    modelTask?.cancel()
     cancelHistoryPresentation()
     historyActivation.stop()
     startup?.stop()
@@ -1303,12 +1416,17 @@ final class HistoryModel: ObservableObject {
       old?.stop()
       shell?.stop()
     }.value
+    await modelStore?.shutdown()
+    await modelTask?.value
+    modelObservationTask?.cancel()
     await store?.flush()
     let instance = DesktopApplicationContext.instance
     await Task.detached { instance?.stop() }.value
     nativeWindow?.quit()
   }
   deinit {
+    modelTask?.cancel()
+    modelObservationTask?.cancel()
     presentationTask?.cancel()
     monitor?.stop()
     shell?.stop()

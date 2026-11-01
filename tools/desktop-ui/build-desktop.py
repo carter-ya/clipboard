@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build the pinned SwiftCrossUI package with its reviewed Windows GTK type fix."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -14,6 +15,13 @@ parser.add_argument('--jobs', default='2')
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[2]
 package = repo / 'Desktop'
+for manifest, notice, resource in [('desktop-language', 'model-LICENSE', 'Apache-2.0.txt'),
+                                   ('desktop-text', 'AFL-3.0.txt', 'AFL-3.0.txt')]:
+    pins = json.loads((repo / ('tools/' + manifest + '/upstream.json')).read_text())
+    pin = next(value for value in pins['notices'] if value['name'] == notice)
+    data = (package / 'Sources/ClipboardDesktop/Resources/ModelLicenses' / resource).read_bytes()
+    if len(data) != pin['size'] or hashlib.sha256(data).hexdigest() != pin['sha256']:
+        raise RuntimeError('Bundled model license must match its fixed upstream notice')
 common = ['--package-path', str(package)]
 if args.scratch_path:
     common += ['--scratch-path', args.scratch_path]
@@ -49,3 +57,11 @@ subprocess.run([sys.executable, str(repo / 'tools/desktop-image/build-worker.py'
 subprocess.run([sys.executable, str(repo / 'tools/desktop-image/check-worker.py'),
                 '--executable', str(Path(binary_dir) / (
                     'clipboard-image-worker.exe' if sys.platform == 'win32' else 'clipboard-image-worker'))], check=True)
+for component, cache_name in [('desktop-language', 'local-language-sdk'), ('desktop-text', 'local-text-sdk')]:
+    subprocess.run([sys.executable, str(repo / ('tools/' + component + '/build-worker.py')),
+                    '--output', binary_dir,
+                    '--cache', str((Path(args.cache_path).resolve() if args.cache_path else build) / cache_name)],
+                   check=True)
+# Normal application builds never request optional summary/entity weights.
+subprocess.run([sys.executable, str(repo / 'tools/desktop-ui/check-local-model-runtime.py'),
+                '--directory', binary_dir], check=True)

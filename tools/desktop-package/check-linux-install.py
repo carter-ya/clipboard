@@ -47,6 +47,10 @@ try:
               and (root / 'commands/clipboard-desktop').resolve() == executable.resolve())
         dependencies = subprocess.check_output(['ldd', str(executable)], text=True)
         check('installed_runtime_has_complete_library_closure', 'not found' not in dependencies)
+        local_models = subprocess.run(
+            [os.sys.executable, str(Path(args.probe).resolve().with_name('check-local-model-runtime.py')),
+             '--directory', str(installed / 'bin')], capture_output=True, timeout=15)
+        check('installed_local_text_workers_and_offline_notices_without_optional_weights', local_models.returncode == 0)
         image = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGUlEQVR4nGPQyLvznxLMMGrAqAGjBgwXAwBc3HEfVZuzFAAAAABJRU5ErkJggg==')
         image_result = subprocess.run([str(installed / 'bin/clipboard-image-worker')], input=image,
                                       capture_output=True, timeout=15)
@@ -85,6 +89,11 @@ try:
         # Keep all per-action deadlines; bound only the expanded suite at twenty minutes.
         probe = subprocess.run(probe_command, env=probe_environment, timeout=1200)
         check('installed_application_passes_native_ui_probe', probe.returncode == 0)
+        model_ui = subprocess.run(
+            ['dbus-run-session', '--', 'xvfb-run', '-a', '/usr/bin/python3', args.probe,
+             '--executable', str(executable), '--model-settings-only', '--output', str(output / 'model-settings')],
+            env=probe_environment, timeout=180)
+        check('installed_model_settings_pass_native_consent_and_cancel_controls', model_ui.returncode == 0)
         history_files = list((output / 'ui').glob('history-*/history.json'))
         check('private_history_was_persisted', bool(history_files))
         history = {str(file): hashlib.sha256(file.read_bytes()).hexdigest() for file in history_files}

@@ -608,6 +608,7 @@ struct HistoryView: View {
           Text(model.t("History stays on this device. Sensitive items stay in memory."))
           contentSettings
           serviceSettings
+          desktopModelSettings
           presentationSettings
           Text(model.t("Recording: \(model.recording ? "On" : "Paused")"))
           Toggle(model.t("Enable global shortcut"), isOn: $model.shortcutEnabledDraft)

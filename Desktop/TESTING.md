@@ -136,3 +136,26 @@ Windows filesystem confirmation remains required. Separately, native Ubuntu
 run 41259526441 passes real generative inference (20.6 seconds), QEMU Nehalem
 refusal and all nine multilingual quality cases; synthetic sentences were
 inspected against their source facts. This does not close Windows or UI gates.
+
+The model settings candidate has two content-free native capability queries and
+31 new messages in all seven languages. Complete Apache-2.0/AFL-3.0 terms are
+bundled as desktop resources, checked against fixed upstream notice sizes/SHA
+before build and retained with complete worker attribution in installed packages.
+Normal builds include native workers and small language/vocabulary resources;
+they do not request optional summary/entity weights. Linux arm64 passes all 317
+Core tests (two existing real-model fixture skips), all 181 complete native UI
+regressions and all eight focused consent/import-cancel checks with networking
+disabled. The actual model card renders are inspected. GTK 4.6 exposes the file
+chooser as a filler, so its test checks a mapped owned X11 dialog rather than a
+presumed AT-SPI role. Actual model installation/removal UI, native Windows,
+installed/runtime and subsequent analysis integration remain required.
+
+Model settings acceptance now passes all twelve offline runtime installation,
+helper/notices, upgrade, uninstall and integrity gates, all 211 complete installed
+native UI/lifecycle checks and all eight installed model controls. Both 100% and
+200% layout suites pass eight checks each; the additional 200% model controls
+pass all eight too. A first test invocation used a debug reference peer requiring
+a debug-only Swift library; a current optimized peer fixes that harness setup.
+Mac passes 24 related model/download/catalog tests and the existing app build.
+The subsequent parent FIFO content-validation fix is incorporated; native
+Windows UI and actual model-operation/analysis integration gates remain open.
