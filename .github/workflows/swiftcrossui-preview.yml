@@ -62,6 +62,7 @@ jobs:
           ./tools/desktop-ui/test-private-fixture-wire.ps1 -FixturePython $FixturePython
           ./tools/desktop-ui/test-private-visible-control-helpers.ps1
           ./tools/desktop-ui/test-private-selection-scope.ps1
+          ./tools/desktop-ui/test-private-probe-exit.ps1
       - name: Verify private fixture on Windows PowerShell 5.1
         if: runner.os == 'Windows'
         shell: powershell
@@ -70,6 +71,7 @@ jobs:
           ./tools/desktop-ui/test-private-fixture-python.ps1 -FixturePython $FixturePython
           ./tools/desktop-ui/test-private-fixture-wire.ps1 -FixturePython $FixturePython
           ./tools/desktop-ui/test-private-visible-control-helpers.ps1
+          ./tools/desktop-ui/test-private-probe-exit.ps1
       - name: Verify private AI fixture response cancellation
         run: python tools/desktop-ui/test-ai-probe-errors.py
       - name: Verify private AI fixture pipe protocol
@@ -232,6 +234,36 @@ jobs:
           & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
             -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ModelSettingsOnly -OutputDirectory ui-artifacts/local-model-settings
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Prepare pinned optional models outside application and artifact caches
+        shell: pwsh
+        run: |
+          $BinaryDirectory = (& swift build --package-path Desktop --show-bin-path).Trim()
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $ModelCache = Join-Path $env:RUNNER_TEMP 'clipboard-optional-model-fixtures'
+          & python tools/desktop-language/build-worker.py --output $BinaryDirectory --cache $ModelCache --download-test-model-only
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & python tools/desktop-text/build-worker.py --output $BinaryDirectory --cache $ModelCache --download-test-model-only
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $SummaryDefinition = Get-Content -Raw Core/Sources/ClipboardCore/Resources/DesktopLocalLanguageModel.json | ConvertFrom-Json
+          $EntityDefinition = Get-Content -Raw Core/Sources/ClipboardCore/Resources/DesktopLocalEntityModel.json | ConvertFrom-Json
+          $SummaryPath = Join-Path $ModelCache ($SummaryDefinition.sha256.Substring(0, 16) + '-' + $SummaryDefinition.filename)
+          $EntityPath = Join-Path $ModelCache ($EntityDefinition.sha256.Substring(0, 16) + '-' + $EntityDefinition.filename)
+          "CLIPBOARD_TEST_MODEL_CACHE=$ModelCache" >> $env:GITHUB_ENV
+          "CLIPBOARD_TEST_SUMMARY_MODEL=$SummaryPath" >> $env:GITHUB_ENV
+          "CLIPBOARD_TEST_ENTITY_MODEL=$EntityPath" >> $env:GITHUB_ENV
+          & python tools/desktop-ui/check-model-fixture-preparation.py --summary-model $SummaryPath --entity-model $EntityPath
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Exercise actual local models through native Windows controls
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $BinaryDirectory = (& swift build --package-path Desktop --show-bin-path).Trim()
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
+            -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') `
+            -LocalTextOnly -SummaryModel $env:CLIPBOARD_TEST_SUMMARY_MODEL -EntityModel $env:CLIPBOARD_TEST_ENTITY_MODEL `
+            -ModelDefinitions Core/Sources/ClipboardCore/Resources -OutputDirectory ui-artifacts/local-text
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build optimized desktop artifacts
         shell: pwsh
         run: |
@@ -263,8 +295,8 @@ jobs:
           package_name=$(basename "$package_dir")
           docker build -t clipboard-runtime-fixture -f tools/desktop-package/linux-runtime.Dockerfile .
           mkdir -p ui-artifacts/package
-          docker run --rm --init --network none -v "$PWD/dist:/packages:ro" -v "$PWD/tools/desktop-ui:/probes:ro" -v "$PWD/tools/desktop-package:/checks:ro" -v "$PWD/ui-artifacts/package:/reports" -v "$binary_dir/scenario-runner:/reference-peer:ro" -v "$PWD/Core/Fixtures/ocr.png:/ocr-fixture.png:ro" clipboard-runtime-fixture \
-            /usr/bin/python3 /checks/check-linux-install.py --package "/packages/$package_name" --probe /probes/smoke-linux.py --clipboard-peer /reference-peer --ocr-fixture /ocr-fixture.png --output /reports/installation
+          docker run --rm --init --network none -v "$PWD/dist:/packages:ro" -v "$PWD/tools/desktop-ui:/probes:ro" -v "$PWD/tools/desktop-package:/checks:ro" -v "$PWD/ui-artifacts/package:/reports" -v "$binary_dir/scenario-runner:/reference-peer:ro" -v "$PWD/Core/Fixtures/ocr.png:/ocr-fixture.png:ro" -v "$CLIPBOARD_TEST_MODEL_CACHE:/model-cache" -v "$PWD/Core/Sources/ClipboardCore/Resources:/model-definitions:ro" clipboard-runtime-fixture \
+            /usr/bin/python3 /checks/check-linux-install.py --package "/packages/$package_name" --probe /probes/smoke-linux.py --clipboard-peer /reference-peer --ocr-fixture /ocr-fixture.png --summary-model "/model-cache/$(basename "$CLIPBOARD_TEST_SUMMARY_MODEL")" --entity-model "/model-cache/$(basename "$CLIPBOARD_TEST_ENTITY_MODEL")" --model-definitions /model-definitions --output /reports/installation
           for scale in 1 2; do
             docker run --rm --init --network none -v "$PWD/dist:/packages:ro" -v "$PWD/tools/desktop-ui:/probes:ro" -v "$PWD/ui-artifacts/package:/reports" clipboard-runtime-fixture \
               dbus-run-session -- xvfb-run -a -s '-screen 0 1920x1440x24' /usr/bin/python3 /probes/check-linux-layout.py \
@@ -281,7 +313,7 @@ jobs:
           ./tools/desktop-ui/install-windows-gtk.ps1 -ConfigureOnly
           ./tools/desktop-package/build-windows-installer.ps1 -Binary (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -Output dist
           $Installer = (Get-ChildItem dist/*-setup.exe | Select-Object -First 1).FullName
-          ./tools/desktop-package/check-windows-install.ps1 -Installer $Installer -Output ui-artifacts/package -Probe tools/desktop-ui/smoke-windows.ps1 -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png
+          ./tools/desktop-package/check-windows-install.ps1 -Installer $Installer -Output ui-artifacts/package -Probe tools/desktop-ui/smoke-windows.ps1 -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png -SummaryModel $env:CLIPBOARD_TEST_SUMMARY_MODEL -EntityModel $env:CLIPBOARD_TEST_ENTITY_MODEL -ModelDefinitions Core/Sources/ClipboardCore/Resources
       - name: Upload installable previews and checksums
         uses: actions/upload-artifact@v4
         with:

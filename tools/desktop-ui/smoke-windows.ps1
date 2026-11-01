@@ -6,6 +6,10 @@
       [switch]$Baseline,
       [switch]$ValidateOnly,
       [switch]$ModelSettingsOnly,
+      [switch]$LocalTextOnly,
+      [string]$SummaryModel,
+      [string]$EntityModel,
+      [string]$ModelDefinitions,
       [int]$LifecycleCycles = 0)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'private-fixture-python.ps1')
@@ -330,6 +334,8 @@ $window = $null
 $nativeWindowHandle = [IntPtr]::Zero
 $probeStarted = Get-Date
 $sensitiveProbe = $false
+$privateTextRoot = $null
+$ownsPrivateTextRoot = $false
 $sensitiveStage = ""
 $sensitiveInitialBounds = [PreviewNative+Rect]::new()
 
@@ -338,9 +344,9 @@ function Add-Check([string]$Name, [bool]$Passed) {
   $script:checks.Add(@{ name = $Name; passed = $Passed })
   if (!$Passed) { throw $Name }
 }
-function Wait-For([scriptblock]$Predicate, [string]$WaitCheckName) {
+function Wait-For([scriptblock]$Predicate, [string]$WaitCheckName, [int]$Seconds = 40) {
   if ($script:sensitiveProbe) { $script:sensitiveStage = $WaitCheckName }
-  $deadline = [DateTime]::UtcNow.AddSeconds(40)
+  $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
   while ([DateTime]::UtcNow -lt $deadline) {
     if ($script:application -and $script:application.HasExited) { throw ('application_exited_code_' + $script:application.ExitCode) }
     try { $value = & $Predicate; if ($value) { return $value } } catch { }
@@ -600,10 +606,141 @@ function Save-Screenshot([string]$Name) {
   } finally { $graphics.Dispose(); $bitmap.Dispose() }
 }
 
+function Get-LocalTextRecords {
+  return @((Read-SharedJson (Join-Path $historyRoot 'history.json')).items)
+}
+function Get-LocalTextRecord([string]$Identifier) {
+  return (Get-LocalTextRecords | Where-Object { $_.id -ieq $Identifier } | Select-Object -First 1)
+}
+function Test-LocalTextCounter([string]$Engine, [int]$Count, [bool]$Finished = $false) {
+  $suffix = if ($Finished) { '-finished' } else { '-started' }
+  $counterPath = Join-Path $historyRoot ('.local-text-' + $Engine + $suffix)
+  return (Test-Path -LiteralPath $counterPath) -and ([IO.File]::ReadAllText($counterPath) -ceq [string]$Count)
+}
+function Set-LocalTextRelease([string]$Engine, [bool]$Released) {
+  $releasePath = Join-Path $historyRoot ('.local-text-' + $Engine + '-release')
+  if ($Released) { [IO.File]::WriteAllText($releasePath, '', [Text.UTF8Encoding]::new($false)) }
+  elseif (Test-Path -LiteralPath $releasePath) { Remove-Item -LiteralPath $releasePath }
+}
+function Set-LocalTextSearch([string]$Query) {
+  Set-Search $Query
+  Wait-For { (Find-Named '1 items') -and (Get-EditorWithValue $Query) } 'local_text_query_restored' | Out-Null
+}
+function Set-LocalTextSettings([string[]]$Labels, [string]$Query) {
+  $mapping = @{
+    'Enable local generated summaries' = 'localGenerativeSummariesEnabled'
+    'Automatically generate local summaries' = 'automaticLocalGenerativeSummaries'
+    'Enable local language and names' = 'localLanguageSummariesEnabled'
+  }
+  $previousTextSettings = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
+  $expectedTextSettings = @{}
+  foreach ($label in $Labels) { $key = $mapping[$label]; $expectedTextSettings[$key] = ![bool]$previousTextSettings.$key }
+  Invoke-Button 'Settings'
+  Wait-For { Find-Named 'Preferences' } 'local_text_preferences' | Out-Null
+  foreach ($label in $Labels) { Invoke-VisibleConnectionButton $label }
+  Invoke-VisibleConnectionButton 'Save AI settings'
+  Wait-For {
+    $savedTextSettings = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
+    $settingsMatch = $true
+    foreach ($key in $expectedTextSettings.Keys) {
+      if ([bool]$savedTextSettings.$key -ne $expectedTextSettings[$key]) { $settingsMatch = $false }
+    }
+    $settingsMatch -and (Find-Named 'AI settings saved')
+  } 'local_text_settings_saved' | Out-Null
+  Invoke-VisibleConnectionButton 'Back to history'
+  Wait-RestoredHistorySearch $Query 'local_text_history_handoff' | Out-Null
+}
+function Test-LocalTextModelInUse([string]$Path) {
+  # Probe only our private verified file, without enumerating system processes.
+  # A sharing violation after native dispatch proves an overlapping open handle.
+  $probeStream = $null
+  try {
+    $probeStream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None)
+    return $false
+  } catch {
+    $cause = $_.Exception.InnerException
+    if (!$cause) { $cause = $_.Exception }
+    return ($cause -is [IO.IOException]) -and (($cause.HResult -band 0xffff) -in @(32, 33))
+  } finally { if ($probeStream) { $probeStream.Dispose() } }
+}
+function Start-LocalTextPeer([string]$Fixture) {
+  $peerInfo = [Diagnostics.ProcessStartInfo]::new()
+  $peerInfo.FileName = [IO.Path]::GetFullPath($ClipboardPeer)
+  $peerInfo.Arguments = 'rich-clipboard-peer ' + $Fixture
+  $peerInfo.UseShellExecute = $false
+  $peerInfo.RedirectStandardInput = $true
+  $peerInfo.RedirectStandardOutput = $true
+  $ownedPeer = [Diagnostics.Process]::Start($peerInfo)
+  try {
+    $readyLine = $ownedPeer.StandardOutput.ReadLineAsync()
+    if (!$readyLine.Wait(10000) -or $readyLine.Result -cne 'ready') { throw 'local_text_peer_startup' }
+    return $ownedPeer
+  } catch {
+    if (!$ownedPeer.HasExited) { $ownedPeer.Kill(); $ownedPeer.WaitForExit() }
+    $ownedPeer.Dispose()
+    throw 'local_text_peer_startup'
+  }
+}
+function Stop-LocalTextPeer([Diagnostics.Process]$OwnedPeer) {
+  if (!$OwnedPeer) { return }
+  try {
+    $OwnedPeer.StandardInput.Close()
+    if (!$OwnedPeer.WaitForExit(5000)) { $OwnedPeer.Kill(); $OwnedPeer.WaitForExit() }
+  } finally { $OwnedPeer.Dispose() }
+}
+function Initialize-LocalTextFixture {
+  if ($env:GITHUB_ACTIONS -ne 'true') { throw 'local_text_fixture_requires_isolated_runner' }
+  if (!$SummaryModel -or !$EntityModel -or !$ModelDefinitions -or !$ClipboardPeer) { throw 'local_text_model_fixture_arguments_required' }
+  $script:privateTextRoot = Join-Path (Split-Path ([IO.Path]::GetFullPath($SummaryModel))) ('.clipboard-text-ui-' + [Guid]::NewGuid().ToString('N'))
+  New-Item -ItemType Directory -Path $script:privateTextRoot -ErrorAction Stop | Out-Null
+  $script:ownsPrivateTextRoot = $true
+  $script:historyRoot = $script:privateTextRoot
+  $script:primaryHistoryRoot = $script:historyRoot
+  $modelRoot = Join-Path $historyRoot 'models'
+  New-Item -ItemType Directory -Path $modelRoot | Out-Null
+  [IO.File]::WriteAllText((Join-Path $modelRoot '.clipboard-model-assets-v1'), "Clipboard local model assets v1`n", [Text.UTF8Encoding]::new($false))
+  [IO.File]::WriteAllText((Join-Path $modelRoot 'unrelated.txt'), 'synthetic unrelated file', [Text.UTF8Encoding]::new($false))
+  $script:textModelFiles = @{}
+  foreach ($specification in @(
+    @{ kind = 'generative'; path = $SummaryModel; definition = 'DesktopLocalLanguageModel.json'; extension = '.gguf' },
+    @{ kind = 'entities'; path = $EntityModel; definition = 'DesktopLocalEntityModel.json'; extension = '.onnx' }
+  )) {
+    $pin = Read-SharedJson (Join-Path $ModelDefinitions $specification.definition)
+    $modelDirectory = Join-Path $modelRoot $specification.kind
+    New-Item -ItemType Directory -Path $modelDirectory | Out-Null
+    $modelTarget = Join-Path $modelDirectory ($pin.sha256 + $specification.extension)
+    New-Item -ItemType HardLink -Path $modelTarget -Value ([IO.Path]::GetFullPath($specification.path)) | Out-Null
+    $owner = @{ version = 1; kind = $specification.kind; id = $pin.id; sha256 = $pin.sha256; size = $pin.size; license = $pin.license; licenseAccepted = $true }
+    foreach ($recordName in @('current.json', ('.owned-' + $pin.sha256 + '.json'))) {
+      [IO.File]::WriteAllText((Join-Path $modelDirectory $recordName), ($owner | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+    }
+    $script:textModelFiles[$specification.kind] = $modelTarget
+  }
+  $script:textFixtureBodies = @(
+    'The project team met on Tuesday to review schedules and paperwork. After inspecting a damaged fuel valve, NASA engineers postponed the Mars launch until Friday to complete repairs and safety checks.',
+    'Apple Inc. CEO Tim Cook met officials in Tokyo to discuss the company investment. The meeting focused on the research center and jobs for local engineers.',
+    'Other synthetic item for checking per-item progress.')
+  $script:textFixtureIDs = @()
+  $fixtureItems = @()
+  foreach ($body in $script:textFixtureBodies) {
+    $identifier = [Guid]::NewGuid().ToString()
+    $script:textFixtureIDs += $identifier
+    $bytes = [Text.Encoding]::UTF8.GetBytes($body)
+    $hasher = [Security.Cryptography.SHA256]::Create()
+    try { $digest = [BitConverter]::ToString($hasher.ComputeHash($bytes)).Replace('-', '').ToLowerInvariant() }
+    finally { $hasher.Dispose() }
+    $fixtureItems += @{ id = $identifier; createdAt = '2023-11-14T22:13:20Z'; kind = 'text'; preview = $body; sha256 = $digest; sizeBytes = $bytes.Length; sourceBundleID = 'com.clipboard.synthetic.text'; pinned = $false; sensitive = $false; payloads = @(@{ pasteboardType = 'public.utf8-plain-text'; inlineData = [Convert]::ToBase64String($bytes) }) }
+  }
+  [IO.File]::WriteAllText((Join-Path $historyRoot 'history.json'), (@{ version = 1; items = $fixtureItems } | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+  [IO.File]::WriteAllText((Join-Path $historyRoot 'desktop-settings.json'), '{"languageOverride":"en","localGenerativeSummariesEnabled":true}', [Text.UTF8Encoding]::new($false))
+}
+
 try {
   $historyRoot = Join-Path $OutputDirectory ('history-' + [Guid]::NewGuid().ToString('N'))
   $primaryHistoryRoot = $historyRoot
+  if ($LocalTextOnly) { Initialize-LocalTextFixture }
   $launchArguments = @('--smoke-root', ('"' + $historyRoot + '"'))
+  if ($LocalTextOnly) { $launchArguments += '--smoke-local-text' }
   if ($Baseline) { $launchArguments += '--ui-baseline' }
   $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
     -ArgumentList $launchArguments -PassThru `
@@ -634,6 +771,126 @@ try {
   } else {
     Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'initial_history' | Out-Null
     Add-Check 'native_window_and_history_visible' $true
+    if ($LocalTextOnly) {
+      Set-LocalTextSearch 'NASA engineers'
+      $originalTextRecord = Get-LocalTextRecord $textFixtureIDs[0]
+      Invoke-Button 'Summarize locally'
+      Wait-For { (Test-LocalTextCounter 'generative' 1) -and (Find-Named 'Generating a local summary…') } 'local_generation_owned_progress' | Out-Null
+      Add-Check 'local_generation_shows_its_actual_engine' $true
+      Set-LocalTextSearch 'Other synthetic item'
+      Add-Check 'local_generation_progress_belongs_only_to_its_item' ($null -eq (Find-Named 'Generating a local summary…'))
+      Set-LocalTextSearch 'NASA engineers'
+      Set-LocalTextRelease 'generative' $true
+      Wait-For { (Test-LocalTextCounter 'generative' 1 $true) -and (Find-Named 'Retry local analysis') } 'local_generation_failure_retry' | Out-Null
+      Add-Check 'failed_generation_preserves_local_retry_without_unconsented_fallback' ($null -eq (Get-LocalTextRecord $textFixtureIDs[0]).summary)
+      Invoke-Button 'Retry local analysis'
+      # The worker has a 90-second wall bound. Only new real-generation waits
+      # allow ten extra seconds for publication; existing action bounds stay 40.
+      Wait-For { (Test-LocalTextCounter 'generative' 2 $true) -and (Get-LocalTextRecord $textFixtureIDs[0]).summarySource -ceq 'localGenerative' } 'actual_generated_summary' 100 | Out-Null
+      $generatedTextRecord = Get-LocalTextRecord $textFixtureIDs[0]
+      Wait-For { (Find-Named 'Local generated summary') -and (Find-Named $generatedTextRecord.summary) } 'generated_summary_visible' | Out-Null
+      Add-Check 'native_ui_runs_actual_local_generation' ($generatedTextRecord.summary -match 'Mars' -and $generatedTextRecord.summary -match 'Friday' -and $generatedTextRecord.summary -match 'fuel')
+      Add-Check 'generated_summary_preserves_original_metadata_and_payload' ($generatedTextRecord.preview -ceq $originalTextRecord.preview -and $generatedTextRecord.sourceBundleID -ceq $originalTextRecord.sourceBundleID -and $generatedTextRecord.payloads[0].inlineData -ceq $originalTextRecord.payloads[0].inlineData)
+      Save-Screenshot 'local-generated-summary.png'
+      Invoke-Button 'Copy'
+      Wait-For { Find-Named 'Copied to clipboard' } 'generated_original_copy' | Out-Null
+      Add-Check 'generated_result_keeps_full_original_clipboard_copy' ([PreviewNative]::ReadClipboard() -ceq $textFixtureBodies[0])
+      Set-LocalTextSettings @('Automatically generate local summaries') 'NASA engineers'
+      $localSettings = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
+      Add-Check 'local_generation_automatic_opt_in_enables_no_other_engine_or_upload' ($localSettings.localGenerativeSummariesEnabled -and $localSettings.automaticLocalGenerativeSummaries -and !$localSettings.localLanguageSummariesEnabled -and !$localSettings.localTextSummariesEnabled -and !$localSettings.ai.enabled)
+      Set-LocalTextRelease 'generative' $false
+      Invoke-Button 'Start recording'
+      Wait-For { Find-Named 'Recording clipboard' } 'local_text_capture_ready' | Out-Null
+      $automaticPeer = Start-LocalTextPeer 'local-summary'
+      try {
+        Wait-For { Test-LocalTextCounter 'generative' 3 } 'automatic_local_generation_started' | Out-Null
+        $automaticRecord = Get-LocalTextRecords | Where-Object { $_.preview.StartsWith('This synthetic local summary') } | Select-Object -First 1
+        if (!$automaticRecord) { throw 'automatic_local_generation_item_missing' }
+        Set-LocalTextSearch 'This synthetic local summary'
+        Set-LocalTextSettings @('Automatically generate local summaries') 'This synthetic local summary'
+        Wait-For { Test-LocalTextCounter 'generative' 3 $true } 'automatic_generation_revocation_drained' | Out-Null
+        $localSettings = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
+        Add-Check 'revoking_automatic_generation_cancels_owned_work_but_retains_manual_permission' ($localSettings.localGenerativeSummariesEnabled -and !$localSettings.automaticLocalGenerativeSummaries -and $null -eq (Get-LocalTextRecord $automaticRecord.id).summary)
+      } finally { Stop-LocalTextPeer $automaticPeer }
+      Set-LocalTextSettings @('Automatically generate local summaries') 'This synthetic local summary'
+      Set-LocalTextRelease 'generative' $true
+      $existingAutoIDs = @(Get-LocalTextRecords | ForEach-Object { $_.id })
+      $automaticPeer = Start-LocalTextPeer 'local-summary-success'
+      try {
+        Wait-For { (Test-LocalTextCounter 'generative' 4) -and @((Get-LocalTextRecords) | Where-Object { $_.id -notin $existingAutoIDs }).Count -eq 1 } 'second_automatic_local_generation_started' | Out-Null
+        $automaticSuccess = Get-LocalTextRecords | Where-Object { $_.id -notin $existingAutoIDs } | Select-Object -First 1
+        Add-Check 'successful_automatic_generation_uses_distinct_text_without_images' ($automaticSuccess.kind -ceq 'text' -and $automaticSuccess.preview.StartsWith('Automatic success fixture.'))
+        Wait-For { (Get-LocalTextRecord $automaticSuccess.id).summarySource -ceq 'localGenerative' } 'automatic_real_generation' 100 | Out-Null
+        Add-Check 'automatic_capture_runs_real_generation_without_remote_permission' (!(Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')).ai.enabled)
+      } finally { Stop-LocalTextPeer $automaticPeer }
+      Invoke-Button 'Pause recording'
+      Wait-For { Find-Named 'Recording paused' } 'local_text_capture_paused' | Out-Null
+      Set-LocalTextSettings @('Enable local generated summaries', 'Enable local language and names') 'This synthetic local summary'
+      Set-LocalTextSearch 'Tim Cook'
+      Invoke-Button 'Summarize locally'
+      Wait-For { (Test-LocalTextCounter 'language' 1) -and (Find-Named 'Identifying language and names locally…') } 'local_language_owned_progress' | Out-Null
+      Set-LocalTextRelease 'language' $true
+      Wait-For { (Test-LocalTextCounter 'language' 1 $true) -and (Find-Named 'Retry local analysis') } 'local_language_failure_retry' | Out-Null
+      Invoke-Button 'Retry local analysis'
+      Wait-For { (Test-LocalTextCounter 'language' 2 $true) -and (Get-LocalTextRecord $textFixtureIDs[1]).summarySource -ceq 'localLanguage' } 'actual_language_entity_result' | Out-Null
+      $namesRecord = Get-LocalTextRecord $textFixtureIDs[1]
+      Add-Check 'native_ui_runs_actual_language_and_entity_models' ($namesRecord.summary.Contains('English') -and $namesRecord.summary.Contains('Apple Inc') -and $namesRecord.summary.Contains('Tim Cook') -and $namesRecord.summary.Contains('Tokyo'))
+      Wait-For { (Find-Named 'Local language and names') -and (Find-Named $namesRecord.summary) } 'local_language_result_visible' | Out-Null
+      Save-Screenshot 'local-language-entities.png'
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Preferences' } 'local_entity_removal_settings' | Out-Null
+      Invoke-VisibleConnectionButton 'Remove names model'
+      Wait-For { !(Test-Path -LiteralPath $textModelFiles.entities) -and !(Test-Path -LiteralPath (Join-Path (Split-Path $textModelFiles.entities) 'current.json')) } 'entity_model_removed' | Out-Null
+      Add-Check 'entity_model_removal_preserves_independent_language_permission' ((Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')).localLanguageSummariesEnabled)
+      Invoke-VisibleConnectionButton 'Back to history'
+      Wait-RestoredHistorySearch 'Tim Cook' 'language_only_history' | Out-Null
+      Invoke-Button 'Summarize locally'
+      Wait-For { (Test-LocalTextCounter 'language' 3 $true) -and (Get-LocalTextRecord $textFixtureIDs[1]).summary.StartsWith('English · ') -and (Find-Named 'Summary ready') -and (Test-PublicControlEnabled 'Summarize locally') } 'language_only_after_entity_removal' | Out-Null
+      Add-Check 'bundled_language_identification_survives_optional_entity_removal' ((Get-LocalTextRecord $textFixtureIDs[1]).summarySource -ceq 'localLanguage')
+      Set-LocalTextRelease 'language' $false
+      Invoke-Button 'Summarize locally'
+      Wait-For { Test-LocalTextCounter 'language' 4 } 'language_only_active_without_entity_model' | Out-Null
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Preferences' } 'language_only_unrelated_removal_settings' | Out-Null
+      Invoke-VisibleConnectionButton 'Remove names model'
+      Wait-For { (Find-Named 'Names model removal complete') -and (Test-PublicControlEnabled 'Verify local models') } 'language_only_noop_removal_finished' | Out-Null
+      Invoke-VisibleConnectionButton 'Back to history'
+      Wait-RestoredHistorySearch 'Tim Cook' 'language_only_noop_removal_history' | Out-Null
+      Add-Check 'removing_an_absent_entity_model_keeps_language_only_analysis' (!(Test-LocalTextCounter 'language' 4 $true) -and $null -ne (Find-Named 'Identifying language and names locally…'))
+      Set-LocalTextSettings @('Enable local generated summaries', 'Enable local language and names') 'Tim Cook'
+      Wait-For { Test-LocalTextCounter 'language' 4 $true } 'language_only_permission_change_drained' | Out-Null
+      Set-LocalTextSearch 'NASA engineers'
+      Set-LocalTextRelease 'generative' $false
+      Invoke-Button 'Summarize locally'
+      Wait-For { Test-LocalTextCounter 'generative' 5 } 'manual_generation_before_revocation' | Out-Null
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Preferences' } 'unrelated_model_removal_settings' | Out-Null
+      Invoke-VisibleConnectionButton 'Remove names model'
+      Wait-For { (Find-Named 'Names model removal complete') -and (Test-PublicControlEnabled 'Verify local models') } 'unrelated_model_removal_finished' | Out-Null
+      Invoke-VisibleConnectionButton 'Back to history'
+      Wait-RestoredHistorySearch 'NASA engineers' 'unrelated_model_removal_history' | Out-Null
+      Add-Check 'removing_an_uninstalled_unrelated_model_keeps_active_generation' (!(Test-LocalTextCounter 'generative' 5 $true) -and $null -ne (Find-Named 'Generating a local summary…'))
+      Set-LocalTextSettings @('Enable local generated summaries') 'NASA engineers'
+      Wait-For { Test-LocalTextCounter 'generative' 5 $true } 'manual_generation_revocation_drained' | Out-Null
+      Add-Check 'manual_revocation_rejects_late_results_and_unconsented_fallback' ((Get-LocalTextRecord $textFixtureIDs[0]).summary -ceq $generatedTextRecord.summary)
+      Set-LocalTextSettings @('Enable local generated summaries') 'NASA engineers'
+      Add-Check 'private_summary_model_is_not_already_held_before_native_dispatch' (!(Test-LocalTextModelInUse $textModelFiles.generative))
+      Invoke-Button 'Summarize locally'
+      Wait-For { Test-LocalTextCounter 'generative' 6 } 'model_removal_generation_owned' | Out-Null
+      Set-LocalTextRelease 'generative' $true
+      Wait-For { Test-LocalTextModelInUse $textModelFiles.generative } 'real_worker_has_model_open' 10 | Out-Null
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Preferences' } 'active_model_removal_settings' | Out-Null
+      Invoke-VisibleConnectionButton 'Remove summary model'
+      Wait-For { (Test-LocalTextCounter 'generative' 6 $true) -and !(Test-Path -LiteralPath $textModelFiles.generative) } 'actual_model_worker_drained_before_removal' | Out-Null
+      Add-Check 'removing_summary_model_drains_its_actual_owned_native_process' $true
+      $localSettings = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
+      Add-Check 'model_removal_keeps_history_unrelated_files_and_permissions' ((Get-LocalTextRecord $textFixtureIDs[0]).summary -ceq $generatedTextRecord.summary -and [IO.File]::ReadAllText((Join-Path $historyRoot 'models/unrelated.txt')) -ceq 'synthetic unrelated file' -and $localSettings.localGenerativeSummariesEnabled -and !$localSettings.ai.enabled)
+      Invoke-VisibleConnectionButton 'Quit Clipboard'
+      if (!$application.WaitForExit(10000)) { throw 'local_text_quit_timeout' }
+      Add-Check 'local_text_profile_quits_with_owned_work_drained' ($application.ExitCode -eq 0)
+      return
+    }
     if ($ModelSettingsOnly) {
       Invoke-Button 'Settings'
       Wait-For { (Find-Named 'Local text models') -and (Find-Named 'Language and names') -and
@@ -2405,7 +2662,21 @@ try {
     try { if ($nativeWindowHandle -ne [IntPtr]::Zero -and !$application.HasExited) { Save-Screenshot 'failure.png' } } catch { }
   }
 } finally {
-  if ($application -and !$application.HasExited) { Stop-Process -Id $application.Id -Force }
+  if ($application -and !$application.HasExited) {
+    Stop-Process -Id $application.Id -Force
+    $application.WaitForExit()
+  }
+  if ($ownsPrivateTextRoot -and $privateTextRoot -and (Test-Path -LiteralPath $privateTextRoot)) {
+    $cleanupDeadline = [DateTime]::UtcNow.AddSeconds(5)
+    while (Test-Path -LiteralPath $privateTextRoot) {
+      try { Remove-Item -LiteralPath $privateTextRoot -Recurse -Force -ErrorAction Stop }
+      catch {
+        if ([DateTime]::UtcNow -ge $cleanupDeadline) { break }
+        Start-Sleep -Milliseconds 100
+      }
+    }
+    $checks.Add(@{ name = 'private_model_fixture_cleanup_complete'; passed = !(Test-Path -LiteralPath $privateTextRoot) })
+  }
   $passed = $checks.Count -gt 0 -and @($checks | Where-Object { !$_.passed }).Count -eq 0
   $report = @{ platform = 'windows-gtk4-accesskit'; passed = $passed; checks = @($checks.ToArray());
     limitations = @('Native accessibility value/invoke operations and an owned CI-only mouse activation fixture; no keyboard injection.',
@@ -2413,5 +2684,6 @@ try {
   $json = $report | ConvertTo-Json -Depth 6
   $json | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'results.json')
   Write-Output $json
+  # Focused modes return from try; cleanup failures must still fail the process.
+  if (!$passed) { exit 1 }
 }
-if (!$passed) { exit 1 }

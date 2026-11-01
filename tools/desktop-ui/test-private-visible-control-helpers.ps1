@@ -11,10 +11,15 @@ foreach ($definition in $ast.FindAll({ param($node)
   $null = $definitions.Add($definition.Name)
 }
 $calls = 0
+$localTextCalls = 0
 foreach ($command in $ast.FindAll({ param($node)
   $node -is [Management.Automation.Language.CommandAst]
 }, $true)) {
   $name = $command.GetCommandName()
+  if ($name -and $name -like '*-LocalText*') {
+    $localTextCalls++
+    if (!$definitions.Contains($name)) { throw 'local_text_probe_helper_missing' }
+  }
   if ($name -and $name.StartsWith('Invoke-Visible', [StringComparison]::OrdinalIgnoreCase)) {
     $calls++
     if (!$definitions.Contains($name)) { throw 'public_control_helper_missing' }
@@ -22,3 +27,6 @@ foreach ($command in $ast.FindAll({ param($node)
 }
 if ($calls -lt 7) { throw 'public_control_fixture_calls_missing' }
 Write-Host 'Every public visible-control call resolves to an actual probe helper'
+
+if ($localTextCalls -lt 20) { throw 'local_text_fixture_calls_missing' }
+Write-Host 'Every local text fixture call resolves to an actual probe helper'

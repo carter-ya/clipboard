@@ -192,3 +192,21 @@ language-only work and unrelated generation are held. Both must keep running.
 The completion receipt ensures the assertion observes the finished removal, not
 a settings handoff race. Core regressions retain unrelated failure tickets and
 pending IDs, and prove that the queue resumes only after the final pause lease.
+
+The native Windows actual-model mode is `smoke-windows.ps1 -LocalTextOnly`
+with explicit summary/entity file paths, the model JSON directory and a reference
+peer. It requires the isolated GitHub Actions desktop. It covers actual inference,
+progress/retry, original Copy, automatic/manual revocation, language-only retention
+and unrelated/related model removal. A read-only sharing probe of the private
+model observes an overlapping handle before removal; no process enumeration is
+used. All normal 40-second control deadlines remain unchanged; new generation
+result waits allow the native 90-second worker bound plus ten seconds to publish.
+
+Both installed checkers can run the same actual-model controls with explicit
+fixture paths. Optional weights and temporary profiles live outside the artifact
+directory; installed Windows tests hide development resource bundles, and Linux
+runtime tests mount only the reference executable and explicit test inputs.
+The model builders' `--download-test-model-only` mode seeds that private cache
+without rebuilding or changing application output. Four offline canary checks
+verify cached-only behavior and corrupt-cache refusal. Normal application builds
+and startup still never request optional weights.

@@ -11,6 +11,13 @@ import Foundation
         + String(repeating: "Additional private test context. ", count: 10)
       return [.init(pasteboardType: "public.utf8-plain-text", data: Data(text.utf8))]
     }
+    if name == "local-summary-success" {
+      let text =
+        "Automatic success fixture. The project team met on Tuesday to review schedules and paperwork. "
+        + "After inspecting a damaged fuel valve, space agency engineers postponed the Mars launch "
+        + "until Friday to complete repairs and safety checks."
+      return [.init(pasteboardType: "public.utf8-plain-text", data: Data(text.utf8))]
+    }
     if name == "preview-long" {
       let text =
         String(repeating: "Long preview fixture 中文😀\n", count: 4096)
@@ -127,7 +134,9 @@ import Foundation
     var checks: [CheckResult] = []
     do {
       let clipboard = try SystemRichClipboard()
-      for fixture in ["rich", "secret", "files", "bmp", "jpeg", "tiff", "large"] {
+      for fixture in [
+        "rich", "secret", "files", "bmp", "jpeg", "tiff", "large", "local-summary-success",
+      ] {
         let peer = Process()
         let input = Pipe()
         let output = Pipe()
@@ -146,6 +155,12 @@ import Foundation
           throw TextClipboardError.unavailable
         }
         let expected = richFixtures(fixture)
+        if fixture == "local-summary-success" {
+          check(
+            "automatic_summary_fixture_is_distinct_text_without_image_payloads",
+            ClipKind.infer(from: snapshot.payloads) == .text && snapshot.payloads.count == 1
+              && expected != richFixtures("local-summary"), into: &checks)
+        }
         check(
           "independent_\(fixture)_formats_roundtrip", snapshot.payloads == expected, into: &checks)
         check(
