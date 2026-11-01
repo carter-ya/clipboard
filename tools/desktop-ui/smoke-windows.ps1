@@ -2361,7 +2361,7 @@ try {
         if (!$peer.WaitForExit(5000)) { $peer.Kill(); $peer.WaitForExit() }
         $peer.Dispose(); $peer = $null
         $pdf = Join-Path $historyRoot 'private-pdf-upload-name 中文.pdf'
-        & python (Join-Path $PSScriptRoot 'pdf_fixture.py') --private-summary-fixture $pdf
+        & (Resolve-PrivateFixturePython $FixturePython) (Join-Path $PSScriptRoot 'pdf_fixture.py') --private-summary-fixture $pdf
         if ($LASTEXITCODE -ne 0) { throw 'pdf_fixture_creation_failed' }
         $pdfLead = 'This synthetic PDF excerpt stays on this device.'
         Wait-For {
