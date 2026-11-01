@@ -214,13 +214,15 @@ public actor DesktopModelStore {
         let file = directory.appendingPathComponent(".pending-" + id.uuidString)
         try Data().write(to: file, options: .withoutOverwriting)
         pending = file
-        set(kind, .downloading(received: 0, total: asset.size))
         switch action {
         case .download:
+          set(kind, .downloading(received: 0, total: asset.size))
           try await downloader.download(asset, to: file) { [weak self] count in
             Task { await self?.progress(kind, id: id, received: count, total: asset.size) }
           }
         case .copy(let source):
+          // Local file validation/copy is not a network download.
+          set(kind, .verifying)
           try await offActor {
             try DesktopModelFiles.copy(source, to: file, asset: asset, gate: gate)
           }
@@ -271,9 +273,9 @@ public actor DesktopModelStore {
     // at any later step leaves a removable/retryable owned file. Reuse an
     // existing record so metadata failure cannot change its consent history.
     if priorOwner == nil { try DesktopModelFiles.writeRecord(record, to: owner) }
-    // One same-directory native rename replaces the target without first
-    // unpublishing it. Both files have the same verified content digest, so a
-    // failure writing current.json never requires rolling the target back.
+    // A same-directory rename replaces even an owned damaged target without
+    // first unpublishing it. The new bytes match the content-addressed name;
+    // failure writing current.json leaves verified, retryable bytes in place.
     try DesktopModelFiles.replace(pending, to: target)
     try DesktopModelFiles.writeRecord(priorOwner ?? record, to: current)
     return target
