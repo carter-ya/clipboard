@@ -142,7 +142,7 @@ def main():
     if build.is_symlink():
         raise RuntimeError('Unsafe language worker build directory')
     command = ['cmake', '-S', str(project), '-B', str(build), '-DCMAKE_BUILD_TYPE=Release',
-               '-DLLAMA_SOURCE=' + str(sdk), '-DMODEL_INCLUDE=' + str(project)]
+               '-DLLAMA_SOURCE=' + sdk.as_posix(), '-DMODEL_INCLUDE=' + project.as_posix()]
     for name, arguments in (
             ('language-configure.log', command),
             ('language-build.log', ['cmake', '--build', str(build), '--config', 'Release',
