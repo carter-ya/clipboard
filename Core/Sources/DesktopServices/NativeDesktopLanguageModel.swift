@@ -53,7 +53,8 @@ public struct NativeDesktopLanguageModel: DesktopLocalLanguageProcessing, Sendab
         language: remoteAIResponseLanguageName(for: language)))
     do {
       let bytes = try await NativeDesktopByteWorker(
-        executable: executable, timeout: timeout, inputLimit: 512 * 1024, outputLimit: 4096
+        executable: executable, timeout: timeout, inputLimit: 512 * 1024, outputLimit: 4096,
+        unavailableExitCodes: [3, 11]
       ).run(data)
       try Task.checkCancellation()
       let output = try DesktopLocalLanguageOutput(workerOutput: bytes)
