@@ -59,7 +59,7 @@
         "base": "main",
         "scope": "Portable Core compilation boundaries and permanent Windows/Linux/macOS regression CI.",
         "acceptance": "Core tests and synthetic scenario pass on all three platforms; macOS application still builds.",
-        "status": "in_progress"
+        "status": "verified"
       },
       {
         "id": "CP2",
@@ -67,7 +67,7 @@
         "base": "codex/cross-platform-foundation",
         "scope": "Native Windows/X11 text clipboard adapters, bounded reads, sensitive hints, independent-process integration tests.",
         "acceptance": "Capture and copy/readback pass using actual system APIs with synthetic fixtures.",
-        "status": "in_progress"
+        "status": "verified"
       },
       {
         "id": "CP3",
@@ -94,7 +94,7 @@
         "base": "codex/cross-platform-ui",
         "scope": "Tray, configurable global shortcut, foreground/focus handoff, window lifecycle, pause/resume and persisted preferences.",
         "acceptance": "Native shell integration and conflict/failure cases pass; hidden resources released; physical focus/IME remains an explicit manual gate.",
-        "status": "planned"
+        "status": "in_progress"
       },
       {
         "id": "CP5",
@@ -131,7 +131,8 @@
     ],
     "completion_rule": "A created PR or passing build is not functional completion. Each stack layer retains implementation and verification evidence; unresolved manual/runtime gates remain open. No automatic main merge or public release is implied.",
     "review_regressions": {
-      "CP2_cancelled_X11_request": "Reproduced the native owner exiting with BadWindow/X_ChangeProperty when a queued reader disappears. Backported the rich-content adapter connection-scoped recovery into CP2. A private-Xvfb regression cancels UTF8_STRING and TARGETS requests, then verifies a fresh independent reader. A native routing probe checks delegation to the existing host handler and connection registry reuse. No real user clipboard or keyboard input. Local Linux arm64 Swift 6.3.3: all 7 cancellation checks, the native routing/capacity/reuse probe, all 6 native clipboard scenarios and 140 Core tests passed; hosted Windows/macOS validation remains pending."
+      "CP2_cancelled_X11_request": "Reproduced the native owner exiting with BadWindow/X_ChangeProperty when a queued reader disappears. Backported the rich-content adapter connection-scoped recovery into CP2. A private-Xvfb regression cancels UTF8_STRING and TARGETS requests, then verifies a fresh independent reader. A native routing probe checks delegation to the existing host handler and connection registry reuse. No real user clipboard or keyboard input. Local Linux arm64 Swift 6.3.3: all 7 cancellation checks, the native routing/capacity/reuse probe, all 6 native clipboard scenarios and 140 Core tests passed; hosted Windows/macOS validation remains pending.",
+      "CP4_X11_shortcut_modifiers": "A native dispatcher regression reproduced bare-key activation. Dispatch now requires successful shortcut registration, the configured keycode and exact keyboard modifiers, ignoring only Caps Lock and the discovered Num Lock mapping. Direct native event tests cover missing/extra modifiers, failed registration, alternate Num Lock mapping, pointer-button state and held-key suppression without sending input to the OS. Local Linux arm64 native event regression and all 7 real registration/conflict/cleanup scenarios passed."
     }
   },
   "desktop_ui": {
@@ -2662,5 +2663,17 @@
   "open_questions": [
     "macOS 最低版本：保持 13.0 底线——已决，不用数据库，没理由再抬高",
     "默认 cap=100 是否仍需调整——v1 定为 100（同类产品多为 200+，此值偏保守），S8 偏好中滑块量程给足，必要时按用户反馈再改默认"
-  ]
+  ],
+  "desktop_shell": {
+    "scope": "CP4: Windows Shell_NotifyIcon/RegisterHotKey, Linux StatusNotifierItem/dbusmenu and XGrabKey; native per-profile single instance, GTK hide/close/reopen, persisted desktop behavior.",
+    "boundaries": "Portable DesktopShellAccess/DesktopWindowControlling/DesktopSettingsPersisting/DesktopInstanceAccess contracts and fakes in Core; system calls in DesktopShell/CDesktopShell; native UI presentation in Desktop.",
+    "dependencies": "Windows User32/Shell32; Linux libX11 and libdbus-1 development packages. No native XWayland hotkey claim.",
+    "privacy": "Instance IPC exchanges activation only; profile paths are SHA-256 namespaced. Recording starts paused unless explicitly saved otherwise; runtime pause does not change the startup preference. No input synthesis.",
+    "lifecycle": "Hidden native editor retains its draft; store UI refresh is suspended while hidden and resumes before presentation. Missing tray/hotkey capabilities keep the window reachable; closing quits when no reopening mechanism exists. Explicit quit stops monitor/shell/instance and flushes store.",
+    "validation": {
+      "macOS": "166 Core tests, one existing Keychain skip, zero failures; DesktopShell stub target builds; strict Swift formatting passes.",
+      "linux_arm64": "6 independent-process instance checks; 7 native shortcut checks; 10 private-bus tray checks; 18 real GTK control/window/persistence/lifecycle checks passed in Swift 6.3.3 container.",
+      "windows": "Initial native build exposed Windows SDK header order; fixed by including windows.h before shellapi.h. Native shell/instance and full UI lifecycle CI results pending; physical keyboard, IME and DPI remain open."
+    }
+  }
 }

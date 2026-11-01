@@ -5,17 +5,17 @@ on:
     branches: [main]
     paths:
       - Core/**
+      - tools/desktop-ui/check-linux-*
+      - tools/desktop-ui/check-x11-*.c
       - .github/workflows/swift-portability.yml
-      - tools/desktop-ui/check-linux-clipboard-races.py
-      - tools/desktop-ui/check-x11-error-routing.c
   pull_request:
     paths:
       - Core/**
       - App/**
       - project.yml
+      - tools/desktop-ui/check-linux-*
+      - tools/desktop-ui/check-x11-*.c
       - .github/workflows/swift-portability.yml
-      - tools/desktop-ui/check-linux-clipboard-races.py
-      - tools/desktop-ui/check-x11-error-routing.c
   workflow_dispatch:
 
 permissions:
@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libx11-dev libxfixes-dev xvfb xauth xclip
+          sudo apt-get install -y --no-install-recommends libx11-dev libxfixes-dev libdbus-1-dev xvfb xauth xclip dbus-x11 python3-dbus python3-gi
       - name: Install Swift 6.1.3 on Windows
         if: runner.os == 'Windows'
         uses: compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7
@@ -86,6 +86,37 @@ jobs:
             & swift run --package-path Core scenario-runner platform-clipboard 2>&1 | Tee-Object -FilePath platform-clipboard.log
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify native single-instance activation and owner recovery
+        shell: pwsh
+        run: |
+          & swift run --package-path Core scenario-runner platform-instance 2>&1 | Tee-Object -FilePath platform-instance.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify native shortcut ownership and conflict cleanup
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_OS -eq 'Linux') {
+            & dbus-run-session -- xvfb-run --auto-servernum swift run --package-path Core scenario-runner platform-shell 2>&1 | Tee-Object -FilePath platform-shell.log
+          } else {
+            & swift run --package-path Core scenario-runner platform-shell 2>&1 | Tee-Object -FilePath platform-shell.log
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify X11 shortcut event filtering without injecting keys
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -D_POSIX_C_SOURCE=200809L -pthread \
+            -I Core/Sources/CDesktopShell/include $(pkg-config --cflags dbus-1) \
+            tools/desktop-ui/check-x11-shortcut-events.c \
+            $(pkg-config --libs dbus-1) -lX11 -o "$RUNNER_TEMP/check-x11-shortcut-events"
+          "$RUNNER_TEMP/check-x11-shortcut-events"
+      - name: Verify Linux tray protocol and actions in a private desktop
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary_dir=$(swift build --package-path Core --show-bin-path)
+          bash tools/desktop-ui/check-linux-shell.sh --executable "$binary_dir/scenario-runner" --output platform-tray.json
       - name: Verify cancelled X11 requests and error routing
         if: runner.os == 'Linux'
         shell: bash
@@ -111,6 +142,9 @@ jobs:
             core-tests.log
             scenario.log
             platform-clipboard.log
+            platform-instance.log
+            platform-shell.log
+            platform-tray.json
             x11-cancelled-requests/
           if-no-files-found: ignore
 

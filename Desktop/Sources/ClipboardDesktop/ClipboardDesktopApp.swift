@@ -3,11 +3,22 @@ import Foundation
 import GtkBackend
 import SwiftCrossUI
 
-@main
 struct ClipboardDesktopApp: App {
+  var backend: GtkBackend {
+    let profile = DesktopApplicationContext.profile
+    return GtkBackend(
+      appIdentifier: profile == "production"
+        ? "com.clipboard.desktop" : "com.clipboard.desktop.p" + String(profile.prefix(24)))
+  }
   var body: some Scene {
     WindowGroup("Clipboard") {
-      if CommandLine.arguments.contains("--ui-baseline") {
+      if DesktopApplicationContext.startupFailed {
+        VStack(spacing: 16) {
+          Text("Clipboard could not safely open this profile.")
+          Text("Close another instance or check the desktop session, then try again.")
+          Button("Quit") { exit(1) }
+        }.padding(24)
+      } else if CommandLine.arguments.contains("--ui-baseline") {
         BaselineView()
       } else {
         HistoryView()
@@ -37,6 +48,7 @@ struct HistoryView: View {
       }
     }
     .padding(24)
+    .inspectWindow { model.attachWindow($0) }
     .task { await model.load() }
     .onChange(of: model.selectedID) { Task { @MainActor in await model.loadPreview() } }
   }
@@ -48,13 +60,18 @@ struct HistoryView: View {
         Text("Your clipboard history, on this device.").foregroundColor(.gray)
       }
       Spacer()
-      Button("Settings") { model.showsSettings = true }
+      Button(model.recording ? "Pause recording" : "Start recording") {
+        Task { @MainActor in await model.toggleRecording() }
+      }.disabled(!model.ready || model.recordingTransition)
+      if model.canHide { Button("Hide") { model.hide() } }
+      Button("Settings") { model.showPreferences() }
     }
   }
 
   var history: some View {
     VStack(alignment: .leading, spacing: 14) {
       TextField("Search history", text: $model.query)
+        .inspect { model.attachSearch($0) }
         .onChange(of: model.query) { Task { @MainActor in await model.refresh() } }
       HStack(spacing: 10) {
         Button("All") {
@@ -107,15 +124,29 @@ struct HistoryView: View {
   }
 
   var settings: some View {
-    VStack(alignment: .leading, spacing: 20) {
-      Text("Preferences").font(.system(size: 22))
-      Text("History stays on this device. Sensitive items stay in memory.")
-      Text("History capacity: 100 items")
-      Text("Clipboard recording starts only when you enable it.")
-      Button(model.recording ? "Pause recording" : "Start recording") { model.toggleRecording() }
-        .disabled(!model.ready)
-      Button("Back to history") { model.showsSettings = false }
-    }.frame(maxWidth: .infinity, minHeight: 380, alignment: .topLeading)
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Text("Preferences").font(.system(size: 22))
+        Spacer()
+        Button("Back to history") { Task { @MainActor in await model.showHistory() } }
+      }
+      ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
+          Text("History stays on this device. Sensitive items stay in memory.")
+          Text("History capacity: 100 items")
+          Text("Recording: \(model.recording ? "On" : "Paused")")
+          Toggle("Enable global shortcut", isOn: $model.shortcutEnabledDraft)
+          TextField("Ctrl+Alt+V", text: $model.shortcutDraft)
+          Button("Apply shortcut") { Task { @MainActor in await model.applyShortcut() } }
+          Toggle("Keep running when closing the window", isOn: $model.closeToTrayDraft)
+          Toggle("Show history when starting", isOn: $model.showOnLaunchDraft)
+          Toggle("Record when starting", isOn: $model.recordOnLaunchDraft)
+          Button("Save behavior") { Task { @MainActor in await model.applyBehavior() } }
+          if !model.shellStatus.isEmpty { Text(model.shellStatus).lineLimit(3) }
+          Button("Quit Clipboard") { Task { @MainActor in await model.shutdown() } }
+        }.frame(maxWidth: .infinity, alignment: .topLeading)
+      }.frame(minHeight: 320, maxHeight: 360)
+    }.frame(maxWidth: .infinity, alignment: .topLeading)
   }
 }
 

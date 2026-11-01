@@ -7,12 +7,24 @@ let package = Package(
   products: [
     .library(name: "ClipboardCore", targets: ["ClipboardCore"]),
     .library(name: "DesktopClipboard", targets: ["DesktopClipboard"]),
+    .library(name: "DesktopShell", targets: ["DesktopShell"]),
   ],
   dependencies: [
     .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.0.0"),
     .package(url: "https://github.com/apple/swift-crypto.git", exact: "3.12.3"),
   ],
   targets: [
+    .systemLibrary(name: "CDBus", pkgConfig: "dbus-1", providers: [.apt(["libdbus-1-dev"])]),
+    .target(
+      name: "CDesktopShell",
+      dependencies: [.target(name: "CDBus", condition: .when(platforms: [.linux]))],
+      linkerSettings: [
+        .linkedLibrary("user32", .when(platforms: [.windows])),
+        .linkedLibrary("shell32", .when(platforms: [.windows])),
+        .linkedLibrary("X11", .when(platforms: [.linux])),
+      ]
+    ),
+    .target(name: "DesktopShell", dependencies: ["ClipboardCore", "CDesktopShell"]),
     .target(
       name: "CDesktopClipboard",
       linkerSettings: [
@@ -46,6 +58,7 @@ let package = Package(
       dependencies: [
         "ClipboardCore",
         .target(name: "DesktopClipboard", condition: .when(platforms: [.linux, .windows])),
+        .target(name: "DesktopShell", condition: .when(platforms: [.linux, .windows])),
       ]
     ),
     .testTarget(
