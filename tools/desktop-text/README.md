@@ -49,7 +49,7 @@ only the owned worker. Native limits are 2 GiB, 15 CPU seconds, 512 BERT tokens,
 two inference threads and a 20-second parent wall deadline.
 
 Cased BERT normalization/WordPiece preserve original UTF-8 offsets and treat
-literal special-token text as ordinary input. Fourteen committed vectors come
+literal special-token text as ordinary input. Twenty-five committed vectors come
 from the independent Hugging Face tokenizer 0.22.1 with the pinned tokenizer
 JSON; they cover CJK/Korean, accents, controls, private/rare characters, literal
 special tokens, unknown words and truncation. `tokenizer-reference-check` is a
@@ -70,3 +70,17 @@ paths to test the complete private-pipe adapter. Default unit tests skip that
 real-model fixture; native Core CI explicitly configures and runs it.
 All fixtures use synthetic content. These checks establish implementation
 behavior, not identical accuracy to Apple's NaturalLanguage models.
+
+The CJK isolation ranges intentionally match the pinned Hugging Face normalizer,
+including the gap U+2B820–U+2B91F before its U+2B920 range. This is model input
+compatibility, rather than a complete Unicode ideograph classifier. Independent
+reference cases include both gap endpoints next to Latin words, adjacent gap
+characters and the surrounding isolated/non-isolated boundaries. Changing this
+range alone would change the pinned model's token IDs and original source spans.
+
+The independent boundary comparison also caught a distinct cleaning defect:
+unassigned Unicode codepoints were being removed before tokenization. The
+pinned normalizer retains them, so the native worker now preserves them too.
+Dedicated vectors cover unassigned characters both inside CJK isolation ranges
+and outside them; control/private-use cleaning and original source offsets
+continue to follow the pinned reference.
