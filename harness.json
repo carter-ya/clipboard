@@ -328,8 +328,8 @@
           "status": "in_progress",
           "remaining": [
             "Final native Windows and installed acceptance of image/text/file/PDF permissions, retry, revocation and model removal",
-            "Actual native model inference on imported text/PDF file bodies, including automatic eligibility and original file Copy",
-            "Final rebuilt Windows/Linux packages and model import/cancel/repair/recovery controls"
+            "Native Windows confirmation of actual text/PDF file-body generation, language/entities and original file Copy",
+            "Final Windows packages and model import/cancel/repair/recovery controls; Linux arm64 native and hermetic installed gates are verified"
           ],
           "connection_diagnostics": {
             "branch": "codex/cross-platform-ai-connection",
@@ -470,12 +470,15 @@
                 "branch": "codex/cross-platform-local-file-model-acceptance",
                 "status": "in_progress",
                 "implemented": "Native Windows/Linux private modes capture fixed UTF-8 text and PDF file references through an independent peer, keep file permissions separate from enabled manual/automatic text engines, then run actual local generative inference on extracted bodies. Results must identify body facts and the generated source, reach the visible idle UI, preserve original history metadata, retain native file Copy and leave source bytes unchanged. Automatic file capture requires its separate opt-in. No analysis fixture, fake result, network or remote permission is used. A shared fixed synthetic PDF/text generator creates only new files inside the owned profile. Both installed checkers and native Windows CI run the new controls. The seven-language file permission label now says Allow local file analysis, matching generation, language and excerpt processing. The same captured PDF is then reanalyzed by the real trained language/entity worker under its separate manual permission; automatic file consent still does not grant that engine automatic permission. Compare reanalysis with the current record because an earlier explicit original-file Copy intentionally promotes its timestamp.",
-                "validation": "Final rebuilt new-label Linux arm64 native acceptance passes all nineteen file-model checks with networking disabled: real text-file generation, PDF-body generation, automatic file generation, PDF language/entities, visible idle results, original native file Copy, unchanged per-analysis metadata and unchanged source bytes. All three generated summaries have been inspected against their fixed source facts. Three macOS localization regressions, changed Swift lint, Windows syntax/helper-definition/wait-scope checks and workflow YAML/shell parsing pass. The shared generator refuses existing destinations. The final previous-layer interruption-recovery package passes fourteen installation gates, all 211 full UI/lifecycle checks, eight model settings, nineteen text-model checks and fourteen model-operation checks. The new file-model installed package is being verified separately; actual Windows execution remains required.",
+                "validation": "Final rebuilt new-label Linux arm64 native acceptance passes all nineteen file-model checks offline: actual text-file generation, PDF-body generation, automatic file generation and trained PDF language/entities. The final hermetic installed package passes fifteen installation/upgrade/uninstall/integrity gates, all 211 complete UI/lifecycle checks, eight model settings, nineteen text-model checks, fourteen model-operation checks and nineteen file-model checks. No Swift SDK, network or development resource bundles are mounted. Generated facts, visible results, original native file Copy, current per-analysis metadata and source bytes are checked. Three macOS localization tests, changed Swift lint, Windows syntax/helper-definition/wait-scope checks and workflow YAML/shell parsing pass. Earlier parent recovery changes pass all 337 Linux Core tests, nineteen related Mac tests and the Mac app build. Exact-head Windows/native CI and physical desktop gates remain required.",
                 "remaining": [
-                  "Final runtime-only installed new-label file-model acceptance",
                   "Native Windows file/PDF generation, language/entity and original Copy acceptance",
-                  "Exact-head Codex review and green platform CI after the final file-model follow-up"
-                ]
+                  "Final exact-head platform CI after all review repairs",
+                  "Physical desktop gates tracked in CP13 and Desktop/TESTING.md"
+                ],
+                "linux_native_verified": true,
+                "linux_installed_verified": true,
+                "windows_native_verified": false
               }
             }
           }

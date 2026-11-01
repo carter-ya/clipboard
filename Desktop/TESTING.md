@@ -255,4 +255,8 @@ their fixed source facts. Reanalysis snapshots the current record after earlier
 explicit Copy promotion; the timestamp change belongs to Copy, not analysis.
 The preceding recovery package passes all fourteen installation, 211 full UI,
 eight model settings, nineteen text-model and fourteen model-operation checks.
-The new file-model package and native Windows validation remain open.
+The final new-label file-model package now passes fifteen installation/upgrade/
+uninstall/integrity gates, all 211 full UI/lifecycle checks, eight model settings,
+nineteen text-model checks, fourteen model-operation checks and nineteen real
+file-model checks in a runtime-only Linux image without networking or mounted
+development resources. Native Windows exact-head validation remains open.
