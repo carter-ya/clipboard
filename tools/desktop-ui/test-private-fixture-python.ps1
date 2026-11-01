@@ -18,6 +18,8 @@ try {
 $fixtureSavedPath = $env:PATH
 $fixtureIsolatedPath = Join-Path ([IO.Path]::GetTempPath()) ('no-fixture-tools-' + [Guid]::NewGuid().ToString('N'))
 $fixtureProcess = $null
+$fixturePdfDirectory = Join-Path ([IO.Path]::GetTempPath()) ('private pdf fixture-' + [Guid]::NewGuid().ToString('N'))
+$fixtureOwnsPdfDirectory = $false
 try {
   # A nonexistent PATH entry cannot supply development DLLs or interpreters.
   $env:PATH = $fixtureIsolatedPath
@@ -49,10 +51,37 @@ try {
     throw 'isolated_fixture_runtime_audit_failed'
   }
   Write-Host 'Private fixture runs with an isolated PATH'
+  # Execute the actual PDF invocation from the native probe, rather than a
+  # second copy which could accidentally use a different interpreter path.
+  $tokens = $null
+  $errors = $null
+  $probeAst = [Management.Automation.Language.Parser]::ParseFile(
+    (Join-Path $PSScriptRoot 'smoke-windows.ps1'), [ref]$tokens, [ref]$errors)
+  if ($errors.Count) { throw 'native_pdf_fixture_source_invalid' }
+  $pdfCalls = @($probeAst.FindAll({ param($node)
+    $node -is [Management.Automation.Language.CommandAst] -and
+      $node.Extent.Text -match 'pdf_fixture\.py' -and
+      $node.Extent.Text -match '--private-summary-fixture'
+  }, $true))
+  if ($pdfCalls.Count -ne 1) { throw 'native_pdf_fixture_invocation_missing_or_ambiguous' }
+  if ([IO.Directory]::Exists($fixturePdfDirectory)) { throw 'private_pdf_fixture_directory_exists' }
+  [IO.Directory]::CreateDirectory($fixturePdfDirectory) | Out-Null
+  $fixtureOwnsPdfDirectory = $true
+  $pdf = Join-Path $fixturePdfDirectory ('summary ' + [char]0x4e2d + [char]0x6587 + '.pdf')
+  $rootLiteral = "'" + $PSScriptRoot.Replace("'", "''") + "'"
+  $pdfInvocation = $pdfCalls[0].Extent.Text.Replace('$PSScriptRoot', $rootLiteral)
+  $pdfCommand = [scriptblock]::Create($pdfInvocation + "`nif (`$LASTEXITCODE -ne 0) { throw 'private_pdf_fixture_runtime_exit_failed' }")
+  & $pdfCommand
+  if (![IO.File]::Exists($pdf) -or (Get-Item -LiteralPath $pdf).Length -gt 65536) { throw 'private_pdf_fixture_not_created' }
+  $pdfBytes = [IO.File]::ReadAllBytes($pdf)
+  if ($pdfBytes.Length -lt 5 -or [Text.Encoding]::ASCII.GetString($pdfBytes, 0, 5) -cne '%PDF-' -or
+      $env:PATH -cne $fixtureIsolatedPath) { throw 'private_pdf_fixture_audit_failed' }
+  Write-Host 'Actual native PDF fixture runs with the supplied interpreter and isolated PATH'
 } finally {
   if ($fixtureProcess) {
     if (!$fixtureProcess.HasExited) { $fixtureProcess.Kill(); $fixtureProcess.WaitForExit() }
     $fixtureProcess.Dispose()
   }
+  if ($fixtureOwnsPdfDirectory) { [IO.Directory]::Delete($fixturePdfDirectory, $true) }
   $env:PATH = $fixtureSavedPath
 }
