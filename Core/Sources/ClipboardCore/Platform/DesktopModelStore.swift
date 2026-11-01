@@ -146,9 +146,9 @@ public actor DesktopModelStore {
     gate: DesktopModelCommitGate
   ) async throws {
     let kind = asset.kind
-    var pending: URL?
+    var stage: DesktopModelStage?
     defer {
-      if let pending { try? FileManager.default.removeItem(at: pending) }
+      stage?.cleanup()
       if operation?.id == id { operation = nil }
     }
     do {
@@ -184,6 +184,7 @@ public actor DesktopModelStore {
           set(kind, .missing)
           return
         }
+        try DesktopModelStage.recover(in: directory, kind: kind)
         let records = try removalRecords(in: directory, kind: kind)
         try gate.commit {
           installed[kind] = nil
@@ -205,15 +206,17 @@ public actor DesktopModelStore {
       case .download, .copy:
         _ = try DesktopModelFiles.root(root, create: true)
         _ = try DesktopModelFiles.directory(directory, create: true)
+        try DesktopModelStage.recover(in: directory, kind: kind)
         if let free = try FileManager.default.attributesOfFileSystem(forPath: root.path)[
           .systemFreeSize] as? NSNumber,
           free.int64Value < asset.size + 64 * 1024 * 1024
         {
           throw DesktopModelAssetError.insufficientSpace
         }
-        let file = directory.appendingPathComponent(".pending-" + id.uuidString)
-        try Data().write(to: file, options: .withoutOverwriting)
-        pending = file
+        let created = try DesktopModelStage(
+          directory: directory, asset: asset, accepted: accepted, id: id)
+        stage = created
+        let file = created.file
         set(kind, .downloading(received: 0, total: asset.size))
         switch action {
         case .download:
