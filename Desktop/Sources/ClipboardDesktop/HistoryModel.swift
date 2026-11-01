@@ -359,7 +359,7 @@ final class HistoryModel: ObservableObject {
         startupAvailable = true
       }
       capacityDraft = String(settings.historyCapacity)
-      maxSizeDraft = String(settings.maxClipSizeBytes / (1024 * 1024))
+      maxSizeDraft = DesktopSizeLimit.mibString(forBytes: settings.maxClipSizeBytes)
       blockedAppsDraft = settings.blockedAppIDs.joined(separator: ", ")
       blocklistEnabledDraft = settings.blocklistEnabled
       skipSensitiveDraft = settings.skipSensitive
@@ -765,15 +765,15 @@ final class HistoryModel: ObservableObject {
     guard !shuttingDown else { return }
     // Invalid submissions belong to the same FIFO as successful saves. A
     // previous save must finish before the next validation message is shown.
-    guard let capacity = Int(capacityDraft), let megabytes = Int(maxSizeDraft),
-      (0...16).contains(megabytes)
+    guard let capacity = Int(capacityDraft),
+      let byteLimit = DesktopSizeLimit.bytes(fromMiB: maxSizeDraft)
     else {
-      status = "Enter a capacity of 1–5000 and a size of 0–16 MiB."
+      status = "Enter a capacity of 1–5000 and a valid size in MiB."
       return
     }
     var next = settings
     next.historyCapacity = capacity
-    next.maxClipSizeBytes = megabytes * 1024 * 1024
+    next.maxClipSizeBytes = byteLimit
     next.blockedAppIDs = blockedAppsDraft.split(separator: ",").map {
       $0.trimmingCharacters(in: .whitespacesAndNewlines)
     }.filter { !$0.isEmpty }

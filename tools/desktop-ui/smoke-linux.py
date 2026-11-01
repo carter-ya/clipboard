@@ -984,15 +984,23 @@ try:
     saved_settings = json.loads(saved_file.read_text()) if saved_file.exists() else {}
     check('startup_reconciliation_does_not_save_content_drafts', saved_settings.get('historyCapacity', 100) == 100)
     size_editor = wait_for(lambda: editor_with_value('10'), 'size_preference_editor')
+    size_editor.queryEditableText().setTextContents('0.5')
+    click('Save content settings')
+    wait_for(lambda: json.loads(saved_file.read_text()).get('maxClipSizeBytes') == 524288, 'fractional_size_saved')
+    check('native_fractional_size_threshold_roundtrips', editor_with_value('0.5') == size_editor)
+    size_editor.queryEditableText().setTextContents('32.5')
+    click('Save content settings')
+    wait_for(lambda: json.loads(saved_file.read_text()).get('maxClipSizeBytes') == 34078720, 'large_size_policy_saved')
+    check('native_size_policy_can_exceed_transfer_buffer_limit', True)
     size_editor.queryEditableText().setTextContents('0')
     click('Save content settings')
     wait_for(lambda: has_text('Content settings saved') and
              json.loads(saved_file.read_text()).get('maxClipSizeBytes') == 0, 'disabled_size_preference_saved')
     check('native_settings_can_disable_size_filtering',
-          has_text('0 disables size filtering. Clipboard transfers remain limited to 16 MiB.'))
+          has_text('0 disables size filtering. Use a dot for decimals. Clipboard transfers remain limited to 16 MiB.'))
     wait_for(lambda: editor_with_value('0'), 'disabled_size_editor').queryEditableText().setTextContents('-1')
     click('Save content settings')
-    wait_for(lambda: has_text('Enter a capacity of 1–5000 and a size of 0–16 MiB.'), 'negative_size_preference_rejected')
+    wait_for(lambda: has_text('Enter a capacity of 1–5000 and a valid size in MiB.'), 'negative_size_preference_rejected')
     check('invalid_size_does_not_replace_disabled_preference',
           json.loads(saved_file.read_text()).get('maxClipSizeBytes') == 0)
     click('Allow text summaries')

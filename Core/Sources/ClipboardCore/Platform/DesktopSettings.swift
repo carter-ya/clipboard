@@ -69,7 +69,7 @@ public struct DesktopSettings: Codable, Equatable, Sendable {
   public enum ValidationError: Error { case invalidValue }
   public func validate() throws {
     guard (1...5000).contains(historyCapacity),
-      (0...(16 * 1024 * 1024)).contains(maxClipSizeBytes),
+      maxClipSizeBytes >= 0,
       ["system", "light", "dark"].contains(appearance)
     else { throw ValidationError.invalidValue }
     try ai.validate()

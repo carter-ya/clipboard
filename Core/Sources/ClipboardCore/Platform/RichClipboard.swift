@@ -102,7 +102,7 @@ public final class RichClipboardMonitor: ClipboardMonitoring, @unchecked Sendabl
     // Zero disables the user's item-size filter, including referenced file
     // sizes. Native transfer buffers remain bounded independently.
     self.maxBytes = maxBytes == 0 ? 16 * 1024 * 1024 : min(16 * 1024 * 1024, max(1, maxBytes))
-    itemSizeLimit = maxBytes == 0 ? 0 : self.maxBytes
+    itemSizeLimit = maxBytes == 0 ? 0 : max(1, maxBytes)
     self.interval = max(0.01, interval)
     lastRevision = clipboard.revision()
     (changes, changeOutput) = AsyncStream.makeStream()
