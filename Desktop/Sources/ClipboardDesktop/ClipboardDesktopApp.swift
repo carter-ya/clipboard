@@ -100,6 +100,16 @@ struct HistoryView: View {
           }
         }
       }
+      #if os(Linux)
+        if ProcessInfo.processInfo.environment["WAYLAND_DISPLAY"] != nil {
+          Text(
+            model.t(
+              "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply."
+            )
+          )
+          .font(.system(size: 12)).foregroundColor(.gray)
+        }
+      #endif
       TextField(model.t("Source app ID (optional)"), text: $model.sourceFilter)
         .onChange(of: model.sourceFilter) { Task { @MainActor in await model.refresh() } }
       Divider()

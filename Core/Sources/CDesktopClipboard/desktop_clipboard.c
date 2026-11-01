@@ -1,4 +1,5 @@
 #include "desktop_clipboard.h"
+#include "desktop_wayland.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -13,8 +14,8 @@ void cb_bundle_free(cb_bundle *bundle) {
   free(bundle->source_app);
   free(bundle);
 }
-static int bundle_add(cb_bundle *bundle, int format, const unsigned char *bytes,
-                      size_t length, size_t max) {
+int cb_bundle_append(cb_bundle *bundle, int format, const unsigned char *bytes,
+                     size_t length, size_t max) {
   size_t total = 0;
   for (size_t i = 0; i < bundle->count; ++i)
     total += bundle->payloads[i].length;
@@ -286,7 +287,7 @@ static int read_files(HANDLE data, size_t max, cb_bundle *bundle) {
     used += (size_t)bytes;
     free(path);
   }
-  int status = bundle_add(bundle, CB_FILES, paths, used, max);
+  int status = cb_bundle_append(bundle, CB_FILES, paths, used, max);
   free(paths);
   return status;
 }
@@ -326,7 +327,8 @@ int cb_read_bundle(cb_session *s, size_t max, cb_bundle **out) {
     return status;
   }
   if (status == CB_OK)
-    status = bundle_add(bundle, CB_TEXT, (unsigned char *)text, length, max);
+    status =
+        cb_bundle_append(bundle, CB_TEXT, (unsigned char *)text, length, max);
   free(text);
   if (status < 0 || !OpenClipboard(NULL)) {
     cb_bundle_free(bundle);
@@ -379,12 +381,12 @@ int cb_read_bundle(cb_session *s, size_t max, cb_bundle **out) {
             memcpy(bmp + 2, &file_size, 4);
             memcpy(bmp + 10, &file_offset, 4);
             memcpy(bmp + 14, bytes, size);
-            status = bundle_add(bundle, format, bmp, size + 14, max);
+            status = cb_bundle_append(bundle, format, bmp, size + 14, max);
             free(bmp);
           }
         }
       } else
-        status = bundle_add(bundle, format, bytes, size, max);
+        status = cb_bundle_append(bundle, format, bytes, size, max);
       GlobalUnlock(value);
     }
     if (status < 0)
@@ -577,6 +579,7 @@ typedef struct cb_transfer {
   struct cb_transfer *next;
 } cb_transfer;
 struct cb_session {
+  cw_session *wayland;
   Display *display;
   Window window;
   Atom clipboard, utf8, targets, property, hint, incr;
@@ -719,6 +722,11 @@ cb_session *cb_open(void) {
 void cb_close(cb_session *s) {
   if (!s)
     return;
+  if (s->wayland) {
+    cw_close(s->wayland);
+    free(s);
+    return;
+  }
   while (s->transfers)
     transfer_remove(s, &s->transfers);
   XDestroyWindow(s->display, s->window);
@@ -729,7 +737,9 @@ void cb_close(cb_session *s) {
   cb_bundle_free(s->rich);
   free(s);
 }
-int cb_connection_fd(cb_session *s) { return ConnectionNumber(s->display); }
+int cb_connection_fd(cb_session *s) {
+  return s->wayland ? cw_fd(s->wayland) : ConnectionNumber(s->display);
+}
 
 static void dispatch_event(cb_session *s, XEvent *event) {
   if (transfer_event(s, event))
@@ -798,6 +808,10 @@ static void dispatch_event(cb_session *s, XEvent *event) {
   XFlush(s->display);
 }
 void cb_pump(cb_session *s) {
+  if (s->wayland) {
+    cw_pump(s->wayland);
+    return;
+  }
   XEvent expiry = {0};
   transfer_event(s, &expiry);
   while (XPending(s->display)) {
@@ -807,6 +821,8 @@ void cb_pump(cb_session *s) {
   }
 }
 uint64_t cb_revision(cb_session *s) {
+  if (s->wayland)
+    return cw_revision(s->wayland);
   cb_pump(s);
   return s->revision;
 }
@@ -941,6 +957,8 @@ done:
 
 int cb_read_utf8(cb_session *s, size_t max, char **out, size_t *length,
                  int *sensitive, uint64_t *revision) {
+  if (s->wayland)
+    return CB_UNSUPPORTED;
   *out = NULL;
   *length = 0;
   *sensitive = 0;
@@ -1007,6 +1025,8 @@ int cb_read_utf8(cb_session *s, size_t max, char **out, size_t *length,
 }
 int cb_write_utf8(cb_session *s, const char *text, size_t length,
                   int sensitive) {
+  if (s->wayland)
+    return CB_UNSUPPORTED;
   if (length > 16 * 1024 * 1024)
     return CB_TOO_LARGE;
   if (memchr(text, 0, length))
@@ -1091,6 +1111,8 @@ static char *clipboard_source(cb_session *s, Window owner) {
   return result;
 }
 int cb_read_bundle(cb_session *s, size_t max, cb_bundle **out) {
+  if (s->wayland)
+    return cw_read(s->wayland, max, out);
   *out = NULL;
   if (!max || max > 16 * 1024 * 1024)
     return CB_INVALID;
@@ -1154,7 +1176,7 @@ int cb_read_bundle(cb_session *s, size_t max, cb_bundle **out) {
     value = NULL;
     status = convert(s, target, max, &value, &count, &format);
     if (status == CB_OK && format == 8)
-      status = bundle_add(bundle, f, value, count, max);
+      status = cb_bundle_append(bundle, f, value, count, max);
     else if (status == CB_OK)
       status = CB_INVALID;
     if (value)
@@ -1176,6 +1198,8 @@ int cb_read_bundle(cb_session *s, size_t max, cb_bundle **out) {
 }
 int cb_write_bundle(cb_session *s, const cb_payload *payloads, size_t count,
                     int sensitive) {
+  if (s->wayland)
+    return cw_write(s->wayland, payloads, count, sensitive);
   if (!count || count > 8)
     return CB_INVALID;
   cb_bundle *next = calloc(1, sizeof(*next));
@@ -1192,8 +1216,8 @@ int cb_write_bundle(cb_session *s, const cb_payload *payloads, size_t count,
         cb_bundle_free(next);
         return CB_INVALID;
       }
-    int result = bundle_add(next, payloads[i].format, payloads[i].data,
-                            payloads[i].length, 16 * 1024 * 1024);
+    int result = cb_bundle_append(next, payloads[i].format, payloads[i].data,
+                                  payloads[i].length, 16 * 1024 * 1024);
     if (result < 0) {
       cb_bundle_free(next);
       return result;
@@ -1270,4 +1294,35 @@ int cb_pending_transfers(cb_session *s) {
   (void)s;
   return 0;
 #endif
+}
+
+cb_session *cb_open_rich(const char *wayland_display, int *error) {
+  if (error)
+    *error = CB_UNAVAILABLE;
+#if defined(__linux__)
+  if (wayland_display) {
+    int status = CB_UNAVAILABLE;
+    cw_session *wayland = cw_open(wayland_display, &status);
+    if (!wayland) {
+      if (error)
+        *error = status;
+      return NULL;
+    }
+    cb_session *session = calloc(1, sizeof(*session));
+    if (!session) {
+      cw_close(wayland);
+      return NULL;
+    }
+    session->wayland = wayland;
+    if (error)
+      *error = CB_OK;
+    return session;
+  }
+#else
+  (void)wayland_display;
+#endif
+  cb_session *session = cb_open();
+  if (session && error)
+    *error = CB_OK;
+  return session;
 }

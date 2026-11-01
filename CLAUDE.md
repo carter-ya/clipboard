@@ -68,7 +68,7 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Cross-platform delivery uses stacked PRs: each layer targets the preceding branch, with implementation and native-test evidence. Do not mark untested keyboard/IME/DPI or unsupported Wayland capabilities as complete. The WinUI accessibility crash reproduced in the prior experiment must be resolved before accepting Windows UI controls.
 
-- Native text clipboard adapters live in `DesktopClipboard` plus a C system shim. Windows uses Unicode clipboard APIs; Linux X11 uses XFixes notifications and an event-driven selection owner. Wayland is explicitly unsupported until CP7. Native tests exchange synthetic text with an independent process in the CI clipboard or isolated Xvfb; no user desktop clipboard is used locally.
+- Native text clipboard adapters live in `DesktopClipboard` plus a C system shim. Windows uses Unicode clipboard APIs; Linux X11 uses XFixes notifications and an event-driven selection owner. The legacy text-only adapter rejects Wayland; the rich adapter uses native wlr data control in CP7, with GTK copy-only fallback on restricted compositors. Native tests exchange synthetic text with an independent process in the CI clipboard or isolated Xvfb; no user desktop clipboard is used locally.
 
 - `Desktop/` is the Windows/Linux SwiftCrossUI application package. It explicitly uses GtkBackend; Windows GTK must include AccessKit and pass native UI Automation controls. The historical WinUI crash is not accepted as a successful port. Normal launches never seed sample history; only --smoke-root may inject synthetic fixtures. Keep GTK/Win32/X11 dependencies out of portable Core contracts.
 
@@ -77,6 +77,8 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Desktop rich capture uses Core RichClipboardAccess and a native adapter. Resolve blob bytes/decode images off UI; sensitive previews stay hidden. Desktop history archives are bounded, self-contained JSON (not macOS ZIP), exclude sensitive items and reject external blob references. Source IDs come from clipboard owner metadata, never the foreground app. INCR transfer timers exist only while outgoing transfers are active.
 
 - DesktopServices owns OS credential/startup/OCR and bounded AI transport adapters. No plaintext credential fallback, keys in JSON or payloads in command arguments. Explicit remote/image/automatic opt-ins are separate; sensitive/concealed items fail before resolution or networking. Linux service tests run on a fresh DBus session with private keyring/config directories; Windows uses distinct synthetic credential/startup identities. GTK theme and language updates must preserve editors and require no UI polling.
+
+- Wayland capture requires wlr data control and the first advertised seat. It has no source-app identity or primary-selection capture. Global shortcuts use the desktop portal, restore only previously approved bindings, and require an explicit settings action for new permission. Never bypass restricted capture through RemoteDesktop permissions. Preserve one-shot activation tokens only in memory. Tests own their compositor/DBus session; the fallback UI test creates only a private mouse device, never a keyboard. Real portal keyboard focus/IME remains unverified.
 - The pinned SwiftCrossUI GTK main-loop patch releases one-shot callback contexts and prevents zero-delay timeouts from starving AccessKit idle actions. Keep native accessibility focus/button checks as hard gates; a visible tree alone is insufficient.
 
 - The pinned GTK AccessKit patch handles editable SetValue with native sensitivity/editability checks and schedules accessibility input at default priority. Optional CI diagnostics contain action/target IDs only, never text. UI Automation clients run MTA; native focus/action success remains required.
@@ -106,4 +108,7 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Automatic desktop analysis uses the bounded ID-only serial scheduler; a busy manual action must not discard inserted clips. Recheck live settings and the current item when dequeuing, exclude sensitive/concealed or already analyzed clips, report overflow, and cancel/clear work on shutdown. Keep manual duplicate actions guarded.
 
+- Wayland activation tokens belong to immutable shell events. Copy the borrowed native callback string into its matching showHistory event; unrelated or delayed actions must not consume a shared token slot. Keep the delayed-consumer, two-distinct-activations portal regression.
 - Every whole-settings save, including appearance and language, must await the same MainActor FIFO save gate before reading the latest settings, retain its lease through persistence and in-memory update, and release it with defer. Do not drop rapid presentation actions or restore stale AI/privacy opt-outs. Pending writers must skip work during shutdown.
+
+- Wayland receive pipes must keep the descriptor sent to an external producer blocking. Apply O_NONBLOCK only to the local reader, retain CLOEXEC, and test the actual helper with a complete large transfer from an independent blocking writer.

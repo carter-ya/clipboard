@@ -16,6 +16,7 @@ private final class GtkActionBox: @unchecked Sendable {
   private var application: UnsafeMutablePointer<GApplication>?
   private var signals: [(UnsafeMutableRawPointer, gulong)] = []
   private var focusRequested = false
+  var activationToken: String?
   var activationTimestamp: UInt32 = 0
   var closeRequested: (@MainActor () -> Void)?
   var reopenRequested: (@MainActor () -> Void)?
@@ -82,6 +83,10 @@ private final class GtkActionBox: @unchecked Sendable {
   func present() {
     guard let window else { return }
     let pointer = UnsafeMutablePointer<GtkWindow>(OpaquePointer(window.widgetPointer))
+    if let token = activationToken {
+      gtk_window_set_startup_id(pointer, token)
+      activationToken = nil
+    }
     gtk_window_present_with_time(pointer, activationTimestamp)
   }
   func hide() {

@@ -20,9 +20,9 @@ import Foundation
     guard shell.capabilities.tray else { throw DesktopShellError.unavailable }
     let actions = shell.actions
     let task = Task.detached {
-      for await action in actions {
+      for await event in actions {
         guard !Task.isCancelled else { break }
-        FileHandle.standardOutput.write(Data("action:\(action.rawValue)\n".utf8))
+        FileHandle.standardOutput.write(Data("action:\(event.action.rawValue)\n".utf8))
       }
     }
     defer { task.cancel() }
@@ -33,6 +33,44 @@ import Foundation
       if command == "language:en" { shell.updateLanguage("en") }
       if command == "recording:on" { shell.updateRecording(true) }
       if command == "recording:off" { shell.updateRecording(false) }
+    }
+  }
+
+  func runPortalPeer() throws {
+    guard ProcessInfo.processInfo.environment["CLIPBOARD_PRIVATE_PORTAL_TEST"] == "1" else {
+      throw DesktopShellError.unavailable
+    }
+    let shell = NativeDesktopShell()
+    try shell.start(shortcut: DesktopShortcut(parsing: "Ctrl+Alt+F12"), recording: false)
+    defer { shell.stop() }
+    let consume = DispatchSemaphore(value: 0)
+    let task = Task.detached {
+      consume.wait()
+      var activation = 0
+      for await event in shell.actions {
+        if event.action == .showHistory {
+          activation += 1
+          let expected = activation == 1 ? "synthetic-activation-token" : "synthetic-second-token"
+          FileHandle.standardOutput.write(
+            Data("activated:\(event.activationToken == expected)\n".utf8))
+        } else if event.activationToken != nil {
+          FileHandle.standardOutput.write(Data("unexpected-token\n".utf8))
+        }
+      }
+    }
+    defer {
+      consume.signal()
+      task.cancel()
+    }
+    while let command = readLine() {
+      if command == "quit" { break }
+      if command == "consume" { consume.signal() }
+      if command == "request" { shell.requestShortcutPermission() }
+      if command == "status" {
+        let caps = shell.capabilities
+        FileHandle.standardOutput.write(
+          Data("status:\(caps.shortcutPortal.rawValue):\(caps.globalShortcut)\n".utf8))
+      }
     }
   }
 
