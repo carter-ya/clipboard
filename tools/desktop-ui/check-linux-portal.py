@@ -6,16 +6,25 @@ import os
 import queue
 import subprocess
 import threading
+import tempfile
+from pathlib import Path
 import time
 import dbus
 import dbus.service
 from dbus.mainloop.glib import DBusGMainLoop
-from gi.repository import GLib
+from gi.repository import GLib, Gio
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--executable', required=True)
 parser.add_argument('--output', required=True)
 args = parser.parse_args()
+subprocess.run([os.sys.executable, str(Path(__file__).with_name('test-linux-desktop-entry.py'))], check=True, timeout=30)
+# Own both XDG lookup roots; never inspect the host application registry.
+private_data = tempfile.TemporaryDirectory(prefix='clipboard-portal-app-')
+os.environ['XDG_DATA_HOME'] = private_data.name
+os.environ['XDG_DATA_DIRS'] = private_data.name
+subprocess.run([os.sys.executable, str(Path(__file__).with_name('install-linux-desktop-entry.py')),
+                '--executable', os.path.abspath(args.executable)], check=True, timeout=10)
 DBusGMainLoop(set_as_default=True)
 bus = dbus.SessionBus()
 if bus.name_has_owner('org.freedesktop.portal.Desktop'):
@@ -89,10 +98,14 @@ def request(sender, options, code, results):
 class Portal(dbus.service.Object):
     @dbus.service.method('org.freedesktop.host.portal.Registry', in_signature='sa{sv}', out_signature='', sender_keyword='sender')
     def Register(self, app_id, options, sender):
+        if not Gio.DesktopAppInfo.new(str(app_id) + '.desktop'):
+            raise dbus.exceptions.DBusException('Missing application entry', name='org.freedesktop.portal.Error.NotFound')
         registrations.append((sender, str(app_id)))
 
     @dbus.service.method(SHORTCUTS, in_signature='a{sv}', out_signature='o', sender_keyword='sender')
     def CreateSession(self, options, sender):
+        if (sender, 'com.clipboard.desktop') not in registrations:
+            raise dbus.exceptions.DBusException('Application is not registered', name='org.freedesktop.portal.Error.NotAllowed')
         path = ROOT + '/session/' + sender[1:].replace('.', '_') + '/' + str(options['session_handle_token'])
         Session(path)
         return request(sender, options, 0, {'session_handle': dbus.String(path)})
@@ -162,6 +175,7 @@ def emit(function):
 
 
 try:
+    check('development_application_entry_is_discoverable', Gio.DesktopAppInfo.new('com.clipboard.desktop.desktop') is not None)
     check('first_start_requires_explicit_portal_permission', status('status:2:false'))
     check('startup_does_not_prompt_for_new_shortcut', not bindings)
     check('host_connection_registers_stable_application_identity', registrations[0][1] == 'com.clipboard.desktop')
@@ -211,6 +225,7 @@ finally:
             peer.wait()
     loop.quit()
     thread.join(timeout=3)
+    private_data.cleanup()
     with open(args.output, 'w') as output:
         json.dump({'passed': completed and bool(checks) and all(x['passed'] for x in checks), 'checks': checks}, output, indent=2)
 print(json.dumps({'passed': all(x['passed'] for x in checks), 'checks': checks}, indent=2))
