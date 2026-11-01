@@ -738,10 +738,12 @@ function Get-LocalFileModelCapture([string]$Filename) {
     return $captured
   } finally { Stop-LocalTextPeer $ownedFilePeer }
 }
-function Assert-LocalFileModelResult($Original, [string[]]$Expected, [string]$CheckName) {
-  Wait-For { (Get-LocalTextRecord $Original.id).summarySource -ceq 'localGenerative' } ($CheckName + '_real_generation') 100 | Out-Null
+function Assert-LocalFileModelResult($Original, [string[]]$Expected, [string]$CheckName,
+    [string]$Source = 'localGenerative', [string]$ResultLabel = 'Local generated summary') {
+  $resultWaitSeconds = if ($Source -ceq 'localGenerative') { 100 } else { 40 }
+  Wait-For { (Get-LocalTextRecord $Original.id).summarySource -ceq $Source } ($CheckName + '_real_inference') $resultWaitSeconds | Out-Null
   $result = Get-LocalTextRecord $Original.id
-  Wait-For { (Find-Named 'Summary ready') -and (Find-Named 'Local generated summary') -and
+  Wait-For { (Find-Named 'Summary ready') -and (Find-Named $ResultLabel) -and
     (Find-Named $result.summary) -and (Test-PublicControlEnabled 'Summarize locally') } ($CheckName + '_visible_result') | Out-Null
   $factsMatch = $true
   foreach ($word in $Expected) { if ($result.summary.IndexOf($word, [StringComparison]::OrdinalIgnoreCase) -lt 0) { $factsMatch = $false } }
@@ -899,8 +901,18 @@ try {
       Assert-LocalFileModelResult $automaticFile @('Mars', 'Friday') 'real_automatic_file_generation'
       Assert-LocalFileModelCopy 'automatic-body.txt' 'real_automatic_file_generation'
       $fileSettings = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
-      Add-Check 'actual_local_file_models_never_enable_remote_or_other_local_engines' (!$fileSettings.ai.enabled -and
+      Add-Check 'file_permissions_do_not_enable_remote_or_other_local_engines' (!$fileSettings.ai.enabled -and
         !$fileSettings.localTextSummariesEnabled -and !$fileSettings.localLanguageSummariesEnabled)
+      Set-LocalTextSettings @('Enable local generated summaries', 'Enable local language and names') 'automatic-body.txt'
+      Set-LocalTextSearch 'private-body.pdf'
+      # Explicit Copy promoted its timestamp; compare to the current record.
+      $languagePDF = Get-LocalTextRecord $pdfFile.id
+      Invoke-Button 'Summarize locally'
+      Assert-LocalFileModelResult $languagePDF @('Apple Inc', 'Tim Cook', 'Tokyo') 'real_pdf_language_and_names' 'localLanguage' 'Local language and names'
+      Assert-LocalFileModelCopy 'private-body.pdf' 'real_pdf_language_and_names'
+      $fileSettings = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
+      Add-Check 'automatic_file_consent_does_not_grant_language_engine_automatic_permission' ($fileSettings.automaticLocalFileSummaries -and
+        $fileSettings.localLanguageSummariesEnabled -and !$fileSettings.automaticLocalLanguageSummaries)
       $sourcesUnchanged = $true
       foreach ($filename in $sourceDigests.Keys) {
         if ((Get-ModelOperationDigest (Join-Path $historyRoot $filename)) -cne $sourceDigests[$filename]) { $sourcesUnchanged = $false }

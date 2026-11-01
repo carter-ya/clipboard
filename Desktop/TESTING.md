@@ -246,3 +246,13 @@ Successful inference uses the real worker without held/fake analysis fixtures.
 Windows uses the selected fixture Python to create the same fixed PDF. Both
 installed checkers include this mode. Final native and installed validation of
 this dependent layer remains open.
+
+Final new-label Linux arm64 file-model native acceptance passes nineteen checks:
+manual text-file and PDF generation, automatic file generation, PDF language and
+entity analysis, original file Copy, visible idle results, per-analysis metadata
+and immutable file bytes. The three generated summaries are checked against
+their fixed source facts. Reanalysis snapshots the current record after earlier
+explicit Copy promotion; the timestamp change belongs to Copy, not analysis.
+The preceding recovery package passes all fourteen installation, 211 full UI,
+eight model settings, nineteen text-model and fourteen model-operation checks.
+The new file-model package and native Windows validation remain open.

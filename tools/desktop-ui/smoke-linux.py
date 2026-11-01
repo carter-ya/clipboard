@@ -700,11 +700,11 @@ try:
                 except subprocess.TimeoutExpired:
                     peer.kill()
                     peer.wait(timeout=5)
-        def actual_file_result(original, expected, name):
-            wait_for(lambda: file_record(original['id']).get('summarySource') == 'localGenerative',
-                     name + '_real_generation', seconds=100)
+        def actual_file_result(original, expected, name, source='localGenerative', label='Local generated summary'):
+            wait_for(lambda: file_record(original['id']).get('summarySource') == source,
+                     name + '_real_inference', seconds=100 if source == 'localGenerative' else 30)
             result = file_record(original['id'])
-            wait_for(lambda: has_texts('Summary ready', 'Local generated summary', result['summary']) and
+            wait_for(lambda: has_texts('Summary ready', label, result['summary']) and
                      button('Summarize locally').getState().contains(pyatspi.STATE_SENSITIVE), name + '_visible_result')
             check(name + '_summarizes_body_facts_without_filename',
                   all(word.lower() in result['summary'].lower() for word in expected) and
@@ -750,9 +750,22 @@ try:
         file_search('automatic-body.txt')
         actual_file_result(automatic_file, ['Mars', 'Friday'], 'real_automatic_file_generation')
         copy_original_file('automatic-body.txt', 'real_automatic_file_generation')
-        check('actual_local_file_models_never_enable_remote_or_other_local_engines',
+        check('file_permissions_do_not_enable_remote_or_other_local_engines',
               not file_settings().get('ai', {}).get('enabled', False) and
               not any(file_settings().get(key, False) for key in ['localTextSummariesEnabled', 'localLanguageSummariesEnabled']))
+        change_file_permission('Enable local generated summaries', 'localGenerativeSummariesEnabled', 'automatic-body.txt')
+        change_file_permission('Enable local language and names', 'localLanguageSummariesEnabled', 'automatic-body.txt')
+        file_search('private-body.pdf')
+        # Earlier explicit Copy correctly promoted this record's timestamp.
+        # Compare analysis with the current record, not its pre-Copy snapshot.
+        language_pdf = file_record(pdf_file['id'])
+        click('Summarize locally')
+        actual_file_result(language_pdf, ['Apple Inc', 'Tim Cook', 'Tokyo'], 'real_pdf_language_and_names',
+                           source='localLanguage', label='Local language and names')
+        copy_original_file('private-body.pdf', 'real_pdf_language_and_names')
+        check('automatic_file_consent_does_not_grant_language_engine_automatic_permission',
+              file_settings()['automaticLocalFileSummaries'] and file_settings()['localLanguageSummariesEnabled'] and
+              not file_settings().get('automaticLocalLanguageSummaries', False))
         check('actual_generation_leaves_all_original_file_bytes_unchanged', all(
               hashlib.sha256((history_root / name).read_bytes()).hexdigest() == digest for name, digest in source_hashes.items()))
         click('Pause recording')
