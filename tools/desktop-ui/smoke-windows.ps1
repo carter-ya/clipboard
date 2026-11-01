@@ -1313,9 +1313,9 @@ try {
     if ($ClipboardPeer) {
       Invoke-Button 'Settings'
       Wait-For { Find-Named 'Preferences' } 'local_image_automatic_settings' | Out-Null
-      Invoke-VisiblePublicControl 'Automatically recognize images'
-      Invoke-VisiblePublicControl 'Include local image labels in automatic recognition'
-      Invoke-VisiblePublicControl 'Save AI settings'
+      Invoke-VisibleConnectionButton 'Automatically recognize images'
+      Invoke-VisibleConnectionButton 'Include local image labels in automatic recognition'
+      Invoke-VisibleConnectionButton 'Save AI settings'
       $settingsPath = Join-Path $historyRoot 'desktop-settings.json'
       Wait-For { (Read-SharedJson $settingsPath).automaticLocalImageSummaries -eq $true } 'local_image_auto_opt_in_saved' | Out-Null
       $localSettings = Read-SharedJson $settingsPath
@@ -1336,8 +1336,8 @@ try {
         Add-Check 'automatic_image_labels_use_their_own_progress_mode' $true
         Invoke-Button 'Settings'
         Wait-For { Find-Named 'Preferences' } 'local_image_revoke_settings' | Out-Null
-        Invoke-VisiblePublicControl 'Include local image labels in automatic recognition'
-        Invoke-VisiblePublicControl 'Save AI settings'
+        Invoke-VisibleConnectionButton 'Include local image labels in automatic recognition'
+        Invoke-VisibleConnectionButton 'Save AI settings'
         Wait-For { (Test-LocalImageCounter 3 -Finished) -and (Read-SharedJson $settingsPath).automaticLocalImageSummaries -eq $false } 'local_image_revocation_drained' | Out-Null
         [IO.File]::WriteAllText($releaseImage, '1')
         Invoke-Button 'Back to history'
@@ -1350,8 +1350,8 @@ try {
       }
       Invoke-Button 'Settings'
       Wait-For { Find-Named 'Preferences' } 'local_image_resume_auto_settings' | Out-Null
-      Invoke-VisiblePublicControl 'Include local image labels in automatic recognition'
-      Invoke-VisiblePublicControl 'Save AI settings'
+      Invoke-VisibleConnectionButton 'Include local image labels in automatic recognition'
+      Invoke-VisibleConnectionButton 'Save AI settings'
       Wait-For { (Read-SharedJson $settingsPath).automaticLocalImageSummaries -eq $true } 'local_image_auto_restored' | Out-Null
       Invoke-Button 'Back to history'
       Set-Search ''
