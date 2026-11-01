@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Exercise accessible GTK controls in an isolated Xvfb/DBus desktop, no key injection."""
 import argparse
+import base64
+import hashlib
+import shutil
 import ctypes
 import json
 import os
@@ -31,6 +34,7 @@ limitations = [
     "Real Chinese IME composition and global hotkey focus transfer remain untested.",
 ]
 history_root = out / ('history-' + uuid.uuid4().hex)
+primary_history_root = history_root
 app = None
 wm = None
 sensitive_probe = False
@@ -448,6 +452,50 @@ try:
     wait_for(lambda: has_text('Preferences'), 'background_settings')
     click('Quit Clipboard')
     app.wait(timeout=10)
+    history_root = out / ('history-counts-' + uuid.uuid4().hex)
+    history_root.mkdir()
+    snapshot = json.loads((primary_history_root / 'history.json').read_text())
+    shutil.copytree(primary_history_root / 'blobs', history_root / 'blobs')
+    mixed_text = b'Legacy mixed fixture'
+    mixed = dict(snapshot['items'][0])
+    mixed.update(id=str(uuid.uuid4()), kind='mixed', preview=mixed_text.decode(), pinned=False,
+                 sensitive=False, sha256=hashlib.sha256(mixed_text).hexdigest(), sizeBytes=len(mixed_text),
+                 payloads=[{'pasteboardType': 'public.utf8-plain-text',
+                            'inlineData': base64.b64encode(mixed_text).decode()}])
+    for key in ['summary', 'summarySource', 'sensitivityReason']:
+        mixed.pop(key, None)
+    snapshot['items'].insert(0, mixed)
+    expected_all = len(snapshot['items'])
+    (history_root / 'history.json').write_text(json.dumps(snapshot))
+    app = subprocess.Popen([str(Path(args.executable).resolve()), '--data-root', str(history_root)],
+                           stdout=log, stderr=log, start_new_session=True)
+    wait_for(lambda: has_text('Ready') and has_text(str(expected_all) + ' items') and button('Mixed'), 'counted_history_ready')
+    check('query_wide_tab_and_type_counts_are_visible', has_text('(' + str(expected_all) + ')') and has_text('(2)'))
+    screenshot('history-counts.png')
+    click('Mixed')
+    wait_for(lambda: has_text('1 items') and has_text('Legacy mixed fixture'), 'legacy_mixed_filter')
+    check('legacy_mixed_kind_can_be_filtered', has_text('(' + str(expected_all) + ')'))
+    click('Pin / unpin')
+    wait_for(lambda: has_text('Item pinned'), 'pin_legacy_mixed')
+    click('Pinned')
+    wait_for(lambda: has_text('1 items') and not has_text('(2)'), 'pinned_kind_counts')
+    click('Text')
+    wait_for(lambda: has_text('0 items'), 'empty_pinned_kind')
+    check('kind_counts_follow_pinned_tab_without_collapsing_library_total',
+          has_text('(' + str(expected_all) + ')') and has_text('(1)') and not has_text('(2)'))
+    click('All')
+    wait_for(lambda: has_text('2 items') and has_text('(2)'), 'all_tab_restores_text_count')
+    wait_for(editor, 'counted_query_editor').queryEditableText().setTextContents('Legacy mixed fixture')
+    wait_for(lambda: has_text('0 items') and not has_text('(' + str(expected_all) + ')'), 'query_updates_cross_kind_counts')
+    click('Mixed')
+    wait_for(lambda: has_text('1 items') and has_text('Legacy mixed fixture'), 'matched_mixed_kind')
+    check('tab_and_type_counts_follow_the_active_query', has_text('(1)') and not has_text('(' + str(expected_all) + ')'))
+    click('Settings')
+    wait_for(lambda: has_text('Preferences'), 'counted_history_quit_settings')
+    click('Quit Clipboard')
+    app.wait(timeout=10)
+    check('counted_history_quits_cleanly', app.returncode == 0)
+
     sensitive_probe = True
     history_root = out / ('sensitive-preview-' + uuid.uuid4().hex)
     app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root), '--smoke-sensitive'],
