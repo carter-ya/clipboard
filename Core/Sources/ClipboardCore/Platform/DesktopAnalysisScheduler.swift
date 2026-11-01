@@ -7,15 +7,18 @@ public final class DesktopAnalysisScheduler {
     public let id: UUID
     public let remote: Bool
     public let automatic: Bool
-    public init(id: UUID, remote: Bool, automatic: Bool) {
+    public let imageSummary: Bool
+    public init(id: UUID, remote: Bool, automatic: Bool, imageSummary: Bool = false) {
       self.id = id
       self.remote = remote
       self.automatic = automatic
+      self.imageSummary = imageSummary
     }
 
     /// Evaluate against the current item and preferences when work begins.
     public func isAllowed(item: ClipItem, settings: DesktopSettings) -> Bool {
-      guard item.id == id, !item.sensitive,
+      guard !(remote && imageSummary), !imageSummary || item.kind == .image,
+        item.id == id, !item.sensitive,
         !item.payloads.contains(where: { $0.pasteboardType == SensitivityFilter.concealedType })
       else { return false }
       if remote && !settings.ai.allowsSummary(of: item.kind) { return false }
@@ -33,6 +36,7 @@ public final class DesktopAnalysisScheduler {
         return settings.automaticSummaries
       }
       if item.kind == .file { return settings.automaticLocalFileSummaries }
+      if imageSummary { return settings.automaticOCR && settings.automaticLocalImageSummaries }
       return item.kind == .image ? settings.automaticOCR : settings.automaticLocalSummaries
     }
     public func localFallback(item: ClipItem, settings: DesktopSettings) -> Request? {

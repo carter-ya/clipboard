@@ -557,6 +557,15 @@ function Set-Search([string]$Text) {
   $pattern = $element.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
   $pattern.SetValue($Text)
 }
+function Wait-RestoredHistorySearch([string]$Query, [string]$WaitCheckName) {
+  # A generic Edit may still belong to the outgoing settings tree. Require
+  # the retained query and mapped history filters before returning its control.
+  return Wait-For {
+    $control = Get-EditorWithValue $Query
+    $filters = Find-Named 'All types'
+    if ($control -and !$control.Current.IsOffscreen -and $filters -and !$filters.Current.IsOffscreen) { $control }
+  } $WaitCheckName
+}
 function Wake-Existing {
   $peer = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
     -ArgumentList @('--data-root', ('"' + $historyRoot + '"')) -PassThru
@@ -1217,6 +1226,187 @@ try {
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'activation_failure_quit_timeout' }
     Add-Check 'activation_failure_profile_quits_cleanly' ($application.ExitCode -eq 0)
+
+    # All image bytes and gate files belong to this non-sensitive private profile.
+    $historyRoot = Join-Path $OutputDirectory ('local-image-' + [Guid]::NewGuid().ToString('N'))
+    [IO.Directory]::CreateDirectory($historyRoot) | Out-Null
+    $localImageID, $otherContextID = [Guid]::NewGuid().ToString(), [Guid]::NewGuid().ToString()
+    $localImageBytes = [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKklEQVR4nGMIqNhCU8QwasGoBaMWjFowasGoBaMWjFowasGoBaMWDBULAJgR8EwPssSwAAAAAElFTkSuQmCC')
+    $otherContextBytes = [Text.Encoding]::UTF8.GetBytes('Other analysis context fixture')
+    function Get-LocalImageHash([byte[]]$Bytes) {
+      $hash = [Security.Cryptography.SHA256]::Create()
+      try { return ([BitConverter]::ToString($hash.ComputeHash($Bytes))).Replace('-', '').ToLowerInvariant() }
+      finally { $hash.Dispose() }
+    }
+    $localImageItems = @(
+      @{ id=$localImageID; createdAt='2023-11-14T22:13:20Z'; kind='image'; preview='Local image fixture';
+         pinned=$false; sensitive=$false; sha256=(Get-LocalImageHash $localImageBytes); sizeBytes=$localImageBytes.Length;
+         sourceBundleID='linux:LocalImageFixture';
+         payloads=@(@{ pasteboardType='public.png'; inlineData=[Convert]::ToBase64String($localImageBytes) }) },
+      @{ id=$otherContextID; createdAt='2023-11-14T22:12:20Z'; kind='text'; preview='Other analysis context fixture';
+         pinned=$false; sensitive=$false; sha256=(Get-LocalImageHash $otherContextBytes); sizeBytes=$otherContextBytes.Length;
+         payloads=@(@{ pasteboardType='public.utf8-plain-text'; inlineData=[Convert]::ToBase64String($otherContextBytes) }) })
+    [IO.File]::WriteAllText((Join-Path $historyRoot 'history.json'),
+      (@{ version=1; items=$localImageItems } | ConvertTo-Json -Depth 12), [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText((Join-Path $historyRoot 'desktop-settings.json'), '{"languageOverride":"en"}', [Text.UTF8Encoding]::new($false))
+    function Get-LocalImageRecords { return (Read-SharedJson (Join-Path $historyRoot 'history.json')).items }
+    function Get-LocalImageRecord([string]$ID) { return Get-LocalImageRecords | Where-Object { $_.id -eq $ID } }
+    function Test-LocalImageCounter([int]$Count, [switch]$Finished) {
+      $name = if ($Finished) { '.local-image-finished' } else { '.local-image-started' }
+      $path = Join-Path $historyRoot $name
+      if (!(Test-Path $path)) { return $false }
+      try { return [int](Read-SharedJson $path) -eq $Count } catch { return $false }
+    }
+    function Test-LocalImageCopy([byte[]]$Expected) {
+      $actual = Wait-For { [PreviewNative]::ReadRichClipboard('PNG') } 'local_image_native_png'
+      if ($actual.Length -lt $Expected.Length) { return $false }
+      for ($index = 0; $index -lt $Expected.Length; $index++) { if ($actual[$index] -ne $Expected[$index]) { return $false } }
+      # GlobalSize can include zero-filled native allocation padding after IEND.
+      for ($index = $Expected.Length; $index -lt $actual.Length; $index++) { if ($actual[$index] -ne 0) { return $false } }
+      return $true
+    }
+    function Start-LocalImagePeer([string]$Mode, [string]$File) {
+      $info = New-Object Diagnostics.ProcessStartInfo
+      $info.FileName = [IO.Path]::GetFullPath($ClipboardPeer)
+      $info.Arguments = 'rich-clipboard-peer ' + $Mode
+      if ($File) { $info.Arguments += ' "' + [IO.Path]::GetFullPath($File) + '"' }
+      $info.UseShellExecute = $false
+      $info.RedirectStandardInput = $true
+      $info.RedirectStandardOutput = $true
+      $info.RedirectStandardError = $true
+      $process = [Diagnostics.Process]::Start($info)
+      $null = $process.StandardError.BaseStream.CopyToAsync([IO.Stream]::Null)
+      $line = $process.StandardOutput.ReadLineAsync()
+      if (!$line.Wait(10000) -or $line.Result -ne 'ready') { $process.Kill(); throw 'local_image_peer_startup' }
+      return $process
+    }
+    $releaseImage = Join-Path $historyRoot '.local-image-release'
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) -ArgumentList @('--smoke-root', ('"' + $historyRoot + '"'), '--smoke-local-image') -PassThru -RedirectStandardOutput (Join-Path $OutputDirectory 'local-image.stdout.log') -RedirectStandardError (Join-Path $OutputDirectory 'local-image.stderr.log')
+    $null = $application.Handle
+    $nativeWindowHandle = Wait-For { $h = [PreviewNative]::FindWindow([uint32]$application.Id); if ($h -ne [IntPtr]::Zero) { $h } } 'local_image_window'
+    $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '2 items') -and (Get-ImagePreview) } 'local_image_profile_ready' | Out-Null
+    Set-Search 'Local image fixture'
+    Wait-For { (Find-Named '1 items') -and (Find-Named 'Local image fixture') } 'local_image_selected' | Out-Null
+    Invoke-Button 'Analyze image locally'
+    Wait-For { (Test-LocalImageCounter 1) -and (Find-Named 'Analyzing image locally…') } 'local_image_owned_progress' | Out-Null
+    Add-Check 'local_image_analysis_exposes_its_actual_progress' $true
+    Set-Search 'Other analysis context'
+    Wait-For { (Find-Named 'Other analysis context fixture') -and !(Get-ImagePreview) } 'local_image_other_selection' | Out-Null
+    Add-Check 'local_image_progress_does_not_follow_another_item' (!(Find-Named 'Analyzing image locally…'))
+    Set-Search 'Local image fixture'
+    Wait-For { (Find-Named 'Analyzing image locally…') -and (Get-ImagePreview) } 'local_image_progress_restored' | Out-Null
+    Save-Screenshot 'local-image-analysis-progress.png'
+    [IO.File]::WriteAllText($releaseImage, '1')
+    Wait-For { (Test-LocalImageCounter 1 -Finished) -and (Find-Named 'Could not analyze the image locally.') -and
+      (Find-Named 'Retry image analysis') } 'local_image_failure_retry' | Out-Null
+    Add-Check 'local_image_failure_keeps_the_mode_specific_retry' $true
+    [IO.File]::Delete($releaseImage)
+    Invoke-Button 'Retry image analysis'
+    Wait-For { (Test-LocalImageCounter 2) -and (Find-Named 'Analyzing image locally…') } 'local_image_retry_keeps_mode' | Out-Null
+    [IO.File]::WriteAllText($releaseImage, '1')
+    Wait-For { (Test-LocalImageCounter 2 -Finished) -and (Get-LocalImageRecord $localImageID).summarySource -ceq 'localImage' } 'local_image_result_persisted' | Out-Null
+    $localResult = Get-LocalImageRecord $localImageID
+    Wait-For { (Find-Named 'Local image result') -and (Find-Named $localResult.summary) } 'local_image_result_visible' | Out-Null
+    Add-Check 'local_image_retry_runs_the_real_offline_classifier' $true
+    Add-Check 'local_image_analysis_keeps_original_preview_source_and_png' (
+      $localResult.preview -ceq $localImageItems[0].preview -and $localResult.sourceBundleID -ceq $localImageItems[0].sourceBundleID -and
+      $localResult.payloads[0].pasteboardType -ceq 'public.png' -and $localResult.payloads[0].inlineData -ceq $localImageItems[0].payloads[0].inlineData)
+    $row = Get-PublicHistoryRow $localResult.summary
+    Add-Check 'local_image_result_reaches_its_history_row' ($null -ne $row)
+    Save-Screenshot 'local-image-analysis-result.png'
+    $revision = [PreviewNative]::GetClipboardSequenceNumber()
+    Invoke-Button 'Copy'
+    Wait-For { (Find-Named 'Copied to clipboard') -and [PreviewNative]::GetClipboardSequenceNumber() -ne $revision } 'local_image_original_copy' | Out-Null
+    Add-Check 'local_image_summary_keeps_complete_original_copy' (Test-LocalImageCopy $localImageBytes)
+    if ($ClipboardPeer) {
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Preferences' } 'local_image_automatic_settings' | Out-Null
+      Invoke-VisibleConnectionButton 'Automatically recognize images'
+      Invoke-VisibleConnectionButton 'Include local image labels in automatic recognition'
+      Invoke-VisibleConnectionButton 'Save AI settings'
+      $settingsPath = Join-Path $historyRoot 'desktop-settings.json'
+      Wait-For { (Read-SharedJson $settingsPath).automaticLocalImageSummaries -eq $true } 'local_image_auto_opt_in_saved' | Out-Null
+      $localSettings = Read-SharedJson $settingsPath
+      Add-Check 'local_image_automatic_opt_in_does_not_enable_uploads' ($localSettings.automaticOCR -and
+        !$localSettings.ai.enabled -and !$localSettings.ai.allowImages -and !$localSettings.automaticSummaries)
+      Invoke-Button 'Back to history'
+      # The handoff is asynchronous. The settings tree can still contain an
+      # Edit when Back returns; target the restored history query before clear.
+      $historySearch = Wait-RestoredHistorySearch 'Local image fixture' 'local_image_recording_search_restored'
+      $historySearch.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('')
+      Wait-For { (Get-EditorWithValue '') -and (Find-Named '2 items') } 'local_image_recording_history' | Out-Null
+      Invoke-Button 'Start recording'
+      Wait-For { Find-Named 'Recording clipboard' } 'local_image_recording_ready' | Out-Null
+      [IO.File]::Delete($releaseImage)
+      $peer = Start-LocalImagePeer 'rich' ''
+      try {
+        Wait-For { (Test-LocalImageCounter 3) -and @(Get-LocalImageRecords).Count -eq 3 } 'local_image_auto_started' | Out-Null
+        $autoItem = Get-LocalImageRecords | Where-Object { $_.kind -ceq 'image' -and $_.id -ne $localImageID }
+        Set-Search $autoItem.preview
+        Wait-For { Find-Named 'Analyzing image locally…' } 'local_image_auto_progress' | Out-Null
+        Add-Check 'automatic_image_labels_use_their_own_progress_mode' $true
+        Invoke-Button 'Settings'
+        Wait-For { Find-Named 'Preferences' } 'local_image_revoke_settings' | Out-Null
+        Invoke-VisibleConnectionButton 'Include local image labels in automatic recognition'
+        Invoke-VisibleConnectionButton 'Save AI settings'
+        Wait-For { (Test-LocalImageCounter 3 -Finished) -and (Read-SharedJson $settingsPath).automaticLocalImageSummaries -eq $false } 'local_image_revocation_drained' | Out-Null
+        [IO.File]::WriteAllText($releaseImage, '1')
+        Invoke-Button 'Back to history'
+        Wait-For { (Find-Named '1 items') -and !(Find-Named 'Analyzing image locally…') } 'local_image_cancelled_visible' | Out-Null
+        Add-Check 'revoking_image_labels_cancels_before_a_late_result' ((Read-SharedJson $settingsPath).automaticOCR -and
+          $null -eq (Get-LocalImageRecord $autoItem.id).summary)
+      } finally {
+        $peer.StandardInput.Close()
+        if (!$peer.WaitForExit(10000)) { $peer.Kill(); throw 'local_image_peer_quit_timeout' }
+      }
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Preferences' } 'local_image_resume_auto_settings' | Out-Null
+      Invoke-VisibleConnectionButton 'Include local image labels in automatic recognition'
+      Invoke-VisibleConnectionButton 'Save AI settings'
+      Wait-For { (Read-SharedJson $settingsPath).automaticLocalImageSummaries -eq $true } 'local_image_auto_restored' | Out-Null
+      Invoke-Button 'Back to history'
+      $historySearch = Wait-RestoredHistorySearch $autoItem.preview 'local_image_auto_search_restored'
+      $historySearch.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('')
+      Wait-For { (Get-EditorWithValue '') -and (Find-Named '3 items') } 'local_image_auto_library' | Out-Null
+      [IO.File]::Delete($releaseImage)
+      $autoImageFile = Join-Path $OutputDirectory 'local-auto-image.png'
+      $autoImageBytes = [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAIAAADYYG7QAAAAQklEQVR4nO3OQQ0AIAwAsUlEDsIQiAuOR5MK6Kx9vjL5QEhISKgeCAkJCdUDISEhoXogJCQkVA+EhISE6oGQkNBjF9ufXMShFk6WAAAAAElFTkSuQmCC')
+      [IO.File]::WriteAllBytes($autoImageFile, $autoImageBytes)
+      $previousImageIDs = @((Get-LocalImageRecords).id)
+      $peer = Start-LocalImagePeer 'ocr' $autoImageFile
+      try {
+        Wait-For { (Test-LocalImageCounter 4) -and @(Get-LocalImageRecords).Count -eq 4 } 'local_image_auto_second_started' | Out-Null
+        $nextImage = Get-LocalImageRecords | Where-Object { $_.id -notin $previousImageIDs }
+        Wait-For {
+          $rows = $window.FindAll([Windows.Automation.TreeScope]::Descendants,
+            [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::ListItem))
+          (Find-Named '4 items') -and $rows.Count -eq 4
+        } 'local_image_auto_new_row_ready' | Out-Null
+        $revision = [PreviewNative]::GetClipboardSequenceNumber()
+        Click-PublicHistoryRow $nextImage.preview
+        Wait-For { [PreviewNative]::FindWindow([uint32]$application.Id) -eq [IntPtr]::Zero -and
+          [PreviewNative]::GetClipboardSequenceNumber() -ne $revision } 'local_image_auto_activation_hides' | Out-Null
+        Add-Check 'image_copy_during_analysis_keeps_the_complete_new_png' (Test-LocalImageCopy $autoImageBytes)
+        [IO.File]::WriteAllText($releaseImage, '1')
+        Wait-For { (Test-LocalImageCounter 4 -Finished) -and (Get-LocalImageRecord $nextImage.id).summarySource -ceq 'localImage' } 'local_image_auto_result' | Out-Null
+        Add-Check 'automatic_image_labels_complete_without_remote_ai' (
+          (Get-LocalImageRecord $nextImage.id).payloads[0].inlineData -ceq $nextImage.payloads[0].inlineData -and
+          !(Read-SharedJson $settingsPath).ai.enabled)
+        Wake-Existing
+        $autoSummary = (Get-LocalImageRecord $nextImage.id).summary
+        Wait-For { (Find-Named 'Local image result') -and (Find-Named $autoSummary) } 'local_image_auto_result_visible' | Out-Null
+        Save-Screenshot 'local-image-auto-result.png'
+      } finally {
+        $peer.StandardInput.Close()
+        if (!$peer.WaitForExit(10000)) { $peer.Kill(); throw 'local_image_auto_peer_quit_timeout' }
+      }
+    }
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'local_image_quit_settings' | Out-Null
+    Invoke-Button 'Quit Clipboard'
+    if (!$application.WaitForExit(10000)) { throw 'local_image_quit_timeout' }
+    Add-Check 'local_image_profile_quits_cleanly' ($application.ExitCode -eq 0)
 
     $historyRoot = Join-Path $OutputDirectory ('history-selection-' + [Guid]::NewGuid().ToString('N'))
     [IO.Directory]::CreateDirectory($historyRoot) | Out-Null
@@ -2064,6 +2254,11 @@ try {
       $ocrControl = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($ocrControl)
     }
     Add-Check 'revealed_sensitive_image_still_disables_ocr' ($ocrControl -and !$ocrControl.Current.IsEnabled)
+    $localImageControl = Find-Named 'Analyze image locally'
+    for ($depth = 0; $depth -lt 10 -and $localImageControl -and $localImageControl.Current.ControlType -ne [Windows.Automation.ControlType]::Button; $depth++) {
+      $localImageControl = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($localImageControl)
+    }
+    Add-Check 'revealed_sensitive_image_still_disables_local_image_analysis' ($localImageControl -and !$localImageControl.Current.IsEnabled)
     Invoke-Button 'Hide'
     Wait-For { [PreviewNative]::FindWindow([uint32]$application.Id) -eq [IntPtr]::Zero } 'sensitive_window_hidden' | Out-Null
     Wake-Existing

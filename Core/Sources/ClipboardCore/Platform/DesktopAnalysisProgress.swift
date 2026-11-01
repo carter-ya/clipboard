@@ -1,8 +1,8 @@
 import Foundation
 
 public enum DesktopItemAnalysisProgress: Equatable, Sendable {
-  case running(remote: Bool)
-  case failed(remote: Bool)
+  case running(remote: Bool, imageSummary: Bool = false)
+  case failed(remote: Bool, imageSummary: Bool = false)
 }
 
 /// Ephemeral ID/engine metadata only. Deletion, retry and shutdown invalidate
@@ -11,6 +11,7 @@ public enum DesktopItemAnalysisProgress: Equatable, Sendable {
   public struct Ticket: Equatable, Sendable {
     public let id: UUID
     public let remote: Bool
+    public let imageSummary: Bool
     fileprivate let revision: UInt64
   }
   private var entries: [UUID: (Ticket, DesktopItemAnalysisProgress)] = [:]
@@ -26,8 +27,8 @@ public enum DesktopItemAnalysisProgress: Equatable, Sendable {
     self.capacity = capacity
     self.changed = changed
   }
-  public func begin(id: UUID, remote: Bool) -> Ticket? {
-    guard !stopped else { return nil }
+  public func begin(id: UUID, remote: Bool, imageSummary: Bool = false) -> Ticket? {
+    guard !stopped, !(remote && imageSummary) else { return nil }
     if case .running? = entries[id]?.1 { return nil }
     if entries[id] == nil && entries.count >= capacity {
       guard
@@ -39,8 +40,8 @@ public enum DesktopItemAnalysisProgress: Equatable, Sendable {
       entries.removeValue(forKey: old)
     }
     revision &+= 1
-    let ticket = Ticket(id: id, remote: remote, revision: revision)
-    entries[id] = (ticket, .running(remote: remote))
+    let ticket = Ticket(id: id, remote: remote, imageSummary: imageSummary, revision: revision)
+    entries[id] = (ticket, .running(remote: remote, imageSummary: imageSummary))
     publish()
     return ticket
   }
@@ -55,7 +56,9 @@ public enum DesktopItemAnalysisProgress: Equatable, Sendable {
     if succeeded {
       entries.removeValue(forKey: ticket.id)
     } else {
-      entries[ticket.id] = (ticket, .failed(remote: ticket.remote))
+      entries[ticket.id] = (
+        ticket, .failed(remote: ticket.remote, imageSummary: ticket.imageSummary)
+      )
     }
     publish()
   }

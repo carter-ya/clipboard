@@ -249,27 +249,34 @@ struct HistoryView: View {
       }
       ScrollView {
         VStack(alignment: .leading, spacing: 12) {
-          if case .running(let remote)? = model.selectedAnalysisProgress {
+          if case .running(let remote, let imageSummary)? = model.selectedAnalysisProgress {
             Text(
               model.t(
                 remote
                   ? "Generating summary…"
-                  : model.selected?.kind == .image ? "Recognizing text…" : "Creating local excerpt…"
+                  : imageSummary
+                    ? "Analyzing image locally…"
+                    : model.selected?.kind == .image
+                      ? "Recognizing text…" : "Creating local excerpt…"
               ))
           }
-          if case .failed(let remote)? = model.selectedAnalysisProgress {
+          if case .failed(let remote, let imageSummary)? = model.selectedAnalysisProgress {
             Text(
               model.t(
                 remote
                   ? "Could not generate a summary."
-                  : model.selected?.kind == .image
-                    ? "Could not recognize text." : "Could not create a local excerpt."))
+                  : imageSummary
+                    ? "Could not analyze the image locally."
+                    : model.selected?.kind == .image
+                      ? "Could not recognize text." : "Could not create a local excerpt."))
             Button(
               model.t(
                 remote
                   ? "Retry summary"
-                  : model.selected?.kind == .image
-                    ? "Retry text recognition" : "Retry local excerpt")
+                  : imageSummary
+                    ? "Retry image analysis"
+                    : model.selected?.kind == .image
+                      ? "Retry text recognition" : "Retry local excerpt")
             ) {
               model.retryAnalysis()
             }.disabled(
@@ -279,8 +286,10 @@ struct HistoryView: View {
           if let summary = model.selected?.summary, model.selected?.sensitive != true {
             Text(
               model.t(
-                model.selected?.summarySource == .localExtractive
-                  ? "Local excerpt" : "OCR / AI result")
+                model.selected?.summarySource == .localImage
+                  ? "Local image result"
+                  : model.selected?.summarySource == .localExtractive
+                    ? "Local excerpt" : "OCR / AI result")
             ).font(.system(size: 14))
             Text(summary).frame(maxWidth: .infinity, alignment: .leading)
             Button(model.t("Copy result")) {
@@ -346,6 +355,13 @@ struct HistoryView: View {
               model.historyActivationBusy || model.selected?.kind != .image
                 || model.selected?.sensitive == true
                 || model.analysisBusy)
+          if model.selected?.kind == .image {
+            Button(model.t("Analyze image locally")) {
+              model.analyze(remote: false, imageSummary: true)
+            }.disabled(
+              model.historyActivationBusy || model.selected?.sensitive == true || model.analysisBusy
+            )
+          }
           if model.canSummarizeLocally {
             Button(model.t("Summarize locally")) { model.analyze(remote: false) }
               .disabled(model.historyActivationBusy || model.analysisBusy)
@@ -417,6 +433,16 @@ struct HistoryView: View {
           "Local OCR uses installed system language packs. Apple-only models are unavailable here.")
       )
       Toggle(model.t("Automatically recognize images"), isOn: $model.automaticOCRDraft)
+      Toggle(
+        model.t("Include local image labels in automatic recognition"),
+        isOn: $model.automaticLocalImageSummariesDraft
+      ).disabled(!model.automaticOCRDraft)
+      Text(
+        model.t(
+          "Reads image text first, then uses local image labels when text is absent. Nothing is uploaded."
+        )
+      )
+      .font(.system(size: 12)).foregroundColor(.gray)
       Toggle(model.t("Enable local text summaries"), isOn: $model.localTextSummariesDraft)
       Text(model.t("Creates a short excerpt on this device. Nothing is uploaded."))
         .font(.system(size: 12)).foregroundColor(.gray)

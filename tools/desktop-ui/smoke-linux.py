@@ -169,6 +169,22 @@ def editor_with_value(value):
     return None
 
 
+def wait_restored_history_search(value, name):
+    def restored():
+        search = editor_with_value(value)
+        filters = button('All types')
+        if not search or not filters:
+            return None
+        # GTK 4.6 exposes VISIBLE and real bounds but omits SHOWING.
+        for control in [search, filters]:
+            bounds = control.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+            if (not control.getState().contains(pyatspi.STATE_VISIBLE) or
+                    bounds.width <= 0 or bounds.height <= 0 or bounds.x < 0 or bounds.y < 0):
+                return None
+        return search
+    return wait_for(restored, name)
+
+
 def window_id():
     tree = subprocess.check_output(['xwininfo', '-root', '-tree'], text=True)
     for line in tree.splitlines():
@@ -844,6 +860,174 @@ try:
     click('Quit Clipboard')
     app.wait(timeout=10)
     check('metadata_profile_quits_cleanly', app.returncode == 0)
+
+    # Explicit local image analysis: only synthetic, non-sensitive private data.
+    import struct
+    import zlib
+    def local_image_png(width, height):
+        def chunk(kind, data):
+            return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
+        pixels = (b'\0' + bytes([80, 120, 180]) * width) * height
+        return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)) +
+                chunk(b'IDAT', zlib.compress(pixels)) + chunk(b'IEND', b''))
+    history_root = out / ('local-image-' + uuid.uuid4().hex)
+    history_root.mkdir()
+    local_image_id, other_image_context = str(uuid.uuid4()), str(uuid.uuid4())
+    local_image_bytes = local_image_png(32, 32)
+    other_bytes = b'Other analysis context fixture'
+    local_image_items = [
+        dict(id=local_image_id, createdAt='2023-11-14T22:13:20Z', kind='image', preview='Local image fixture',
+             pinned=False, sensitive=False, sha256=hashlib.sha256(local_image_bytes).hexdigest(), sizeBytes=len(local_image_bytes),
+             sourceBundleID='linux:LocalImageFixture',
+             payloads=[dict(pasteboardType='public.png', inlineData=base64.b64encode(local_image_bytes).decode())]),
+        dict(id=other_image_context, createdAt='2023-11-14T22:12:20Z', kind='text', preview=other_bytes.decode(),
+             pinned=False, sensitive=False, sha256=hashlib.sha256(other_bytes).hexdigest(), sizeBytes=len(other_bytes),
+             payloads=[dict(pasteboardType='public.utf8-plain-text', inlineData=base64.b64encode(other_bytes).decode())])]
+    (history_root / 'history.json').write_text(json.dumps({'version': 1, 'items': local_image_items}))
+    (history_root / 'desktop-settings.json').write_text(json.dumps({'languageOverride': 'en'}))
+    def local_image_records():
+        return json.loads((history_root / 'history.json').read_text())['items']
+    def local_image_record(identifier):
+        return next(item for item in local_image_records() if item['id'].lower() == identifier.lower())
+    def local_image_counter(count, finished=False):
+        path = history_root / ('.local-image-finished' if finished else '.local-image-started')
+        try:
+            return int(path.read_text()) == count
+        except (OSError, ValueError):
+            return False
+    release_image = history_root / '.local-image-release'
+    app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root), '--smoke-local-image'],
+                           stdout=log, stderr=log, start_new_session=True)
+    wait_for(lambda: has_texts('Ready', '2 items') and any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()),
+             'local_image_profile_ready')
+    wait_for(editor, 'local_image_search').queryEditableText().setTextContents('Local image fixture')
+    wait_for(lambda: has_texts('1 items', 'Local image fixture'), 'local_image_selected')
+    click('Analyze image locally')
+    wait_for(lambda: local_image_counter(1) and has_text('Analyzing image locally…'), 'local_image_owned_progress')
+    check('local_image_analysis_exposes_its_actual_progress', True)
+    editor().queryEditableText().setTextContents('Other analysis context')
+    wait_for(lambda: has_text('Other analysis context fixture') and not any(
+        node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()), 'local_image_other_selection')
+    check('local_image_progress_does_not_follow_another_item', not has_text('Analyzing image locally…'))
+    editor().queryEditableText().setTextContents('Local image fixture')
+    wait_for(lambda: has_text('Analyzing image locally…') and any(
+        node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()), 'local_image_progress_restored')
+    screenshot('local-image-analysis-progress.png')
+    release_image.write_text('1')
+    wait_for(lambda: local_image_counter(1, finished=True) and has_texts(
+        'Could not analyze the image locally.', 'Retry image analysis'), 'local_image_failure_retry')
+    check('local_image_failure_keeps_the_mode_specific_retry', True)
+    release_image.unlink()
+    click('Retry image analysis')
+    wait_for(lambda: local_image_counter(2) and has_text('Analyzing image locally…'), 'local_image_retry_keeps_mode')
+    release_image.write_text('1')
+    wait_for(lambda: local_image_counter(2, finished=True) and
+             local_image_record(local_image_id).get('summarySource') == 'localImage', 'local_image_result_persisted')
+    local_result = local_image_record(local_image_id)
+    wait_for(lambda: has_texts('Local image result', local_result['summary']), 'local_image_result_visible')
+    check('local_image_retry_runs_the_real_offline_classifier', True)
+    check('local_image_analysis_keeps_original_preview_source_and_png',
+          local_result['preview'] == local_image_items[0]['preview'] and
+          local_result['sourceBundleID'] == local_image_items[0]['sourceBundleID'] and
+          local_result['payloads'] == local_image_items[0]['payloads'])
+    check('local_image_result_reaches_its_history_row', any(node.getRole() == pyatspi.ROLE_LIST_ITEM and
+          any(child.name == local_result['summary'] for child in walk(node)) for node in nodes()))
+    screenshot('local-image-analysis-result.png')
+    click('Copy')
+    wait_for(lambda: has_text('Copied to clipboard'), 'local_image_original_copy')
+    original_copy = subprocess.check_output(['xclip', '-selection', 'clipboard', '-out', '-target', 'image/png'], timeout=10)
+    check('local_image_summary_keeps_complete_original_copy', original_copy == local_image_bytes)
+    if args.clipboard_peer:
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'local_image_automatic_settings')
+        click_visible_public_control('Automatically recognize images')
+        click_visible_public_control('Include local image labels in automatic recognition')
+        click_visible_public_control('Save AI settings')
+        settings_path = history_root / 'desktop-settings.json'
+        wait_for(lambda: json.loads(settings_path.read_text()).get('automaticLocalImageSummaries') is True,
+                 'local_image_auto_opt_in_saved')
+        local_settings = json.loads(settings_path.read_text())
+        check('local_image_automatic_opt_in_does_not_enable_uploads', local_settings['automaticOCR'] and
+              not local_settings['ai']['enabled'] and not local_settings['ai']['allowImages'] and
+              not local_settings['automaticSummaries'])
+        click('Back to history')
+        wait_restored_history_search('Local image fixture', 'local_image_recording_search').queryEditableText().setTextContents('')
+        wait_for(lambda: has_text('2 items'), 'local_image_recording_history')
+        click('Start recording')
+        wait_for(lambda: has_text('Recording clipboard'), 'local_image_recording_ready')
+        release_image.unlink()
+        peer = subprocess.Popen([str(Path(args.clipboard_peer).resolve()), 'rich-clipboard-peer', 'rich'],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+        try:
+            if not select.select([peer.stdout], [], [], 10)[0] or peer.stdout.readline() != b'ready\n':
+                raise RuntimeError('local_image_peer_startup')
+            wait_for(lambda: local_image_counter(3) and len(local_image_records()) == 3, 'local_image_auto_started')
+            auto_item = next(item for item in local_image_records()
+                             if item['kind'] == 'image' and item['id'].lower() != local_image_id.lower())
+            editor().queryEditableText().setTextContents(auto_item['preview'])
+            wait_for(lambda: has_text('Analyzing image locally…'), 'local_image_auto_progress')
+            check('automatic_image_labels_use_their_own_progress_mode', True)
+            click('Settings')
+            wait_for(lambda: has_text('Preferences'), 'local_image_revoke_settings')
+            click_visible_public_control('Include local image labels in automatic recognition')
+            click_visible_public_control('Save AI settings')
+            wait_for(lambda: local_image_counter(3, finished=True) and
+                     json.loads(settings_path.read_text()).get('automaticLocalImageSummaries') is False,
+                     'local_image_revocation_drained')
+            release_image.write_text('1')
+            click('Back to history')
+            wait_for(lambda: has_text('1 items') and not has_text('Analyzing image locally…'), 'local_image_cancelled_visible')
+            check('revoking_image_labels_cancels_before_a_late_result', json.loads(settings_path.read_text())['automaticOCR'] and
+                  local_image_record(auto_item['id']).get('summary') is None)
+        finally:
+            peer.stdin.close()
+            peer.wait(timeout=10)
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'local_image_resume_auto_settings')
+        click_visible_public_control('Include local image labels in automatic recognition')
+        click_visible_public_control('Save AI settings')
+        wait_for(lambda: json.loads(settings_path.read_text()).get('automaticLocalImageSummaries') is True,
+                 'local_image_auto_restored')
+        click('Back to history')
+        wait_restored_history_search(auto_item['preview'], 'local_image_auto_query').queryEditableText().setTextContents('')
+        wait_for(lambda: has_text('3 items'), 'local_image_auto_library')
+        release_image.unlink()
+        auto_image_file = out / 'local-auto-image.png'
+        auto_image_bytes = local_image_png(48, 48)
+        auto_image_file.write_bytes(auto_image_bytes)
+        previous_image_ids = {item['id'] for item in local_image_records()}
+        peer = subprocess.Popen([str(Path(args.clipboard_peer).resolve()), 'rich-clipboard-peer', 'ocr', str(auto_image_file)],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+        try:
+            if not select.select([peer.stdout], [], [], 10)[0] or peer.stdout.readline() != b'ready\n':
+                raise RuntimeError('local_image_auto_peer_startup')
+            wait_for(lambda: local_image_counter(4) and len(local_image_records()) == 4, 'local_image_auto_second_started')
+            next_image = next(item for item in local_image_records() if item['id'] not in previous_image_ids)
+            wait_for(lambda: has_text('4 items') and sum(node.getRole() == pyatspi.ROLE_LIST_ITEM for node in nodes()) == 4, 'local_image_auto_new_row_ready')
+            # Activating the new first row independently proves original Copy;
+            # analysis continues on its own original item while the window hides.
+            click_public_history_row(next_image['preview'])
+            wait_for(lambda: not window_visible(), 'local_image_auto_activation_hides')
+            copied = subprocess.check_output(['xclip', '-selection', 'clipboard', '-out', '-target', 'image/png'], timeout=10)
+            check('image_copy_during_analysis_keeps_the_complete_new_png', copied == auto_image_bytes)
+            release_image.write_text('1')
+            wait_for(lambda: local_image_counter(4, finished=True) and
+                     local_image_record(next_image['id']).get('summarySource') == 'localImage', 'local_image_auto_result')
+            check('automatic_image_labels_complete_without_remote_ai',
+                  local_image_record(next_image['id'])['payloads'] == next_image['payloads'] and
+                  not json.loads(settings_path.read_text())['ai']['enabled'])
+            wake_existing()
+            wait_for(lambda: has_texts('Local image result', local_image_record(next_image['id'])['summary']),
+                     'local_image_auto_result_visible')
+            screenshot('local-image-auto-result.png')
+        finally:
+            peer.stdin.close()
+            peer.wait(timeout=10)
+    click('Settings')
+    wait_for(lambda: has_text('Preferences'), 'local_image_quit_settings')
+    click('Quit Clipboard')
+    app.wait(timeout=10)
+    check('local_image_profile_quits_cleanly', app.returncode == 0)
 
     # Native row activation copies only; it never synthesizes paste or keys.
     history_root = out / ('history-activation-' + uuid.uuid4().hex)
@@ -1663,6 +1847,7 @@ try:
     wait_for(lambda: any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()), 'sensitive_image_revealed')
     check('explicit_sensitive_reveal_decodes_native_image', True)
     check('revealed_sensitive_image_still_disables_ocr', not button('Recognize text').getState().contains(pyatspi.STATE_ENABLED))
+    check('revealed_sensitive_image_still_disables_local_image_analysis', not button('Analyze image locally').getState().contains(pyatspi.STATE_ENABLED))
     click('Hide')
     wait_for(lambda: not window_visible(), 'sensitive_window_hidden')
     wake_existing()

@@ -346,3 +346,23 @@ line with the full identity in native help. The candidate passes all 91 full
 Linux native UI/privacy checks and all eight layout checks at each scale 1/2.
 Windows probes now require the anchor to be onscreen before pointer movement;
 exact-head Windows confirmation and low-height/physical display audit remain open.
+
+Windows UI run 41255310855 confirms both real history activations and all manual
+local-image progress, retry, native inference and original PNG Copy checks. The
+automatic image fixture then races the asynchronous return from settings: a
+generic Edit lookup can still target the outgoing settings tree. The fixture
+now waits for the visible restored history query before clearing it, retaining
+the exact two-item check and the existing action deadline. Native confirmation
+of this candidate remains required.
+
+Review of 4af85c9 finds the same outgoing-editor race at the second automatic
+image settings handoff. Both returns now share a visible retained-query and
+mapped-history-filter wait, preserving the exact two/three-item checks and
+existing deadlines. Native Windows confirmation remains required.
+
+Windows run 41261426989 confirms both restored-query handoffs and automatic
+image acceptance, then reproduces a content-validation ordering problem. The
+negative-size control is updated and the stored limit remains zero, but an
+older successful save overwrites its error status. Invalid submissions now take
+the same FIFO lease before parsing drafts or publishing errors. Keep the exact
+negative-size rejection/persistence assertions; native confirmation is pending.
