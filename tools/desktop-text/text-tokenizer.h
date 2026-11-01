@@ -29,6 +29,9 @@ struct Character {
 // [CLS]/[SEP] in copied text are ordinary punctuation/letters, never controls.
 class Tokenizer {
     std::unordered_map<std::string, int64_t> vocabulary;
+    // Match the pinned model tokenizer, including its 0x2b820..0x2b91f gap.
+    // This is BERT compatibility, not a general Unicode ideograph predicate:
+    // https://github.com/huggingface/tokenizers/blob/v0.22.1/tokenizers/src/normalizers/bert.rs
     static bool chinese(uint32_t value) {
         return (value >= 0x4e00 && value <= 0x9fff) || (value >= 0x3400 && value <= 0x4dbf) ||
             (value >= 0x20000 && value <= 0x2a6df) || (value >= 0x2a700 && value <= 0x2b73f) ||

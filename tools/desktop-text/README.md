@@ -70,3 +70,10 @@ paths to test the complete private-pipe adapter. Default unit tests skip that
 real-model fixture; native Core CI explicitly configures and runs it.
 All fixtures use synthetic content. These checks establish implementation
 behavior, not identical accuracy to Apple's NaturalLanguage models.
+
+The CJK isolation ranges intentionally match the pinned Hugging Face normalizer,
+including the gap U+2B820–U+2B91F before its U+2B920 range. This is model input
+compatibility, rather than a complete Unicode ideograph classifier. Independent
+reference cases include both gap endpoints next to Latin words, adjacent gap
+characters and the surrounding isolated/non-isolated boundaries. Changing this
+range alone would change the pinned model's token IDs and original source spans.
