@@ -81,6 +81,11 @@ final class HistoryModel: ObservableObject {
   private var modelStore: DesktopModelStore?
   private var modelTask: Task<Void, Never>?
   private var modelObservationTask: Task<Void, Never>?
+  private var initialModelCheck: Task<Void, Never>?
+  @Published var localGenerativeSummariesDraft = false
+  @Published var automaticLocalGenerativeSummariesDraft = false
+  @Published var localLanguageSummariesDraft = false
+  @Published var automaticLocalLanguageSummariesDraft = false
   @Published var localTextSummariesDraft = false
   @Published var automaticLocalSummariesDraft = false
   @Published var localFileSummariesDraft = false
@@ -196,8 +201,9 @@ final class HistoryModel: ObservableObject {
 
   @MainActor var canSummarizeLocally: Bool {
     guard let item = selected, !item.sensitive else { return false }
-    if item.kind == .file { return settings.localFileSummariesEnabled }
-    return settings.localTextSummariesEnabled && [.text, .rtf, .mixed].contains(item.kind)
+    return DesktopLocalTextEngine.allCases.contains {
+      $0.isAllowed(item: item, settings: settings, automatic: false)
+    }
   }
   var canRevealSensitivePreview: Bool {
     selected?.sensitive == true && revealedSensitiveID != selectedID
@@ -437,6 +443,10 @@ final class HistoryModel: ObservableObject {
       automaticSummariesDraft = settings.automaticSummaries
       automaticOCRDraft = settings.automaticOCR
       automaticLocalImageSummariesDraft = settings.automaticLocalImageSummaries
+      localGenerativeSummariesDraft = settings.localGenerativeSummariesEnabled
+      automaticLocalGenerativeSummariesDraft = settings.automaticLocalGenerativeSummaries
+      localLanguageSummariesDraft = settings.localLanguageSummariesEnabled
+      automaticLocalLanguageSummariesDraft = settings.automaticLocalLanguageSummaries
       localTextSummariesDraft = settings.localTextSummariesEnabled
       automaticLocalSummariesDraft = settings.automaticLocalSummaries
       localFileSummariesDraft = settings.localFileSummariesEnabled
@@ -520,15 +530,9 @@ final class HistoryModel: ObservableObject {
           if case .inserted(let item) = event, !item.sensitive {
             if self.settings.automaticSummaries && self.settings.ai.allowsSummary(of: item.kind) {
               self.enqueueAutomaticAnalysis(remote: true, item: item)
-            } else if self.settings.localFileSummariesEnabled
-              && self.settings.automaticLocalFileSummaries
-              && item.kind == .file
-            {
-              self.enqueueAutomaticAnalysis(remote: false, item: item)
-            } else if self.settings.localTextSummariesEnabled
-              && self.settings.automaticLocalSummaries
-              && [.text, .rtf, .mixed].contains(item.kind)
-            {
+            } else if DesktopLocalTextEngine.allCases.contains(where: {
+              $0.isAllowed(item: item, settings: self.settings, automatic: true)
+            }) {
               self.enqueueAutomaticAnalysis(remote: false, item: item)
             } else if self.settings.automaticOCR && item.kind == .image {
               self.enqueueAutomaticAnalysis(
@@ -1064,6 +1068,10 @@ final class HistoryModel: ObservableObject {
     next.automaticSummaries = automaticSummariesDraft
     next.automaticOCR = automaticOCRDraft
     next.automaticLocalImageSummaries = automaticLocalImageSummariesDraft
+    next.localGenerativeSummariesEnabled = localGenerativeSummariesDraft
+    next.automaticLocalGenerativeSummaries = automaticLocalGenerativeSummariesDraft
+    next.localLanguageSummariesEnabled = localLanguageSummariesDraft
+    next.automaticLocalLanguageSummaries = automaticLocalLanguageSummariesDraft
     next.localTextSummariesEnabled = localTextSummariesDraft
     next.automaticLocalSummaries = automaticLocalSummariesDraft
     next.localFileSummariesEnabled = localFileSummariesDraft
@@ -1124,6 +1132,8 @@ final class HistoryModel: ObservableObject {
       .init(id: item.id, remote: remote, automatic: true, imageSummary: imageSummary))
     if result == .full {
       status = "Automatic analysis queue is full. Analyze skipped items manually."
+    } else if result == .busy && analysisScheduler.isPaused {
+      status = "Analysis is paused for model removal. Analyze skipped items manually."
     }
   }
   var selectedAnalysisProgress: DesktopItemAnalysisProgress? {
@@ -1152,14 +1162,12 @@ final class HistoryModel: ObservableObject {
     let remote = request.remote
     let localText = !remote && item.kind != .image
     let configuration = settings.ai
-    let service = DesktopAnalysis(
-      credentials: credentials, transport: transport, ocr: ocr,
-      blobRoot: root?.appendingPathComponent("blobs"), fileReader: NativeDesktopFileTextReader(),
-      imageClassifier: imageClassifier)
+    let service = makeAnalysis()
     let language = settings.languageOverride
     var activeRequest = request
     var resultKind = item.kind
     var resultSource: SummarySource?
+    var inputTruncated = false
     do {
       let result: String
       do {
@@ -1168,13 +1176,20 @@ final class HistoryModel: ObservableObject {
           let image = try await service.summarizeImageLocally(item, language: language)
           first = image.text
           resultSource = image.source
+        } else if localText {
+          let local = try await performLocalTextAnalysis(request, ticket: ticket)
+          first = local.text
+          inputTruncated = local.inputTruncated
+          resultSource = local.engine.summarySource
+          activeRequest = .init(
+            id: item.id, remote: false, automatic: request.automatic,
+            localTextEngine: local.engine)
         } else {
           first =
             try await
             (remote
             ? service.summarize(item, settings: configuration, language: language)
-            : localText
-              ? service.summarizeLocally(item) : service.recognize(item, language: language))
+            : service.recognize(item, language: language))
         }
         if remote && first.isEmpty { throw DesktopServiceError.networkFailure }
         result = first
@@ -1190,11 +1205,17 @@ final class HistoryModel: ObservableObject {
         activeRequest = local
         resultKind = current.kind
         analysisProgress.useLocalFallback(ticket)
-        result =
-          try await
-          (current.kind == .image
-          ? service.recognize(current, language: settings.languageOverride)
-          : service.summarizeLocally(current))
+        if current.kind == .image {
+          result = try await service.recognize(current, language: settings.languageOverride)
+        } else {
+          let text = try await performLocalTextAnalysis(local, ticket: ticket)
+          result = text.text
+          inputTruncated = text.inputTruncated
+          resultSource = text.engine.summarySource
+          activeRequest = .init(
+            id: item.id, remote: false, automatic: request.automatic,
+            localTextEngine: text.engine)
+        }
       }
       try Task.checkCancellation()
       guard !result.isEmpty else {
@@ -1219,9 +1240,11 @@ final class HistoryModel: ObservableObject {
       await refresh()
       analysisProgress.finish(ticket, succeeded: true)
       status =
-        request.imageSummary
-        ? "Image analysis ready"
-        : activeRequest.remote || resultKind != .image ? "Summary ready" : "OCR text ready"
+        inputTruncated
+        ? "Local analysis ready; input was shortened."
+        : request.imageSummary
+          ? "Image analysis ready"
+          : activeRequest.remote || resultKind != .image ? "Summary ready" : "OCR text ready"
     } catch is CancellationError {
       analysisProgress.remove(id: item.id)
       if !shuttingDown && !showsSettings && selectedID == item.id
@@ -1247,11 +1270,89 @@ final class HistoryModel: ObservableObject {
           remote
           ? "Summary unavailable. Check AI settings and the connection."
           : localText
-            ? "Local excerpts need at least 100 characters of readable text."
+            ? localTextFailureMessage
             : request.imageSummary
               ? "Image analysis unavailable. Check the image and local components."
               : "OCR unavailable. Check the image and installed OCR language packs."
       }
+    }
+  }
+  @MainActor private func makeAnalysis(
+    processor: (any DesktopLocalLanguageProcessing)? = nil
+  ) -> DesktopAnalysis {
+    DesktopAnalysis(
+      credentials: credentials, transport: transport, ocr: ocr,
+      blobRoot: root?.appendingPathComponent("blobs"), fileReader: NativeDesktopFileTextReader(),
+      imageClassifier: imageClassifier, localLanguage: processor)
+  }
+  @MainActor private func performLocalTextAnalysis(
+    _ request: DesktopAnalysisScheduler.Request, ticket: DesktopAnalysisProgressState.Ticket
+  ) async throws -> DesktopLocalTextPipeline.Result {
+    try await DesktopLocalTextPipeline.run(
+      id: request.id, automatic: request.automatic, language: settings.languageOverride,
+      context: { [weak self] in
+        guard let self, !self.shuttingDown, self.analysisProgress.isCurrent(ticket),
+          let item = await self.store?.item(id: request.id)
+        else { return nil }
+        return .init(item: item, settings: self.settings)
+      },
+      service: { [weak self] engine in
+        guard let self else { throw CancellationError() }
+        // Only the initial passive verification is awaited. Explicit downloads
+        // never hold analysis for an hour or grant permission to use a model.
+        if engine != .excerpt { await self.initialModelCheck?.value }
+        try Task.checkCancellation()
+        let processor: (any DesktopLocalLanguageProcessing)?
+        switch engine {
+        case .generative:
+          guard self.modelAssetSupport[.generative] == true,
+            let file = await self.modelStore?.installedURL(.generative)
+          else { throw DesktopServiceError.unavailable }
+          processor = NativeDesktopLanguageModel(model: file)
+        case .language:
+          guard self.modelAssetSupport[.entities] == true else {
+            throw DesktopServiceError.unavailable
+          }
+          processor = NativeDesktopTextTagger(model: await self.modelStore?.installedURL(.entities))
+        case .excerpt:
+          processor = nil
+        }
+        return self.makeAnalysis(
+          processor: processor.map {
+            DesktopTextAnalysisFixture.processor($0, engine: engine)
+          })
+      },
+      began: { [weak self] engine in
+        guard let self, self.analysisProgress.isCurrent(ticket),
+          self.analysisScheduler.beginLocalTextPhase(engine, id: request.id)
+        else { throw CancellationError() }
+        self.analysisProgress.useLocalTextEngine(ticket, engine: engine)
+      })
+  }
+  var usesOptionalTextAnalysis: Bool {
+    settings.localGenerativeSummariesEnabled || settings.localLanguageSummariesEnabled
+  }
+  var localTextFailureMessage: String {
+    usesOptionalTextAnalysis
+      ? "Local analysis unavailable. Check permissions, installed models and readable text."
+      : "Local excerpts need at least 100 characters of readable text."
+  }
+  func localTextProgressMessage(_ engine: DesktopLocalTextEngine?) -> String {
+    switch engine {
+    case .generative: return "Generating a local summary…"
+    case .language: return "Identifying language and names locally…"
+    case .excerpt: return "Creating local excerpt…"
+    case nil:
+      return usesOptionalTextAnalysis ? "Analyzing text locally…" : "Creating local excerpt…"
+    }
+  }
+  var summaryResultLabel: String {
+    switch selected?.summarySource {
+    case .localImage: return "Local image result"
+    case .localExtractive: return "Local excerpt"
+    case .localGenerative: return "Local generated summary"
+    case .localLanguage: return "Local language and names"
+    default: return "OCR / AI result"
     }
   }
   @MainActor func setAppearance(_ value: String) async {
@@ -1304,6 +1405,7 @@ final class HistoryModel: ObservableObject {
         }
       }
       refreshModels()
+      initialModelCheck = modelTask
     } catch { modelAssetSupport = [.generative: false, .entities: false] }
   }
   @MainActor func refreshModels() {
@@ -1362,9 +1464,14 @@ final class HistoryModel: ObservableObject {
     }
   }
   @MainActor func removeModel(_ kind: DesktopModelKind) {
-    // No analysis engine uses these optional assets yet. The dependent analysis
-    // layer must drain its owned worker before calling the same removal path.
-    runModelOperation(kind) { try await $0.remove(kind) }
+    runModelOperation(kind) { models in
+      self.analysisProgress.clear()
+      let pause = await self.analysisScheduler.pauseAndDrain()
+      defer { self.analysisScheduler.resume(pause) }
+      try Task.checkCancellation()
+      guard !self.shuttingDown else { throw CancellationError() }
+      try await models.remove(kind)
+    }
   }
   @MainActor func cancelModel(_ kind: DesktopModelKind) {
     modelTask?.cancel()
@@ -1372,7 +1479,7 @@ final class HistoryModel: ObservableObject {
     Task { await models.cancel(kind) }
   }
   @MainActor private func runModelOperation(
-    _ kind: DesktopModelKind, run: @escaping @Sendable (DesktopModelStore) async throws -> Void
+    _ kind: DesktopModelKind, run: @escaping @MainActor (DesktopModelStore) async throws -> Void
   ) {
     guard let models = modelStore, !modelWorkBusy, !shuttingDown else { return }
     modelWorkBusy = true
@@ -1416,6 +1523,7 @@ final class HistoryModel: ObservableObject {
       old?.stop()
       shell?.stop()
     }.value
+    await analysisScheduler.stopAndDrain()
     await modelStore?.shutdown()
     await modelTask?.value
     modelObservationTask?.cancel()

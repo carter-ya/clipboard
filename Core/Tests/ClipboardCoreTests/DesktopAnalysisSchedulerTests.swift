@@ -211,4 +211,35 @@ final class DesktopAnalysisSchedulerTests: XCTestCase {
     XCTAssertEqual(scheduler.submit(.init(id: UUID(), remote: false, automatic: true)), .stopped)
   }
 
+  @MainActor func testOptionalLocalPhaseRevocationCancelsDespiteAnotherAuthorizedEngine() async {
+    let started = expectation(description: "generative phase holds its worker")
+    var release: CheckedContinuation<Void, Never>?
+    let id = UUID()
+    let item = ClipItem(
+      id: id, createdAt: Date(), kind: .text, preview: "", sha256: "fixture", sizeBytes: 0)
+    var settings = DesktopSettings()
+    settings.localGenerativeSummariesEnabled = true
+    settings.localLanguageSummariesEnabled = true
+    weak var owned: DesktopAnalysisScheduler?
+    let scheduler = DesktopAnalysisScheduler { request in
+      XCTAssertTrue(owned?.beginLocalTextPhase(.generative, id: request.id) == true)
+      await withCheckedContinuation {
+        release = $0
+        started.fulfill()
+      }
+      XCTAssertTrue(Task.isCancelled)
+      XCTAssertFalse(owned?.beginLocalTextPhase(.language, id: request.id) == true)
+    }
+    owned = scheduler
+    XCTAssertEqual(scheduler.submit(.init(id: id, remote: false, automatic: false)), .started)
+    await fulfillment(of: [started], timeout: 3)
+    settings.localGenerativeSummariesEnabled = false
+    XCTAssertTrue(
+      DesktopLocalTextEngine.language.isAllowed(item: item, settings: settings, automatic: false))
+    XCTAssertTrue(scheduler.recheckCurrent(id: id, item: item, settings: settings))
+    release?.resume()
+    await scheduler.stopAndDrain()
+    XCTAssertFalse(scheduler.isBusy)
+  }
+
 }

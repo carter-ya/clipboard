@@ -188,3 +188,6 @@
 "summary.badge.localExcerpt" = "本地摘录";
 
 "summary.badge.localImage" = "本地图片";
+
+"summary.badge.localGenerative" = "本地 AI";
+"summary.badge.localLanguage" = "本地文本";

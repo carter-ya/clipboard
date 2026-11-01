@@ -54,4 +54,21 @@ final class DesktopAnalysisProgressTests: XCTestCase {
     XCTAssertEqual(states[new.id], .running(remote: true))
     XCTAssertNil(states[failed.id])
   }
+  @MainActor func testLocalPhasesKeepTheOriginalRemoteRetryAndRejectStaleTickets() throws {
+    var states: [UUID: DesktopItemAnalysisProgress] = [:]
+    let state = DesktopAnalysisProgressState { states = $0 }
+    let ticket = try XCTUnwrap(state.begin(id: UUID(), remote: true))
+    state.useLocalTextEngine(ticket, engine: .generative)
+    XCTAssertEqual(states[ticket.id], .running(remote: false, localTextEngine: .generative))
+    state.useLocalTextEngine(ticket, engine: .language)
+    XCTAssertEqual(states[ticket.id], .running(remote: false, localTextEngine: .language))
+    state.finish(ticket, succeeded: false)
+    XCTAssertEqual(states[ticket.id], .failed(remote: true))
+    let retry = try XCTUnwrap(state.begin(id: ticket.id, remote: true))
+    state.useLocalTextEngine(ticket, engine: .excerpt)
+    XCTAssertEqual(states[ticket.id], .running(remote: true))
+    state.finish(retry, succeeded: true)
+    XCTAssertNil(states[ticket.id])
+  }
+
 }

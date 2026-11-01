@@ -7,6 +7,14 @@ public enum DesktopLocalTextEngine: String, CaseIterable, Equatable, Sendable {
   case language
   case excerpt
 
+  public var summarySource: SummarySource {
+    switch self {
+    case .generative: return .localGenerative
+    case .language: return .localLanguage
+    case .excerpt: return .localExtractive
+    }
+  }
+
   public func isAllowed(item: ClipItem, settings: DesktopSettings, automatic: Bool) -> Bool {
     guard !item.sensitive,
       !item.payloads.contains(where: { $0.pasteboardType == SensitivityFilter.concealedType }),
@@ -53,7 +61,7 @@ public enum DesktopLocalTextEngine: String, CaseIterable, Equatable, Sendable {
     id: UUID, automatic: Bool, language: String? = nil,
     context: @MainActor () async -> Context?,
     service: @MainActor (DesktopLocalTextEngine) async throws -> DesktopAnalysis,
-    began: @MainActor (DesktopLocalTextEngine) -> Void = { _ in }
+    began: @MainActor (DesktopLocalTextEngine) throws -> Void = { _ in }
   ) async throws -> Result {
     var lastError: any Error = DesktopServiceError.disabled
     func allowed(_ value: Context?, _ engine: DesktopLocalTextEngine) -> ClipItem? {
@@ -71,7 +79,7 @@ public enum DesktopLocalTextEngine: String, CaseIterable, Equatable, Sendable {
         try Task.checkCancellation()
         guard let item = allowed(await context(), engine) else { continue }
         try Task.checkCancellation()
-        began(engine)
+        try began(engine)
         let text: String
         let truncated: Bool
         switch engine {

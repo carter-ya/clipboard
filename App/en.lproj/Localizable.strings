@@ -206,3 +206,6 @@
 "summary.badge.localExcerpt" = "Local excerpt";
 
 "summary.badge.localImage" = "Local image";
+
+"summary.badge.localGenerative" = "Local AI";
+"summary.badge.localLanguage" = "Local text";

@@ -11,6 +11,8 @@ public enum SummarySource: String, Sendable, Codable, Equatable {
   case localOCR
   case localExtractive
   case localImage
+  case localGenerative
+  case localLanguage
 }
 
 public struct ClipItem: Sendable, Codable, Equatable, Identifiable {

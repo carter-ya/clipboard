@@ -8,11 +8,16 @@ public final class DesktopAnalysisScheduler {
     public let remote: Bool
     public let automatic: Bool
     public let imageSummary: Bool
-    public init(id: UUID, remote: Bool, automatic: Bool, imageSummary: Bool = false) {
+    public let localTextEngine: DesktopLocalTextEngine?
+    public init(
+      id: UUID, remote: Bool, automatic: Bool, imageSummary: Bool = false,
+      localTextEngine: DesktopLocalTextEngine? = nil
+    ) {
       self.id = id
       self.remote = remote
       self.automatic = automatic
       self.imageSummary = imageSummary
+      self.localTextEngine = localTextEngine
     }
 
     /// Evaluate against the current item and preferences when work begins.
@@ -23,11 +28,8 @@ public final class DesktopAnalysisScheduler {
       else { return false }
       if remote && !settings.ai.allowsSummary(of: item.kind) { return false }
       if !remote && item.kind != .image {
-        if item.kind == .file {
-          guard settings.localFileSummariesEnabled else { return false }
-        } else {
-          guard settings.localTextSummariesEnabled, [.text, .rtf, .mixed].contains(item.kind)
-          else { return false }
+        return (localTextEngine.map { [$0] } ?? DesktopLocalTextEngine.allCases).contains {
+          $0.isAllowed(item: item, settings: settings, automatic: automatic)
         }
       }
       guard automatic else { return true }
@@ -101,6 +103,16 @@ public final class DesktopAnalysisScheduler {
     else { return nil }
     current = fallback
     return fallback
+  }
+  /// The pipeline calls this immediately before the selected phase accesses
+  /// content, so live settings revocation cancels the exact owned engine.
+  public func beginLocalTextPhase(_ engine: DesktopLocalTextEngine, id: UUID) -> Bool {
+    guard !stopped, !isPaused, !Task.isCancelled, let active = current,
+      active.id == id, !active.remote, !active.imageSummary
+    else { return false }
+    current = .init(
+      id: id, remote: false, automatic: active.automatic, localTextEngine: engine)
+    return true
   }
   public func cancelAll() {
     pending.removeAll()
