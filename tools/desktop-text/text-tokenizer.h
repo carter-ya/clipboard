@@ -92,8 +92,10 @@ public:
             size_t start = offset;
             uint32_t value = unicode_cpt_from_utf8(text, offset);
             auto flags = unicode_cpt_flags_from_cpt(value);
+            // The pinned normalizer retains unassigned codepoints. Missing
+            // Unicode table metadata must not silently remove copied characters.
             if (value == 0 || value == 0xfffd ||
-                ((flags.is_control || flags.is_undefined) && value != 9 && value != 10 && value != 13)) continue;
+                (flags.is_control && value != 9 && value != 10 && value != 13)) continue;
             if (flags.is_whitespace || value == 9 || value == 10 || value == 13) { flush(); continue; }
             bool isolated = chinese(value) || ascii_punctuation(value) || flags.is_punctuation;
             if (isolated) flush();

@@ -20,5 +20,8 @@
 {"text":"Apple\ud86e\udc1fInc","pieces":[[101,0,0],[17216,0,5],[100,5,9],[13604,9,12],[102,0,0]],"truncated":false},
 {"text":"Apple\ud86e\udd20Inc","pieces":[[101,0,0],[17216,0,5],[100,5,9],[13604,9,12],[102,0,0]],"truncated":false},
 {"text":"Apple\ud873\udeafInc","pieces":[[101,0,0],[17216,0,5],[100,5,9],[13604,9,12],[102,0,0]],"truncated":false},
-{"text":"Apple\ud873\udeb0Inc","pieces":[[101,0,0],[100,0,12],[102,0,0]],"truncated":false}
+{"text":"Apple\ud873\udeb0Inc","pieces":[[101,0,0],[100,0,12],[102,0,0]],"truncated":false},
+{"text":"Apple\u0378Inc","pieces":[[101,0,0],[100,0,10],[102,0,0]],"truncated":false},
+{"text":"Apple\ud83f\udffeInc","pieces":[[101,0,0],[100,0,12],[102,0,0]],"truncated":false},
+{"text":"Apple\udbff\udfffInc","pieces":[[101,0,0],[100,0,12],[102,0,0]],"truncated":false}
 ]}
