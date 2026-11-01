@@ -67,9 +67,11 @@ let package = Package(
         .target(name: "CDesktopClipboard", condition: .when(platforms: [.linux, .windows])),
       ]
     ),
+    .target(name: "CDesktopModelFiles"),
     .target(
       name: "ClipboardCore",
       dependencies: [
+        "CDesktopModelFiles",
         .product(name: "ZIPFoundation", package: "ZIPFoundation"),
         .product(
           name: "KeyboardShortcuts", package: "KeyboardShortcuts",
