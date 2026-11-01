@@ -81,27 +81,36 @@ just clean   # 清理 build 与生成的 .xcodeproj
 - Wayland capture requires wlr data control and the first advertised seat. It has no source-app identity or primary-selection capture. Global shortcuts use the desktop portal, restore only previously approved bindings, and require an explicit settings action for new permission. Never bypass restricted capture through RemoteDesktop permissions. Preserve one-shot activation tokens only in memory. Tests own their compositor/DBus session; the fallback UI test creates only a private mouse device, never a keyboard. Real portal keyboard focus/IME remains unverified.
 - The pinned SwiftCrossUI GTK main-loop patch releases one-shot callback contexts and prevents zero-delay timeouts from starving AccessKit idle actions. Keep native accessibility focus/button checks as hard gates; a visible tree alone is insufficient.
 
+- CP8 preview packages bundle Swift runtime plus notices, record file hashes, and install per user. Linux declares Ubuntu 22.04 native runtime dependencies; Windows includes a verified GTK/DLL closure and uses the GUI subsystem. Keep installed bundles locked while running, preserve history/credentials through upgrade and uninstall, and remove only owned shortcuts/startup entries/files. Package probes use private profiles and a runtime-only Linux image or isolated Windows Actions runner. Virtual scale/lifecycle evidence does not close physical IME/DPI/focus gates.
 - The pinned GTK AccessKit patch handles editable SetValue with native sensitivity/editability checks and schedules accessibility input at default priority. Optional CI diagnostics contain action/target IDs only, never text. UI Automation clients run MTA; native focus/action success remains required.
 
 - GTK archive sources retain LF; normalize reviewed patch input before applying it on Windows, and include the patch/helper in runtime cache keys. Do not normalize unrelated source files.
 
+- Desktop installation/startup paths resolve the actual main executable, not argv[0], which can be a bare PATH command. The installed Linux probe launches through its private command entry.
 - The pinned GTK label patch emits accessible text removal/insertion notifications when contents change, so equal-sized updates invalidate cached text runs. Keep baseline Counter: 0 → 1 and 3 → 1 search-result checks; no UI polling or renderer-independent flush is needed.
 
+- Installed Windows OCR validation temporarily hides/restores only its isolated CI build resource bundles, so SwiftPM absolute build-path fallbacks cannot mask missing packaged scripts.
 - Native UI probes wait for exact restored editor values after asynchronous view reconstruction, retaining the bounded timeout and value assertion. Failure diagnostics expose lengths/control metadata, never text contents.
 
 - Plain GTK text inputs expose their actual GtkEditable value rather than aggregating decorative/placeholder children. Password/protected widgets must never enter this plaintext-value override.
 
+- Installed Windows lifecycle probes bound repeated private hide/reopen cycles and record process private bytes/handles after warmup, keeping physical focus/IME and multi-day soak gates separate.
 - Windows GTK keeps one AccessKit root/subclassing adapter per native GdkSurface across hide/reopen, rebuilds the tree on reuse, and releases it with that surface. Recreating adapters for a surviving HWND causes an abort. Hidden editor preservation and lifecycle/resource checks remain hard gates.
 
 - A surviving Windows HWND keeps its accessible root node ID across hide/reopen; rebuilding descendant contexts must not invalidate UIA window references.
 
 - Surviving Windows widgets keep their accessible node IDs through context recreation. Their identity records use weak root references and are released with the widget; reparenting to another root receives a new ID.
 
+- Desktop primary item actions remain outside the history scroll viewport at every width. Wide layouts must keep Copy/Pin/Delete visible too; preview content must not own a duplicate action toolbar.
 - Windows rich UI tests pause after each capture before Copy, then require a new clipboard revision and a fresh status transition before checking native format bytes. An old Copied label or the fixture peer owning identical bytes cannot acknowledge a new asynchronous Copy.
 
 - Native Windows probes wait for the matching image/file preview and enabled button before invoking once. Equal result counts do not acknowledge a filter change; never retry an already submitted mutation.
 
 - OCR replacement waits for the native image preview before deleting the old image; an equal one-item count from the previous File filter is not proof of selection.
+
+- Installer fixtures read an absent startup value as null through the registry key API; preserve the refusal of existing normal registrations. Cache compiled UI dependencies after a successful optimized build, before installation checks, and repair Windows tracked links on exact or fallback cache restores.
+
+- Responsive headers keep one HStack and one headerActions subtree. Change only the title branch; hidden zero-size geometry must not replace live Hide/Settings/recording buttons or retire their accessibility IDs.
 - X11 selection requestors may disappear before a reply. The clipboard adapter recovers BadWindow only on registered private connections and delegates other connections/errors to the prior host handler. The portability workflow permanently exercises cancelled requests and registry cleanup in private Xvfb.
 
 - Native X11 shortcut dispatch must require an acquired registration and exact configured keyboard modifiers. Ignore Caps Lock and the discovered Num Lock mask, retain held-key suppression, and test the native dispatcher directly without synthesizing keyboard input.

@@ -3,7 +3,8 @@
       [string]$ClipboardPeer,
       [string]$OCRFixture,
       [switch]$Baseline,
-      [switch]$ValidateOnly)
+      [switch]$ValidateOnly,
+      [int]$LifecycleCycles = 0)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -224,6 +225,28 @@ try {
     Wake-Existing
     $value = (Get-Editor).GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
     Add-Check 'native_close_reopen_preserves_query' ($value -eq '中文')
+    if ($LifecycleCycles -gt 0) {
+      if ($LifecycleCycles -lt 5 -or $LifecycleCycles -gt 100) { throw 'lifecycle_cycles_out_of_range' }
+      $ResourceBaseline = $null
+      for ($Cycle = 0; $Cycle -lt $LifecycleCycles + 5; $Cycle++) {
+        Invoke-Button 'Hide'
+        Wait-For { ![PreviewNative]::IsWindowVisible($nativeWindowHandle) } 'cycle_window_hidden' | Out-Null
+        Wake-Existing
+        Wait-For { (Get-Editor).GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -eq '中文' } 'cycle_search_value' | Out-Null
+        Wait-For { (Get-Editor).Current.HasKeyboardFocus } 'cycle_search_focus' | Out-Null
+        if ($Cycle -eq 4) {
+          $application.Refresh()
+          $ResourceBaseline = @{ privateBytes=$application.PrivateMemorySize64; handles=$application.HandleCount }
+        }
+      }
+      $application.Refresh()
+      $ResourceFinal = @{ privateBytes=$application.PrivateMemorySize64; handles=$application.HandleCount }
+      @{ cycles=$LifecycleCycles; baseline=$ResourceBaseline; final=$ResourceFinal } |
+        ConvertTo-Json -Depth 4 | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'lifecycle-resources.json')
+      Add-Check 'repeated_hide_reopen_preserves_query_and_focus' $true
+      Add-Check 'repeated_window_lifecycle_keeps_handles_bounded' ($ResourceFinal.handles -le $ResourceBaseline.handles + 8)
+      Add-Check 'repeated_window_lifecycle_keeps_memory_bounded' ($ResourceFinal.privateBytes -le $ResourceBaseline.privateBytes + 33554432)
+    }
     Invoke-Button 'Delete'
     Wait-For { (Find-Named 'Item deleted') -and (Find-Named '0 items') } 'delete_updates_list' | Out-Null
     Add-Check 'delete_updates_real_store' $true
