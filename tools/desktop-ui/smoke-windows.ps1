@@ -557,6 +557,15 @@ function Set-Search([string]$Text) {
   $pattern = $element.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
   $pattern.SetValue($Text)
 }
+function Wait-RestoredHistorySearch([string]$Query, [string]$WaitCheckName) {
+  # A generic Edit may still belong to the outgoing settings tree. Require
+  # the retained query and mapped history filters before returning its control.
+  return Wait-For {
+    $control = Get-EditorWithValue $Query
+    $filters = Find-Named 'All types'
+    if ($control -and !$control.Current.IsOffscreen -and $filters -and !$filters.Current.IsOffscreen) { $control }
+  } $WaitCheckName
+}
 function Wake-Existing {
   $peer = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
     -ArgumentList @('--data-root', ('"' + $historyRoot + '"')) -PassThru
@@ -1324,10 +1333,7 @@ try {
       Invoke-Button 'Back to history'
       # The handoff is asynchronous. The settings tree can still contain an
       # Edit when Back returns; target the restored history query before clear.
-      $historySearch = Wait-For {
-        $control = Get-EditorWithValue 'Local image fixture'
-        if ((Find-Named 'Start recording') -and $control -and !$control.Current.IsOffscreen) { $control }
-      } 'local_image_recording_search_restored'
+      $historySearch = Wait-RestoredHistorySearch 'Local image fixture' 'local_image_recording_search_restored'
       $historySearch.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('')
       Wait-For { (Get-EditorWithValue '') -and (Find-Named '2 items') } 'local_image_recording_history' | Out-Null
       Invoke-Button 'Start recording'
@@ -1360,8 +1366,9 @@ try {
       Invoke-VisibleConnectionButton 'Save AI settings'
       Wait-For { (Read-SharedJson $settingsPath).automaticLocalImageSummaries -eq $true } 'local_image_auto_restored' | Out-Null
       Invoke-Button 'Back to history'
-      Set-Search ''
-      Wait-For { Find-Named '3 items' } 'local_image_auto_library' | Out-Null
+      $historySearch = Wait-RestoredHistorySearch $autoItem.preview 'local_image_auto_search_restored'
+      $historySearch.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('')
+      Wait-For { (Get-EditorWithValue '') -and (Find-Named '3 items') } 'local_image_auto_library' | Out-Null
       [IO.File]::Delete($releaseImage)
       $autoImageFile = Join-Path $OutputDirectory 'local-auto-image.png'
       $autoImageBytes = [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAIAAADYYG7QAAAAQklEQVR4nO3OQQ0AIAwAsUlEDsIQiAuOR5MK6Kx9vjL5QEhISKgeCAkJCdUDISEhoXogJCQkVA+EhISE6oGQkNBjF9ufXMShFk6WAAAAAElFTkSuQmCC')
