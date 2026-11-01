@@ -13,8 +13,21 @@ packages, pkg-config, libX11, libXfixes and libdbus-1 development headers. Run:
 
 ```sh
 python3 tools/desktop-ui/build-desktop.py
+python3 tools/desktop-ui/install-linux-desktop-entry.py --executable Desktop/.build/debug/ClipboardDesktop
 swift run --package-path Desktop --skip-build ClipboardDesktop
 ```
+
+On Linux, the explicit registration step installs `com.clipboard.desktop.desktop`
+under `$XDG_DATA_HOME/applications` (or `~/.local/share/applications`) before the
+first portal call. Global-shortcut portals use it to identify the application.
+It does not enable autostart or grant shortcut permission. Run it again after a
+rebuild at the same path. It refuses an existing different entry or a symlink;
+keep an installed package's entry, or explicitly remove that entry before
+registering a different development build. Choose an executable path without
+percent signs, equals signs or line breaks; the helper refuses these paths before
+writing application metadata. A packaged installation supplies its
+own matching entry through its installer. For a custom build output, pass that
+build's actual executable path to the registration command.
 
 On Windows, run `tools/desktop-ui/install-windows-gtk.ps1` in the Swift/Visual
 Studio development environment, then build `Desktop`. It verifies fixed source
