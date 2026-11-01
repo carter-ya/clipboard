@@ -68,3 +68,24 @@ run. Keep these unchecked until a person verifies them with real input.
 
 No main merge, public release, signing, or automatic update is part of these
 preview acceptance scripts.
+
+## Capability comparison with macOS
+
+The Mac reference is `2fd2a97ff878ce37cb0f3beade23cb7ffcb9d2f2`.
+A supported alternative does not establish identical model behavior.
+
+| Capability | macOS reference | Windows/Linux desktop |
+| --- | --- | --- |
+| History filters | All/Pinned; Text/Image/File/Rtf/Mixed and All types; query-scoped counts | Same choices and count scopes through portable Core. The additional source-ID field is an explicit filter, not an installed-app picker. |
+| Local image text | Vision OCR, with Chinese/English recognition | Native OCR uses available system/Tesseract language packs; missing languages or services remain capability failures. |
+| Local image scene labels | Vision returns up to three classification labels when no text is recognized, then image dimensions as a last fallback | Not implemented. OCR success or an empty-text failure must not be described as equivalent image classification. |
+| Image descriptions through AI | Explicit image permission and configured endpoint | Supported only after the independent remote/image opt-ins, using a compatible image-capable endpoint. This does not supply offline classification. |
+| Local text/file summaries | Mac NaturalLanguage/Foundation Models when supported | Bounded local excerpts, including text-file/PDF extraction. These are labelled excerpts, not generative summaries or identical Apple-model output. |
+| Startup approval | OS login-item approval and user policy | Native registration/ownership and failure guidance are implemented; Windows Startup apps and Linux session policy can override registration. Real OS permission UI remains an interactive gate. |
+
+Portable offline scene classification would require selecting and shipping an
+additional inference runtime and licensed model, validating its labels/accuracy,
+and extending native packaging/privacy/cancellation tests. No such model or
+runtime is bundled or downloaded by this preview. This remains a functional gap
+if complete offline image-classification parity is required; automated OCR and
+remote-image tests cannot close it.
