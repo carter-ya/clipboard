@@ -87,7 +87,7 @@ enum DesktopModelFiles {
         to.withUnsafeBufferPointer { second in
           MoveFileExW(
             first.baseAddress, second.baseAddress,
-            DWORD(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) != 0
+            DWORD(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
         }
       }
     #else
