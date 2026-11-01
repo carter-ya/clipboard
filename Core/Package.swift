@@ -80,7 +80,10 @@ let package = Package(
           condition: .when(platforms: [.linux, .windows])
         ),
       ],
-      resources: [.copy("Resources/DesktopStrings.json")]
+      resources: [
+        .copy("Resources/DesktopStrings.json"),
+        .copy("Resources/DesktopLocalLanguageModel.json"),
+      ]
     ),
     .target(
       name: "CPlatformScenarioFixtures",

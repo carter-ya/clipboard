@@ -13,6 +13,7 @@ struct NativeDesktopByteWorker: Sendable {
   let timeout: TimeInterval
   let inputLimit: Int
   let outputLimit: Int
+  var unavailableExitCodes: Set<Int32> = []
 
   func run(_ data: Data) async throws -> Data {
     guard (1...(16 * 1024 * 1024)).contains(inputLimit),
@@ -20,7 +21,8 @@ struct NativeDesktopByteWorker: Sendable {
     else { throw DesktopServiceError.invalidValue }
     guard !data.isEmpty, data.count <= inputLimit else { throw DesktopServiceError.tooLarge }
     let run = DesktopByteWorkerRun(
-      executable: executable, timeout: timeout, outputLimit: outputLimit)
+      executable: executable, timeout: timeout, outputLimit: outputLimit,
+      unavailableExitCodes: unavailableExitCodes)
     return try await withTaskCancellationHandler {
       try Task.checkCancellation()
       let bytes: Data = try await withCheckedThrowingContinuation { continuation in
@@ -40,14 +42,16 @@ private final class DesktopByteWorkerRun: @unchecked Sendable {
   private let executable: URL
   private let timeout: TimeInterval
   private let outputLimit: Int
+  private let unavailableExitCodes: Set<Int32>
   private let lock = NSLock()
   private var process: Process?
   private var cancelled = false
   private var expired = false
-  init(executable: URL, timeout: TimeInterval, outputLimit: Int) {
+  init(executable: URL, timeout: TimeInterval, outputLimit: Int, unavailableExitCodes: Set<Int32>) {
     self.executable = executable
     self.timeout = timeout
     self.outputLimit = outputLimit
+    self.unavailableExitCodes = unavailableExitCodes
   }
   func cancel() {
     lock.lock()
@@ -130,6 +134,11 @@ private final class DesktopByteWorkerRun: @unchecked Sendable {
       }
       process.waitUntilExit()
       try checkState()
+      if process.terminationReason == .exit,
+        unavailableExitCodes.contains(process.terminationStatus)
+      {
+        throw DesktopServiceError.unavailable
+      }
       if process.terminationStatus == 3 { throw DesktopServiceError.tooLarge }
       guard process.terminationReason == .exit, process.terminationStatus == 0 else {
         throw DesktopServiceError.invalidValue

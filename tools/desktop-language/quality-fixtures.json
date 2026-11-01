@@ -1,0 +1,244 @@
+[
+  {
+    "id": "planned-work-held-out",
+    "language": "English",
+    "text": "Automatic success fixture. The project team met on Tuesday to review schedules and paperwork. After inspecting a damaged fuel valve, space agency engineers postponed the Mars launch until Friday to complete repairs and safety checks.",
+    "requiredConcepts": [
+      [
+        "Mars"
+      ],
+      [
+        "Friday"
+      ],
+      [
+        "postpon",
+        "delay"
+      ],
+      [
+        "repair",
+        "fuel",
+        "valve"
+      ]
+    ],
+    "forbidden": [
+      "and completing",
+      "after completing",
+      "repairs completed",
+      "checks completed"
+    ]
+  },
+  {
+    "id": "launch-1",
+    "language": "English",
+    "text": "The project team met on Tuesday to review schedules and paperwork. After inspecting a damaged fuel valve, NASA engineers postponed the Mars launch until Friday to complete repairs and safety checks.",
+    "requiredConcepts": [
+      [
+        "Mars"
+      ],
+      [
+        "postpon",
+        "delay"
+      ],
+      [
+        "repair",
+        "valve",
+        "fuel"
+      ],
+      [
+        "launch"
+      ]
+    ],
+    "forbidden": [
+      "and completing",
+      "after completing",
+      "repairs completed",
+      "checks completed"
+    ]
+  },
+  {
+    "id": "launch-2",
+    "language": "Simplified Chinese",
+    "text": "The project team met on Tuesday to review schedules and paperwork. After inspecting a damaged fuel valve, NASA engineers postponed the Mars launch until Friday to complete repairs and safety checks.",
+    "requiredConcepts": [
+      [
+        "火星"
+      ],
+      [
+        "推迟",
+        "延期",
+        "延后"
+      ],
+      [
+        "修",
+        "燃料",
+        "阀"
+      ],
+      [
+        "发射"
+      ]
+    ]
+  },
+  {
+    "id": "launch-3",
+    "language": "Traditional Chinese",
+    "text": "The project team met on Tuesday to review schedules and paperwork. After inspecting a damaged fuel valve, NASA engineers postponed the Mars launch until Friday to complete repairs and safety checks.",
+    "requiredConcepts": [
+      [
+        "火星"
+      ],
+      [
+        "延",
+        "推遲"
+      ],
+      [
+        "修",
+        "燃料",
+        "閥"
+      ],
+      [
+        "發射"
+      ]
+    ]
+  },
+  {
+    "id": "launch-4",
+    "language": "Japanese",
+    "text": "The project team met on Tuesday to review schedules and paperwork. After inspecting a damaged fuel valve, NASA engineers postponed the Mars launch until Friday to complete repairs and safety checks.",
+    "requiredConcepts": [
+      [
+        "火星"
+      ],
+      [
+        "延期",
+        "遅"
+      ],
+      [
+        "修理",
+        "燃料",
+        "バルブ"
+      ],
+      [
+        "打ち上げ",
+        "打上げ",
+        "発射"
+      ]
+    ]
+  },
+  {
+    "id": "launch-5",
+    "language": "Korean",
+    "text": "The project team met on Tuesday to review schedules and paperwork. After inspecting a damaged fuel valve, NASA engineers postponed the Mars launch until Friday to complete repairs and safety checks.",
+    "requiredConcepts": [
+      [
+        "화성",
+        "마르스"
+      ],
+      [
+        "연기",
+        "미뤘",
+        "지연"
+      ],
+      [
+        "수리",
+        "연료",
+        "밸브"
+      ],
+      [
+        "발사"
+      ]
+    ]
+  },
+  {
+    "id": "launch-6",
+    "language": "German",
+    "text": "The project team met on Tuesday to review schedules and paperwork. After inspecting a damaged fuel valve, NASA engineers postponed the Mars launch until Friday to complete repairs and safety checks.",
+    "requiredConcepts": [
+      [
+        "Mars"
+      ],
+      [
+        "versch",
+        "verleg",
+        "verzög"
+      ],
+      [
+        "Repar",
+        "Ventil",
+        "Sicherheits"
+      ],
+      [
+        "start"
+      ]
+    ]
+  },
+  {
+    "id": "launch-7",
+    "language": "Spanish",
+    "text": "The project team met on Tuesday to review schedules and paperwork. After inspecting a damaged fuel valve, NASA engineers postponed the Mars launch until Friday to complete repairs and safety checks.",
+    "requiredConcepts": [
+      [
+        "Marte",
+        "Mars"
+      ],
+      [
+        "posp",
+        "posterg",
+        "retras"
+      ],
+      [
+        "repara",
+        "válvula",
+        "seguridad"
+      ],
+      [
+        "lanz"
+      ]
+    ]
+  },
+  {
+    "id": "library-held-out",
+    "language": "English",
+    "text": "The city council reviewed a long list of neighborhood requests at its monthly meeting. It then approved a new public library branch in Riverside, with construction starting in May and funding of three million dollars already secured. The existing branch will stay open during construction.",
+    "requiredConcepts": [
+      [
+        "librar"
+      ],
+      [
+        "approv"
+      ],
+      [
+        "Riverside"
+      ]
+    ],
+    "forbidden": [
+      "closed",
+      "cancelled",
+      "NASA",
+      "Mars"
+    ]
+  },
+  {
+    "id": "weather-held-out",
+    "language": "Simplified Chinese",
+    "text": "社区公告首先介绍了上周的活动安排。气象部门随后发布暴雨预警，滨河公园决定取消本周六的户外音乐会，已购票的观众可以在七天内全额退款。取消原因是暴雨风险，而不是门票销售不足。",
+    "requiredConcepts": [
+      [
+        "暴雨"
+      ],
+      [
+        "取消"
+      ],
+      [
+        "音乐会"
+      ],
+      [
+        "退款"
+      ]
+    ],
+    "forbidden": [
+      "销售不足导致",
+      "NASA",
+      "火星"
+    ]
+  }
+]
