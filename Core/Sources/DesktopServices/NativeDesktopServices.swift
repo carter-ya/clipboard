@@ -233,6 +233,12 @@ public actor NativeDesktopStartup: DesktopStartupControlling {
 public final class NativeDesktopOCR: DesktopOCRRecognizing, @unchecked Sendable {
   private let queue = DispatchQueue(label: "com.clipboard.desktop.ocr")
   public init() {}
+  static func linuxLanguages(
+    language: String?, preferredLanguages: [String] = DesktopLanguagePreferences.preferredLanguages
+  ) -> String {
+    let resolved = language ?? preferredLanguages.first ?? "en"
+    return resolved.lowercased().hasPrefix("zh") ? "eng+chi_sim" : "eng"
+  }
   public func recognize(_ image: Data, language: String? = nil) async throws -> String {
     guard !image.isEmpty, image.count <= 16 * 1024 * 1024 else {
       throw DesktopServiceError.tooLarge
@@ -245,7 +251,7 @@ public final class NativeDesktopOCR: DesktopOCRRecognizing, @unchecked Sendable 
               return try Self.windowsOCR(image, language: language)
             #else
               var text: UnsafeMutablePointer<CChar>?
-              let requested = language?.hasPrefix("zh") == true ? "eng+chi_sim" : "eng"
+              let requested = Self.linuxLanguages(language: language)
               let result = image.withUnsafeBytes { bytes in
                 requested.withCString {
                   cds_ocr(bytes.bindMemory(to: UInt8.self).baseAddress, bytes.count, $0, &text)
