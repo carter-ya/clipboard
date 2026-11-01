@@ -103,6 +103,14 @@ jobs:
             & swift run --package-path Core scenario-runner platform-rich-clipboard 2>&1 | Tee-Object -FilePath platform-rich.log
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify Windows source-filter privacy with an independent process
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CLIPBOARD_PRIVATE_SOURCE_TEST: '1'
+        run: |
+          & swift run --package-path Core scenario-runner platform-source-filter 2>&1 | Tee-Object -FilePath platform-source-filter.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify Wayland receive pipes with a blocking external producer
         if: runner.os == 'Linux'
         shell: bash
@@ -194,6 +202,7 @@ jobs:
             scenario.log
             platform-clipboard.log
             platform-rich.log
+            platform-source-filter.log
             platform-services.log
             platform-instance.log
             platform-shell.log
