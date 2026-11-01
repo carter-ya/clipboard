@@ -47,7 +47,7 @@ typedef struct { int file; } model_stage_lease;
 
 void *clipboard_model_stage_lock(const char *path, int create) {
   if (!path) return NULL;
-  int flags = O_RDWR | O_CLOEXEC | O_NOFOLLOW;
+  int flags = O_RDWR | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK;
   if (create) flags |= O_CREAT | O_EXCL;
   int file = open(path, flags, 0600);
   if (file < 0) return NULL;
