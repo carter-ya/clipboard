@@ -155,6 +155,8 @@ jobs:
               }
             }
           }
+      - name: Verify content validation follows queued saves
+        run: python tools/desktop-ui/test-content-validation-order.py
       - name: Build Desktop UI
         shell: pwsh
         run: |
