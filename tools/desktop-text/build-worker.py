@@ -197,9 +197,9 @@ def main():
     if build.is_symlink():
         raise RuntimeError('Unsafe text worker build directory')
     library = runtime / ('lib/onnxruntime.lib' if system == 'Windows' else 'lib/libonnxruntime.so.1.31.1')
-    configure = ['cmake', '-S', str(project), '-B', str(build), '-DCMAKE_BUILD_TYPE=Release', '-DFASTTEXT_SOURCE=' + str(fasttext),
-                 '-DUNICODE_SOURCE=' + str(unicode), '-DONNX_INCLUDE=' + str(runtime / 'include'), '-DONNX_LIBRARY=' + str(library),
-                 '-DGENERATED_INCLUDE=' + str(project)]
+    configure = ['cmake', '-S', str(project), '-B', str(build), '-DCMAKE_BUILD_TYPE=Release', '-DFASTTEXT_SOURCE=' + fasttext.as_posix(),
+                 '-DUNICODE_SOURCE=' + unicode.as_posix(), '-DONNX_INCLUDE=' + (runtime / 'include').as_posix(), '-DONNX_LIBRARY=' + library.as_posix(),
+                 '-DGENERATED_INCLUDE=' + project.as_posix()]
     for name, command in [('text-configure.log', configure), ('text-build.log', ['cmake', '--build', str(build), '--config', 'Release',
                                          '--target', 'clipboard-text-worker', 'tokenizer-reference-check', '--parallel', '2'])]:
         destination = output / name
