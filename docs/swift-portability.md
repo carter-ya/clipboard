@@ -359,3 +359,10 @@ Review of 4af85c9 finds the same outgoing-editor race at the second automatic
 image settings handoff. Both returns now share a visible retained-query and
 mapped-history-filter wait, preserving the exact two/three-item checks and
 existing deadlines. Native Windows confirmation remains required.
+
+Windows run 41261426989 confirms both restored-query handoffs and automatic
+image acceptance, then reproduces a content-validation ordering problem. The
+negative-size control is updated and the stored limit remains zero, but an
+older successful save overwrites its error status. Invalid submissions now take
+the same FIFO lease before parsing drafts or publishing errors. Keep the exact
+negative-size rejection/persistence assertions; native confirmation is pending.
