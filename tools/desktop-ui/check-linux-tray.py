@@ -101,6 +101,35 @@ try:
     layout = menu.GetLayout(dbus.Int32(0), dbus.Int32(-1), dbus.Array([], signature='s'))
     check('native_tray_menu_localizes_without_restart', [str(child[1]['label']) for child in layout[1][2]] == ['显示历史', '开始录制', '设置', '退出'])
     check('native_tray_tooltip_localizes_without_restart', props.Get('org.kde.StatusNotifierItem', 'ToolTip')[3] == '已暂停')
+    localized = [
+        ('zh-Hant', ['顯示歷程', '開始錄製', '設定', '退出'], '已暫停', '正在錄製', '暫停錄製'),
+        ('ja', ['履歴を表示', '記録を開始', '設定', '終了'], '一時停止中', '記録中', '記録を一時停止'),
+        ('ko', ['기록 표시', '기록 시작', '설정', '종료'], '일시 정지됨', '기록 중', '기록 일시 정지'),
+        ('de', ['Verlauf anzeigen', 'Aufzeichnung starten', 'Einstellungen', 'Beenden'], 'Pausiert', 'Aufzeichnung läuft', 'Aufzeichnung pausieren'),
+        ('es', ['Mostrar historial', 'Iniciar registro', 'Ajustes', 'Salir'], 'Pausado', 'Registrando', 'Pausar registro'),
+    ]
+    for tag, expected, paused, recording, pause_action in localized:
+        peer.stdin.write(('language:' + tag + '\n').encode())
+        peer.stdin.flush()
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and props.Get('org.kde.StatusNotifierItem', 'Title') != 'Clipboard - ' + paused:
+            time.sleep(0.05)
+        layout = menu.GetLayout(dbus.Int32(0), dbus.Int32(-1), dbus.Array([], signature='s'))
+        check('native_menu_' + tag + '_updates_without_restart', [str(child[1]['label']) for child in layout[1][2]] == expected)
+        check('native_tooltip_' + tag + '_matches_language', props.Get('org.kde.StatusNotifierItem', 'ToolTip')[3] == paused)
+        peer.stdin.write(b'recording:on\n')
+        peer.stdin.flush()
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and props.Get('org.kde.StatusNotifierItem', 'Title') != 'Clipboard - ' + recording:
+            time.sleep(0.05)
+        layout = menu.GetLayout(dbus.Int32(0), dbus.Int32(-1), dbus.Array([], signature='s'))
+        check('native_recording_action_' + tag + '_matches_state', str(layout[1][2][1][1]['label']) == pause_action and
+              props.Get('org.kde.StatusNotifierItem', 'ToolTip')[3] == recording)
+        peer.stdin.write(b'recording:off\n')
+        peer.stdin.flush()
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and props.Get('org.kde.StatusNotifierItem', 'Title') != 'Clipboard - ' + paused:
+            time.sleep(0.05)
     peer.stdin.write(b'language:en\n')
     peer.stdin.flush()
     deadline = time.monotonic() + 5

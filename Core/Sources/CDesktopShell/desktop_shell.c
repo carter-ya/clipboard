@@ -1,6 +1,9 @@
 #include "desktop_shell.h"
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32) || defined(__linux__)
+#include "shell_labels.h"
+#endif
 
 #ifdef _WIN32
 #ifndef _WIN32_WINNT
@@ -18,7 +21,7 @@ struct clipboard_shell {
   HANDLE thread, ready;
   HWND window;
   DWORD thread_id;
-  volatile LONG capabilities, recording, chinese;
+  volatile LONG capabilities, recording, language;
   int error;
   char key[32];
   uint32_t modifiers;
@@ -47,9 +50,7 @@ static UINT virtual_key(const char *key) {
 }
 static const WCHAR *tray_title(clipboard_shell *s) {
   int recording = InterlockedCompareExchange(&s->recording, 0, 0) != 0;
-  if (InterlockedCompareExchange(&s->chinese, 0, 0))
-    return recording ? L"Clipboard - 正在录制" : L"Clipboard - 已暂停";
-  return recording ? L"Clipboard - recording" : L"Clipboard - paused";
+  return shell_label(InterlockedCompareExchange(&s->language, 0, 0), recording ? 7 : 8);
 }
 static int add_icon(clipboard_shell *s) {
   NOTIFYICONDATAW data = {0};
@@ -83,15 +84,13 @@ static void show_menu(clipboard_shell *s) {
   HMENU menu = CreatePopupMenu();
   if (!menu)
     return;
-  int chinese = InterlockedCompareExchange(&s->chinese, 0, 0) != 0;
-  AppendMenuW(menu, MF_STRING, 1, chinese ? L"显示历史" : L"Show history");
+  int language = InterlockedCompareExchange(&s->language, 0, 0);
+  AppendMenuW(menu, MF_STRING, 1, shell_label(language, 0));
   AppendMenuW(menu, MF_STRING, 2,
-              InterlockedCompareExchange(&s->recording, 0, 0)
-                  ? (chinese ? L"暂停录制" : L"Pause recording")
-                  : (chinese ? L"开始录制" : L"Start recording"));
-  AppendMenuW(menu, MF_STRING, 3, chinese ? L"设置" : L"Settings");
+              shell_label(language, InterlockedCompareExchange(&s->recording, 0, 0) ? 2 : 1));
+  AppendMenuW(menu, MF_STRING, 3, shell_label(language, 3));
   AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
-  AppendMenuW(menu, MF_STRING, 4, chinese ? L"退出" : L"Quit");
+  AppendMenuW(menu, MF_STRING, 4, shell_label(language, 4));
   POINT point = {0};
   GetCursorPos(&point);
   SetForegroundWindow(s->window);
@@ -245,10 +244,10 @@ uint32_t clipboard_shell_activation_time(clipboard_shell *s) {
   (void)s;
   return 0;
 }
-void clipboard_shell_set_language(clipboard_shell *s, int chinese) {
+void clipboard_shell_set_language(clipboard_shell *s, int language) {
   if (!s)
     return;
-  InterlockedExchange(&s->chinese, chinese != 0);
+  InterlockedExchange(&s->language, language >= 0 && language < 7 ? language : 0);
   PostMessageW(s->window, SHELL_RECORDING, 0, 0);
 }
 void clipboard_shell_set_recording(clipboard_shell *s, int recording) {
@@ -287,7 +286,7 @@ struct clipboard_shell {
   pthread_mutex_t lock;
   pthread_cond_t ready_condition;
   int ready, error, wake[2], needs_registration;
-  atomic_int stopping, recording, chinese;
+  atomic_int stopping, recording, language;
   atomic_uint capabilities, activation_time;
   Display *display;
   Window root;
@@ -492,10 +491,8 @@ static void append_item_value(clipboard_shell *s, DBusMessageIter *iter,
                                      &array);
     dbus_message_iter_close_container(&structure, &array);
     append_string(&structure, "Clipboard");
-    append_string(&structure,
-                  atomic_load(&s->chinese)
-                      ? (atomic_load(&s->recording) ? "正在录制" : "已暂停")
-                      : (atomic_load(&s->recording) ? "Recording" : "Paused"));
+    append_string(&structure, shell_label(atomic_load(&s->language),
+                                         atomic_load(&s->recording) ? 5 : 6));
     dbus_message_iter_close_container(iter, &structure);
   } else {
     const char *value = "";
@@ -504,11 +501,7 @@ static void append_item_value(clipboard_shell *s, DBusMessageIter *iter,
     else if (!strcmp(property, "Id"))
       value = "clipboard";
     else if (!strcmp(property, "Title"))
-      value = atomic_load(&s->chinese)
-                  ? (atomic_load(&s->recording) ? "Clipboard - 正在录制"
-                                                : "Clipboard - 已暂停")
-                  : (atomic_load(&s->recording) ? "Clipboard - recording"
-                                                : "Clipboard - paused");
+      value = shell_label(atomic_load(&s->language), atomic_load(&s->recording) ? 7 : 8);
     else if (!strcmp(property, "Status"))
       value = "Active";
     else if (!strcmp(property, "IconName"))
@@ -565,17 +558,11 @@ static DBusHandlerResult item_properties(clipboard_shell *s,
   return DBUS_HANDLER_RESULT_HANDLED;
 }
 static const char *menu_label(clipboard_shell *s, int id) {
-  if (id == 1)
-    return atomic_load(&s->chinese) ? "显示历史" : "Show history";
-  if (id == 2)
-    return atomic_load(&s->chinese)
-               ? (atomic_load(&s->recording) ? "暂停录制" : "开始录制")
-               : (atomic_load(&s->recording) ? "Pause recording"
-                                             : "Start recording");
-  if (id == 3)
-    return atomic_load(&s->chinese) ? "设置" : "Settings";
-  if (id == 4)
-    return atomic_load(&s->chinese) ? "退出" : "Quit";
+  int language = atomic_load(&s->language);
+  if (id == 1) return shell_label(language, 0);
+  if (id == 2) return shell_label(language, atomic_load(&s->recording) ? 2 : 1);
+  if (id == 3) return shell_label(language, 3);
+  if (id == 4) return shell_label(language, 4);
   return "";
 }
 static void menu_properties(clipboard_shell *s, DBusMessageIter *dict, int id) {
@@ -1081,10 +1068,10 @@ static void wake_shell(clipboard_shell *s) {
   } while (result < 0 && errno == EINTR);
   /* EAGAIN means an earlier wake is already queued. */
 }
-void clipboard_shell_set_language(clipboard_shell *s, int chinese) {
+void clipboard_shell_set_language(clipboard_shell *s, int language) {
   if (!s)
     return;
-  atomic_store(&s->chinese, chinese != 0);
+  atomic_store(&s->language, language >= 0 && language < 7 ? language : 0);
   wake_shell(s);
 }
 void clipboard_shell_set_recording(clipboard_shell *s, int recording) {
@@ -1131,9 +1118,9 @@ uint32_t clipboard_shell_activation_time(clipboard_shell *s) {
   (void)s;
   return 0;
 }
-void clipboard_shell_set_language(clipboard_shell *s, int chinese) {
+void clipboard_shell_set_language(clipboard_shell *s, int language) {
   (void)s;
-  (void)chinese;
+  (void)language;
 }
 void clipboard_shell_set_recording(clipboard_shell *s, int recording) {
   (void)s;

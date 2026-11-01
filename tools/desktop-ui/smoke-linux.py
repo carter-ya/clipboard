@@ -438,11 +438,34 @@ try:
     wait_for(lambda: has_text('偏好设置'), 'localized_settings_return')
     click('English')
     wait_for(lambda: has_text('Preferences') and has_text('Language saved'), 'english_restored')
+    def public_endpoint_editor(value):
+        for candidate in nodes():
+            try:
+                if candidate.getRole() == pyatspi.ROLE_TEXT and 'EditableText' in candidate.get_interfaces() and candidate.queryText().getText(0, candidate.queryText().characterCount) == value:
+                    return candidate
+            except Exception:
+                pass
+        return None
+    draft_value = 'https://fixture.invalid/localized-draft'
+    draft_editor = wait_for(lambda: public_endpoint_editor('https://api.openai.com/v1'), 'public_endpoint_editor')
+    draft_editor.queryEditableText().setTextContents(draft_value)
+    language_cases = [('zh-Hant', '繁體中文', '偏好設定', '語言已保存', '保存行為設定', '本地 OCR 使用已安裝的語言包，此平台不提供 Apple 專屬模型。', '遠端 AI 預設關閉。啓用後，符合條件的內容會發送到指定服務。'), ('ja', '日本語', '環境設定', '言語を保存しました', '動作設定を保存', 'ローカル OCR はインストール済みのシステム言語パックを使用します。Apple 専用モデルは利用できません。', 'リモート AI は初期状態で無効です。有効にすると、対象の内容が指定した接続先に送信されます。'), ('ko', '한국어', '환경설정', '언어를 저장했습니다', '동작 설정 저장', '로컬 OCR은 설치된 시스템 언어 팩을 사용합니다. Apple 전용 모델은 사용할 수 없습니다.', '원격 AI는 기본적으로 꺼져 있습니다. 켜면 조건에 맞는 콘텐츠가 지정한 엔드포인트로 전송됩니다.'), ('de', 'Deutsch', 'Einstellungen', 'Sprache gespeichert', 'Verhalten speichern', 'Lokale OCR nutzt installierte Systemsprachpakete. Apple-exklusive Modelle sind hier nicht verfügbar.', 'Remote-KI ist standardmäßig deaktiviert. Bei Aktivierung werden geeignete Inhalte an deinen gewählten Endpunkt gesendet.'), ('es', 'Español', 'Preferencias', 'Idioma guardado', 'Guardar comportamiento', 'El OCR local usa los paquetes de idioma del sistema instalados. Los modelos exclusivos de Apple no están disponibles aquí.', 'La IA remota está desactivada por defecto. Al activarla, el contenido permitido se envía al destino elegido.')]
+    for tag, label, preferences, saved_label, behavior, ocr_note, ai_note in language_cases:
+        click(label)
+        wait_for(lambda: has_texts(preferences, saved_label, behavior), 'localized_controls_' + tag)
+        check('language_' + tag + '_updates_controls_and_privacy_notes', has_texts(ocr_note, ai_note))
+        check('language_' + tag + '_preserves_editor_draft', not draft_editor.getState().contains(pyatspi.STATE_DEFUNCT) and
+              draft_editor.queryText().getText(0, draft_editor.queryText().characterCount) == draft_value and
+              public_endpoint_editor(draft_value) == draft_editor)
+        screenshot('settings-' + tag + '.png')
+    click('English')
+    wait_for(lambda: has_texts('Preferences', 'Language saved'), 'english_after_all_languages')
     click('Save behavior')
     settings_file = history_root / 'desktop-settings.json'
     wait_for(lambda: settings_file.exists(), 'saved_settings_file')
     saved = json.loads(settings_file.read_text())
     check('behavior_saved_without_enabling_recording', saved['recordingEnabled'] is False and saved['closeToTray'] is True)
+    check('language_switches_keep_remote_AI_disabled_and_endpoint_draft_unsaved', saved['ai']['enabled'] is False and saved['ai']['endpoint'] == 'https://api.openai.com/v1' and saved['languageOverride'] == 'en')
     click('Quit Clipboard')
     app.wait(timeout=10)
     check('explicit_quit_flushes_and_exits', app.returncode == 0)

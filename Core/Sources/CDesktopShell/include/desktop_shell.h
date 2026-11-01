@@ -14,7 +14,8 @@ clipboard_shell *clipboard_shell_create(const char *key, uint32_t modifiers,
                                         void *context, int *error);
 uint32_t clipboard_shell_capabilities(clipboard_shell *shell);
 uint32_t clipboard_shell_activation_time(clipboard_shell *shell);
-void clipboard_shell_set_language(clipboard_shell *shell, int chinese);
+/* Language: en=0, zh-Hans=1, zh-Hant=2, ja=3, ko=4, de=5, es=6. */
+void clipboard_shell_set_language(clipboard_shell *shell, int language);
 void clipboard_shell_set_recording(clipboard_shell *shell, int recording);
 void clipboard_shell_destroy(clipboard_shell *shell);
 unsigned clipboard_shell_shortcut_status(clipboard_shell *shell);
