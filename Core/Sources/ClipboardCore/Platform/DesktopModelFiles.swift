@@ -1,5 +1,13 @@
 import Foundation
 
+#if os(Windows)
+  import WinSDK
+#elseif os(Linux)
+  import Glibc
+#else
+  import Darwin
+#endif
+
 #if canImport(CryptoKit)
   import CryptoKit
 #else
@@ -66,6 +74,53 @@ struct DesktopModelFileRecord: Codable, Equatable, Sendable {
 }
 
 enum DesktopModelFiles {
+  static func replace(_ source: URL, to target: URL) throws {
+    guard local(source), local(target),
+      source.deletingLastPathComponent() == target.deletingLastPathComponent()
+    else {
+      throw DesktopModelAssetError.invalidLocation
+    }
+    #if os(Windows)
+      let from = try windowsPath(source)
+      let to = try windowsPath(target)
+      let moved = from.withUnsafeBufferPointer { first in
+        to.withUnsafeBufferPointer { second in
+          MoveFileExW(
+            first.baseAddress, second.baseAddress,
+            DWORD(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) != 0
+        }
+      }
+    #else
+      let moved = source.withUnsafeFileSystemRepresentation { first in
+        target.withUnsafeFileSystemRepresentation { second in
+          guard let first, let second else { return false }
+          return rename(first, second) == 0
+        }
+      }
+    #endif
+    guard moved else { throw DesktopModelAssetError.unavailable }
+  }
+  #if os(Windows)
+    private static func windowsPath(_ url: URL) throws -> [UInt16] {
+      guard var path = url.withUnsafeFileSystemRepresentation({ $0.map { String(cString: $0) } })
+      else {
+        throw DesktopModelAssetError.invalidLocation
+      }
+      path = path.replacingOccurrences(of: "/", with: "\\")
+      if path.hasPrefix("\\\\?\\") { path.removeFirst(4) }
+      let characters = Array(path.utf16)
+      guard characters.count >= 3, characters.count <= 32760,
+        (65...90).contains(characters[0]) || (97...122).contains(characters[0]),
+        characters[1] == 58, characters[2] == 92
+      else { throw DesktopModelAssetError.invalidLocation }
+      let drive = [characters[0], UInt16(58), UInt16(92), UInt16(0)]
+      let type = drive.withUnsafeBufferPointer { GetDriveTypeW($0.baseAddress) }
+      guard type == DRIVE_FIXED || type == DRIVE_REMOVABLE || type == DRIVE_RAMDISK else {
+        throw DesktopModelAssetError.invalidLocation
+      }
+      return Array(("\\\\?\\" + path).utf16) + [0]
+    }
+  #endif
   static let marker = Data("Clipboard local model assets v1\n".utf8)
   static func name(_ value: String) -> Bool {
     !value.isEmpty && value.utf8.count <= 120 && value != "." && value != ".."

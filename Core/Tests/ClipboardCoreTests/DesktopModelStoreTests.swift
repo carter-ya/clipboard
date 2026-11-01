@@ -3,6 +3,20 @@ import XCTest
 @testable import ClipboardCore
 
 final class DesktopModelStoreTests: XCTestCase {
+  private final class PublicationProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stopped = false
+    func stop() {
+      lock.lock()
+      stopped = true
+      lock.unlock()
+    }
+    func shouldStop() -> Bool {
+      lock.lock()
+      defer { lock.unlock() }
+      return stopped
+    }
+  }
   private actor Downloader: DesktopModelAssetDownloading {
     var bytes = Data("abc".utf8)
     var calls = 0
@@ -232,6 +246,48 @@ final class DesktopModelStoreTests: XCTestCase {
     XCTAssertEqual(try committed.commit { 42 }, 42)
     XCTAssertFalse(committed.cancel())
     XCTAssertNoThrow(try committed.check())
+  }
+  func testPublishedPathNeverDisappearsDuringRepeatedReplacement() async throws {
+    let root = try temporary()
+    let target = root.appendingPathComponent("published")
+    let staged = root.appendingPathComponent("staged")
+    try Data("abc".utf8).write(to: target)
+    let started = expectation(description: "independent reader started")
+    let probe = PublicationProbe()
+    let reader = Task.detached { () -> (Int, Int) in
+      started.fulfill()
+      var samples = 0
+      var missing = 0
+      while !probe.shouldStop() {
+        do { if try DesktopModelFiles.attributes(target) == nil { missing += 1 } } catch {}
+        samples += 1
+      }
+      return (samples, missing)
+    }
+    defer { probe.stop() }
+    await fulfillment(of: [started], timeout: 2)
+    var replacements = 0
+    for _ in 0..<200 {
+      try Data("abc".utf8).write(to: staged)
+      do {
+        try DesktopModelFiles.replace(staged, to: target)
+        replacements += 1
+      } catch { XCTAssertTrue(try DesktopModelFiles.regular(target)) }
+    }
+    probe.stop()
+    let observations = await reader.value
+    XCTAssertGreaterThan(replacements, 0)
+    XCTAssertGreaterThan(observations.0, 0)
+    XCTAssertEqual(observations.1, 0, "The published model path was temporarily absent")
+    XCTAssertEqual(try Data(contentsOf: target), Data("abc".utf8))
+  }
+  func testFailedReplacementLeavesPublishedBytesUntouched() throws {
+    let root = try temporary()
+    let target = root.appendingPathComponent("published")
+    try Data("abc".utf8).write(to: target)
+    XCTAssertThrowsError(
+      try DesktopModelFiles.replace(root.appendingPathComponent("missing"), to: target))
+    XCTAssertEqual(try Data(contentsOf: target), Data("abc".utf8))
   }
   func testUnownedDigestNamedFileIsNeverReplacedOrRemoved() async throws {
     let root = try temporary().appendingPathComponent("models")

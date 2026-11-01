@@ -124,3 +124,15 @@ real-model fixture skips); Mac passes all nineteen new tests and the application
 build. The actual model controls, full notices/consent and installed Windows/Linux
 UI acceptance remain separate gates. No startup download or end-user completion
 is claimed by this backend layer.
+
+PR39 review exposed a model-publication gap in the backup/move transaction.
+An independent concurrent reader observes 484 missing-path samples before the
+repair and zero afterward. Publication now uses one same-directory native rename
+replacement, with no cross-volume copying; new ownership is recorded before
+creating the target. The published name remains present through replacement and
+a failed rename keeps the prior bytes. Linux arm64 passes all 314 Core/platform
+tests (two existing real-model fixture skips); Mac passes all 21 model tests.
+Windows filesystem confirmation remains required. Separately, native Ubuntu
+run 41259526441 passes real generative inference (20.6 seconds), QEMU Nehalem
+refusal and all nine multilingual quality cases; synthetic sentences were
+inspected against their source facts. This does not close Windows or UI gates.

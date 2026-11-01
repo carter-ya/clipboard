@@ -251,14 +251,12 @@ public actor DesktopModelStore {
   private func publish(_ pending: URL, asset: DesktopModelAsset, accepted: Bool, directory: URL)
     throws -> URL
   {
-    let manager = FileManager.default
     let record = DesktopModelFileRecord(asset, accepted: accepted)
     let target = directory.appendingPathComponent(record.filename)
     let owner = ownedRecord(record, in: directory)
     let current = directory.appendingPathComponent("current.json")
-    let priorOwner = try DesktopModelFiles.small(owner)
-    let priorCurrent = try DesktopModelFiles.small(current)
-    if let old = try DesktopModelFiles.record(owner, kind: asset.kind), !old.matches(asset) {
+    let priorOwner = try DesktopModelFiles.record(owner, kind: asset.kind)
+    if let priorOwner, !priorOwner.matches(asset) {
       throw DesktopModelAssetError.invalidLocation
     }
     if let old = try DesktopModelFiles.record(current, kind: asset.kind) {
@@ -269,24 +267,15 @@ public actor DesktopModelStore {
     }
     let exists = try DesktopModelFiles.regular(target)
     guard !exists || priorOwner != nil else { throw DesktopModelAssetError.invalidLocation }
-    let backup = directory.appendingPathComponent(".backup-" + UUID().uuidString)
-    if exists { try manager.moveItem(at: target, to: backup) }
-    do {
-      try manager.moveItem(at: pending, to: target)
-      try DesktopModelFiles.writeRecord(record, to: owner)
-      try DesktopModelFiles.writeRecord(record, to: current)
-    } catch {
-      try? manager.removeItem(at: target)
-      if exists { try? manager.moveItem(at: backup, to: target) }
-      if let priorOwner {
-        try? priorOwner.write(to: owner, options: .atomic)
-      } else {
-        try? manager.removeItem(at: owner)
-      }
-      if let priorCurrent { try? priorCurrent.write(to: current, options: .atomic) }
-      throw error
-    }
-    if exists { try? manager.removeItem(at: backup) }
+    // Record ownership before creating a new content-addressed target. A crash
+    // at any later step leaves a removable/retryable owned file. Reuse an
+    // existing record so metadata failure cannot change its consent history.
+    if priorOwner == nil { try DesktopModelFiles.writeRecord(record, to: owner) }
+    // One same-directory native rename replaces the target without first
+    // unpublishing it. Both files have the same verified content digest, so a
+    // failure writing current.json never requires rolling the target back.
+    try DesktopModelFiles.replace(pending, to: target)
+    try DesktopModelFiles.writeRecord(priorOwner ?? record, to: current)
     return target
   }
   private func removalRecords(in directory: URL, kind: DesktopModelKind) throws
