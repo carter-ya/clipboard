@@ -2837,5 +2837,6 @@ try {
   $json = $report | ConvertTo-Json -Depth 6
   $json | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'results.json')
   Write-Output $json
+  # Focused modes return from try; cleanup failures must still fail the process.
+  if (!$passed) { exit 1 }
 }
-if (!$passed) { exit 1 }
