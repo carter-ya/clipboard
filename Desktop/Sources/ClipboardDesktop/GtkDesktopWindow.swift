@@ -21,6 +21,7 @@ private final class GtkActionBox: @unchecked Sendable {
   private var signals: [(UnsafeMutableRawPointer, gulong)] = []
   private var focusRequested = false
   private var lastMappedWidth: Double?
+  private var lastMappedHeight: Double?
   var activationToken: String?
   var activationTimestamp: UInt32 = 0
   var closeRequested: (@MainActor () -> Void)?
@@ -44,9 +45,18 @@ private final class GtkActionBox: @unchecked Sendable {
     return lastMappedWidth ?? fallback
   }
 
+  func responsiveHeight(fallback: Double) -> Double {
+    if let window, gtk_widget_get_mapped(window.widgetPointer) != 0 {
+      let height = gtk_widget_get_height(window.widgetPointer)
+      if height > 0 { lastMappedHeight = Double(height) }
+    }
+    return lastMappedHeight ?? fallback
+  }
+
   func attach(_ native: Gtk.Window) {
     guard window !== native else { return }
     lastMappedWidth = nil
+    lastMappedHeight = nil
     window = native
     let pointer = UnsafeMutablePointer<GtkWindow>(OpaquePointer(native.widgetPointer))
     gtk_window_set_hide_on_close(pointer, 1)

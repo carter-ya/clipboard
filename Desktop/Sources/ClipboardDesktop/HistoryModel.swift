@@ -139,6 +139,12 @@ final class HistoryModel: ObservableObject {
   @MainActor func responsiveWidth(proposed: Double) -> Double {
     nativeWindow?.responsiveWidth(fallback: proposed) ?? proposed
   }
+  @MainActor func previewImageHeight(proposed: Double) -> Double {
+    let height = nativeWindow?.responsiveHeight(fallback: proposed) ?? proposed
+    // Reserve the search, filter, action and status rows. The mapped window
+    // supplies logical pixels even during hidden/zero-size layout proposals.
+    return min(240, max(64, height - 560))
+  }
 
   @MainActor func attachWindow(_ window: Gtk.Window) {
     if nativeWindow == nil {
