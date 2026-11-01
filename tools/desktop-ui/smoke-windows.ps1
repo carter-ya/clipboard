@@ -911,9 +911,15 @@ try {
       } 'native_model_import_chooser'
       $dialog = [Windows.Automation.AutomationElement]::FromHandle($dialogHandle)
       $cancel = Wait-For {
-        $condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, '2')
-        $control = $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
-        if ($control -and $control.Current.IsEnabled) { $control.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern) }
+        # Numeric IDs can also occur on invokable shell list items. Select only
+        # the owned native Button with IDCANCEL, never the first ID-only node.
+        $native = [PreviewNative]::DialogButton($dialogHandle, 2)
+        $control = if ($native -ne [IntPtr]::Zero) { [Windows.Automation.AutomationElement]::FromHandle($native) }
+        if ($control -and $control.Current.IsEnabled -and
+            $control.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and
+            $control.Current.Name -ceq 'Cancel' -and $control.Current.ProcessId -eq $application.Id) {
+          return $control.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
+        }
       } 'native_model_import_cancel_control'
       $cancel.Invoke()
       Wait-For { ([PreviewNative]::FindDialog([uint32]$application.Id, 'Import names model') -eq [IntPtr]::Zero) -and
