@@ -396,6 +396,17 @@
               "User actions, independent automatic policy, progress/retry/fallback, model removal/revocation and Mac archive compatibility",
               "Full native and installed UI acceptance"
             ]
+          },
+          "model_installation": {
+            "branch": "codex/cross-platform-local-model-assets",
+            "status": "in_progress",
+            "implemented": "Explicit Core model store uses the two immutable bundled definitions, an ownership-marked model root separate from history and serialized install/import/refresh/remove operations. Downloaded or imported bytes remain staged until exact size and streamed SHA256 pass. Cancellation is synchronized with final publication and drains the owned transfer; failed replacement preserves an existing verified model. Passive construction/observation/refresh never downloads. Entity AFL-3.0 acceptance is checked before filesystem or network work. Deletion validates ownership before removing only known model files/records, preserving unrelated data. Anonymous ephemeral URLSession transport streams to the owned destination, bounds bytes, enforces HTTP 200/uncompressed data, strips credentials on a bounded HTTPS publisher/CDN redirect chain and closes before completion. Progress reports numeric byte counts only.",
+            "validation": "Linux arm64: all 311 Core/platform tests pass with two existing unconfigured real-model fixture skips. Mac: all nineteen new installation/download tests and the existing application Debug build pass. Tests cover passive startup, consent-before-side-effects, verified relaunch, digest/size refusal with old-model preservation, independent file import, owned removal, malformed ownership, symlinks, cancellation against an intentionally uncooperative transfer, late progress, shutdown, anonymous requests, response limits and redirect policy. Strict formatting passes. Native Windows and subsequent UI/installed integration remain required.",
+            "remaining": [
+              "Native Windows filesystem and HTTP implementation confirmation",
+              "User-visible model cards, complete packaged notices/consent, explicit controls and private native UI acceptance",
+              "Analysis shutdown before model removal, permission revocation and feature/scheduler/retry integration"
+            ]
           }
         },
         {

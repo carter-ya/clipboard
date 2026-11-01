@@ -112,3 +112,15 @@ support. It checks that capability before initializing the SDK and fails as
 unavailable on unsupported CPUs. This is separate from the baseline desktop
 application and trained language/entity worker. Native x64 inference timing and
 quality remain required; the scalar build reached SIGXCPU in run 41258575790.
+
+Model installation backend tests use tiny synthetic bytes and private temporary
+roots, without real model transfers or desktop clipboard access. They cover
+exact size/SHA, ownership, explicit consent, old-model preservation, import,
+removal, symlinks and a cancellation-resistant fake transfer. Service tests use
+an injected URLProtocol to exercise real ephemeral URLSession delivery, response
+limits, anonymous requests and cancellation; redirect delegates verify allowed
+hosts and stripped headers. Linux arm64 passes 311 total tests (two existing
+real-model fixture skips); Mac passes all nineteen new tests and the application
+build. The actual model controls, full notices/consent and installed Windows/Linux
+UI acceptance remain separate gates. No startup download or end-user completion
+is claimed by this backend layer.
