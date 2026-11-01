@@ -1263,7 +1263,13 @@ try:
         wait_for(lambda: json.loads(settings_path.read_text()).get('automaticLocalImageSummaries') is True,
                  'local_image_auto_restored')
         click('Back to history')
-        wait_for(editor, 'local_image_auto_query').queryEditableText().setTextContents('')
+        def restored_image_history_search():
+            search = editor_with_value(auto_item['preview'])
+            filters = button('All types')
+            return search if (search and filters and
+                search.getState().contains(pyatspi.STATE_SHOWING) and
+                filters.getState().contains(pyatspi.STATE_SHOWING)) else None
+        wait_for(restored_image_history_search, 'local_image_auto_query').queryEditableText().setTextContents('')
         wait_for(lambda: has_text('3 items'), 'local_image_auto_library')
         release_image.unlink()
         auto_image_file = out / 'local-auto-image.png'
