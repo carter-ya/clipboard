@@ -84,14 +84,125 @@ public actor NativeDesktopStartup: DesktopStartupControlling {
       "[Desktop Entry]\nType=Application\nName=Clipboard\nExec=\"\(path)\" --background\nIcon=edit-paste\nTerminal=false\nX-GNOME-Autostart-enabled=true\n"
         .utf8)
   }
+  #if os(Linux)
+    private func desktopString(_ raw: String) -> String? {
+      var result = ""
+      var characters = raw.makeIterator()
+      while let character = characters.next() {
+        if character != "\\" {
+          result.append(character)
+          continue
+        }
+        guard let escaped = characters.next() else { return nil }
+        switch escaped {
+        case "s": result.append(" ")
+        case "n": result.append("\n")
+        case "t": result.append("\t")
+        case "r": result.append("\r")
+        case "\\": result.append("\\")
+        default: return nil
+        }
+      }
+      return result
+    }
+    /// Read only the bounded application group. Presentation edits do not
+    /// change ownership; a different command, malformed file or symlink does.
+    private func ownedDesktopEntry() throws -> [String: String]? {
+      let manager = FileManager.default
+      let attributes: [FileAttributeKey: Any]
+      do { attributes = try manager.attributesOfItem(atPath: desktopFile.path) } catch {
+        let failure = error as NSError
+        if failure.domain == NSCocoaErrorDomain,
+          [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains(failure.code)
+        {
+          return nil
+        }
+        throw error
+      }
+      guard attributes[.type] as? FileAttributeType == .typeRegular else {
+        throw DesktopServiceError.startupConflict
+      }
+      let handle = try FileHandle(forReadingFrom: desktopFile)
+      defer { try? handle.close() }
+      let data = try handle.read(upToCount: 65537) ?? Data()
+      guard data.count <= 65536, let text = String(data: data, encoding: .utf8) else {
+        throw DesktopServiceError.startupConflict
+      }
+      var fields: [String: String] = [:]
+      var inApplication = false
+      var foundApplication = false
+      for raw in text.components(separatedBy: .newlines) {
+        let line = raw.trimmingCharacters(in: .whitespaces)
+        if line.isEmpty || line.hasPrefix("#") { continue }
+        if line.hasPrefix("[") {
+          inApplication = line == "[Desktop Entry]"
+          if inApplication {
+            guard !foundApplication else { throw DesktopServiceError.startupConflict }
+            foundApplication = true
+          }
+          continue
+        }
+        guard inApplication else { continue }
+        guard let separator = line.firstIndex(of: "=") else {
+          throw DesktopServiceError.startupConflict
+        }
+        let key = line[..<separator].trimmingCharacters(in: .whitespaces)
+        guard fields[key] == nil else { throw DesktopServiceError.startupConflict }
+        fields[key] = line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
+      }
+      let expected = String(decoding: desktopEntry, as: UTF8.self)
+        .components(separatedBy: .newlines).first { $0.hasPrefix("Exec=") }
+      guard fields["Type"] == "Application", let expected,
+        fields["Exec"] == String(expected.dropFirst(5))
+      else { throw DesktopServiceError.startupConflict }
+      return fields
+    }
+  #endif
   public func isEnabled() throws -> Bool {
     #if os(Windows)
       let status = name.withCString { name in command.withCString { cds_startup_read(name, $0) } }
+      guard status != -3 else { throw DesktopServiceError.startupConflict }
       guard status >= 0 else { throw DesktopServiceError.unavailable }
       return status == 1
     #elseif os(Linux)
-      guard FileManager.default.fileExists(atPath: desktopFile.path) else { return false }
-      return try Data(contentsOf: desktopFile) == desktopEntry
+      guard let fields = try ownedDesktopEntry() else { return false }
+      if fields["Hidden"] == "true" || fields["X-GNOME-Autostart-enabled"] == "false" {
+        return false
+      }
+      // A modified entry can add session restrictions. Do not claim it will
+      // launch when the current desktop is excluded or TryExec is unavailable.
+      let desktops =
+        ProcessInfo.processInfo.environment["XDG_CURRENT_DESKTOP"]?
+        .split(separator: ":").map(String.init) ?? []
+      if let only = fields["OnlyShowIn"],
+        !only.split(separator: ";").contains(where: { desktops.contains(String($0)) })
+      {
+        return false
+      }
+      if let excluded = fields["NotShowIn"],
+        excluded.split(separator: ";").contains(where: { desktops.contains(String($0)) })
+      {
+        return false
+      }
+      if fields["OnlyShowIn"] != nil && fields["NotShowIn"] != nil { return false }
+      if let rawProgram = fields["TryExec"], !rawProgram.isEmpty {
+        guard let program = desktopString(rawProgram) else { return false }
+        guard program.hasPrefix("/") || !program.contains("/") else { return false }
+        let candidates =
+          program.hasPrefix("/")
+          ? [program]
+          : (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map {
+            String($0) + "/" + program
+          }
+        guard
+          candidates.contains(where: {
+            var directory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: $0, isDirectory: &directory)
+              && !directory.boolValue && FileManager.default.isExecutableFile(atPath: $0)
+          })
+        else { return false }
+      }
+      return fields["DBusActivatable"] != "true"
     #else
       throw DesktopServiceError.unavailable
     #endif
@@ -102,8 +213,10 @@ public actor NativeDesktopStartup: DesktopStartupControlling {
       let status = name.withCString { name in
         command.withCString { cds_startup_set(name, $0, enabled ? 1 : 0) }
       }
+      guard status != -3 else { throw DesktopServiceError.startupConflict }
       guard status == 1 else { throw DesktopServiceError.unavailable }
     #elseif os(Linux)
+      _ = try ownedDesktopEntry()
       if enabled {
         try FileManager.default.createDirectory(
           at: desktopFile.deletingLastPathComponent(), withIntermediateDirectories: true)

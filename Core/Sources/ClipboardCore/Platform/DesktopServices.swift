@@ -6,7 +6,7 @@ import Foundation
 
 public enum DesktopServiceError: Error, Equatable {
   case unavailable, locked, invalidValue, tooLarge, cancelled, networkFailure, disabled,
-    sensitiveContent
+    sensitiveContent, startupConflict
 }
 
 public protocol DesktopCredentialStoring: Sendable {
