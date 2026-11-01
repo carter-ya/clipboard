@@ -155,6 +155,68 @@ final class DesktopModelStoreTests: XCTestCase {
     let calls = await downloader.calls
     XCTAssertEqual(calls, 0)
   }
+  func testExplicitRemovalReclaimsAnAbandonedOwnedStage() async throws {
+    let root = try temporary().appendingPathComponent("models")
+    _ = try DesktopModelFiles.root(root, create: true)
+    let directory = root.appendingPathComponent("generative")
+    _ = try DesktopModelFiles.directory(directory, create: true)
+    let identifier = UUID().uuidString
+    let pending = directory.appendingPathComponent(".pending-" + identifier)
+    let owner = directory.appendingPathComponent(".stage-owner-" + identifier + ".json")
+    let lease = directory.appendingPathComponent(".stage-lease-" + identifier)
+    try DesktopModelFiles.writeRecord(.init(asset(), accepted: false), to: owner)
+    try Data().write(to: lease)
+    try Data("partial interrupted transfer".utf8).write(to: pending)
+    let store = try store(root, Downloader())
+    try await store.remove(.generative)
+    for file in [pending, owner, lease] {
+      XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+    }
+  }
+  func testRecoverySkipsALiveStageAndReclaimsItOnlyAfterLeaseRelease() async throws {
+    let root = try temporary().appendingPathComponent("models")
+    _ = try DesktopModelFiles.root(root, create: true)
+    let directory = root.appendingPathComponent("generative")
+    _ = try DesktopModelFiles.directory(directory, create: true)
+    let identifier = UUID()
+    var stage: DesktopModelStage? = try .init(
+      directory: directory, asset: asset(), accepted: false, id: identifier)
+    let pending = try XCTUnwrap(stage?.file)
+    try Data("partial".utf8).write(to: pending)
+    let otherStore = try store(root, Downloader())
+    try await otherStore.remove(.generative)
+    XCTAssertEqual(try Data(contentsOf: pending), Data("partial".utf8))
+    stage = nil  // Simulate process exit: OS lease closes, cleanup did not run.
+    try await otherStore.install(.generative)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: pending.path))
+    XCTAssertFalse(
+      try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        .contains(where: { $0.hasPrefix(".stage-") || $0.hasPrefix(".pending-") }))
+  }
+  func testRecoveryPreservesUnrecordedStagesAndRejectsDirectories() async throws {
+    let root = try temporary().appendingPathComponent("models")
+    _ = try DesktopModelFiles.root(root, create: true)
+    let directory = root.appendingPathComponent("generative")
+    _ = try DesktopModelFiles.directory(directory, create: true)
+    let unrecorded = directory.appendingPathComponent(".pending-" + UUID().uuidString)
+    try Data("foreign".utf8).write(to: unrecorded)
+    let identifier = UUID().uuidString
+    let pending = directory.appendingPathComponent(".pending-" + identifier)
+    let owner = directory.appendingPathComponent(".stage-owner-" + identifier + ".json")
+    let lease = directory.appendingPathComponent(".stage-lease-" + identifier)
+    try DesktopModelFiles.writeRecord(.init(asset(), accepted: false), to: owner)
+    try Data().write(to: lease)
+    // A directory masquerading as stage data must never be traversed/deleted.
+    try FileManager.default.createDirectory(at: pending, withIntermediateDirectories: false)
+    let unrelated = pending.appendingPathComponent("unrelated.txt")
+    try Data("keep".utf8).write(to: unrelated)
+    let store = try store(root, Downloader())
+    await failure(.invalidLocation) { try await store.remove(.generative) }
+    XCTAssertEqual(try Data(contentsOf: unrecorded), Data("foreign".utf8))
+    XCTAssertEqual(try Data(contentsOf: unrelated), Data("keep".utf8))
+    XCTAssertTrue(FileManager.default.fileExists(atPath: owner.path))
+    XCTAssertTrue(FileManager.default.fileExists(atPath: lease.path))
+  }
   func testRemovalLeavesUnrelatedFilesAndOtherModelKind() async throws {
     let root = try temporary().appendingPathComponent("models")
     let store = try store(root, Downloader())
