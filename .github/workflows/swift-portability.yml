@@ -9,6 +9,7 @@ on:
       - tools/desktop-pdf/**
       - tools/desktop-image/**
       - tools/desktop-language/**
+      - tools/desktop-text/**
       - tools/desktop-ui/check-services.py
       - tools/desktop-ui/check-linux-*
       - tools/desktop-ui/check-x11-*.c
@@ -22,6 +23,7 @@ on:
       - tools/desktop-pdf/**
       - tools/desktop-image/**
       - tools/desktop-language/**
+      - tools/desktop-text/**
       - tools/desktop-ui/check-services.py
       - tools/desktop-ui/check-linux-*
       - tools/desktop-ui/check-x11-*.c
@@ -184,6 +186,24 @@ jobs:
           }
           & python tools/desktop-language/check-quality.py --executable (Join-Path $LanguageOutput $WorkerName) --model $ModelPath --output local-language-quality.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify trained local language and entity recognition
+        shell: pwsh
+        run: |
+          $TextCache = Join-Path $env:RUNNER_TEMP 'clipboard-language-sdk'
+          $TextOutput = Join-Path $env:RUNNER_TEMP 'clipboard-text-worker'
+          & python tools/desktop-text/build-worker.py --output $TextOutput --cache $TextCache --download-test-model
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $Definition = Get-Content -Raw Core/Sources/ClipboardCore/Resources/DesktopLocalEntityModel.json | ConvertFrom-Json
+          $WorkerName = if ($env:RUNNER_OS -eq 'Windows') { 'clipboard-text-worker.exe' } else { 'clipboard-text-worker' }
+          $env:CLIPBOARD_TEST_TEXT_WORKER = Join-Path $TextOutput $WorkerName
+          $env:CLIPBOARD_TEST_ENTITY_MODEL = Join-Path $TextCache ($Definition.sha256.Substring(0, 16) + '-' + $Definition.filename)
+          try {
+            & swift test --package-path Core --skip-build --filter NativeTextTaggerTests.testRealNativeLanguageAndEntitiesWhenExplicitlyConfigured 2>&1 | Tee-Object -FilePath local-text-adapter.log
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            Remove-Item Env:CLIPBOARD_TEST_TEXT_WORKER -ErrorAction SilentlyContinue
+            Remove-Item Env:CLIPBOARD_TEST_ENTITY_MODEL -ErrorAction SilentlyContinue
+          }
       - name: Verify native single-instance activation and owner recovery
         shell: pwsh
         run: |
@@ -247,8 +267,11 @@ jobs:
             platform-services.log
             local-language-adapter.log
             local-language-quality.json
+            local-text-adapter.log
             ${{ runner.temp }}/clipboard-language-worker/language-*.log
             ${{ runner.temp }}/clipboard-language-worker/language-model-notices/
+            ${{ runner.temp }}/clipboard-text-worker/text-*.log
+            ${{ runner.temp }}/clipboard-text-worker/text-model-notices/
             platform-instance.log
             platform-shell.log
             platform-tray.json
