@@ -109,6 +109,14 @@ try:
                  '--model-definitions', str(Path(args.model_definitions).resolve()),
                  '--output', str(output / 'local-text')], env=probe_environment, timeout=600)
             check('installed_actual_local_models_pass_analysis_revocation_and_removal', actual_models.returncode == 0)
+            model_operations = subprocess.run(
+                ['dbus-run-session', '--', 'xvfb-run', '-a', '/usr/bin/python3', args.probe,
+                 '--executable', str(executable), '--model-operations-only',
+                 '--summary-model', str(Path(args.summary_model).resolve()),
+                 '--entity-model', str(Path(args.entity_model).resolve()),
+                 '--model-definitions', str(Path(args.model_definitions).resolve()),
+                 '--output', str(output / 'model-operations')], env=probe_environment, timeout=600)
+            check('installed_model_import_cancel_failure_and_repair_pass_native_controls', model_operations.returncode == 0)
         history_files = list((output / 'ui').glob('history-*/history.json'))
         check('private_history_was_persisted', bool(history_files))
         history = {str(file): hashlib.sha256(file.read_bytes()).hexdigest() for file in history_files}

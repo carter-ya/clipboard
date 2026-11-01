@@ -60,7 +60,9 @@ extension HistoryView {
         Button(model.t(importTitle)) {
           Task { @MainActor in
             guard model.beginModelImport(kind) else { return }
-            let source = await chooseFile(title: model.t(importTitle))
+            let source = await chooseFile(
+              title: model.t(importTitle), initialDirectory: modelImportDirectory)
+            if let source { modelImportDirectory = source.deletingLastPathComponent() }
             model.finishModelImport(kind, from: source)
           }
         }.disabled(model.modelWorkBusy || !model.canInstallModel(kind))

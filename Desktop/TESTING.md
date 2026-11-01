@@ -210,3 +210,28 @@ The model builders' `--download-test-model-only` mode seeds that private cache
 without rebuilding or changing application output. Four offline canary checks
 verify cached-only behavior and corrupt-cache refusal. Normal application builds
 and startup still never request optional weights.
+
+Private model-operation acceptance uses `smoke-linux.py --model-operations-only`
+or `smoke-windows.ps1 -ModelOperationsOnly`, with explicit summary/entity fixture
+paths and the bundled model JSON directory. These modes own temporary profiles
+beside the model cache. A nonproduction transfer fixture checks numeric progress,
+failure/retry and cancellation without HTTP; successful import and repaired-model
+inference use real fixed model bytes. Native choosers, local-copy cancellation,
+license records, failed replacement retention, tamper rejection, exact repair and
+relaunch without a passive transfer remain hard checks. Never damage a cache
+hard link: only the imported copy may be corrupted. Both installed checkers run
+the same controls while development bundles remain unavailable. Linux arm64
+currently passes all fourteen native model-operation checks; native Windows and
+final installed confirmation remain pending.
+
+The first complete hermetic package now passes fourteen installation gates,
+211 full UI/lifecycle checks, eight model settings, nineteen actual-model text
+checks and fourteen model-operation checks. The repaired inference screenshot
+waits for the real result, source label and idle control state. Both virtual
+100% and 200% layout suites pass eight checks. Subsequent process-interruption
+recovery adds persisted stage ownership and native noninheritable leases;
+explicit retries/removal reclaim only abandoned recorded files. Stage cleanup
+acceptance checks pending data, ownership records and leases together. The
+rebuilt package containing this later recovery change and native Windows
+execution still need final confirmation. Actual generated text/PDF file-body
+inference remains separate from earlier local-excerpt and remote file checks.

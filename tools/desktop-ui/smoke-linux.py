@@ -28,11 +28,14 @@ parser.add_argument('--ocr-fixture')
 parser.add_argument('--lifecycle-cycles', type=int, default=0, help='Bounded private hide/reopen resource regression')
 parser.add_argument('--install-package', help='Private package fixture for installation-lock checks')
 parser.add_argument('--model-settings-only', action='store_true', help='Private model-control checks without any download')
+parser.add_argument('--model-operations-only', action='store_true', help='Private explicit transfer/import/cancel/repair controls')
 parser.add_argument('--local-text-only', action='store_true', help='Private actual-model analysis/revocation checks')
 parser.add_argument('--summary-model')
 parser.add_argument('--entity-model')
 parser.add_argument('--model-definitions')
 args = parser.parse_args()
+if sum([args.model_settings_only, args.local_text_only, args.model_operations_only]) > 1:
+    parser.error('Choose one private model test mode')
 out = Path(args.output).resolve()
 out.mkdir(parents=True, exist_ok=True)
 checks = []
@@ -381,7 +384,7 @@ def hover_public_image():
     return wait_for(peek_image, 'image_hover_tooltip')
 
 
-def activate_archive_file_with_pointer(filename):
+def activate_archive_file_with_pointer(filename, title="Import history"):
     # GTK 4.6 renders file rows without exposing them through AT-SPI. Locate
     # only our synthetic filename in this private chooser's actual pixels;
     # never synthesize keys or use the clipboard to enter a path.
@@ -390,10 +393,11 @@ def activate_archive_file_with_pointer(filename):
     def visible_chooser():
         tree = subprocess.check_output(['xwininfo', '-root', '-tree'], text=True)
         for line in tree.splitlines():
-            if '"Import history"' not in line: continue
+            if ('"' + title + '"') not in line: continue
             candidate = int(line.strip().split()[0], 16)
             state = subprocess.check_output(['xwininfo', '-id', hex(candidate), '-stats'], text=True)
-            if 'Map State: IsViewable' in state: return candidate
+            owner = subprocess.check_output(['xprop', '-id', hex(candidate), '_NET_WM_PID'], text=True)
+            if 'Map State: IsViewable' in state and owner.strip().endswith('= ' + str(app.pid)): return candidate
         return None
     chooser = wait_for(visible_chooser, 'archive_chooser_window')
     def rendered_point():
@@ -474,6 +478,26 @@ def screenshot(name):
 
 
 try:
+    if args.model_operations_only:
+        if not all([args.summary_model, args.entity_model, args.model_definitions]):
+            raise RuntimeError('model_operation_fixture_arguments_required')
+        private_text_profile = tempfile.TemporaryDirectory(prefix='.clipboard-model-ops-', dir=Path(args.summary_model).resolve().parent)
+        history_root = Path(private_text_profile.name)
+        primary_history_root = history_root
+        os.link(Path(args.summary_model).resolve(), history_root / 'summary.gguf')
+        os.link(Path(args.entity_model).resolve(), history_root / 'entity-model.onnx')
+        (history_root / 'invalid.onnx').write_bytes(b'invalid synthetic replacement')
+        operations_body = 'Apple Inc. CEO Tim Cook met officials in Tokyo to discuss the company investment. The meeting focused on the research center and jobs for local engineers.'
+        operations_id = str(uuid.uuid4())
+        operations_items = [dict(id=operations_id, createdAt='2023-11-14T22:13:20Z', kind='text', preview=operations_body,
+            pinned=False, sensitive=False, sha256=hashlib.sha256(operations_body.encode()).hexdigest(), sizeBytes=len(operations_body.encode()),
+            payloads=[dict(pasteboardType='public.utf8-plain-text', inlineData=base64.b64encode(operations_body.encode()).decode())])]
+        for label in ['Other model operation fixture', 'No passive model transfer fixture']:
+            operations_items.append(dict(id=str(uuid.uuid4()), createdAt='2023-11-14T22:13:20Z', kind='text', preview=label,
+                pinned=False, sensitive=False, sha256=hashlib.sha256(label.encode()).hexdigest(), sizeBytes=len(label.encode()),
+                payloads=[dict(pasteboardType='public.utf8-plain-text', inlineData=base64.b64encode(label.encode()).decode())]))
+        (history_root / 'history.json').write_text(json.dumps(dict(version=1, items=operations_items)))
+        (history_root / 'desktop-settings.json').write_text(json.dumps(dict(languageOverride='en')))
     if args.local_text_only:
         if not all([args.summary_model, args.entity_model, args.model_definitions]):
             raise RuntimeError('local_text_model_fixture_arguments_required')
@@ -513,10 +537,120 @@ try:
         (history_root / 'desktop-settings.json').write_text(json.dumps(dict(
             languageOverride='en', localGenerativeSummariesEnabled=True)))
     wm = subprocess.Popen(['openbox', '--sm-disable'], stdout=log, stderr=log)
-    app = subprocess.Popen([args.launch_command or str(Path(args.executable).resolve()), '--smoke-root', str(history_root)] + (['--smoke-local-text'] if args.local_text_only else []),
+    app = subprocess.Popen([args.launch_command or str(Path(args.executable).resolve()), '--smoke-root', str(history_root)] + (['--smoke-local-text'] if args.local_text_only else []) + (['--smoke-model-transfers'] if args.model_operations_only else []),
                            stdout=log, stderr=log, start_new_session=True)
     wait_for(lambda: has_text('Ready') and has_text('3 items'), 'initial_history')
     check('native_window_and_history_visible', True)
+    if args.model_operations_only:
+        definitions = Path(args.model_definitions)
+        pins = {kind: json.loads((definitions / name).read_text()) for kind, name in [
+            ('generative', 'DesktopLocalLanguageModel.json'), ('entities', 'DesktopLocalEntityModel.json')]}
+        model_files = {kind: history_root / 'models' / kind / (pin['sha256'] + ('.gguf' if kind == 'generative' else '.onnx'))
+                       for kind, pin in pins.items()}
+        def transfer_count(kind, count, finished=False):
+            path = history_root / ('.model-transfer-' + kind + ('-finished' if finished else '-started'))
+            return path.exists() and path.read_text() == str(count)
+        def controls_ready():
+            control = button('Verify local models')
+            return control and control.getState().contains(pyatspi.STATE_SENSITIVE)
+        def no_pending():
+            return all(not list((history_root / 'models').glob('*/' + pattern))
+                       for pattern in ['.pending-*', '.stage-owner-*', '.stage-lease-*'])
+        def no_analysis_permission():
+            settings = json.loads((history_root / 'desktop-settings.json').read_text())
+            return not settings.get('ai', {}).get('enabled', False) and all(not settings.get(key, False) for key in [
+                'localGenerativeSummariesEnabled', 'automaticLocalGenerativeSummaries',
+                'localLanguageSummariesEnabled', 'automaticLocalLanguageSummaries',
+                'localTextSummariesEnabled', 'automaticLocalSummaries', 'localFileSummariesEnabled',
+                'automaticLocalFileSummaries', 'automaticSummaries', 'automaticOCR', 'automaticLocalImageSummaries'])
+        def import_file(kind, filename):
+            title = 'Import summary model' if kind == 'generative' else 'Import names model'
+            click_visible_public_control(title)
+            activate_archive_file_with_pointer(filename, title)
+        wait_for(lambda: (history_root / '.model-transfer-fixture-ready').exists(), 'private_transfer_fixture_selected_before_any_request')
+        click('Settings')
+        wait_for(lambda: has_text('Local text models') and controls_ready(), 'model_operation_settings_ready')
+        check('passive_model_cards_never_start_a_transfer_or_create_model_root', not (history_root / 'models').exists())
+        click_visible_public_control('Download summary model')
+        wait_for(lambda: transfer_count('generative', 1) and has_text('Downloading model…'), 'explicit_model_transfer_started')
+        check('explicit_transfer_shows_numeric_progress_and_cancellable_state', has_text('0 / 2498 MB') and button('Cancel') is not None)
+        (history_root / '.model-transfer-generative-release').touch()
+        wait_for(lambda: transfer_count('generative', 1, True) and controls_ready() and
+                 has_text('The model operation failed. Please try again.'), 'explicit_model_transfer_failure')
+        check('failed_transfer_cleans_staging_without_publishing_or_enabling_analysis', no_pending() and
+              not model_files['generative'].exists() and no_analysis_permission())
+        (history_root / '.model-transfer-generative-release').unlink()
+        click_visible_public_control('Download summary model')
+        wait_for(lambda: transfer_count('generative', 2) and button('Cancel'), 'explicit_model_transfer_retry_started')
+        click('Cancel')
+        wait_for(lambda: transfer_count('generative', 2, True) and controls_ready() and no_pending(), 'explicit_model_transfer_cancel_drained')
+        check('transfer_retry_cancel_drains_before_controls_reenable', not model_files['generative'].exists() and no_analysis_permission())
+        import_file('generative', 'summary.gguf')
+        wait_for(lambda: has_text('Verifying model…') and button('Cancel'), 'local_file_import_is_verification_not_network_download')
+        click('Cancel')
+        wait_for(lambda: controls_ready() and no_pending(), 'large_local_import_cancel_drained')
+        check('local_import_cancel_preserves_source_and_never_publishes_partial_model',
+              not model_files['generative'].exists() and (history_root / 'summary.gguf').stat().st_size == pins['generative']['size'])
+        click_visible_public_control('I agree to the names model license')
+        import_file('entities', 'entity-model.onnx')
+        pointer = model_files['entities'].parent / 'current.json'
+        wait_for(lambda: pointer.exists() and controls_ready() and has_text('Model ready'), 'real_entity_import_verified_and_published')
+        current = json.loads(pointer.read_text())
+        check('native_file_chooser_imports_real_fixed_model_with_recorded_consent',
+              current['sha256'] == pins['entities']['sha256'] and current['licenseAccepted'] is True and no_analysis_permission())
+        imported_hash = hashlib.sha256(model_files['entities'].read_bytes()).hexdigest()
+        import_file('entities', 'invalid.onnx')
+        wait_for(lambda: controls_ready() and has_text('Model verification failed. Choose the original file or download again.')
+                 and has_text('The previously verified model is still available.'), 'bad_replacement_preserves_availability')
+        check('failed_native_import_preserves_verified_model_pointer_and_bytes',
+              json.loads(pointer.read_text()) == current and hashlib.sha256(model_files['entities'].read_bytes()).hexdigest() == imported_hash and no_pending())
+        model_files['entities'].write_bytes(b'corrupt private installed fixture')
+        click_visible_public_control('Verify local models')
+        wait_for(lambda: controls_ready() and has_text('Model verification failed. Choose the original file or download again.')
+                 and not has_text('The previously verified model is still available.'), 'explicit_tamper_verification_disables_bad_asset')
+        check('explicit_verification_rejects_tampered_installed_bytes', True)
+        import_file('entities', 'entity-model.onnx')
+        wait_for(lambda: controls_ready() and has_text('Model ready') and
+                 model_files['entities'].stat().st_size == pins['entities']['size'], 'native_import_repairs_the_owned_model')
+        check('real_native_repair_restores_exact_pinned_digest', hashlib.sha256(model_files['entities'].read_bytes()).hexdigest() == pins['entities']['sha256'])
+        click_visible_public_control('Enable local language and names')
+        click_visible_public_control('Save AI settings')
+        wait_for(lambda: json.loads((history_root / 'desktop-settings.json').read_text())['localLanguageSummariesEnabled'], 'repaired_model_independent_analysis_consent')
+        click_visible_public_control('Back to history')
+        wait_for(lambda: editor() and has_text('All types'), 'repaired_model_history_restored')
+        editor().queryEditableText().setTextContents('Tim Cook')
+        wait_for(lambda: has_text('1 items'), 'repaired_model_selected_item')
+        click('Summarize locally')
+        def repaired_result():
+            item = next(item for item in json.loads((history_root / 'history.json').read_text())['items'] if item['id'].lower() == operations_id.lower())
+            return item.get('summarySource') == 'localLanguage' and all(word in item.get('summary', '') for word in ['Apple Inc', 'Tim Cook', 'Tokyo'])
+        wait_for(repaired_result, 'repaired_model_actual_inference')
+        repaired_item = next(item for item in json.loads((history_root / 'history.json').read_text())['items']
+                             if item['id'].lower() == operations_id.lower())
+        wait_for(lambda: has_texts('Summary ready', 'Local language and names', repaired_item['summary']) and
+                 button('Summarize locally').getState().contains(pyatspi.STATE_SENSITIVE),
+                 'repaired_model_result_visible_and_idle')
+        check('repaired_model_runs_actual_native_entity_inference', True)
+        screenshot('repaired-model-result.png')
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'model_operation_quit_settings')
+        click_visible_public_control('Quit Clipboard')
+        app.wait(timeout=10)
+        check('model_operation_profile_quits_with_transfers_drained', app.returncode == 0)
+        for kind in pins:
+            for suffix in ['-started', '-finished']:
+                (history_root / ('.model-transfer-' + kind + suffix)).unlink(missing_ok=True)
+        app = subprocess.Popen([args.launch_command or str(Path(args.executable).resolve()), '--smoke-root', str(history_root), '--smoke-model-transfers'],
+                               stdout=log, stderr=log, start_new_session=True)
+        wait_for(lambda: has_text('Ready') and has_text('3 items'), 'verified_import_relaunch')
+        click('Settings')
+        wait_for(lambda: controls_ready() and has_text('Model ready'), 'verified_import_relaunch_ready')
+        check('relaunch_reuses_verified_import_without_any_passive_transfer', not list(history_root.glob('.model-transfer-*-started'))
+              and hashlib.sha256(model_files['entities'].read_bytes()).hexdigest() == pins['entities']['sha256'])
+        click_visible_public_control('Quit Clipboard')
+        app.wait(timeout=10)
+        check('verified_import_relaunch_quits_cleanly', app.returncode == 0)
+        raise SystemExit(0)
     if args.local_text_only:
         def records():
             return json.loads((history_root / 'history.json').read_text())['items']

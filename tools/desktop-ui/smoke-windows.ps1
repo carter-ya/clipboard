@@ -7,11 +7,15 @@
       [switch]$ValidateOnly,
       [switch]$ModelSettingsOnly,
       [switch]$LocalTextOnly,
+      [switch]$ModelOperationsOnly,
       [string]$SummaryModel,
       [string]$EntityModel,
       [string]$ModelDefinitions,
       [int]$LifecycleCycles = 0)
 $ErrorActionPreference = 'Stop'
+if (@($ModelSettingsOnly, $LocalTextOnly, $ModelOperationsOnly | Where-Object { $_ }).Count -gt 1) {
+  throw 'private_model_modes_are_mutually_exclusive'
+}
 . (Join-Path $PSScriptRoot 'private-fixture-python.ps1')
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -688,15 +692,51 @@ function Stop-LocalTextPeer([Diagnostics.Process]$OwnedPeer) {
     if (!$OwnedPeer.WaitForExit(5000)) { $OwnedPeer.Kill(); $OwnedPeer.WaitForExit() }
   } finally { $OwnedPeer.Dispose() }
 }
+function Test-ModelOperationCounter([int]$Count, [bool]$Finished = $false) {
+  $suffix = '-started'
+  if ($Finished) { $suffix = '-finished' }
+  $counterPath = Join-Path $historyRoot ('.model-transfer-generative' + $suffix)
+  return (Test-Path -LiteralPath $counterPath) -and [IO.File]::ReadAllText($counterPath) -ceq [string]$Count
+}
+function Test-ModelOperationStagingClean {
+  $modelRoot = Join-Path $historyRoot 'models'
+  if (!(Test-Path -LiteralPath $modelRoot)) { return $true }
+  return @(Get-ChildItem -LiteralPath $modelRoot -Recurse -Force | Where-Object {
+    $_.Name -like '.pending-*' -or $_.Name -like '.stage-owner-*' -or $_.Name -like '.stage-lease-*'
+  }).Count -eq 0
+}
+function Test-ModelOperationAnalysisDisabled {
+  $saved = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
+  if ($saved.ai.enabled) { return $false }
+  foreach ($key in @('localGenerativeSummariesEnabled', 'automaticLocalGenerativeSummaries',
+    'localLanguageSummariesEnabled', 'automaticLocalLanguageSummaries', 'localTextSummariesEnabled',
+    'automaticLocalSummaries', 'localFileSummariesEnabled', 'automaticLocalFileSummaries',
+    'automaticSummaries', 'automaticOCR', 'automaticLocalImageSummaries')) {
+    if ($saved.$key) { return $false }
+  }
+  return $true
+}
+function Get-ModelOperationDigest([string]$Path) {
+  return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+function Import-ModelOperationFile([string]$Title, [string]$Filename) {
+  Invoke-VisibleConnectionButton $Title
+  Complete-ArchiveDialog $Title (Join-Path $historyRoot $Filename)
+}
 function Initialize-LocalTextFixture {
   if ($env:GITHUB_ACTIONS -ne 'true') { throw 'local_text_fixture_requires_isolated_runner' }
-  if (!$SummaryModel -or !$EntityModel -or !$ModelDefinitions -or !$ClipboardPeer) { throw 'local_text_model_fixture_arguments_required' }
+  if (!$SummaryModel -or !$EntityModel -or !$ModelDefinitions -or ($LocalTextOnly -and !$ClipboardPeer)) { throw 'local_text_model_fixture_arguments_required' }
   $script:privateTextRoot = Join-Path (Split-Path ([IO.Path]::GetFullPath($SummaryModel))) ('.clipboard-text-ui-' + [Guid]::NewGuid().ToString('N'))
   New-Item -ItemType Directory -Path $script:privateTextRoot -ErrorAction Stop | Out-Null
   $script:ownsPrivateTextRoot = $true
   $script:historyRoot = $script:privateTextRoot
   $script:primaryHistoryRoot = $script:historyRoot
   $modelRoot = Join-Path $historyRoot 'models'
+  if ($ModelOperationsOnly) {
+    New-Item -ItemType HardLink -Path (Join-Path $historyRoot 'summary.gguf') -Value ([IO.Path]::GetFullPath($SummaryModel)) | Out-Null
+    New-Item -ItemType HardLink -Path (Join-Path $historyRoot 'entity-model.onnx') -Value ([IO.Path]::GetFullPath($EntityModel)) | Out-Null
+    [IO.File]::WriteAllText((Join-Path $historyRoot 'invalid.onnx'), 'invalid synthetic replacement', [Text.UTF8Encoding]::new($false))
+  } else {
   New-Item -ItemType Directory -Path $modelRoot | Out-Null
   [IO.File]::WriteAllText((Join-Path $modelRoot '.clipboard-model-assets-v1'), "Clipboard local model assets v1`n", [Text.UTF8Encoding]::new($false))
   [IO.File]::WriteAllText((Join-Path $modelRoot 'unrelated.txt'), 'synthetic unrelated file', [Text.UTF8Encoding]::new($false))
@@ -716,6 +756,7 @@ function Initialize-LocalTextFixture {
     }
     $script:textModelFiles[$specification.kind] = $modelTarget
   }
+  }
   $script:textFixtureBodies = @(
     'The project team met on Tuesday to review schedules and paperwork. After inspecting a damaged fuel valve, NASA engineers postponed the Mars launch until Friday to complete repairs and safety checks.',
     'Apple Inc. CEO Tim Cook met officials in Tokyo to discuss the company investment. The meeting focused on the research center and jobs for local engineers.',
@@ -732,15 +773,18 @@ function Initialize-LocalTextFixture {
     $fixtureItems += @{ id = $identifier; createdAt = '2023-11-14T22:13:20Z'; kind = 'text'; preview = $body; sha256 = $digest; sizeBytes = $bytes.Length; sourceBundleID = 'com.clipboard.synthetic.text'; pinned = $false; sensitive = $false; payloads = @(@{ pasteboardType = 'public.utf8-plain-text'; inlineData = [Convert]::ToBase64String($bytes) }) }
   }
   [IO.File]::WriteAllText((Join-Path $historyRoot 'history.json'), (@{ version = 1; items = $fixtureItems } | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
-  [IO.File]::WriteAllText((Join-Path $historyRoot 'desktop-settings.json'), '{"languageOverride":"en","localGenerativeSummariesEnabled":true}', [Text.UTF8Encoding]::new($false))
+  $initialModelSettings = @{ languageOverride = 'en' }
+  if ($LocalTextOnly) { $initialModelSettings.localGenerativeSummariesEnabled = $true }
+  [IO.File]::WriteAllText((Join-Path $historyRoot 'desktop-settings.json'), ($initialModelSettings | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
 }
 
 try {
   $historyRoot = Join-Path $OutputDirectory ('history-' + [Guid]::NewGuid().ToString('N'))
   $primaryHistoryRoot = $historyRoot
-  if ($LocalTextOnly) { Initialize-LocalTextFixture }
+  if ($LocalTextOnly -or $ModelOperationsOnly) { Initialize-LocalTextFixture }
   $launchArguments = @('--smoke-root', ('"' + $historyRoot + '"'))
   if ($LocalTextOnly) { $launchArguments += '--smoke-local-text' }
+  if ($ModelOperationsOnly) { $launchArguments += '--smoke-model-transfers' }
   if ($Baseline) { $launchArguments += '--ui-baseline' }
   $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
     -ArgumentList $launchArguments -PassThru `
@@ -771,6 +815,115 @@ try {
   } else {
     Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'initial_history' | Out-Null
     Add-Check 'native_window_and_history_visible' $true
+    if ($ModelOperationsOnly) {
+      $summaryPin = Read-SharedJson (Join-Path $ModelDefinitions 'DesktopLocalLanguageModel.json')
+      $entityPin = Read-SharedJson (Join-Path $ModelDefinitions 'DesktopLocalEntityModel.json')
+      $summaryTarget = Join-Path $historyRoot ('models/generative/' + $summaryPin.sha256 + '.gguf')
+      $entityTarget = Join-Path $historyRoot ('models/entities/' + $entityPin.sha256 + '.onnx')
+      $entityPointer = Join-Path (Split-Path $entityTarget) 'current.json'
+      Wait-For { Test-Path -LiteralPath (Join-Path $historyRoot '.model-transfer-fixture-ready') } 'private_transfer_fixture_selected_before_any_request' | Out-Null
+      Invoke-Button 'Settings'
+      Wait-For { (Find-Named 'Local text models') -and (Test-PublicControlEnabled 'Verify local models') } 'model_operation_settings_ready' | Out-Null
+      Add-Check 'passive_model_cards_never_start_a_transfer_or_create_model_root' (!(Test-Path -LiteralPath (Join-Path $historyRoot 'models')))
+      Invoke-VisibleConnectionButton 'Download summary model'
+      Wait-For { (Test-ModelOperationCounter 1) -and (Find-Named 'Downloading model…') } 'explicit_model_transfer_started' | Out-Null
+      Add-Check 'explicit_transfer_shows_numeric_progress_and_cancellable_state' (($null -ne (Find-Named '0 / 2498 MB')) -and ($null -ne (Find-Named 'Cancel')))
+      $transferRelease = Join-Path $historyRoot '.model-transfer-generative-release'
+      [IO.File]::WriteAllText($transferRelease, '', [Text.UTF8Encoding]::new($false))
+      Wait-For { (Test-ModelOperationCounter 1 $true) -and (Test-PublicControlEnabled 'Verify local models') -and
+        (Find-Named 'The model operation failed. Please try again.') } 'explicit_model_transfer_failure' | Out-Null
+      Add-Check 'failed_transfer_cleans_staging_without_publishing_or_enabling_analysis' ((Test-ModelOperationStagingClean) -and !(Test-Path -LiteralPath $summaryTarget) -and (Test-ModelOperationAnalysisDisabled))
+      Remove-Item -LiteralPath $transferRelease
+      Invoke-VisibleConnectionButton 'Download summary model'
+      Wait-For { (Test-ModelOperationCounter 2) -and (Find-Named 'Cancel') } 'explicit_model_transfer_retry_started' | Out-Null
+      Invoke-VisibleConnectionButton 'Cancel'
+      Wait-For { (Test-ModelOperationCounter 2 $true) -and (Test-PublicControlEnabled 'Verify local models') -and
+        (Test-ModelOperationStagingClean) } 'explicit_model_transfer_cancel_drained' | Out-Null
+      Add-Check 'transfer_retry_cancel_drains_before_controls_reenable' (!(Test-Path -LiteralPath $summaryTarget) -and (Test-ModelOperationAnalysisDisabled))
+      Import-ModelOperationFile 'Import summary model' 'summary.gguf'
+      Wait-For { (Find-Named 'Verifying model…') -and (Find-Named 'Cancel') } 'local_file_import_is_verification_not_network_download' | Out-Null
+      Invoke-VisibleConnectionButton 'Cancel'
+      Wait-For { (Test-PublicControlEnabled 'Verify local models') -and (Test-ModelOperationStagingClean) } 'large_local_import_cancel_drained' | Out-Null
+      Add-Check 'local_import_cancel_preserves_source_and_never_publishes_partial_model' (!(Test-Path -LiteralPath $summaryTarget) -and
+        (Get-Item -LiteralPath (Join-Path $historyRoot 'summary.gguf')).Length -eq $summaryPin.size)
+      Invoke-VisibleConnectionButton 'I agree to the names model license'
+      Import-ModelOperationFile 'Import names model' 'entity-model.onnx'
+      Wait-For { (Test-Path -LiteralPath $entityPointer) -and (Test-PublicControlEnabled 'Verify local models') -and
+        (Find-Named 'Model ready') } 'real_entity_import_verified_and_published' | Out-Null
+      $entityOwner = Read-SharedJson $entityPointer
+      Add-Check 'native_file_chooser_imports_real_fixed_model_with_recorded_consent' ($entityOwner.sha256 -ceq $entityPin.sha256 -and
+        $entityOwner.licenseAccepted -and (Test-ModelOperationAnalysisDisabled))
+      $importedDigest = Get-ModelOperationDigest $entityTarget
+      Import-ModelOperationFile 'Import names model' 'invalid.onnx'
+      Wait-For { (Test-PublicControlEnabled 'Verify local models') -and
+        (Find-Named 'Model verification failed. Choose the original file or download again.') -and
+        (Find-Named 'The previously verified model is still available.') } 'bad_replacement_preserves_availability' | Out-Null
+      $retainedOwner = Read-SharedJson $entityPointer
+      Add-Check 'failed_native_import_preserves_verified_model_pointer_and_bytes' (($retainedOwner | ConvertTo-Json -Compress) -ceq
+        ($entityOwner | ConvertTo-Json -Compress) -and (Get-ModelOperationDigest $entityTarget) -ceq $importedDigest -and
+        (Test-ModelOperationStagingClean))
+      # Only the imported copy is damaged. The public cache/source hard link is never modified.
+      [IO.File]::WriteAllText($entityTarget, 'corrupt private installed fixture', [Text.UTF8Encoding]::new($false))
+      Invoke-VisibleConnectionButton 'Verify local models'
+      Wait-For { (Test-PublicControlEnabled 'Verify local models') -and
+        (Find-Named 'Model verification failed. Choose the original file or download again.') -and
+        ($null -eq (Find-Named 'The previously verified model is still available.')) } 'explicit_tamper_verification_disables_bad_asset' | Out-Null
+      Add-Check 'explicit_verification_rejects_tampered_installed_bytes' $true
+      Import-ModelOperationFile 'Import names model' 'entity-model.onnx'
+      Wait-For { (Test-PublicControlEnabled 'Verify local models') -and (Find-Named 'Model ready') -and
+        (Get-Item -LiteralPath $entityTarget).Length -eq $entityPin.size } 'native_import_repairs_the_owned_model' | Out-Null
+      Add-Check 'real_native_repair_restores_exact_pinned_digest' ((Get-ModelOperationDigest $entityTarget) -ceq $entityPin.sha256)
+      Invoke-VisibleConnectionButton 'Enable local language and names'
+      Invoke-VisibleConnectionButton 'Save AI settings'
+      Wait-For { (Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')).localLanguageSummariesEnabled } 'repaired_model_independent_analysis_consent' | Out-Null
+      Invoke-VisibleConnectionButton 'Back to history'
+      Wait-RestoredHistorySearch '' 'repaired_model_history_restored' | Out-Null
+      Set-LocalTextSearch 'Tim Cook'
+      Invoke-Button 'Summarize locally'
+      Wait-For {
+        $repaired = Get-LocalTextRecord $textFixtureIDs[1]
+        $repaired.summarySource -ceq 'localLanguage' -and $repaired.summary.Contains('Apple Inc') -and
+          $repaired.summary.Contains('Tim Cook') -and $repaired.summary.Contains('Tokyo')
+      } 'repaired_model_actual_inference' | Out-Null
+      $repaired = Get-LocalTextRecord $textFixtureIDs[1]
+      Wait-For { (Find-Named 'Summary ready') -and (Find-Named 'Local language and names') -and
+        (Find-Named $repaired.summary) -and (Test-PublicControlEnabled 'Summarize locally') } 'repaired_model_result_visible_and_idle' | Out-Null
+      Add-Check 'repaired_model_runs_actual_native_entity_inference' $true
+      Save-Screenshot 'repaired-model-result.png'
+      Invoke-Button 'Settings'
+      Wait-For { Find-Named 'Preferences' } 'model_operation_quit_settings' | Out-Null
+      Invoke-VisibleConnectionButton 'Quit Clipboard'
+      if (!$application.WaitForExit(10000)) { throw 'model_operation_quit_timeout' }
+      Add-Check 'model_operation_profile_quits_with_transfers_drained' ($application.ExitCode -eq 0)
+      foreach ($kind in @('generative', 'entities')) {
+        foreach ($suffix in @('-started', '-finished')) {
+          $marker = Join-Path $historyRoot ('.model-transfer-' + $kind + $suffix)
+          if (Test-Path -LiteralPath $marker) { Remove-Item -LiteralPath $marker }
+        }
+      }
+      $application.Dispose()
+      $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+        -ArgumentList @('--smoke-root', ('"' + $historyRoot + '"'), '--smoke-model-transfers') -PassThru `
+        -RedirectStandardOutput (Join-Path $OutputDirectory 'relaunch.stdout.log') `
+        -RedirectStandardError (Join-Path $OutputDirectory 'relaunch.stderr.log')
+      $null = $application.Handle
+      $nativeWindowHandle = Wait-For {
+        $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
+        if ($handle -ne [IntPtr]::Zero) { $handle }
+      } 'verified_import_relaunch_window'
+      if (![PreviewNative]::SetWindowPos($nativeWindowHandle, [IntPtr]::Zero, 16, 16, 0, 0, 0x0005)) { throw 'position_model_relaunch_window' }
+      [PreviewNative]::SetForegroundWindow($nativeWindowHandle) | Out-Null
+      $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+      Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'verified_import_relaunch' | Out-Null
+      Invoke-Button 'Settings'
+      Wait-For { (Test-PublicControlEnabled 'Verify local models') -and (Find-Named 'Model ready') } 'verified_import_relaunch_ready' | Out-Null
+      Add-Check 'relaunch_reuses_verified_import_without_any_passive_transfer' (@(Get-ChildItem -LiteralPath $historyRoot -Force -Filter '.model-transfer-*-started').Count -eq 0 -and
+        (Get-ModelOperationDigest $entityTarget) -ceq $entityPin.sha256)
+      Invoke-VisibleConnectionButton 'Quit Clipboard'
+      if (!$application.WaitForExit(10000)) { throw 'model_operation_relaunch_quit_timeout' }
+      Add-Check 'verified_import_relaunch_quits_cleanly' ($application.ExitCode -eq 0)
+      return
+    }
     if ($LocalTextOnly) {
       Set-LocalTextSearch 'NASA engineers'
       $originalTextRecord = Get-LocalTextRecord $textFixtureIDs[0]

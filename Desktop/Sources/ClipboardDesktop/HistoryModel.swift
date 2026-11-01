@@ -1399,7 +1399,7 @@ final class HistoryModel: ObservableObject {
     do {
       let models = try DesktopModelStore(
         root: directory.appendingPathComponent("models", isDirectory: true),
-        downloader: BoundedDesktopModelDownloader())
+        downloader: DesktopModelTransferFixture.downloader())
       modelStore = models
       for kind in DesktopModelKind.allCases { modelAssets[kind] = await models.asset(kind) }
       modelObservationTask = Task { @MainActor [weak self] in

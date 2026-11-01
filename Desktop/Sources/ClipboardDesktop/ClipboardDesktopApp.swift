@@ -37,6 +37,7 @@ struct HistoryView: View {
   @State var model = HistoryModel()
   @State var showsCompactFilters = false
   @State var archiveDirectory: URL?
+  @State var modelImportDirectory: URL?
   @Environment(\.openURL) var openURL
   @Environment(\.chooseFile) var chooseFile
   @Environment(\.chooseFileSaveDestination) var chooseSaveDestination
@@ -76,6 +77,11 @@ struct HistoryView: View {
       // while its initial directory and untouched default save stay private.
       if archiveDirectory == nil && CommandLine.arguments.contains("--smoke-root") {
         archiveDirectory = DesktopApplicationContext.dataRoot
+      }
+      if modelImportDirectory == nil, CommandLine.arguments.contains("--smoke-root"),
+        DesktopApplicationContext.profile != "production"
+      {
+        modelImportDirectory = DesktopApplicationContext.dataRoot
       }
     }
     .onChange(of: model.selectedID) { Task { @MainActor in await model.loadPreview() } }
