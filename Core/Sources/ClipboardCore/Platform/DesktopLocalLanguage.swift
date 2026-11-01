@@ -110,7 +110,9 @@ public struct DesktopLocalLanguageOutput: Equatable, Sendable {
     } else {
       content = found.joined(separator: ", ")
     }
-    let locale = language.map(Locale.init(identifier:)) ?? .current
+    let locale =
+      language.map(Locale.init(identifier:))
+      ?? Locale(identifier: DesktopUILanguage.resolve(override: nil).rawValue)
     let name = languageCode.flatMap { locale.localizedString(forLanguageCode: $0) }
     let result = name.map { $0 + " · " + content } ?? content
     return String(DesktopTextPreview(result, maxUTF8Bytes: 2048).text.prefix(200))
