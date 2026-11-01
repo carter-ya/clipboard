@@ -159,3 +159,13 @@ a debug-only Swift library; a current optimized peer fixes that harness setup.
 Mac passes 24 related model/download/catalog tests and the existing app build.
 The subsequent parent FIFO content-validation fix is incorporated; native
 Windows UI and actual model-operation/analysis integration gates remain open.
+
+The dependent local-text policy layer adds independent, default-off generative and
+trained-language permissions. Its Core pipeline checks fresh eligibility before
+model resolution, before payload processing and after inference; local fallback
+order is generative → language/entities → excerpt, with separate authorization
+for every phase and automatic/file gates. It owns no download or history write.
+A scheduler pause lease cancels and drains owned work before model operations;
+overlapping leases cannot resume one another. This layer is tested through
+injected processors and held tasks. Normal UI/scheduler integration and actual
+model removal/revocation acceptance remain pending in the next layer.

@@ -418,6 +418,18 @@
                 "Actual analysis actions, independent automatic policy, per-item progress/retry/fallback, analysis draining before removal and Mac archive source compatibility"
               ]
             }
+          },
+          "local_text_analysis_policy": {
+            "branch": "codex/cross-platform-local-text-policy",
+            "status": "in_progress",
+            "implemented": "Independent default-off generative and trained-language permissions and automatic flags preserve legacy excerpt behavior. A typed local pipeline uses the fixed generative, language/entity, excerpt order, rechecking current item and permissions before asset resolution, before payload processing and after inference. Failed or missing models may reach only independently authorized fallback engines; cancellation never starts a fallback. No history writes, downloads, credential lookup or remote transport are introduced. The scheduler can pause with independent leases, discard queued work, cancel and drain an uncooperative active task before a caller manipulates model files; one owner cannot resume another owner or a stopped scheduler.",
+            "validation": "Linux arm64: all 328 Core/platform tests pass with two existing unconfigured real-model fixture skips. Mac: twenty-three related pipeline/scheduler/fallback/settings tests pass. Regressions cover fixed first-success order, independent fallback/automatic/file authorization, legacy defaults, private/deleted/already-summarized refusal before model resolution, revocation during model resolution, late-result refusal after revocation/deletion/first automatic write, cancellation without fallback, draining an uncooperative owned worker, overlapping pause leases and stopped-scheduler exclusion. No native UI completion is claimed in this Core layer.",
+            "remaining": [
+              "Normal UI actions and permission controls, scheduler/progress/retry integration and automatic selection",
+              "Analysis draining before model removal and shutdown, live revocation",
+              "Summary source labels and Mac archive compatibility",
+              "Actual-model native and installed UI acceptance"
+            ]
           }
         },
         {
