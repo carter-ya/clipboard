@@ -87,6 +87,7 @@ public final class RichClipboardMonitor: ClipboardMonitoring, @unchecked Sendabl
   private let clipboard: any RichClipboardAccess
   private let filter: any ClipFilter
   private let maxBytes: Int
+  private let itemSizeLimit: Int
   private let queue = DispatchQueue(label: "com.clipboard.monitor.rich")
   private let key = DispatchSpecificKey<Bool>()
   private var timer: DispatchSourceTimer?
@@ -98,7 +99,10 @@ public final class RichClipboardMonitor: ClipboardMonitoring, @unchecked Sendabl
   ) {
     self.clipboard = clipboard
     self.filter = filter
-    self.maxBytes = min(16 * 1024 * 1024, max(1, maxBytes))
+    // Zero disables the user's item-size filter, including referenced file
+    // sizes. Native transfer buffers remain bounded independently.
+    self.maxBytes = maxBytes == 0 ? 16 * 1024 * 1024 : min(16 * 1024 * 1024, max(1, maxBytes))
+    itemSizeLimit = maxBytes == 0 ? 0 : self.maxBytes
     self.interval = max(0.01, interval)
     lastRevision = clipboard.revision()
     (changes, changeOutput) = AsyncStream.makeStream()
@@ -161,7 +165,7 @@ public final class RichClipboardMonitor: ClipboardMonitoring, @unchecked Sendabl
         }
       }
       lastRevision = snapshot.revision
-      guard total <= maxBytes else {
+      guard itemSizeLimit == 0 || total <= itemSizeLimit else {
         emitSkip("tooLarge", bytes: total, source: snapshot.sourceAppID)
         return
       }

@@ -682,9 +682,9 @@ final class HistoryModel: ObservableObject {
     // Invalid submissions belong to the same FIFO as successful saves. A
     // previous save must finish before the next validation message is shown.
     guard let capacity = Int(capacityDraft), let megabytes = Int(maxSizeDraft),
-      (1...16).contains(megabytes)
+      (0...16).contains(megabytes)
     else {
-      status = "Enter a capacity of 1–5000 and a size of 1–16 MiB."
+      status = "Enter a capacity of 1–5000 and a size of 0–16 MiB."
       return
     }
     var next = settings

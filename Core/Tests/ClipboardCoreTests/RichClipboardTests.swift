@@ -13,6 +13,57 @@ final class RichClipboardTests: XCTestCase {
     }
     func write(payloads: [RawPayload], sensitive: Bool) throws {}
   }
+  private final class RecordingFilter: ClipFilter, @unchecked Sendable {
+    var captured: RawClipItem?
+    func evaluate(_ item: RawClipItem, context: ClipContext) -> FilterDecision {
+      captured = item
+      return .accept
+    }
+  }
+  func testZeroSizePreferenceCapturesTextAndLargeFileReferences() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let file = root.appendingPathComponent("synthetic-large-file")
+    XCTAssertTrue(FileManager.default.createFile(atPath: file.path, contents: nil))
+    let handle = try FileHandle(forWritingTo: file)
+    try handle.truncate(atOffset: 20 * 1024 * 1024)
+    try handle.close()
+    let clipboard = FakeRichClipboard()
+    let filter = RecordingFilter()
+    let monitor = RichClipboardMonitor(clipboard: clipboard, filter: filter, maxBytes: 0)
+    clipboard.push(
+      .init(
+        payloads: [
+          .init(pasteboardType: "public.utf8-plain-text", data: Data("synthetic size fixture".utf8))
+        ], revision: 1))
+    monitor.pulse()
+    XCTAssertEqual(filter.captured?.payloads.first?.data, Data("synthetic size fixture".utf8))
+    filter.captured = nil
+    clipboard.push(
+      .init(
+        payloads: [
+          .init(pasteboardType: "public.file-url", data: ClipboardFormats.fileURLData([file]))
+        ], revision: 2))
+    monitor.pulse()
+    XCTAssertGreaterThan(filter.captured?.totalBytes ?? 0, 16 * 1024 * 1024)
+  }
+  func testZeroSizePreferenceRetainsBoundedNativeTransferProtection() async {
+    let clipboard = FakeRichClipboard()
+    let filter = RecordingFilter()
+    let monitor = RichClipboardMonitor(clipboard: clipboard, filter: filter, maxBytes: 0)
+    clipboard.push(
+      .init(
+        payloads: [
+          .init(pasteboardType: "public.png", data: Data(repeating: 0, count: 16 * 1024 * 1024 + 1))
+        ], revision: 1))
+    monitor.pulse()
+    var skips = monitor.skips.makeAsyncIterator()
+    let skip = await skips.next()
+    XCTAssertEqual(skip?.reason, "tooLarge")
+    XCTAssertEqual(skip?.limit, 16 * 1024 * 1024)
+    XCTAssertNil(filter.captured)
+  }
   func testRestrictedSessionStopsCaptureWithoutReadingContent() async {
     let clipboard = RestrictedClipboard()
     let monitor = RichClipboardMonitor(clipboard: clipboard)

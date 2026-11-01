@@ -156,6 +156,19 @@ def editor():
     return None
 
 
+def editor_with_value(value):
+    if sensitive_probe:
+        raise RuntimeError('public_editor_lookup_after_sensitive_phase')
+    for node in nodes():
+        try:
+            if ('EditableText' in node.get_interfaces() and
+                    node.queryText().getText(0, node.queryText().characterCount) == value):
+                return node
+        except Exception:
+            continue
+    return None
+
+
 def window_id():
     tree = subprocess.check_output(['xwininfo', '-root', '-tree'], text=True)
     for line in tree.splitlines():
@@ -767,6 +780,18 @@ try:
     saved_file = history_root / 'desktop-settings.json'
     saved_settings = json.loads(saved_file.read_text()) if saved_file.exists() else {}
     check('startup_reconciliation_does_not_save_content_drafts', saved_settings.get('historyCapacity', 100) == 100)
+    size_editor = wait_for(lambda: editor_with_value('10'), 'size_preference_editor')
+    size_editor.queryEditableText().setTextContents('0')
+    click('Save content settings')
+    wait_for(lambda: has_text('Content settings saved') and
+             json.loads(saved_file.read_text()).get('maxClipSizeBytes') == 0, 'disabled_size_preference_saved')
+    check('native_settings_can_disable_size_filtering',
+          has_text('0 disables size filtering. Clipboard transfers remain limited to 16 MiB.'))
+    wait_for(lambda: editor_with_value('0'), 'disabled_size_editor').queryEditableText().setTextContents('-1')
+    click('Save content settings')
+    wait_for(lambda: has_text('Enter a capacity of 1–5000 and a size of 0–16 MiB.'), 'negative_size_preference_rejected')
+    check('invalid_size_does_not_replace_disabled_preference',
+          json.loads(saved_file.read_text()).get('maxClipSizeBytes') == 0)
     click('Quit Clipboard')
     app.wait(timeout=10)
     check('startup_state_profile_quits_cleanly', app.returncode == 0)
