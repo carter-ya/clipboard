@@ -1322,8 +1322,14 @@ try {
       Add-Check 'local_image_automatic_opt_in_does_not_enable_uploads' ($localSettings.automaticOCR -and
         !$localSettings.ai.enabled -and !$localSettings.ai.allowImages -and !$localSettings.automaticSummaries)
       Invoke-Button 'Back to history'
-      Set-Search ''
-      Wait-For { Find-Named '2 items' } 'local_image_recording_history' | Out-Null
+      # The handoff is asynchronous. The settings tree can still contain an
+      # Edit when Back returns; target the restored history query before clear.
+      $historySearch = Wait-For {
+        $control = Get-EditorWithValue 'Local image fixture'
+        if ((Find-Named 'Start recording') -and $control -and !$control.Current.IsOffscreen) { $control }
+      } 'local_image_recording_search_restored'
+      $historySearch.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('')
+      Wait-For { (Get-EditorWithValue '') -and (Find-Named '2 items') } 'local_image_recording_history' | Out-Null
       Invoke-Button 'Start recording'
       Wait-For { Find-Named 'Recording clipboard' } 'local_image_recording_ready' | Out-Null
       [IO.File]::Delete($releaseImage)
