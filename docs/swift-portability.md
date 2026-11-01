@@ -354,3 +354,8 @@ generic Edit lookup can still target the outgoing settings tree. The fixture
 now waits for the visible restored history query before clearing it, retaining
 the exact two-item check and the existing action deadline. Native confirmation
 of this candidate remains required.
+
+Review of 4af85c9 finds the same outgoing-editor race at the second automatic
+image settings handoff. Both returns now share a visible retained-query and
+mapped-history-filter wait, preserving the exact two/three-item checks and
+existing deadlines. Native Windows confirmation remains required.
