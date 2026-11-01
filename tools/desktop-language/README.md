@@ -76,3 +76,24 @@ model path, input text, generated text or network exception enters this report.
 Windows CMake cache values use forward slashes so drive paths cannot become
 CMake string escapes. Linux x64 failure in run 41255422473 requires the new
 stage evidence before a specific inference repair can be claimed.
+
+The optional x64 generative worker requires AVX2, FMA, F16C and OS-managed
+XMM/YMM state. Its baseline-ISA entry point checks CPU/OS support before SDK
+initialization and returns fixed exit 11 on unsupported processors. The main
+application and language/entity baseline do not acquire this requirement.
+GGML x64 kernels use those fixed features, with host-native flags, AVX512,
+dynamic backends and GPU acceleration still disabled. ARM64 keeps its existing
+kernel configuration. A small native CPU-feature regression covers each missing
+feature/state bit. The original scalar-only x64 build hit SIGXCPU in native CI;
+the 4 GiB, 120-second CPU and 90-second parent limits remain unchanged. Native
+x64 timing and multilingual quality must pass before accepting this candidate.
+
+The x64 feature guard also checks the associated BMI1/BMI2, POPCNT, LZCNT,
+MOVBE and SSE feature bits, since [MSVC /arch:AVX2](https://learn.microsoft.com/en-us/cpp/build/reference/arch-x64)
+can emit associated scalar instructions as well as vector instructions. No
+AVX2 compilation flag is applied to the entry point or capability check.
+
+Linux x64 CI additionally runs `check-cpu-guard.py` through QEMU's Nehalem CPU
+profile and requires exit 11 with empty output before opening any model. This
+checks the linked executable's startup path, including static initializers;
+it is emulated evidence, not physical older-CPU acceptance.

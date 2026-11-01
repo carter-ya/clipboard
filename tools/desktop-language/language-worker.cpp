@@ -1,6 +1,7 @@
 #include "llama.h"
 #include "json.hpp"
 #include "model-pin.h"
+#include "model-cpu.h"
 extern "C" {
 #include "sha256.h"
 }
@@ -195,6 +196,7 @@ static std::string generate(llama_model *model, const std::string &text,
 }
 
 int main() {
+    if (!model_cpu_supported()) return 11;
     if (!limits()) return 3;
     int stage = 4;
     // No SDK diagnostics, prompts, paths or generated text enter stderr logs.

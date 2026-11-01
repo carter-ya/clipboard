@@ -106,3 +106,9 @@ classifier. Their held-worker fixture requires an isolated smoke profile and can
 be enabled through normal settings. Hosted Windows and the
 physical release gates remain required; backend tests do not establish identical
 Vision labels or generative image descriptions.
+
+The optional x64 generative worker requires AVX2/FMA/F16C plus OS XMM/YMM
+support. It checks that capability before initializing the SDK and fails as
+unavailable on unsupported CPUs. This is separate from the baseline desktop
+application and trained language/entity worker. Native x64 inference timing and
+quality remain required; the scalar build reached SIGXCPU in run 41258575790.

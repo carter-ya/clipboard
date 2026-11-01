@@ -132,7 +132,7 @@ def main():
     if project.is_symlink():
         raise RuntimeError('Unsafe language worker project')
     project.mkdir(exist_ok=True)
-    for name in ('CMakeLists.txt', 'language-worker.cpp'):
+    for name in ('CMakeLists.txt', 'language-worker.cpp', 'model-cpu.h', 'cpu-check.cpp'):
         write_changed(project / name, (source / name).read_bytes())
     header = ('#include <cstdint>\nstatic constexpr uint64_t model_size = ' + str(model['size']) + 'ULL;\n'
               'static const unsigned char model_sha256[32] = {' +
@@ -146,10 +146,12 @@ def main():
     for name, arguments in (
             ('language-configure.log', command),
             ('language-build.log', ['cmake', '--build', str(build), '--config', 'Release',
-                                    '--target', 'clipboard-language-worker', '--parallel', '2'])):
+                                    '--target', 'clipboard-language-worker', 'language-cpu-check', '--parallel', '2'])):
         with (output / name).open('wb') as log:
             subprocess.run(arguments, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=900)
     name = 'clipboard-language-worker' + ('.exe' if os.name == 'nt' else '')
+    subprocess.run([str(build / 'bin' / ('language-cpu-check' + ('.exe' if os.name == 'nt' else '')))],
+                   check=True, timeout=10)
     notices = output / 'language-model-notices'
     if notices.is_symlink():
         raise RuntimeError('Unsafe language notices directory')
