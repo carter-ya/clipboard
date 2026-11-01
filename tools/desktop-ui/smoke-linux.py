@@ -627,16 +627,41 @@ try:
         wait_for(lambda: editor() and has_text('All types') and editor().queryText().getText(
             0, editor().queryText().characterCount) == 'Tim Cook', 'language_only_history')
         click('Summarize locally')
-        wait_for(lambda: counter('language', 3, True), 'language_only_after_entity_removal')
+        wait_for(lambda: counter('language', 3, True) and has_text('Summary ready') and
+                 button('Summarize locally').getState().contains(pyatspi.STATE_SENSITIVE), 'language_only_after_entity_removal')
         check('bundled_language_identification_survives_optional_entity_removal',
               record(text_fixture_ids[1]).get('summarySource') == 'localLanguage' and
               record(text_fixture_ids[1])['summary'].startswith('English · '))
 
+        hold('language')
+        click('Summarize locally')
+        wait_for(lambda: counter('language', 4), 'language_only_active_without_entity_model')
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'language_only_unrelated_removal_settings')
+        click_visible_public_control('Remove names model')
+        wait_for(lambda: has_text('Names model removal complete') and
+                 button('Verify local models').getState().contains(pyatspi.STATE_SENSITIVE), 'language_only_noop_removal_finished')
+        click_visible_public_control('Back to history')
+        wait_for(lambda: editor() and has_text('All types') and editor().queryText().getText(
+            0, editor().queryText().characterCount) == 'Tim Cook', 'language_only_noop_removal_history')
+        check('removing_an_absent_entity_model_keeps_language_only_analysis',
+              not counter('language', 4, True) and has_text('Identifying language and names locally…'))
         change_settings(['Enable local generated summaries', 'Enable local language and names'], 'Tim Cook')
+        wait_for(lambda: counter('language', 4, True), 'language_only_permission_change_drained')
         search('NASA engineers')
         hold('generative')
         click('Summarize locally')
         wait_for(lambda: counter('generative', 5), 'manual_generation_before_revocation')
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'unrelated_model_removal_settings')
+        click_visible_public_control('Remove names model')
+        wait_for(lambda: has_text('Names model removal complete') and
+                 button('Verify local models').getState().contains(pyatspi.STATE_SENSITIVE), 'unrelated_model_removal_finished')
+        click_visible_public_control('Back to history')
+        wait_for(lambda: editor() and has_text('All types') and editor().queryText().getText(
+            0, editor().queryText().characterCount) == 'NASA engineers', 'unrelated_model_removal_history')
+        check('removing_an_uninstalled_unrelated_model_keeps_active_generation',
+              not counter('generative', 5, True) and has_text('Generating a local summary…'))
         change_settings(['Enable local generated summaries'], 'NASA engineers')
         wait_for(lambda: counter('generative', 5, True), 'manual_generation_revocation_drained')
         check('manual_revocation_rejects_late_results_and_unconsented_fallback', record(original['id'])['summary'] == result['summary'])

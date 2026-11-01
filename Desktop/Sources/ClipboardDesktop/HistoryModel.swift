@@ -1288,7 +1288,8 @@ final class HistoryModel: ObservableObject {
   @MainActor private func performLocalTextAnalysis(
     _ request: DesktopAnalysisScheduler.Request, ticket: DesktopAnalysisProgressState.Ticket
   ) async throws -> DesktopLocalTextPipeline.Result {
-    try await DesktopLocalTextPipeline.run(
+    var selectedModel: DesktopModelKind?
+    return try await DesktopLocalTextPipeline.run(
       id: request.id, automatic: request.automatic, language: settings.languageOverride,
       context: { [weak self] in
         guard let self, !self.shuttingDown, self.analysisProgress.isCurrent(ticket),
@@ -1303,17 +1304,21 @@ final class HistoryModel: ObservableObject {
         if engine != .excerpt { await self.initialModelCheck?.value }
         try Task.checkCancellation()
         let processor: (any DesktopLocalLanguageProcessing)?
+        selectedModel = nil
         switch engine {
         case .generative:
           guard self.modelAssetSupport[.generative] == true,
             let file = await self.modelStore?.installedURL(.generative)
           else { throw DesktopServiceError.unavailable }
+          selectedModel = .generative
           processor = NativeDesktopLanguageModel(model: file)
         case .language:
           guard self.modelAssetSupport[.entities] == true else {
             throw DesktopServiceError.unavailable
           }
-          processor = NativeDesktopTextTagger(model: await self.modelStore?.installedURL(.entities))
+          let file = await self.modelStore?.installedURL(.entities)
+          selectedModel = file == nil ? nil : .entities
+          processor = NativeDesktopTextTagger(model: file)
         case .excerpt:
           processor = nil
         }
@@ -1324,7 +1329,7 @@ final class HistoryModel: ObservableObject {
       },
       began: { [weak self] engine in
         guard let self, self.analysisProgress.isCurrent(ticket),
-          self.analysisScheduler.beginLocalTextPhase(engine, id: request.id)
+          self.analysisScheduler.beginLocalTextPhase(engine, id: request.id, model: selectedModel)
         else { throw CancellationError() }
         self.analysisProgress.useLocalTextEngine(ticket, engine: engine)
       })
@@ -1465,12 +1470,18 @@ final class HistoryModel: ObservableObject {
   }
   @MainActor func removeModel(_ kind: DesktopModelKind) {
     runModelOperation(kind) { models in
-      self.analysisProgress.clear()
-      let pause = await self.analysisScheduler.pauseAndDrain()
+      let pause = await self.analysisScheduler.pauseAndDrain(preservingPending: true) { request in
+        guard request.usesOptionalModel(kind) else { return false }
+        self.analysisProgress.remove(id: request.id)
+        return true
+      }
       defer { self.analysisScheduler.resume(pause) }
       try Task.checkCancellation()
       guard !self.shuttingDown else { throw CancellationError() }
       try await models.remove(kind)
+      self.status =
+        kind == .generative
+        ? "Summary model removal complete" : "Names model removal complete"
     }
   }
   @MainActor func cancelModel(_ kind: DesktopModelKind) {

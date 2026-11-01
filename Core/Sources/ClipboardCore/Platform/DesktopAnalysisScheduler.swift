@@ -9,15 +9,17 @@ public final class DesktopAnalysisScheduler {
     public let automatic: Bool
     public let imageSummary: Bool
     public let localTextEngine: DesktopLocalTextEngine?
+    public let localTextModel: DesktopModelKind?
     public init(
       id: UUID, remote: Bool, automatic: Bool, imageSummary: Bool = false,
-      localTextEngine: DesktopLocalTextEngine? = nil
+      localTextEngine: DesktopLocalTextEngine? = nil, localTextModel: DesktopModelKind? = nil
     ) {
       self.id = id
       self.remote = remote
       self.automatic = automatic
       self.imageSummary = imageSummary
       self.localTextEngine = localTextEngine
+      self.localTextModel = localTextModel
     }
 
     /// Evaluate against the current item and preferences when work begins.
@@ -40,6 +42,10 @@ public final class DesktopAnalysisScheduler {
       if item.kind == .file { return settings.automaticLocalFileSummaries }
       if imageSummary { return settings.automaticOCR && settings.automaticLocalImageSummaries }
       return item.kind == .image ? settings.automaticOCR : settings.automaticLocalSummaries
+    }
+    public func usesOptionalModel(_ kind: DesktopModelKind) -> Bool {
+      guard !remote, !imageSummary else { return false }
+      return localTextModel == kind
     }
     public func localFallback(item: ClipItem, settings: DesktopSettings) -> Request? {
       guard remote, isAllowed(item: item, settings: settings) else { return nil }
@@ -106,12 +112,21 @@ public final class DesktopAnalysisScheduler {
   }
   /// The pipeline calls this immediately before the selected phase accesses
   /// content, so live settings revocation cancels the exact owned engine.
-  public func beginLocalTextPhase(_ engine: DesktopLocalTextEngine, id: UUID) -> Bool {
-    guard !stopped, !isPaused, !Task.isCancelled, let active = current,
+  public func beginLocalTextPhase(
+    _ engine: DesktopLocalTextEngine, id: UUID, model: DesktopModelKind?
+  ) -> Bool {
+    let validModel: Bool
+    switch engine {
+    case .generative: validModel = model == .generative
+    case .language: validModel = model == nil || model == .entities
+    case .excerpt: validModel = model == nil
+    }
+    guard validModel, !stopped, !isPaused, !Task.isCancelled, let active = current,
       active.id == id, !active.remote, !active.imageSummary
     else { return false }
     current = .init(
-      id: id, remote: false, automatic: active.automatic, localTextEngine: engine)
+      id: id, remote: false, automatic: active.automatic, localTextEngine: engine,
+      localTextModel: model)
     return true
   }
   public func cancelAll() {
@@ -127,18 +142,29 @@ public final class DesktopAnalysisScheduler {
     return true
   }
 
-  /// Revoke queued work and prevent new work before awaiting the active task.
-  /// A dependency ignoring cancellation must still release its owned file/process
-  /// before this returns. Overlapping callers retain independent pause leases.
-  public func pauseAndDrain() async -> Pause {
+  /// Exclude new work before awaiting a selected active task. By default discard
+  /// pending work and cancel everything. Model maintenance can retain the queue
+  /// and unrelated engines. A selected dependency must release its file/process
+  /// even if it ignores cancellation; overlapping callers own separate leases.
+  public func pauseAndDrain(
+    preservingPending: Bool = false,
+    cancelCurrent: @MainActor (Request) -> Bool = { _ in true }
+  ) async -> Pause {
     let pause = Pause(id: UUID())
     pauses.insert(pause.id)
-    cancelAll()
-    let active = task
-    await active?.value
+    if !preservingPending { pending.removeAll() }
+    if let current, cancelCurrent(current) {
+      task?.cancel()
+      let active = task
+      await active?.value
+    }
     return pause
   }
-  public func resume(_ pause: Pause) { pauses.remove(pause.id) }
+  public func resume(_ pause: Pause) {
+    guard pauses.remove(pause.id) != nil, !isPaused, !stopped, !isBusy, !pending.isEmpty
+    else { return }
+    start(pending.removeFirst())
+  }
   public func stopAndDrain() async {
     stop()
     let active = task
