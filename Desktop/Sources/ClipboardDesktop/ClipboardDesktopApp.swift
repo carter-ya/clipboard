@@ -37,6 +37,7 @@ struct HistoryView: View {
   @State var model = HistoryModel()
   @State var showsCompactFilters = false
   @State var archiveDirectory: URL?
+  @Environment(\.openURL) var openURL
   @Environment(\.chooseFile) var chooseFile
   @Environment(\.chooseFileSaveDestination) var chooseSaveDestination
 
@@ -503,6 +504,36 @@ struct HistoryView: View {
     }
   }
 
+  var updateSettings: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text(model.t("Desktop updates")).font(.system(size: 18))
+      Text(
+        model.t("Installed version") + ": "
+          + (model.desktopVersion.isEmpty ? "—" : model.desktopVersion)
+      )
+      .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+      Text(model.t(model.updateMessage)).lineLimit(3)
+      HStack {
+        Button(model.t("Check for updates")) { model.checkUpdates() }
+          .disabled(model.updateBusy || model.desktopVersion.isEmpty)
+        if model.updateBusy {
+          Button(model.t("Cancel update check")) { model.cancelUpdateCheck() }
+        }
+      }
+      if case .available(let update) = model.updateResult {
+        Text(model.t("Available version") + ": " + update.version)
+          .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+        Button(model.t("Open official release page")) { openURL(update.page) }
+      }
+      Text(
+        model.t(
+          "Updates are installed manually. Quit Clipboard, verify SHA-256, then use the official package instructions."
+        )
+      )
+      .font(.system(size: 12)).foregroundColor(.gray).lineLimit(4)
+    }
+  }
+
   var settings: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
@@ -525,6 +556,7 @@ struct HistoryView: View {
           Toggle(model.t("Record when starting"), isOn: $model.recordOnLaunchDraft)
           Button(model.t("Save behavior")) { Task { @MainActor in await model.applyBehavior() } }
           if !model.shellStatus.isEmpty { Text(model.t(model.shellStatus)).lineLimit(3) }
+          updateSettings
           Button(model.t("Quit Clipboard")) { Task { @MainActor in await model.shutdown() } }
         }.frame(maxWidth: .infinity, alignment: .topLeading)
       }.frame(minHeight: 320, maxHeight: 360)

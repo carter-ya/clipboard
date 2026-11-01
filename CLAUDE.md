@@ -153,6 +153,9 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Remote analysis fallback uses only independently authorized local engines and automatic-local settings. Reload the current item and recheck both original and local permissions before switching the same owned task; live local revocation must cancel that local phase. Retain the original retry ticket, report the actual running/result engine and keep first-success-only persistence.
 
+- Desktop updates are checked only by an explicit settings action against the fixed official GitHub release endpoint, without history or AI credentials/settings. Require a compatible uploaded native package plus SHA256SUMS, compare bounded SemVer, keep stable/preview channels accurate and construct only an official release-page URL. Cancel owned checks on hide/settings handoff/shutdown. Installation remains manual; no automatic download/execute. The single desktop version source is now Sources/ClipboardDesktop/Resources/VERSION inside Desktop and must ship in the package resource bundle. Native update fixtures require both smoke flags and a private profile; normal operation cannot use an environment-supplied endpoint.
+
+
 
 - Private PowerShell fixture control pipes use UTF-8 without a preamble when supported by modern .NET. Windows PowerShell 5.1 lacks ProcessStartInfo.StandardInputEncoding: guard that property and accept one optional UTF-8 BOM on the first private command in the server. Retain real held-request tests for BOM/no-BOM and LF/CRLF without EOF; never infer protocol success from a screenshot after cleanup.
 

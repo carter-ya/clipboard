@@ -224,7 +224,7 @@ def wake_existing():
 
 
 
-def click_visible_public_control(label):
+def click_visible_public_control(label, activate=True):
     if sensitive_probe:
         raise RuntimeError('settings_pointer_outside_private_phase')
     x11 = ctypes.CDLL('libX11.so.6')
@@ -273,7 +273,8 @@ def click_visible_public_control(label):
         wait_for(visible, 'visible_control_' + label)
     finally:
         x11.XCloseDisplay(display)
-    click(label)
+    if activate:
+        click(label)
 
 
 def hover_public_image():
@@ -1415,6 +1416,70 @@ try:
     check('fallback_retries_send_only_two_fixed_requests_without_credentials_or_cookies',
           fixture_report.get('requests') == 2 and fixture_report.get('fixedTestsOnly') and
           fixture_report.get('noAuthorization') and fixture_report.get('noCookies'))
+
+    # Explicit updates use private public metadata, never the real GitHub service.
+    history_root = out / ('updates-' + uuid.uuid4().hex)
+    update_env = os.environ.copy()
+    update_env['CLIPBOARD_PRIVATE_UPDATE_TEST'] = '1'
+    update_server = subprocess.Popen(['/usr/bin/python3', str(Path(__file__).with_name('update-probe-server.py'))],
+                                     env=update_env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+    try:
+        if not select.select([update_server.stdout], [], [], 10)[0]:
+            raise RuntimeError('update_fixture_ready')
+        ready = update_server.stdout.readline(32).decode('ascii').strip()
+        if not ready.startswith('ready:') or not ready[6:].isdigit():
+            raise RuntimeError('update_fixture_ready')
+        update_env['CLIPBOARD_PRIVATE_UPDATE_PORT'] = str(int(ready[6:]))
+        app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root), '--smoke-updates'],
+                               env=update_env, stdout=log, stderr=log, start_new_session=True)
+        wait_for(lambda: has_texts('Ready', '3 items'), 'updates_private_profile')
+        click('Settings')
+        wait_for(lambda: has_text('Checks official releases only when you ask.'), 'updates_initial_idle')
+        check('updates_show_packaged_version_without_automatic_check', has_text('Installed version: 0.1.0-preview.1'))
+        update_editor = wait_for(lambda: editor_with_value('100'), 'update_draft_editor')
+        update_editor.queryEditableText().setTextContents('321')
+        click_visible_public_control('Check for updates')
+        wait_for(lambda: has_text('Could not check for updates. Try again.'), 'updates_failure')
+        check('update_failure_keeps_retry_available', button('Check for updates') is not None)
+        click_visible_public_control('Check for updates')
+        wait_for(lambda: has_texts('A desktop update is available.', 'Available version: 0.2.0'), 'updates_available')
+        check('compatible_update_shows_official_manual_release_action', button('Open official release page') is not None)
+        check('updates_preserve_native_editor_draft_without_saving_settings',
+              not update_editor.getState().contains(pyatspi.STATE_DEFUNCT) and
+              editor_with_value('321') == update_editor and not (history_root / 'desktop-settings.json').exists())
+        # Scroll only: automated fixtures never launch the external browser.
+        click_visible_public_control('Open official release page', activate=False)
+        screenshot('desktop-update-available.png')
+        click_visible_public_control('Check for updates')
+        wait_for(lambda: has_text('Checking for updates…'), 'updates_active')
+        if not select.select([update_server.stdout], [], [], 10)[0] or update_server.stdout.readline(32).strip() != b'blocked':
+            raise RuntimeError('update_request_not_active')
+        click_visible_public_control('Cancel update check')
+        wait_for(lambda: has_text('Checks official releases only when you ask.'), 'updates_cancelled')
+        check('cancelling_updates_clears_old_release_action', button('Open official release page') is None)
+        click_visible_public_control('Check for updates')
+        wait_for(lambda: has_text('Checking for updates…'), 'updates_second_active')
+        if not select.select([update_server.stdout], [], [], 10)[0] or update_server.stdout.readline(32).strip() != b'blocked':
+            raise RuntimeError('update_second_request_not_active')
+        click('Back to history')
+        wait_for(lambda: has_text('3 items') and button('All'), 'updates_history_return')
+        click('Settings')
+        wait_for(lambda: has_text('Checks official releases only when you ask.'), 'updates_cancelled_on_leave')
+        check('leaving_settings_cancels_updates_and_rejects_late_results', button('Open official release page') is None)
+        click('Quit Clipboard')
+        app.wait(timeout=10)
+        check('updates_private_profile_quits_cleanly', app.returncode == 0)
+    finally:
+        update_server.stdin.close()
+        try:
+            update_server.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            update_server.kill()
+            update_server.wait(timeout=5)
+    update_report = json.loads(update_server.stdout.readline(4096))
+    check('updates_send_four_fixed_metadata_requests_without_credentials_or_cookies',
+          update_report['requests'] == 4 and update_report['fixedTestsOnly'] and
+          update_report['noAuthorization'] and update_report['noCookies'])
 
     sensitive_probe = True
     history_root = out / ('sensitive-preview-' + uuid.uuid4().hex)

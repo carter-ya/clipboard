@@ -2,7 +2,7 @@
       [string]$GtkPrefix = 'C:/gtk-build/gtk/x64/release')
 $ErrorActionPreference = 'Stop'
 $Repository = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$Version = (Get-Content (Join-Path $Repository 'Desktop/VERSION') -Raw).Trim()
+$Version = (Get-Content (Join-Path $Repository 'Desktop/Sources/ClipboardDesktop/Resources/VERSION') -Raw).Trim()
 $Result = & python (Join-Path $PSScriptRoot 'package-desktop.py') --binary $Binary --output $Output --platform windows --gtk-prefix $GtkPrefix
 if ($LASTEXITCODE -ne 0) { throw 'Windows package assembly failed' }
 $Package = ($Result -join "`n") | ConvertFrom-Json
