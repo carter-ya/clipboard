@@ -35,7 +35,7 @@ public enum DesktopUILanguage: String, CaseIterable, Sendable {
   }
 
   public static func resolve(
-    override: String?, preferredLanguages: [String] = Locale.preferredLanguages
+    override: String?, preferredLanguages: [String] = DesktopLanguagePreferences.preferredLanguages
   ) -> Self {
     let candidates = override.map { [$0] } ?? preferredLanguages
     for candidate in candidates {
@@ -70,7 +70,8 @@ public enum DesktopStringCatalog {
   }()
 
   public static func text(
-    _ value: String, language: String?, preferredLanguages: [String] = Locale.preferredLanguages
+    _ value: String, language: String?,
+    preferredLanguages: [String] = DesktopLanguagePreferences.preferredLanguages
   ) -> String {
     let resolved = DesktopUILanguage.resolve(
       override: language, preferredLanguages: preferredLanguages)
