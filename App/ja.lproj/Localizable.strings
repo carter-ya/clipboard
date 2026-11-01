@@ -187,3 +187,6 @@
 "summary.badge.localExcerpt" = "ローカル抜粋";
 
 "summary.badge.localImage" = "ローカル画像";
+
+"summary.badge.localGenerative" = "ローカル AI";
+"summary.badge.localLanguage" = "ローカルテキスト";

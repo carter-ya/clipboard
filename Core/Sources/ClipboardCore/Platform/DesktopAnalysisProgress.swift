@@ -1,7 +1,8 @@
 import Foundation
 
 public enum DesktopItemAnalysisProgress: Equatable, Sendable {
-  case running(remote: Bool, imageSummary: Bool = false)
+  case running(
+    remote: Bool, imageSummary: Bool = false, localTextEngine: DesktopLocalTextEngine? = nil)
   case failed(remote: Bool, imageSummary: Bool = false)
 }
 
@@ -66,6 +67,13 @@ public enum DesktopItemAnalysisProgress: Equatable, Sendable {
     guard isCurrent(ticket), ticket.remote else { return }
     // Keep the original retry engine, but show the engine currently running.
     entries[ticket.id] = (ticket, .running(remote: false))
+    publish()
+  }
+  public func useLocalTextEngine(_ ticket: Ticket, engine: DesktopLocalTextEngine) {
+    guard isCurrent(ticket), !ticket.imageSummary else { return }
+    // Retry retains the original user action, including a failed remote-first
+    // request; the visible running phase alone changes during local fallback.
+    entries[ticket.id] = (ticket, .running(remote: false, localTextEngine: engine))
     publish()
   }
   public func remove(id: UUID) {

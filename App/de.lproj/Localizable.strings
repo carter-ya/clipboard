@@ -187,3 +187,6 @@
 "summary.badge.localExcerpt" = "Lokaler Auszug";
 
 "summary.badge.localImage" = "Lokales Bild";
+
+"summary.badge.localGenerative" = "Lokale KI";
+"summary.badge.localLanguage" = "Lokaler Text";

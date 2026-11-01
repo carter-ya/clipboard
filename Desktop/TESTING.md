@@ -169,3 +169,26 @@ A scheduler pause lease cancels and drains owned work before model operations;
 overlapping leases cannot resume one another. This layer is tested through
 injected processors and held tasks. Normal UI/scheduler integration and actual
 model removal/revocation acceptance remain pending in the next layer.
+
+The desktop text UI now connects these policies to actual workers. Generated
+summaries and language/name results show distinct sources. Model removal cancels
+only analysis using that optional model and drains its owned native process before deleting files;
+analysis permissions remain unchanged. Removing optional entity weights retains
+bundled language identification. Saving revocation cancels the active engine,
+including an automatic-only opt-out with manual use retained.
+
+Private Linux actual-model acceptance uses `smoke-linux.py --local-text-only`
+with explicitly supplied cached summary/entity model paths and the bundled model
+JSON directory (`--model-definitions`). Its temporary profile and hard-linked
+weights live beside the private cache, outside uploaded artifacts, and are
+removed only after owned application cleanup. Startup verifies all model bytes.
+The fixture can hold/fail an analysis to exercise retry and revocation; successful
+requests always invoke real native inference. No model download or real desktop
+clipboard access is needed. Windows actual-model UI and final installed-package
+acceptance remain separate required gates.
+
+Selective removal acceptance also removes an already absent entity model while
+language-only work and unrelated generation are held. Both must keep running.
+The completion receipt ensures the assertion observes the finished removal, not
+a settings handoff race. Core regressions retain unrelated failure tickets and
+pending IDs, and prove that the queue resumes only after the final pause lease.

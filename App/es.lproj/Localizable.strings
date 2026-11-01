@@ -187,3 +187,6 @@
 "summary.badge.localExcerpt" = "Extracto local";
 
 "summary.badge.localImage" = "Imagen local";
+
+"summary.badge.localGenerative" = "IA local";
+"summary.badge.localLanguage" = "Texto local";

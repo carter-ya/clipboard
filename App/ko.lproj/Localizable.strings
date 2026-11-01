@@ -188,3 +188,6 @@
 "summary.badge.localExcerpt" = "로컬 발췌";
 
 "summary.badge.localImage" = "로컬 이미지";
+
+"summary.badge.localGenerative" = "로컬 AI";
+"summary.badge.localLanguage" = "로컬 텍스트";

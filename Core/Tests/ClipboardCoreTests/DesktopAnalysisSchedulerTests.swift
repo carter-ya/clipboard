@@ -211,4 +211,146 @@ final class DesktopAnalysisSchedulerTests: XCTestCase {
     XCTAssertEqual(scheduler.submit(.init(id: UUID(), remote: false, automatic: true)), .stopped)
   }
 
+  @MainActor func testOptionalLocalPhaseRevocationCancelsDespiteAnotherAuthorizedEngine() async {
+    let started = expectation(description: "generative phase holds its worker")
+    var release: CheckedContinuation<Void, Never>?
+    let id = UUID()
+    let item = ClipItem(
+      id: id, createdAt: Date(), kind: .text, preview: "", sha256: "fixture", sizeBytes: 0)
+    var settings = DesktopSettings()
+    settings.localGenerativeSummariesEnabled = true
+    settings.localLanguageSummariesEnabled = true
+    weak var owned: DesktopAnalysisScheduler?
+    let scheduler = DesktopAnalysisScheduler { request in
+      XCTAssertTrue(
+        owned?.beginLocalTextPhase(.generative, id: request.id, model: .generative) == true)
+      await withCheckedContinuation {
+        release = $0
+        started.fulfill()
+      }
+      XCTAssertTrue(Task.isCancelled)
+      XCTAssertFalse(owned?.beginLocalTextPhase(.language, id: request.id, model: nil) == true)
+    }
+    owned = scheduler
+    XCTAssertEqual(scheduler.submit(.init(id: id, remote: false, automatic: false)), .started)
+    await fulfillment(of: [started], timeout: 3)
+    settings.localGenerativeSummariesEnabled = false
+    XCTAssertTrue(
+      DesktopLocalTextEngine.language.isAllowed(item: item, settings: settings, automatic: false))
+    XCTAssertTrue(scheduler.recheckCurrent(id: id, item: item, settings: settings))
+    release?.resume()
+    await scheduler.stopAndDrain()
+    XCTAssertFalse(scheduler.isBusy)
+  }
+
+  @MainActor func testModelMaintenanceRetainsUnrelatedActiveWorkAndResumesItsQueue() async {
+    let started = expectation(description: "generative phase holds its worker")
+    let idlePaused = expectation(description: "unrelated worker finishes while paused")
+    let queued = expectation(description: "retained queue resumes")
+    var release: CheckedContinuation<Void, Never>?
+    var order: [UUID] = []
+    let first = UUID()
+    let next = UUID()
+    weak var owner: DesktopAnalysisScheduler?
+    let scheduler = DesktopAnalysisScheduler(
+      busyChanged: { if !$0 && order.count == 1 { idlePaused.fulfill() } },
+      perform: { request in
+        order.append(request.id)
+        if request.id == first {
+          XCTAssertTrue(
+            owner?.beginLocalTextPhase(.generative, id: first, model: .generative) == true)
+          await withCheckedContinuation {
+            release = $0
+            started.fulfill()
+          }
+          XCTAssertFalse(Task.isCancelled)
+        } else {
+          queued.fulfill()
+        }
+      })
+    owner = scheduler
+    scheduler.submit(.init(id: first, remote: false, automatic: true))
+    await fulfillment(of: [started], timeout: 3)
+    scheduler.submit(.init(id: next, remote: false, automatic: true))
+    let lease = await scheduler.pauseAndDrain(preservingPending: true) {
+      $0.usesOptionalModel(.entities)
+    }
+    XCTAssertTrue(scheduler.isBusy)
+    XCTAssertEqual(scheduler.pendingCount, 1)
+    XCTAssertEqual(scheduler.currentRequest?.localTextEngine, .generative)
+    XCTAssertFalse(scheduler.beginLocalTextPhase(.language, id: first, model: nil))
+    release?.resume()
+    await fulfillment(of: [idlePaused], timeout: 3)
+    XCTAssertFalse(scheduler.isBusy)
+    XCTAssertEqual(order, [first])
+    scheduler.resume(lease)
+    await fulfillment(of: [queued], timeout: 3)
+    XCTAssertEqual(order, [first, next])
+    await scheduler.stopAndDrain()
+  }
+  @MainActor func testMatchingModelPauseCancelsOnlyItsTicketAndRetainsOtherFailureMetadata()
+    async throws
+  {
+    var progress: [UUID: DesktopItemAnalysisProgress] = [:]
+    let state = DesktopAnalysisProgressState { progress = $0 }
+    let ticket = try XCTUnwrap(state.begin(id: UUID(), remote: false))
+    let other = try XCTUnwrap(state.begin(id: UUID(), remote: true))
+    state.finish(other, succeeded: false)
+    let started = expectation(description: "matching worker started")
+    var release: CheckedContinuation<Void, Never>?
+    weak var owner: DesktopAnalysisScheduler?
+    let scheduler = DesktopAnalysisScheduler { request in
+      XCTAssertTrue(
+        owner?.beginLocalTextPhase(.generative, id: request.id, model: .generative) == true)
+      await withCheckedContinuation {
+        release = $0
+        started.fulfill()
+      }
+      XCTAssertTrue(Task.isCancelled)
+      state.finish(ticket, succeeded: true)
+    }
+    owner = scheduler
+    scheduler.submit(.init(id: ticket.id, remote: false, automatic: false))
+    await fulfillment(of: [started], timeout: 3)
+    let pausing = Task { @MainActor in
+      await scheduler.pauseAndDrain(preservingPending: true) { request in
+        guard request.usesOptionalModel(.generative) else { return false }
+        state.remove(id: request.id)
+        return true
+      }
+    }
+    let deadline = Date().addingTimeInterval(3)
+    while !scheduler.isPaused && Date() < deadline { await Task.yield() }
+    XCTAssertTrue(scheduler.isPaused)
+    XCTAssertTrue(scheduler.isBusy)
+    XCTAssertNil(progress[ticket.id])
+    XCTAssertEqual(progress[other.id], .failed(remote: true))
+    release?.resume()
+    let lease = await pausing.value
+    scheduler.resume(lease)
+    XCTAssertEqual(progress[other.id], .failed(remote: true))
+    XCTAssertNil(progress[ticket.id])
+    await scheduler.stopAndDrain()
+  }
+
+  @MainActor func testLanguageOnlyPhaseOwnsNoOptionalModelAndRejectsWrongModelKinds() async {
+    let checked = expectation(description: "resource metadata checked")
+    weak var owner: DesktopAnalysisScheduler?
+    let scheduler = DesktopAnalysisScheduler { request in
+      XCTAssertTrue(owner?.beginLocalTextPhase(.language, id: request.id, model: nil) == true)
+      XCTAssertFalse(owner?.currentRequest?.usesOptionalModel(.entities) == true)
+      XCTAssertFalse(owner?.currentRequest?.usesOptionalModel(.generative) == true)
+      XCTAssertFalse(
+        owner?.beginLocalTextPhase(.language, id: request.id, model: .generative) == true)
+      XCTAssertTrue(owner?.beginLocalTextPhase(.language, id: request.id, model: .entities) == true)
+      XCTAssertTrue(owner?.currentRequest?.usesOptionalModel(.entities) == true)
+      XCTAssertFalse(owner?.beginLocalTextPhase(.generative, id: request.id, model: nil) == true)
+      checked.fulfill()
+    }
+    owner = scheduler
+    scheduler.submit(.init(id: UUID(), remote: false, automatic: false))
+    await fulfillment(of: [checked], timeout: 3)
+    await scheduler.stopAndDrain()
+  }
+
 }

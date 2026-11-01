@@ -14,6 +14,7 @@ import select
 import subprocess
 import time
 import traceback
+import tempfile
 import uuid
 
 import pyatspi
@@ -27,6 +28,10 @@ parser.add_argument('--ocr-fixture')
 parser.add_argument('--lifecycle-cycles', type=int, default=0, help='Bounded private hide/reopen resource regression')
 parser.add_argument('--install-package', help='Private package fixture for installation-lock checks')
 parser.add_argument('--model-settings-only', action='store_true', help='Private model-control checks without any download')
+parser.add_argument('--local-text-only', action='store_true', help='Private actual-model analysis/revocation checks')
+parser.add_argument('--summary-model')
+parser.add_argument('--entity-model')
+parser.add_argument('--model-definitions')
 args = parser.parse_args()
 out = Path(args.output).resolve()
 out.mkdir(parents=True, exist_ok=True)
@@ -37,6 +42,7 @@ limitations = [
 ]
 history_root = out / ('history-' + uuid.uuid4().hex)
 primary_history_root = history_root
+private_text_profile = None
 app = None
 wm = None
 sensitive_probe = False
@@ -468,11 +474,250 @@ def screenshot(name):
 
 
 try:
+    if args.local_text_only:
+        if not all([args.summary_model, args.entity_model, args.model_definitions]):
+            raise RuntimeError('local_text_model_fixture_arguments_required')
+        # Keep hard-linked optional weights outside uploaded artifacts. Startup
+        # still verifies the complete fixed catalog size/SHA before using them.
+        private_text_profile = tempfile.TemporaryDirectory(prefix='.clipboard-text-ui-', dir=Path(args.summary_model).resolve().parent)
+        history_root = Path(private_text_profile.name)
+        primary_history_root = history_root
+        models = history_root / 'models'
+        models.mkdir(mode=0o700)
+        (models / '.clipboard-model-assets-v1').write_text('Clipboard local model assets v1\n')
+        (models / 'unrelated.txt').write_text('synthetic unrelated file')
+        text_model_files = {}
+        for kind, source, definition in [('generative', args.summary_model, 'DesktopLocalLanguageModel.json'),
+                                          ('entities', args.entity_model, 'DesktopLocalEntityModel.json')]:
+            pin = json.loads((Path(args.model_definitions) / definition).read_text())
+            directory = models / kind
+            directory.mkdir(mode=0o700)
+            destination = directory / (pin['sha256'] + ('.gguf' if kind == 'generative' else '.onnx'))
+            os.link(Path(source).resolve(), destination)
+            owner = {key: pin[key] for key in ['id', 'sha256', 'size', 'license']}
+            owner.update(version=1, kind=kind, licenseAccepted=True)
+            for name in ['current.json', '.owned-' + pin['sha256'] + '.json']:
+                (directory / name).write_text(json.dumps(owner))
+            text_model_files[kind] = destination
+        text_fixture_bodies = [
+            'The project team met on Tuesday to review schedules and paperwork. After inspecting a damaged fuel valve, NASA engineers postponed the Mars launch until Friday to complete repairs and safety checks.',
+            'Apple Inc. CEO Tim Cook met officials in Tokyo to discuss the company investment. The meeting focused on the research center and jobs for local engineers.',
+            'Other synthetic item for checking per-item progress.']
+        text_fixture_ids = [str(uuid.uuid4()) for _ in text_fixture_bodies]
+        items = [dict(id=identifier, createdAt='2023-11-14T22:13:20Z', kind='text', preview=body,
+                      pinned=False, sensitive=False, sha256=hashlib.sha256(body.encode()).hexdigest(),
+                      sizeBytes=len(body.encode()), sourceBundleID='com.clipboard.synthetic.text',
+                      payloads=[dict(pasteboardType='public.utf8-plain-text', inlineData=base64.b64encode(body.encode()).decode())])
+                 for identifier, body in zip(text_fixture_ids, text_fixture_bodies)]
+        (history_root / 'history.json').write_text(json.dumps(dict(version=1, items=items)))
+        (history_root / 'desktop-settings.json').write_text(json.dumps(dict(
+            languageOverride='en', localGenerativeSummariesEnabled=True)))
     wm = subprocess.Popen(['openbox', '--sm-disable'], stdout=log, stderr=log)
-    app = subprocess.Popen([args.launch_command or str(Path(args.executable).resolve()), '--smoke-root', str(history_root)],
+    app = subprocess.Popen([args.launch_command or str(Path(args.executable).resolve()), '--smoke-root', str(history_root)] + (['--smoke-local-text'] if args.local_text_only else []),
                            stdout=log, stderr=log, start_new_session=True)
     wait_for(lambda: has_text('Ready') and has_text('3 items'), 'initial_history')
     check('native_window_and_history_visible', True)
+    if args.local_text_only:
+        def records():
+            return json.loads((history_root / 'history.json').read_text())['items']
+        def record(identifier):
+            return next(v for v in records() if v['id'].lower() == identifier.lower())
+        def counter(engine, count, finished=False):
+            path = history_root / ('.local-text-' + engine + ('-finished' if finished else '-started'))
+            return path.exists() and path.read_text() == str(count)
+        def release(engine):
+            (history_root / ('.local-text-' + engine + '-release')).touch()
+        def hold(engine):
+            (history_root / ('.local-text-' + engine + '-release')).unlink(missing_ok=True)
+        def search(value):
+            wait_for(editor, 'local_text_search_editor').queryEditableText().setTextContents(value)
+            wait_for(lambda: has_text('1 items') and editor().queryText().getText(
+                0, editor().queryText().characterCount) == value, 'local_text_query_restored')
+        def settings():
+            return json.loads((history_root / 'desktop-settings.json').read_text())
+        def change_settings(labels, query):
+            fields = {'Enable local generated summaries': 'localGenerativeSummariesEnabled',
+                      'Automatically generate local summaries': 'automaticLocalGenerativeSummaries',
+                      'Enable local language and names': 'localLanguageSummariesEnabled'}
+            before = settings()
+            expected = {fields[label]: not before.get(fields[label], False) for label in labels}
+            click('Settings')
+            wait_for(lambda: has_text('Preferences'), 'local_text_preferences')
+            for label in labels:
+                click_visible_public_control(label)
+            click_visible_public_control('Save AI settings')
+            wait_for(lambda: has_text('AI settings saved') and all(settings().get(key) == value for key, value in expected.items()), 'local_text_settings_saved')
+            click_visible_public_control('Back to history')
+            wait_for(lambda: editor() and has_text('All types') and
+                     editor().queryText().getText(0, editor().queryText().characterCount) == query,
+                     'local_text_history_handoff')
+        def generated(identifier):
+            return record(identifier).get('summarySource') == 'localGenerative'
+        search('NASA engineers')
+        original = record(text_fixture_ids[0])
+        click('Summarize locally')
+        wait_for(lambda: counter('generative', 1) and has_text('Generating a local summary…'), 'local_generation_owned_progress')
+        check('local_generation_shows_its_actual_engine', True)
+        search('Other synthetic item')
+        check('local_generation_progress_belongs_only_to_its_item', not has_text('Generating a local summary…'))
+        search('NASA engineers')
+        wait_for(lambda: has_text('Generating a local summary…'), 'local_generation_progress_restored')
+        release('generative')
+        wait_for(lambda: counter('generative', 1, True) and has_texts(
+            'Could not analyze text locally.', 'Retry local analysis'), 'local_generation_failure_retry')
+        check('failed_generation_preserves_local_retry_without_unconsented_fallback', record(original['id']).get('summary') is None)
+        click('Retry local analysis')
+        wait_for(lambda: counter('generative', 2) and generated(original['id']), 'actual_generated_summary', seconds=100)
+        result = record(original['id'])
+        wait_for(lambda: has_texts('Local generated summary', result['summary']), 'generated_summary_visible')
+        check('native_ui_runs_actual_local_generation', all(word in result['summary'].lower() for word in ['mars', 'friday', 'fuel']))
+        check('generated_summary_preserves_original_metadata_and_payload', all(
+            result.get(key) == original.get(key) for key in ['preview', 'payloads', 'sha256', 'sourceBundleID']))
+        screenshot('local-generated-summary.png')
+        click('Copy')
+        wait_for(lambda: has_text('Copied to clipboard'), 'generated_original_copy')
+        copied = subprocess.check_output(['xclip', '-selection', 'clipboard', '-out', '-target', 'UTF8_STRING'], timeout=10)
+        check('generated_result_keeps_full_original_clipboard_copy', copied == base64.b64decode(original['payloads'][0]['inlineData']))
+
+        # Automatic permission is separate from manual permission. Both changes
+        # use actual native controls, and capture remains inside this private X11.
+        change_settings(['Automatically generate local summaries'], 'NASA engineers')
+        saved = settings()
+        check('local_generation_automatic_opt_in_enables_no_other_engine_or_upload',
+              saved['localGenerativeSummariesEnabled'] and saved['automaticLocalGenerativeSummaries'] and
+              not saved['localLanguageSummariesEnabled'] and not saved['localTextSummariesEnabled'] and not saved['ai']['enabled'])
+        hold('generative')
+        click('Start recording')
+        wait_for(lambda: has_text('Recording clipboard'), 'local_text_capture_ready')
+        def capture(text, count, query):
+            peer = subprocess.Popen(['xclip', '-selection', 'clipboard', '-in', '-quiet'],
+                                    stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=log, start_new_session=True)
+            try:
+                peer.stdin.write(text.encode())
+                peer.stdin.close()
+                wait_for(lambda: counter('generative', count) and any(
+                    item['sha256'] == hashlib.sha256(text.encode()).hexdigest() or item['preview'].startswith(query)
+                    for item in records()), 'local_text_automatic_capture')
+                return next(item for item in records() if item['preview'].startswith(query))
+            finally:
+                if peer.poll() is None:
+                    peer.terminate()
+                    peer.wait(timeout=5)
+        auto = capture('Automatic cancellation fixture. ' + text_fixture_bodies[0].replace('NASA engineers', 'space agency engineers'), 3, 'Automatic cancellation fixture')
+        search('Automatic cancellation fixture')
+        change_settings(['Automatically generate local summaries'], 'Automatic cancellation fixture')
+        wait_for(lambda: counter('generative', 3, True), 'automatic_generation_revocation_drained')
+        check('revoking_automatic_generation_cancels_owned_work_but_retains_manual_permission',
+              settings()['localGenerativeSummariesEnabled'] and not settings()['automaticLocalGenerativeSummaries'] and
+              record(auto['id']).get('summary') is None)
+        change_settings(['Automatically generate local summaries'], 'Automatic cancellation fixture')
+        release('generative')
+        auto_success = capture('Automatic success fixture. ' + text_fixture_bodies[0].replace('NASA engineers', 'space agency engineers'), 4, 'Automatic success fixture')
+        wait_for(lambda: generated(auto_success['id']), 'automatic_real_generation', seconds=100)
+        search('Automatic success fixture')
+        wait_for(lambda: has_text('Local generated summary'), 'automatic_generation_visible')
+        check('automatic_capture_runs_real_generation_without_remote_permission', not settings()['ai']['enabled'])
+        click('Pause recording')
+        wait_for(lambda: has_text('Recording paused'), 'local_text_capture_paused')
+
+        change_settings(['Enable local generated summaries', 'Enable local language and names'], 'Automatic success fixture')
+        search('Tim Cook')
+        click('Summarize locally')
+        wait_for(lambda: counter('language', 1) and has_text('Identifying language and names locally…'), 'local_language_owned_progress')
+        release('language')
+        wait_for(lambda: counter('language', 1, True) and has_text('Retry local analysis'), 'local_language_failure_retry')
+        click('Retry local analysis')
+        wait_for(lambda: counter('language', 2, True) and record(text_fixture_ids[1]).get('summarySource') == 'localLanguage',
+                 'actual_language_entity_result')
+        names = record(text_fixture_ids[1])
+        check('native_ui_runs_actual_language_and_entity_models', all(
+            word in names['summary'] for word in ['English', 'Apple Inc', 'Tim Cook', 'Tokyo']))
+        wait_for(lambda: has_texts('Local language and names', names['summary']), 'local_language_result_visible')
+        screenshot('local-language-entities.png')
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'local_entity_removal_settings')
+        click_visible_public_control('Remove names model')
+        wait_for(lambda: not text_model_files['entities'].exists() and not (text_model_files['entities'].parent / 'current.json').exists(), 'entity_model_removed')
+        check('entity_model_removal_preserves_independent_language_permission', settings()['localLanguageSummariesEnabled'])
+        click_visible_public_control('Back to history')
+        wait_for(lambda: editor() and has_text('All types') and editor().queryText().getText(
+            0, editor().queryText().characterCount) == 'Tim Cook', 'language_only_history')
+        click('Summarize locally')
+        wait_for(lambda: counter('language', 3, True) and has_text('Summary ready') and
+                 button('Summarize locally').getState().contains(pyatspi.STATE_SENSITIVE), 'language_only_after_entity_removal')
+        check('bundled_language_identification_survives_optional_entity_removal',
+              record(text_fixture_ids[1]).get('summarySource') == 'localLanguage' and
+              record(text_fixture_ids[1])['summary'].startswith('English · '))
+
+        hold('language')
+        click('Summarize locally')
+        wait_for(lambda: counter('language', 4), 'language_only_active_without_entity_model')
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'language_only_unrelated_removal_settings')
+        click_visible_public_control('Remove names model')
+        wait_for(lambda: has_text('Names model removal complete') and
+                 button('Verify local models').getState().contains(pyatspi.STATE_SENSITIVE), 'language_only_noop_removal_finished')
+        click_visible_public_control('Back to history')
+        wait_for(lambda: editor() and has_text('All types') and editor().queryText().getText(
+            0, editor().queryText().characterCount) == 'Tim Cook', 'language_only_noop_removal_history')
+        check('removing_an_absent_entity_model_keeps_language_only_analysis',
+              not counter('language', 4, True) and has_text('Identifying language and names locally…'))
+        change_settings(['Enable local generated summaries', 'Enable local language and names'], 'Tim Cook')
+        wait_for(lambda: counter('language', 4, True), 'language_only_permission_change_drained')
+        search('NASA engineers')
+        hold('generative')
+        click('Summarize locally')
+        wait_for(lambda: counter('generative', 5), 'manual_generation_before_revocation')
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'unrelated_model_removal_settings')
+        click_visible_public_control('Remove names model')
+        wait_for(lambda: has_text('Names model removal complete') and
+                 button('Verify local models').getState().contains(pyatspi.STATE_SENSITIVE), 'unrelated_model_removal_finished')
+        click_visible_public_control('Back to history')
+        wait_for(lambda: editor() and has_text('All types') and editor().queryText().getText(
+            0, editor().queryText().characterCount) == 'NASA engineers', 'unrelated_model_removal_history')
+        check('removing_an_uninstalled_unrelated_model_keeps_active_generation',
+              not counter('generative', 5, True) and has_text('Generating a local summary…'))
+        change_settings(['Enable local generated summaries'], 'NASA engineers')
+        wait_for(lambda: counter('generative', 5, True), 'manual_generation_revocation_drained')
+        check('manual_revocation_rejects_late_results_and_unconsented_fallback', record(original['id'])['summary'] == result['summary'])
+        change_settings(['Enable local generated summaries'], 'NASA engineers')
+        click('Summarize locally')
+        wait_for(lambda: counter('generative', 6), 'model_removal_generation_owned')
+        release('generative')
+        def worker_holding_model():
+            # The owned worker is spawned from a Swift executor thread. Linux
+            # lists children per task, so include only this application's tasks.
+            children = set()
+            for task in Path('/proc/' + str(app.pid) + '/task').iterdir():
+                try:
+                    children.update((task / 'children').read_text().split())
+                except FileNotFoundError:
+                    pass
+            for value in children:
+                proc = Path('/proc/' + value)
+                try:
+                    if (proc / 'exe').readlink().name != 'clipboard-language-worker': continue
+                    if any(link.readlink() == text_model_files['generative'] for link in (proc / 'fd').iterdir()):
+                        return int(value)
+                except (FileNotFoundError, PermissionError):
+                    pass
+            return None
+        worker = wait_for(worker_holding_model, 'real_worker_has_model_open', seconds=10)
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'active_model_removal_settings')
+        click_visible_public_control('Remove summary model')
+        wait_for(lambda: counter('generative', 6, True) and not Path('/proc/' + str(worker)).exists()
+                 and not text_model_files['generative'].exists(), 'actual_model_worker_drained_before_removal', seconds=30)
+        check('removing_summary_model_drains_its_actual_owned_native_process', True)
+        check('model_removal_keeps_history_unrelated_files_and_permissions',
+              record(original['id'])['summary'] == result['summary'] and
+              (history_root / 'models' / 'unrelated.txt').read_text() == 'synthetic unrelated file' and
+              settings()['localGenerativeSummariesEnabled'] and not settings()['ai']['enabled'])
+        click_visible_public_control('Quit Clipboard')
+        app.wait(timeout=10)
+        check('local_text_profile_quits_with_owned_work_drained', app.returncode == 0)
+        raise SystemExit(0)
     if args.model_settings_only:
         click('Settings')
         wait_for(lambda: has_texts('Local text models', 'Summary model', 'Language and names'), 'model_cards_visible')
@@ -1969,6 +2214,8 @@ finally:
     if wm and wm.poll() is None:
         wm.terminate()
         wm.wait(timeout=5)
+    if private_text_profile is not None:
+        private_text_profile.cleanup()
     log.close()
     report = {'platform': 'linux-gtk4', 'passed': bool(checks) and all(c['passed'] for c in checks),
               'checks': checks, 'limitations': limitations}

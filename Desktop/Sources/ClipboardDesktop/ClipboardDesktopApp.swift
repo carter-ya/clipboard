@@ -249,7 +249,9 @@ struct HistoryView: View {
       }
       ScrollView {
         VStack(alignment: .leading, spacing: 12) {
-          if case .running(let remote, let imageSummary)? = model.selectedAnalysisProgress {
+          if case .running(let remote, let imageSummary, let textEngine)? = model
+            .selectedAnalysisProgress
+          {
             Text(
               model.t(
                 remote
@@ -257,7 +259,7 @@ struct HistoryView: View {
                   : imageSummary
                     ? "Analyzing image locally…"
                     : model.selected?.kind == .image
-                      ? "Recognizing text…" : "Creating local excerpt…"
+                      ? "Recognizing text…" : model.localTextProgressMessage(textEngine)
               ))
           }
           if case .failed(let remote, let imageSummary)? = model.selectedAnalysisProgress {
@@ -268,7 +270,9 @@ struct HistoryView: View {
                   : imageSummary
                     ? "Could not analyze the image locally."
                     : model.selected?.kind == .image
-                      ? "Could not recognize text." : "Could not create a local excerpt."))
+                      ? "Could not recognize text."
+                      : model.usesOptionalTextAnalysis
+                        ? "Could not analyze text locally." : "Could not create a local excerpt."))
             Button(
               model.t(
                 remote
@@ -276,7 +280,9 @@ struct HistoryView: View {
                   : imageSummary
                     ? "Retry image analysis"
                     : model.selected?.kind == .image
-                      ? "Retry text recognition" : "Retry local excerpt")
+                      ? "Retry text recognition"
+                      : model.usesOptionalTextAnalysis
+                        ? "Retry local analysis" : "Retry local excerpt")
             ) {
               model.retryAnalysis()
             }.disabled(
@@ -285,11 +291,7 @@ struct HistoryView: View {
           }
           if let summary = model.selected?.summary, model.selected?.sensitive != true {
             Text(
-              model.t(
-                model.selected?.summarySource == .localImage
-                  ? "Local image result"
-                  : model.selected?.summarySource == .localExtractive
-                    ? "Local excerpt" : "OCR / AI result")
+              model.t(model.summaryResultLabel)
             ).font(.system(size: 14))
             Text(summary).frame(maxWidth: .infinity, alignment: .leading)
             Button(model.t("Copy result")) {
@@ -443,6 +445,7 @@ struct HistoryView: View {
         )
       )
       .font(.system(size: 12)).foregroundColor(.gray)
+      optionalTextAnalysisSettings
       Toggle(model.t("Enable local text summaries"), isOn: $model.localTextSummariesDraft)
       Text(model.t("Creates a short excerpt on this device. Nothing is uploaded."))
         .font(.system(size: 12)).foregroundColor(.gray)
@@ -463,6 +466,11 @@ struct HistoryView: View {
         )
       )
       .font(.system(size: 12)).foregroundColor(.gray)
+      Text(
+        model.t(
+          "This file permission also gates local generation and language analysis. Automatic file analysis additionally requires that engine's automatic permission."
+        )
+      ).font(.system(size: 12)).foregroundColor(.gray)
       Toggle(
         model.t("Automatically summarize files locally"),
         isOn: $model.automaticLocalFileSummariesDraft
