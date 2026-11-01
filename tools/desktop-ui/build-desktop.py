@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 import subprocess
+import sys
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--configuration', choices=['debug', 'release'], default='debug')
@@ -33,3 +34,12 @@ for patch in sorted((package / 'Patches').glob('swift-cross-ui-0.10.0-*.patch'))
     print('Applied pinned GTK compatibility patch: ' + patch.name, flush=True)
 subprocess.run(['swift', 'build'] + common + ['--configuration', args.configuration, '--jobs', args.jobs,
                                             '--product', 'ClipboardDesktop'], check=True)
+binary_dir = subprocess.check_output(['swift', 'build'] + common + [
+    '--configuration', args.configuration, '--show-bin-path'], text=True).strip()
+subprocess.run([sys.executable,
+                str(repo / 'tools/desktop-pdf/build-worker.py'), '--output', binary_dir,
+                '--cache', str((Path(args.cache_path).resolve() if args.cache_path else build) / 'pdfium-sdk-8125')],
+               check=True)
+subprocess.run([sys.executable, str(repo / 'tools/desktop-pdf/check-worker.py'),
+                '--executable', str(Path(binary_dir) / (
+                    'clipboard-pdf-worker.exe' if sys.platform == 'win32' else 'clipboard-pdf-worker'))], check=True)

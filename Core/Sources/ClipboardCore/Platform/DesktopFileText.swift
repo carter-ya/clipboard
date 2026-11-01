@@ -5,7 +5,7 @@ public protocol DesktopFileTextReading: Sendable {
 }
 
 /// Conservative copied-file policy. Only the first local URL is used, and its
-/// path/name is never added to a prompt. PDF extraction is a separate adapter.
+/// path/name is never added to a prompt. PDF extraction runs in a bounded worker.
 public enum DesktopFileTextPolicy {
   public static let maximumBytes = 1024 * 1024
   public static func validate(_ url: URL) throws {
@@ -17,7 +17,7 @@ public enum DesktopFileTextPolicy {
       !url.path.contains("\0"), url.path.utf8.count <= 65535,
       [
         "txt", "md", "markdown", "json", "csv", "xml", "yaml", "yml", "swift", "py", "js", "ts",
-        "go", "rs", "sh", "html", "css", "log",
+        "go", "rs", "sh", "html", "css", "log", "pdf",
       ].contains(url.pathExtension.lowercased())
     else { throw DesktopServiceError.invalidValue }
   }

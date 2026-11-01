@@ -8,6 +8,7 @@ on:
       - Core/**
       - tools/desktop-ui/**
       - tools/desktop-package/**
+      - tools/desktop-pdf/**
       - .github/workflows/swiftcrossui-preview.yml
   pull_request:
     paths:
@@ -15,6 +16,7 @@ on:
       - Core/**
       - tools/desktop-ui/**
       - tools/desktop-package/**
+      - tools/desktop-pdf/**
       - .github/workflows/swiftcrossui-preview.yml
   workflow_dispatch:
 
