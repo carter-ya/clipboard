@@ -97,3 +97,11 @@ Linux x64 CI additionally runs `check-cpu-guard.py` through QEMU's Nehalem CPU
 profile and requires exit 11 with empty output before opening any model. This
 checks the linked executable's startup path, including static initializers;
 it is emulated evidence, not physical older-CPU acceptance.
+
+The English instruction distinguishes a stated purpose from a completed action
+with a generic shop/heater example. The independent prefaced launch fixture
+reproduces the earlier false completion; both English launch cases reject known
+completion phrasings as well as requiring their main concepts. All ten saved
+sentences still need source-fact review: passing these narrow guards does not
+certify general factual accuracy. Other language instructions, sampling, model
+pins and process limits are unchanged.
