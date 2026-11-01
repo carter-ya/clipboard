@@ -6,6 +6,33 @@ remain blocked by the open interactive gates below.
 
 ## Automated gates
 
+CI has two scopes. Ordinary pull requests run the complete Core unit suite on
+Linux/Windows/macOS, native clipboard/service checks and one Debug desktop build
+on Linux/Windows. The focused native desktop smoke opens the real history and
+model settings, checks consent, cancels the owned native chooser and quits cleanly
+without downloading optional model weights. This green PR scope is not full UI,
+real-model or installable-package acceptance.
+
+Pushes to `main` and manual runs with `full_validation: true` retain the complete
+acceptance below, including real CPU models, Wayland, Release UI controls and
+installation. They first run the Debug checks and save their dependency cache,
+then build Release once and reuse that executable for full UI and package checks.
+Manual `full_validation: false` runs only the ordinary scope on the selected ref.
+Verified dependency-source archives are collected on relevant `main` pushes or
+manual source-workflow runs, rather than for every stacked PR.
+
+New commits cancel older runs of the same workflow for that PR or branch;
+different PRs/workflows remain independent. Dependency caches are separated by
+OS, architecture, compiler (and the macOS SDK), package, configuration and committed dependency
+recipes. Keys use Git objects, so checkout line endings and SwiftPM lockfile
+rewrites cannot change a restore/save pair. Compiled caches are saved before UI
+acceptance; optional model weights stay outside these caches and uploaded builds.
+`main` builds seed Debug/Release caches that subsequent PRs may restore. A cache
+created only on another PR's merge ref cannot be shared between stacked PRs, so
+the first compatible `main` integration must finish its cache-save steps before
+cross-PR reuse is available. Application source edits still rebuild through
+SwiftPM; cached binaries never replace the current-source build or test steps.
+
 | Gate | Environment and evidence |
 | --- | --- |
 | Shared logic and existing macOS app | `swift-portability.yml`: real Core tests on Windows/Ubuntu/macOS, existing macOS app build |
