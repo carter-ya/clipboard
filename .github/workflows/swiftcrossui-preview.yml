@@ -62,6 +62,7 @@ jobs:
           ./tools/desktop-ui/test-private-fixture-wire.ps1 -FixturePython $FixturePython
           ./tools/desktop-ui/test-private-visible-control-helpers.ps1
           ./tools/desktop-ui/test-private-selection-scope.ps1
+          ./tools/desktop-ui/test-private-probe-exit.ps1
       - name: Verify private fixture on Windows PowerShell 5.1
         if: runner.os == 'Windows'
         shell: powershell
@@ -70,6 +71,7 @@ jobs:
           ./tools/desktop-ui/test-private-fixture-python.ps1 -FixturePython $FixturePython
           ./tools/desktop-ui/test-private-fixture-wire.ps1 -FixturePython $FixturePython
           ./tools/desktop-ui/test-private-visible-control-helpers.ps1
+          ./tools/desktop-ui/test-private-probe-exit.ps1
       - name: Verify private AI fixture response cancellation
         run: python tools/desktop-ui/test-ai-probe-errors.py
       - name: Verify private AI fixture pipe protocol
