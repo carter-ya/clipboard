@@ -53,7 +53,9 @@ struct HistoryView: View {
             settings
           } else {
             history(
-              compact: compact, compactFilters: viewportWidth < 1100, imageHeight: imageHeight)
+              compact: compact, compactFilters: viewportWidth < 1100, imageHeight: imageHeight
+            )
+            .disabled(model.historyActivationBusy)
           }
         }.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
         if !model.showsSettings { itemActions }
@@ -207,8 +209,10 @@ struct HistoryView: View {
     }
   }
   var historyItems: some View {
-    ScrollView {
-      List(model.items, selection: $model.selectedID) { item in
+    let items = model.items
+    let itemIDs = items.map(\.id)
+    return ScrollView {
+      List(items, selection: $model.selectedID) { item in
         VStack(alignment: .leading, spacing: 7) {
           Text(item.sensitive ? model.t("Sensitive content") : item.preview).lineLimit(2)
           Text(
@@ -216,6 +220,8 @@ struct HistoryView: View {
           )
           .font(.system(size: 12)).foregroundColor(.gray)
         }.padding(10)
+      }.inspect([.onCreate, .afterUpdate]) { list in
+        model.attachHistoryList(list, itemIDs: itemIDs)
       }
     }
   }
@@ -253,7 +259,7 @@ struct HistoryView: View {
             ) {
               model.retryAnalysis()
             }.disabled(
-              model.analysisBusy || (remote && !model.canSummarize)
+              model.historyActivationBusy || model.analysisBusy || (remote && !model.canSummarize)
                 || (!remote && model.selected?.kind != .image && !model.canSummarizeLocally))
           }
           if let summary = model.selected?.summary, model.selected?.sensitive != true {
@@ -298,24 +304,25 @@ struct HistoryView: View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(spacing: 10) {
         Button(model.t("Copy")) { Task { @MainActor in await model.copySelected() } }.disabled(
-          model.selected == nil)
+          model.historyActivationBusy || model.selected == nil)
         Button(model.t("Pin / unpin")) { Task { @MainActor in await model.togglePin() } }
-          .disabled(model.selected == nil)
+          .disabled(model.historyActivationBusy || model.selected == nil)
         Button(model.t("Delete")) { Task { @MainActor in await model.deleteSelected() } }
-          .disabled(model.selected == nil)
+          .disabled(model.historyActivationBusy || model.selected == nil)
       }
       if model.selected?.kind == .image || model.canSummarize || model.canSummarizeLocally {
         HStack(spacing: 10) {
           Button(model.t("Recognize text")) { model.analyze(remote: false) }
             .disabled(
-              model.selected?.kind != .image || model.selected?.sensitive == true
+              model.historyActivationBusy || model.selected?.kind != .image
+                || model.selected?.sensitive == true
                 || model.analysisBusy)
           if model.canSummarizeLocally {
             Button(model.t("Summarize locally")) { model.analyze(remote: false) }
-              .disabled(model.analysisBusy)
+              .disabled(model.historyActivationBusy || model.analysisBusy)
           }
           Button(model.t("Summarize")) { model.analyze(remote: true) }
-            .disabled(!model.canSummarize || model.analysisBusy)
+            .disabled(model.historyActivationBusy || !model.canSummarize || model.analysisBusy)
         }
       }
     }

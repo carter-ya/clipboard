@@ -155,6 +155,9 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Desktop updates are checked only by an explicit settings action against the fixed official GitHub release endpoint, without history or AI credentials/settings. Require a compatible uploaded native package plus SHA256SUMS, compare bounded SemVer, keep stable/preview channels accurate and construct only an official release-page URL. Cancel owned checks on hide/settings handoff/shutdown. Installation remains manual; no automatic download/execute. The single desktop version source is now Sources/ClipboardDesktop/Resources/VERSION inside Desktop and must ship in the package resource bundle. Native update fixtures require both smoke flags and a private profile; normal operation cannot use an environment-supplied endpoint.
 
+- Desktop history activates through GTK row-activated or the native search-entry action. Capture IDs with rendered row order after List updates, copy through the existing writer/store path, and use the actual copy result before hiding a reachable window. Keep failed copies visible. Invalidate pending dismissal on hide/page/presentation changes and shutdown; never let a late completion close a newer session. Programmatic/native selection remains separate from activation. No keyboard/paste synthesis.
+
+
 
 
 - Private PowerShell fixture control pipes use UTF-8 without a preamble when supported by modern .NET. Windows PowerShell 5.1 lacks ProcessStartInfo.StandardInputEncoding: guard that property and accept one optional UTF-8 BOM on the first private command in the server. Retain real held-request tests for BOM/no-BOM and LF/CRLF without EOF; never infer protocol success from a screenshot after cleanup.
