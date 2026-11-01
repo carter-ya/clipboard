@@ -319,6 +319,8 @@ jobs:
           mkdir -p ui-artifacts/package
           docker run --rm --init --network none -v "$PWD/dist:/packages:ro" -v "$PWD/tools/desktop-ui:/probes:ro" -v "$PWD/tools/desktop-package:/checks:ro" -v "$PWD/ui-artifacts/package:/reports" -v "$binary_dir/scenario-runner:/reference-peer:ro" -v "$PWD/Core/Fixtures/ocr.png:/ocr-fixture.png:ro" -v "$CLIPBOARD_TEST_MODEL_CACHE:/model-cache" -v "$PWD/Core/Sources/ClipboardCore/Resources:/model-definitions:ro" clipboard-runtime-fixture \
             /usr/bin/python3 /checks/check-linux-install.py --package "/packages/$package_name" --probe /probes/smoke-linux.py --clipboard-peer /reference-peer --ocr-fixture /ocr-fixture.png --summary-model "/model-cache/$(basename "$CLIPBOARD_TEST_SUMMARY_MODEL")" --entity-model "/model-cache/$(basename "$CLIPBOARD_TEST_ENTITY_MODEL")" --model-definitions /model-definitions --output /reports/installation
+          docker run --rm --init --network none -v "$PWD/dist:/packages:ro" -v "$PWD/tools/desktop-ui:/probes:ro" -v "$PWD/ui-artifacts/package:/reports" -v "$PWD/Core/Sources/ClipboardCore/Resources:/model-definitions:ro" clipboard-runtime-fixture \
+            dbus-run-session -- xvfb-run -a /usr/bin/python3 /probes/check-system-language-linux.py --package "/packages/$package_name" --catalog /model-definitions/DesktopStrings.json --output /reports/system-language
           for scale in 1 2; do
             docker run --rm --init --network none -v "$PWD/dist:/packages:ro" -v "$PWD/tools/desktop-ui:/probes:ro" -v "$PWD/ui-artifacts/package:/reports" clipboard-runtime-fixture \
               dbus-run-session -- xvfb-run -a -s '-screen 0 1920x1440x24' /usr/bin/python3 /probes/check-linux-layout.py \

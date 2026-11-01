@@ -27,8 +27,8 @@ remain blocked by the open interactive gates below.
 | File text summaries | Private regular files exercise UTF-8/Unicode URLs, exact and excess byte budgets, invalid UTF-8/NUL, directories, final links and FIFO refusal. Nine native UI checks verify independent default-off permissions, fresh explicit body-only upload, cancellation of an active request on revocation and automatic local processing without more HTTP requests. PDF acceptance is covered separately; hosted Windows/installed confirmation remains open. |
 | PDF text extraction | Six actual decoder checks cover text, Chinese/astral Unicode, malformed/empty PDFs, byte/page bounds. Native services exercise a Unicode copied PDF path and refusal cases. Four Linux real-pipe tests cover cancellation, deadline, output cap and failed-exit rejection; cancellation reproduces SIGPIPE before the thread-local fix. Native UI verifies automatic local PDF excerpts and explicitly allowed body-only uploads. Packages require the pinned worker/runtime and all notices. Windows/installed confirmation remains required. |
 | Local text excerpts | Four native checks use a private preseeded item and independent native writer to verify manual/automatic results, original-payload preservation, accurate local engine label, remote/image opt-outs and owned cleanup. Core tests cover Unicode/control/output budgets, rich text and sensitivity before resolution. Final hosted Windows and inherited Mac ZIP compatibility remain required. |
-| Local generative backend | The optional CPU worker has separate real-model protocol checks and a Swift-adapter inference fixture. Committed synthetic cases cover seven response languages plus independent library/weather texts; review their saved sentences for facts as well as required concepts. Core guards sensitive content, copied-file bodies and truncation. Explicit user model installation and UI/scheduler/retry integration remain dependent work; the existing excerpt action is unchanged. |
-| Trained language/entity backend | Fourteen independent tokenizer vectors cover original UTF-8 offsets, CJK/Korean, controls, literal special tokens and truncation. Native checks identify seven language/writing forms, verify grounded BERT person/place/organization names and reject common nouns, dates, corrupted assets and alternate model files. A separately configured real Swift-adapter test exercises both language-only and entity modes. Entity installation requires its license/acceptance flow; model installation and UI/scheduler/retry integration remain dependent work. |
+| Local generative backend | The optional CPU worker has separate real-model protocol checks and a Swift-adapter inference fixture. Committed synthetic cases cover seven response languages plus independent library/weather texts; review their saved sentences for facts as well as required concepts. Core guards sensitive content, copied-file bodies and truncation. Explicit license/installation controls and UI/scheduler/retry integration are implemented in the dependent layers below. Actual-model text/file modes exercise that integration; current native Windows confirmation remains required. The separate excerpt action remains available. |
+| Trained language/entity backend | Twenty-five independent tokenizer vectors cover original UTF-8 offsets, CJK/Korean, unassigned characters, controls, literal special tokens and truncation. Native checks identify seven language/writing forms, verify grounded BERT person/place/organization names and reject common nouns, dates, corrupted assets and alternate model files. A separately configured real Swift-adapter test exercises both language-only and entity modes. Entity installation uses the explicit license/acceptance flow. Model installation, removal and UI/scheduler/retry integration are implemented in the dependent layers below; current native Windows confirmation remains required. |
 | Remote-to-local fallback | Private loopback service fails both requests. Native controls first prove local analysis is refused without its opt-in, then explicitly enable local processing and Retry; verify the actual local result, original bytes, clean quit and exactly two credential/cookie-free requests. Core tests cover per-kind automatic consent, stale/private items, original retry identity and cancellation after local-permission revocation. Hosted Windows/installed confirmation remains required. |
 | Local image analysis | Native controls run OCR-first offline analysis, retain its progress/retry mode across selection, and independently read back the complete original PNG. Separate default-off automatic labels are saved without uploads; live revocation cancels the held classifier while keeping OCR enabled. Sensitive images remain ineligible after reveal. The private held-worker gate is available only in an isolated smoke profile; actual successful inference uses the bundled native helper. Hosted Windows/installed confirmation remains required. |
 | Per-item analysis progress | Private loopback fixture holds a request while selection changes, returns a failure and accepts retry. The selected result is persisted once; progress/failure never follow another item. Core tests cover duplicate starts, stale retry tickets, deletion/clear/stop and bounded metadata. Windows/installed confirmation remains required. |
@@ -43,11 +43,52 @@ All tests use synthetic/private profiles. They never read a local user's desktop
 clipboard, synthesize keyboard events, paste into another application or log
 content. A CI runner's isolated clipboard is used only for synthetic fixtures.
 
+## Current language and tokenizer checks
+
+The shared Linux system-language resolver reads GNU message-language hints when
+Foundation does not expose them. UI labels and default OCR use the same source;
+macOS/Windows retain Foundation preferences. A child-process Linux regression
+requires default-language OCR to recognize an unchanged public Chinese screenshot.
+Remote text/image/file requests resolve the effective desktop language to the
+prompt's human-readable response-language name while OCR retains language tags.
+
+The text worker deliberately keeps the pinned Hugging Face 0.22.1 CJK isolation
+ranges, including its U+2B820–U+2B91F gap. Independent adjacent-character cases
+show that changing the lower bound alone breaks four reference cases. Those
+checks exposed a separate cleaning defect: unassigned characters were removed.
+The native cleaner now preserves them, matching all 25 independent token-ID and
+original UTF-8 offset vectors. This is model compatibility, not complete Unicode
+classification or identical Apple-model behavior.
+
+The current Linux build passes 347 Core/platform tests (two existing optional
+real-model fixture skips), six PDF decoder checks, eight image checks and 46
+native text-worker checks. Twenty-three related macOS tests pass. An owned
+child with English LANG/LC_ALL and Chinese LANGUAGE also verifies that local
+model requests and rendered language names follow the UI's system preference.
+A real pinned-model request with no explicit language produces a Chinese NASA/
+Mars summary; its timing, repair purpose and other source facts were inspected.
+
+The preceding product passes all 15 runtime-only installation/lifecycle gates,
+211 complete native UI checks, eight model settings checks, nineteen text-model
+checks, fourteen model-operation checks and nineteen file/PDF-model checks.
+The latest language change was rebuilt and packaged separately. Ten additional
+runtime-only installed checks use actual native Chinese controls with no
+language override: bundled language identification renders an English-language
+result name in Chinese, preserves the original record, keeps uploads disabled,
+creates no optional-model root and quits cleanly. The checker is
+`tools/desktop-ui/check-system-language-linux.py`; CI supplies the package and
+string catalog explicitly. It requires a private DBus/Xvfb session and no Swift
+SDK or networking. Current Windows CI and the interactive gates below remain
+required; these focused checks do not replace the complete platform suites.
+
 ## Interactive release gates
 
 Record the OS/build, desktop/compositor, monitor scales and observation for each
 run. Keep these unchecked until a person verifies them with real input.
 
+- [ ] Language rendering: verify readable glyphs and engine/result labels for all
+      seven UI languages using the target desktop's fonts, including system
+      language selection; native accessibility strings alone do not prove pixels.
 - [ ] Windows client OS: install the unsigned preview on Windows 10/11 without a
       Swift SDK, launch from Start, confirm there is no extra console window.
 - [ ] Real shortcut: grant/assign the Linux portal shortcut or choose the Windows
@@ -83,7 +124,7 @@ A supported alternative does not establish identical model behavior.
 | Local image text | Vision OCR, with Chinese/English recognition | Native OCR uses available system/Tesseract language packs; missing languages or services remain capability failures. |
 | Local image scene labels | Vision returns up to three classification labels when no text is recognized, then image dimensions as a last fallback | Analyze image locally runs OCR first, then the bundled offline SqueezeNet/ONNX Runtime CPU backend. Automatic labels require both automatic recognition and a separate default-off permission. Its ImageNet labels and accuracy differ from Vision. |
 | Image descriptions through AI | Explicit image permission and configured endpoint | Supported only after the independent remote/image opt-ins, using a compatible image-capable endpoint. This does not supply offline classification. |
-| Local text/file summaries | Mac NaturalLanguage/Foundation Models when supported | Bounded local excerpts, including text-file/PDF extraction. These are labelled excerpts, not generative summaries or identical Apple-model output. |
+| Local text/file summaries | Mac NaturalLanguage/Foundation Models when supported | Independent default-off generated-summary and language/name permissions, with optional pinned CPU models and explicit license/import/download/verification/removal controls. Text and PDF bodies require separate local-file permission. Bounded excerpts remain a separately labelled action and authorized fallback. Model outputs differ from Apple models; current native Windows acceptance remains required. |
 | Startup approval | OS login-item approval and user policy | Native registration/ownership and failure guidance are implemented; Windows Startup apps and Linux session policy can override registration. Real OS permission UI remains an interactive gate. |
 
 The offline backend now ships a hash-pinned SqueezeNet 1.1 model and ONNX
@@ -94,7 +135,7 @@ through owned pipes, disables telemetry and applies process memory/CPU limits;
 parent cancellation kills/reaps only that worker. Sensitive/concealed images are
 refused before payload resolution. Installation checks execute the helper from
 the real installed prefix without SDK paths and require its notices/provenance.
-The application never downloads a model at runtime. Recognize text keeps its OCR-only behavior. Analyze image locally has its own
+The bundled image classifier never downloads a model at runtime. Optional summary/entity models use the separate explicit, consented installation controls described below. Recognize text keeps its OCR-only behavior. Analyze image locally has its own
 per-item progress, failure and retry mode; the original image remains separately
 copyable. Automatic labels require both saved automatic-recognition and local-label
 permissions; old settings keep OCR-only behavior. Saving revocation synchronously
