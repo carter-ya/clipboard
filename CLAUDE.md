@@ -59,3 +59,11 @@ just clean   # 清理 build 与生成的 .xcodeproj
 ## Slice 节奏
 
 见 `harness.json` 的 `slices[]` 与 `slice_rhythm`。每个 slice 以绿色、可运行、可提交的状态结束。
+
+## Cross-platform desktop delivery
+
+- Windows/Linux implementation is authorized through the stacked PR plan in `harness.json.cross_platform_delivery`, based on main `2fd2a97`. Preserve the existing macOS product and its macOS 13 minimum. System dependencies belong in platform adapters; shared business contracts stay portable.
+- macOS keeps OSLog and CryptoKit; the non-Apple desktop uses a private-by-default stderr logger and Swift Crypto. Native clipboard, hotkey, credentials and rich-text preview adapters remain separate work.
+- `.github/workflows/swift-portability.yml` runs Core tests and synthetic scenarios on Ubuntu/Windows plus Core/application regression on macOS for PRs, main changes and manual runs. Results and limitations belong in `docs/swift-portability.md` and `harness.json`.
+
+- Cross-platform delivery uses stacked PRs: each layer targets the preceding branch, with implementation and native-test evidence. Do not mark untested keyboard/IME/DPI or unsupported Wayland capabilities as complete. The WinUI accessibility crash reproduced in the prior experiment must be resolved before accepting Windows UI controls.

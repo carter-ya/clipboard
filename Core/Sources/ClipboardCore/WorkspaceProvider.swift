@@ -1,17 +1,23 @@
-import AppKit
 import Foundation
+
+#if os(macOS)
+  import AppKit
+#endif
 
 public protocol WorkspaceProvider: Sendable {
   func frontmostBundleIdentifier() -> String?
 }
 
-public struct SystemWorkspaceProvider: WorkspaceProvider {
-  public init() {}
+#if os(macOS)
+  public struct SystemWorkspaceProvider: WorkspaceProvider {
+    public init() {}
 
-  public func frontmostBundleIdentifier() -> String? {
-    NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+    public func frontmostBundleIdentifier() -> String? {
+      NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+    }
   }
-}
+
+#endif
 
 public struct StubWorkspaceProvider: WorkspaceProvider {
   private let bundleID: String?

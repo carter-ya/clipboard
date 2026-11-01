@@ -1,7 +1,7 @@
 {
   "$schema_version": "1.0",
   "document_purpose": "Clipboard 项目的唯一权威文档。任何代理或开发者在提议改动前都必须先读这份文件。若代码与本文档不一致，必须在同一次提交中一并更新本文档——不得让两者静默分叉。",
-  "last_updated": "2026-10-29",
+  "last_updated": "2026-10-30",
   "project": {
     "name": "Clipboard",
     "one_liner": "macOS 的 Alfred 风格剪贴板历史——常驻菜单栏，支持全局快捷键、快速搜索；选中条目会写回系统剪贴板（由用户手动 Cmd+V 粘贴）。",
@@ -11,14 +11,110 @@
   },
   "non_goals": [
     "v1.x 不做 iCloud / 跨设备同步",
-    "不移植到 Windows / Linux",
+    "新平台开发不得降低现有 macOS 13+ 产品的功能、隐私和发布质量。",
     "不走 Mac App Store 分发（对后台剪贴板监听应用而言 MAS 审核不现实）",
     "不做插件 / 扩展机制",
     "不做移动端伴侣应用",
     "v1.x 不做 AI 功能（摘要 / 翻译 / 改写）"
   ],
+  "portability_experiment": {
+    "scope": "Historical feasibility baseline, now promoted through cross_platform_delivery. Earlier test results refer to their recorded experiment commits.",
+    "dependency": "apple/swift-crypto 3.12.3, pinned for reproducibility; Crypto target enabled only for Linux/Windows. CryptoKit remains on macOS.",
+    "platform_boundary": "Apple clipboard, hotkey, Keychain and image encoder implementations/tests are guarded with os(macOS). PasteboardWriting is declared in a Foundation-only file. WorkspaceProvider and its stub remain portable.",
+    "preview_limit": "Non-macOS preserves original RTF/HTML payloads but does not decode them for previews; a plain-text sidecar still supplies a preview.",
+    "logging": "macOS retains OSLog; non-Apple validation uses a stderr logger with private-by-default interpolation. No clipboard body is logged.",
+    "validation": {
+      "macOS_core": "153 tests; 1 existing Keychain skip; zero failures",
+      "macOS_app": "Full Debug application build passed; no GUI runtime result is claimed",
+      "linux_arm64_core": "133 tests; zero failures; official Swift 6.1.3 Ubuntu 22.04 container",
+      "synthetic_scenario": "Five rich-types checks passed on macOS and Linux arm64",
+      "windows": "Prepared branch-scoped workflow only; no native Windows build or runtime result is claimed"
+    },
+    "evidence": "docs/swift-portability.md"
+  },
+  "cross_platform_delivery": {
+    "status": "in_progress",
+    "authorization": "User requested implementation of the agreed five-stage Windows/Linux plan in a new worktree from latest main, delivered as stacked PRs.",
+    "base_commit": "2fd2a97ff878ce37cb0f3beade23cb7ffcb9d2f2",
+    "worktree": "cross-platform-desktop",
+    "invariants": [
+      "Keep the existing macOS product working on macOS 13+.",
+      "No synthesized keyboard events or automatic paste.",
+      "Sensitive items stay in memory and never enter disk, export or content logs.",
+      "Clipboard capture and remote AI remain explicit opt-in where applicable.",
+      "Describe unsupported desktop capabilities explicitly; never treat skipped integration checks as passes."
+    ],
+    "stack": [
+      {
+        "id": "CP1",
+        "branch": "codex/cross-platform-foundation",
+        "base": "main",
+        "scope": "Portable Core compilation boundaries and permanent Windows/Linux/macOS regression CI.",
+        "acceptance": "Core tests and synthetic scenario pass on all three platforms; macOS application still builds.",
+        "status": "in_progress"
+      },
+      {
+        "id": "CP2",
+        "branch": "codex/cross-platform-clipboard",
+        "base": "codex/cross-platform-foundation",
+        "scope": "Native Windows/X11 text clipboard adapters, bounded reads, sensitive hints, independent-process integration tests.",
+        "acceptance": "Capture and copy/readback pass using actual system APIs with synthetic fixtures.",
+        "status": "planned"
+      },
+      {
+        "id": "CP3",
+        "branch": "codex/cross-platform-ui",
+        "base": "codex/cross-platform-clipboard",
+        "scope": "SwiftCrossUI production UI foundation and Windows accessibility blocker resolution; history, search, selection, previews, pin/delete and settings.",
+        "acceptance": "Native controls are discoverable and operable without crashing; actual window screenshots inspected; keyboard/IME evidence tracked separately.",
+        "status": "planned"
+      },
+      {
+        "id": "CP4",
+        "branch": "codex/cross-platform-shell",
+        "base": "codex/cross-platform-ui",
+        "scope": "Tray, configurable global shortcut, foreground/focus handoff, window lifecycle, pause/resume and persisted preferences.",
+        "acceptance": "Native shell integration and conflict/failure cases pass; hidden resources released; physical focus/IME remains an explicit manual gate.",
+        "status": "planned"
+      },
+      {
+        "id": "CP5",
+        "branch": "codex/cross-platform-rich-content",
+        "base": "codex/cross-platform-shell",
+        "scope": "Images/files/HTML/RTF, source-app identity, filters, export/import and capacity controls with the existing Core privacy rules.",
+        "acceptance": "Independent peers exchange supported native formats; sensitive items never persist or export.",
+        "status": "planned"
+      },
+      {
+        "id": "CP6",
+        "branch": "codex/cross-platform-services",
+        "base": "codex/cross-platform-rich-content",
+        "scope": "Credential storage, startup integration, OCR and supported AI engines through platform adapters; localized settings and capability explanations.",
+        "acceptance": "Native service tests and failure cases pass; credentials never fall back to plaintext; remote requests remain opt-in and exclude sensitive content.",
+        "status": "planned"
+      },
+      {
+        "id": "CP7",
+        "branch": "codex/cross-platform-wayland",
+        "base": "codex/cross-platform-services",
+        "scope": "Wayland clipboard and shortcuts on explicitly supported compositors/portals, with accurate capability reporting for restricted desktops.",
+        "acceptance": "Real compositor integration tests pass for each advertised session; no XWayland success is presented as native Wayland support.",
+        "status": "planned"
+      },
+      {
+        "id": "CP8",
+        "branch": "codex/cross-platform-distribution",
+        "base": "codex/cross-platform-wayland",
+        "scope": "Windows/Linux installable artifacts, upgrades/uninstall, multi-monitor/DPI and long-running lifecycle checks.",
+        "acceptance": "Installation and smoke gates pass on supported targets; physical IME/focus/DPI verification is recorded before platform release readiness.",
+        "status": "planned"
+      }
+    ],
+    "completion_rule": "A created PR or passing build is not functional completion. Each stack layer retains implementation and verification evidence; unresolved manual/runtime gates remain open. No automatic main merge or public release is implied."
+  },
   "tech_stack": {
     "language": "Swift 5.9+",
+    "portability_validation_dependency": "apple/swift-crypto 3.12.3 for Linux/Windows SHA-256; resolved transitive swift-asn1 1.7.3 requires Swift 6.1. This experiment was tested with Swift 6.1.3 and 6.4; oldest-toolchain compatibility is not established.",
     "ui_framework": "视图用 SwiftUI；NSStatusItem + NSPanel 外壳用 AppKit",
     "storage": "内存数组（权威）+ 磁盘 JSON 快照（Codable，原子写入）。较大的 payload（图片、RTF 二进制块）单独存为 blobs/<sha256>.<ext> 文件，由路径引用。容量默认上限 N=100，固定项（pinned）豁免。敏感条目只驻留内存、不落盘（见 data_model.persistence_strategy）。不引入任何数据库引擎。",
     "global_hotkey": "sindresorhus/KeyboardShortcuts（SPM）",
@@ -2361,8 +2457,8 @@
       "引入 tech_stack 未列出的依赖，除非先更新本文档。",
       "启用 App Sandbox（会把开机启动和源 App bundle ID 检测搞复杂）。",
       "提交生成的 .xcodeproj。",
-      "引入跨平台抽象——本项目有意只做 macOS。",
-      "用 print() 记日志；统一用 os.Logger。",
+      "把 Win32、X11、Wayland、GTK 或 WinUI 系统依赖泄漏进平台中立的业务协议；平台实现保持独立边界。",
+      "用 print() 记日志；macOS 统一用 os.Logger，本次非 Apple 核心验证允许使用默认遮蔽插值的 stderr 后端。",
       "Remote summarisation must be opt-in. Never default-on. Never auto-enable on upgrade.",
       "Never send sensitive items, concealed-pasteboard items, or items with sensitive=true to a remote endpoint, regardless of user prefs.",
       "Never log API keys, full URLs (query strings can carry credentials), request bodies, or prompt/completion text.",

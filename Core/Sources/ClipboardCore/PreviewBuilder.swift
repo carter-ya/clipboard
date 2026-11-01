@@ -1,5 +1,8 @@
-import AppKit
 import Foundation
+
+#if os(macOS)
+  import AppKit
+#endif
 
 enum PreviewBuilder {
   static let limit = 256
@@ -41,34 +44,42 @@ enum PreviewBuilder {
         return text
       }
     }
-    if let rtf = payloads.first(where: { $0.pasteboardType == "public.rtf" }) {
-      if let attrib = try? NSAttributedString(
-        data: rtf.data,
-        options: [.documentType: NSAttributedString.DocumentType.rtf],
-        documentAttributes: nil
-      ) {
-        return attrib.string
+    #if os(macOS)
+      if let rtf = payloads.first(where: { $0.pasteboardType == "public.rtf" }) {
+        if let attrib = try? NSAttributedString(
+          data: rtf.data,
+          options: [.documentType: NSAttributedString.DocumentType.rtf],
+          documentAttributes: nil
+        ) {
+          return attrib.string
+        }
       }
-    }
+    #endif
     return ""
   }
 
   private static func extractHtmlPlainText(from payloads: [RawPayload]) -> String {
-    guard let data = payloads.first(where: { $0.pasteboardType == "public.html" })?.data
-    else {
+    #if os(macOS)
+      guard let data = payloads.first(where: { $0.pasteboardType == "public.html" })?.data
+      else {
+        return ""
+      }
+      if let attrib = try? NSAttributedString(
+        data: data,
+        options: [
+          .documentType: NSAttributedString.DocumentType.html,
+          .characterEncoding: String.Encoding.utf8.rawValue,
+        ],
+        documentAttributes: nil
+      ) {
+        return attrib.string
+      }
+      return String(data: data, encoding: .utf8) ?? ""
+    #else
+      // Rich-text decoding requires a platform adapter. Keep the original
+      // bytes in payloads, but do not expose raw HTML as a text preview.
       return ""
-    }
-    if let attrib = try? NSAttributedString(
-      data: data,
-      options: [
-        .documentType: NSAttributedString.DocumentType.html,
-        .characterEncoding: String.Encoding.utf8.rawValue,
-      ],
-      documentAttributes: nil
-    ) {
-      return attrib.string
-    }
-    return String(data: data, encoding: .utf8) ?? ""
+    #endif
   }
 
   private static func extractFileName(from payloads: [RawPayload]) -> String? {
