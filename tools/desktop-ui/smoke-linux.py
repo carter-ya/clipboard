@@ -608,6 +608,11 @@ try:
             item = next(item for item in json.loads((history_root / 'history.json').read_text())['items'] if item['id'].lower() == operations_id.lower())
             return item.get('summarySource') == 'localLanguage' and all(word in item.get('summary', '') for word in ['Apple Inc', 'Tim Cook', 'Tokyo'])
         wait_for(repaired_result, 'repaired_model_actual_inference')
+        repaired_item = next(item for item in json.loads((history_root / 'history.json').read_text())['items']
+                             if item['id'].lower() == operations_id.lower())
+        wait_for(lambda: has_texts('Summary ready', 'Local language and names', repaired_item['summary']) and
+                 button('Summarize locally').getState().contains(pyatspi.STATE_SENSITIVE),
+                 'repaired_model_result_visible_and_idle')
         check('repaired_model_runs_actual_native_entity_inference', True)
         screenshot('repaired-model-result.png')
         click('Settings')

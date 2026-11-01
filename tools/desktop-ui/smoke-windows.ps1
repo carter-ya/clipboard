@@ -883,6 +883,9 @@ try {
         $repaired.summarySource -ceq 'localLanguage' -and $repaired.summary.Contains('Apple Inc') -and
           $repaired.summary.Contains('Tim Cook') -and $repaired.summary.Contains('Tokyo')
       } 'repaired_model_actual_inference' | Out-Null
+      $repaired = Get-LocalTextRecord $textFixtureIDs[1]
+      Wait-For { (Find-Named 'Summary ready') -and (Find-Named 'Local language and names') -and
+        (Find-Named $repaired.summary) -and (Test-PublicControlEnabled 'Summarize locally') } 'repaired_model_result_visible_and_idle' | Out-Null
       Add-Check 'repaired_model_runs_actual_native_entity_inference' $true
       Save-Screenshot 'repaired-model-result.png'
       Invoke-Button 'Settings'
