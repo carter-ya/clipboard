@@ -20,21 +20,26 @@ public final class DesktopAnalysisScheduler {
       else { return false }
       if remote && !settings.ai.allowsSummary(of: item.kind) { return false }
       if !remote && item.kind != .image {
-        guard settings.localTextSummariesEnabled,
-          [.text, .rtf, .mixed].contains(item.kind)
-        else { return false }
+        if item.kind == .file {
+          guard settings.localFileSummariesEnabled else { return false }
+        } else {
+          guard settings.localTextSummariesEnabled, [.text, .rtf, .mixed].contains(item.kind)
+          else { return false }
+        }
       }
       guard automatic else { return true }
       guard item.summary == nil else { return false }
       if remote {
         return settings.automaticSummaries
       }
+      if item.kind == .file { return settings.automaticLocalFileSummaries }
       return item.kind == .image ? settings.automaticOCR : settings.automaticLocalSummaries
     }
   }
   public enum Submission: Equatable { case started, queued, duplicate, full, busy, stopped }
   public private(set) var isBusy = false
   public var pendingCount: Int { pending.count }
+  public var currentRequest: Request? { current }
   private let capacity: Int
   private let perform: @MainActor (Request) async -> Void
   private let busyChanged: @MainActor (Bool) -> Void
@@ -70,6 +75,23 @@ public final class DesktopAnalysisScheduler {
     return .started
   }
 
+  public func cancel(id: UUID) {
+    pending.removeAll { $0.id == id }
+    if current?.id == id { task?.cancel() }
+  }
+  public func cancelAll() {
+    pending.removeAll()
+    task?.cancel()
+  }
+  @discardableResult public func recheckCurrent(
+    id: UUID, item: ClipItem?, settings: DesktopSettings
+  ) -> Bool {
+    guard let request = current, request.id == id else { return false }
+    if let item, request.isAllowed(item: item, settings: settings) { return false }
+    task?.cancel()
+    return true
+  }
+
   public func stop() {
     stopped = true
     pending.removeAll()
@@ -85,7 +107,7 @@ public final class DesktopAnalysisScheduler {
     task = Task { [weak self] in
       guard let self else { return }
       await self.perform(request)
-      if !self.stopped && !Task.isCancelled && !self.pending.isEmpty {
+      if !self.stopped && !self.pending.isEmpty {
         self.start(self.pending.removeFirst())
       } else {
         self.current = nil

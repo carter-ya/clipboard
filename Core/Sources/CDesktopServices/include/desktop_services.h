@@ -11,5 +11,7 @@ int cds_startup_read(const char *name, const char *command);
 int cds_startup_set(const char *name, const char *command, int enabled);
 int cds_ocr(const unsigned char *data, size_t length, const char *language,
             char **text);
+/* 1 success, -1 unavailable, -2 invalid/nonregular, -4 byte limit exceeded. */
+int cds_file_read(const char *path, size_t limit, unsigned char **bytes, size_t *length);
 void cds_free(void *value);
 #endif

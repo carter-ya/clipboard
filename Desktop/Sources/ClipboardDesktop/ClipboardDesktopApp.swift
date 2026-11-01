@@ -391,6 +391,28 @@ struct HistoryView: View {
     }
   }
 
+  var localFileSettings: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Toggle(model.t("Enable local file excerpts"), isOn: $model.localFileSummariesDraft)
+      Text(model.t("Reads only the first copied UTF-8 text file, up to 1 MiB, on this device."))
+        .font(.system(size: 12)).foregroundColor(.gray)
+      Toggle(
+        model.t("Automatically summarize files locally"),
+        isOn: $model.automaticLocalFileSummariesDraft
+      )
+      .disabled(!model.localFileSummariesDraft)
+    }
+  }
+  var remoteFileSettings: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Toggle(model.t("Allow file text uploads"), isOn: $model.aiFilesDraft)
+      Text(
+        model.t(
+          "Uploads only the first copied UTF-8 text file, up to 1 MiB. PDFs are not supported.")
+      )
+      .font(.system(size: 12)).foregroundColor(.gray)
+    }
+  }
   var serviceSettings: some View {
     VStack(alignment: .leading, spacing: 12) {
       Text(model.t("System services")).font(.system(size: 18))
@@ -402,6 +424,7 @@ struct HistoryView: View {
           "System startup policy can override this registration. Check Startup apps or your desktop session settings."
         ))
       localAnalysisSettings
+      localFileSettings
       Text(
         model.t(
           "Remote AI is off by default. Enabling it sends eligible content to your chosen endpoint."
@@ -409,6 +432,7 @@ struct HistoryView: View {
       Toggle(model.t("Enable remote AI"), isOn: connectionBinding($model.aiEnabledDraft))
       Toggle(model.t("Allow text summaries"), isOn: $model.aiTextDraft)
       Toggle(model.t("Allow image uploads"), isOn: $model.aiImagesDraft)
+      remoteFileSettings
       Toggle(model.t("Automatically summarize new items"), isOn: $model.automaticSummariesDraft)
       TextField(model.t("API endpoint"), text: connectionBinding($model.aiEndpointDraft))
       TextField(model.t("Model name"), text: connectionBinding($model.aiModelDraft))

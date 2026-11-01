@@ -976,6 +976,132 @@ try:
     check('startup_state_profile_quits_cleanly', app.returncode == 0)
 
     if args.clipboard_peer:
+        file_environment = os.environ.copy()
+        file_environment.update(CLIPBOARD_PRIVATE_AI_TEST='1', CLIPBOARD_PRIVATE_AI_MODE='file')
+        server = subprocess.Popen(['/usr/bin/python3', str(Path(__file__).with_name('ai-probe-server.py'))],
+                                  env=file_environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+        peer = None
+        try:
+            if not select.select([server.stdout], [], [], 10)[0]:
+                raise RuntimeError('file_summary_server_startup')
+            ready = server.stdout.readline(32).decode('ascii').strip()
+            if not ready.startswith('ready:') or not ready[6:].isdigit():
+                raise RuntimeError('file_summary_server_ready')
+            history_root = out / ('file-summary-' + uuid.uuid4().hex)
+            history_root.mkdir()
+            target = history_root / 'private-upload-name 中文.txt'
+            local_lead = 'This synthetic file summary stays on this device.'
+            target.write_text(local_lead + ' Private local context.' * 10)
+            settings_file = history_root / 'desktop-settings.json'
+            settings_file.write_text(json.dumps({'ai': {
+                'enabled': True, 'allowText': True, 'allowImages': False, 'allowFiles': False,
+                'usesCredential': False, 'endpoint': 'http://127.0.0.1:' + ready[6:] + '/v1',
+                'model': 'fixture-model', 'timeoutSeconds': 60}}))
+            app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root)],
+                                   stdout=log, stderr=log, start_new_session=True)
+            wait_for(lambda: has_texts('Ready', '3 items'), 'file_summary_profile_ready')
+            click('Start recording')
+            wait_for(lambda: has_text('Recording clipboard'), 'file_capture_enabled')
+            click('File')
+            peer = subprocess.Popen([str(Path(args.clipboard_peer).resolve()), 'rich-clipboard-peer', 'file-summary', str(target)],
+                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+            if not select.select([peer.stdout], [], [], 10)[0] or peer.stdout.readline(32).strip() != b'ready':
+                raise RuntimeError('file_summary_peer_ready')
+            wait_for(lambda: has_texts('1 items', target.name), 'file_summary_native_capture')
+            click('Pause recording')
+            snapshot = json.loads((history_root / 'history.json').read_text())
+            check('file_summary_defaults_do_not_analyze_copied_files',
+                  all(item.get('summary') is None for item in snapshot['items']) and not button('Summarize'))
+            click('Settings')
+            wait_for(lambda: has_text('Preferences'), 'file_summary_preferences')
+            click_visible_public_control('Enable local file excerpts')
+            click_visible_public_control('Save AI settings')
+            wait_for(lambda: json.loads(settings_file.read_text()).get('localFileSummariesEnabled') is True,
+                     'local_file_permission_saved')
+            check('local_file_opt_in_does_not_enable_file_uploads', not json.loads(settings_file.read_text())['ai']['allowFiles'])
+            click('Back to history')
+            wait_for(lambda: button('Summarize locally'), 'local_file_action_available')
+            click('Summarize locally')
+            wait_for(lambda: has_texts('Summary ready', 'Local excerpt', local_lead), 'local_file_excerpt_ready')
+            check('local_file_excerpt_reaches_the_selected_file', True)
+            screenshot('local-file-summary.png')
+            remote_body = 'This synthetic remote file summary uses the current body. ' + 'Private file body context. ' * 10
+            target.write_text(remote_body)
+            click('Settings')
+            wait_for(lambda: has_text('Preferences'), 'remote_file_preferences')
+            click_visible_public_control('Allow file text uploads')
+            click_visible_public_control('Save AI settings')
+            wait_for(lambda: json.loads(settings_file.read_text())['ai'].get('allowFiles') is True,
+                     'remote_file_permission_saved')
+            click('Back to history')
+            wait_for(lambda: button('Summarize'), 'remote_file_action_available')
+            click('Summarize')
+            wait_for(lambda: has_texts('Summary ready', 'Private file summary fixture'), 'remote_file_summary_ready')
+            check('remote_file_summary_reads_current_body_and_updates_the_selected_file',
+                  any(item.get('summary') == 'Private file summary fixture' and item.get('summarySource') == 'remoteOpenAI'
+                      for item in json.loads((history_root / 'history.json').read_text())['items']))
+            click('Summarize')
+            wait_for(lambda: has_text('Generating summary…'), 'file_inflight_progress')
+            if not select.select([server.stdout], [], [], 10)[0] or server.stdout.readline(32).strip() != b'blocked':
+                raise RuntimeError('file_inflight_request_not_active')
+            click('Settings')
+            wait_for(lambda: has_text('Preferences'), 'file_permission_revoke_preferences')
+            click_visible_public_control('Allow file text uploads')
+            click_visible_public_control('Automatically summarize files locally')
+            click_visible_public_control('Automatically summarize new items')
+            click_visible_public_control('Save AI settings')
+            wait_for(lambda: not json.loads(settings_file.read_text())['ai']['allowFiles'] and
+                     json.loads(settings_file.read_text()).get('automaticLocalFileSummaries') is True,
+                     'file_permissions_updated')
+            click('Back to history')
+            wait_for(lambda: button('Summarize') and not button('Summarize').getState().contains(pyatspi.STATE_SENSITIVE),
+                     'remote_file_permission_revoked')
+            check('revoking_file_uploads_disables_remote_action_but_keeps_local_available', button('Summarize locally') is not None)
+            check('revoking_file_permission_cancels_inflight_remote_work',
+                  not has_text('Generating summary…') and not has_text('Could not generate a summary.'))
+            peer.stdin.close()
+            peer.wait(timeout=5)
+            peer = None
+            automatic = history_root / 'automatic-file.txt'
+            automatic_lead = 'This synthetic automatic file excerpt stays local.'
+            automatic.write_text(automatic_lead + ' Automatic local context.' * 10)
+            click('Start recording')
+            wait_for(lambda: has_text('Recording clipboard'), 'file_capture_enabled')
+            peer = subprocess.Popen([str(Path(args.clipboard_peer).resolve()), 'rich-clipboard-peer', 'file-summary', str(automatic)],
+                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+            if not select.select([peer.stdout], [], [], 10)[0] or peer.stdout.readline(32).strip() != b'ready':
+                raise RuntimeError('automatic_file_peer_ready')
+            wait_for(lambda: any(item.get('summary') == automatic_lead and item.get('summarySource') == 'localExtractive'
+                                for item in json.loads((history_root / 'history.json').read_text())['items']),
+                     'automatic_local_file_excerpt_ready')
+            check('automatic_file_excerpt_runs_locally_after_upload_permission_is_revoked', True)
+            click('Pause recording')
+            click('Settings')
+            wait_for(lambda: has_text('Preferences'), 'file_summary_quit_preferences')
+            click('Quit Clipboard')
+            app.wait(timeout=10)
+            check('file_summary_private_profile_quits_cleanly', app.returncode == 0)
+        finally:
+            if peer:
+                if peer.stdin and not peer.stdin.closed:
+                    peer.stdin.close()
+                try:
+                    peer.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    peer.kill()
+                    peer.wait(timeout=5)
+            server.stdin.close()
+            try:
+                server.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                server.kill()
+                server.wait(timeout=5)
+        fixture_report = json.loads(server.stdout.readline(4096))
+        check('only_explicit_current_file_bodies_are_uploaded_without_paths_keys_or_cookies',
+              fixture_report.get('requests') == 2 and fixture_report.get('fixedTestsOnly') and
+              fixture_report.get('noAuthorization') and fixture_report.get('noCookies'))
+
+    if args.clipboard_peer:
         history_root = out / ('local-summary-' + uuid.uuid4().hex)
         history_root.mkdir()
         manual_lead = 'Manual local summary fixture begins with a useful sentence.'

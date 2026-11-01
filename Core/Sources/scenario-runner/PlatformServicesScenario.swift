@@ -6,6 +6,9 @@ import Foundation
 #endif
 #if os(Linux) || os(Windows)
   import DesktopServices
+  #if os(Linux)
+    import Glibc
+  #endif
 
   func runPlatformServices() async -> Report {
     var checks: [CheckResult] = []
@@ -159,6 +162,71 @@ import Foundation
       }
     } catch {
       check("native_startup_service", false, detail: "startup_fixture_unavailable", into: &checks)
+    }
+    var fileStage = "create_private_file_directory"
+    do {
+      let directory = root.appendingPathComponent("file text 中文")
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      let file = directory.appendingPathComponent("fixture 中文😀.TXT")
+      let body =
+        "Private native file fixture 中文😀\n" + String(repeating: "Local context. ", count: 20)
+      try Data(body.utf8).write(to: file)
+      let reader = NativeDesktopFileTextReader()
+      fileStage = "read_unicode_regular_file"
+      let first = try await reader.text(from: file, maxBytes: 4096)
+      check("native_file_text_unicode_roundtrip", first == body, into: &checks)
+      guard let serialized = URL(string: file.absoluteString) else {
+        throw DesktopServiceError.invalidValue
+      }
+      let reopened = try await reader.text(from: serialized, maxBytes: 4096)
+      check("native_file_url_roundtrip_preserves_local_path", reopened == body, into: &checks)
+      fileStage = "read_at_exact_byte_limit"
+      try Data(repeating: 65, count: 128).write(to: file)
+      let exact = try await reader.text(from: file, maxBytes: 128)
+      check("native_file_exact_byte_limit_is_accepted", exact.utf8.count == 128, into: &checks)
+      try Data(repeating: 65, count: 129).write(to: file)
+      var rejected = false
+      do { _ = try await reader.text(from: file, maxBytes: 128) } catch DesktopServiceError.tooLarge
+      { rejected = true }
+      check("native_file_over_byte_limit_is_rejected", rejected, into: &checks)
+      for (index, data) in [Data([0xff]), Data([65, 0, 66])].enumerated() {
+        fileStage = "reject_binary_or_invalid_text"
+        try data.write(to: file)
+        rejected = false
+        do { _ = try await reader.text(from: file, maxBytes: 128) } catch DesktopServiceError
+          .invalidValue
+        { rejected = true }
+        check("native_file_invalid_text_\(index)_is_rejected", rejected, into: &checks)
+      }
+      fileStage = "reject_directory"
+      let folder = directory.appendingPathComponent("directory.txt", isDirectory: true)
+      try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+      rejected = false
+      do { _ = try await reader.text(from: folder, maxBytes: 128) } catch DesktopServiceError
+        .invalidValue
+      { rejected = true }
+      check("native_file_directory_is_rejected", rejected, into: &checks)
+      fileStage = "reject_final_symlink"
+      try Data(body.utf8).write(to: file)
+      let link = directory.appendingPathComponent("link.txt")
+      try FileManager.default.createSymbolicLink(at: link, withDestinationURL: file)
+      rejected = false
+      do { _ = try await reader.text(from: link, maxBytes: 4096) } catch DesktopServiceError
+        .invalidValue
+      { rejected = true }
+      check("native_file_symlink_is_rejected", rejected, into: &checks)
+      #if os(Linux)
+        fileStage = "reject_nonblocking_fifo"
+        let fifo = directory.appendingPathComponent("pipe.txt")
+        guard mkfifo(fifo.path, 0o600) == 0 else { throw DesktopServiceError.unavailable }
+        rejected = false
+        do { _ = try await reader.text(from: fifo, maxBytes: 128) } catch DesktopServiceError
+          .invalidValue
+        { rejected = true }
+        check("native_file_fifo_is_rejected_without_waiting_for_writer", rejected, into: &checks)
+      #endif
+    } catch {
+      check("native_file_text_reader", false, detail: fileStage, into: &checks)
     }
     do {
       let args = CommandLine.arguments

@@ -67,6 +67,49 @@ final class DesktopServicesTests: XCTestCase {
     XCTAssertFalse(
       String(decoding: try JSONEncoder().encode(settings), as: UTF8.self).contains("synthetic-key"))
   }
+  private actor CredentialGate: DesktopCredentialStoring {
+    private var pending: CheckedContinuation<String?, Never>?
+    private var waiting: CheckedContinuation<Void, Never>?
+    func read(account: String) async -> String? {
+      await withCheckedContinuation {
+        pending = $0
+        waiting?.resume()
+        waiting = nil
+      }
+    }
+    func started() async {
+      if pending == nil { await withCheckedContinuation { waiting = $0 } }
+    }
+    func finish() {
+      pending?.resume(returning: "synthetic-credential")
+      pending = nil
+    }
+    func save(_ value: String, account: String) {}
+    func delete(account: String) {}
+  }
+  func testCancelledCredentialLookupCannotStartTransport() async {
+    let credentials = CredentialGate()
+    let transport = FakeDesktopAITransport()
+    let service = DesktopAnalysis(
+      credentials: credentials, transport: transport,
+      ocr: FakeDesktopOCR(), blobRoot: nil)
+    var settings = DesktopAISettings()
+    settings.enabled = true
+    settings.model = "fixture"
+    settings.usesCredential = true
+    let configuration = settings
+    let candidate = item()
+    let task = Task { try await service.summarize(candidate, settings: configuration) }
+    await credentials.started()
+    task.cancel()
+    await credentials.finish()
+    do {
+      _ = try await task.value
+      XCTFail("Cancelled credential lookup sent a request")
+    } catch { XCTAssertTrue(error is CancellationError) }
+    let requests = await transport.requests
+    XCTAssertTrue(requests.isEmpty)
+  }
   func testMissingRequiredCredentialFailsBeforeTransport() async throws {
     let transport = FakeDesktopAITransport()
     let service = DesktopAnalysis(
