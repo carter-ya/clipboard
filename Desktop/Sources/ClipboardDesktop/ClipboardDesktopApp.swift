@@ -36,6 +36,7 @@ struct ClipboardDesktopApp: App {
 struct HistoryView: View {
   @State var model = HistoryModel()
   @State var showsCompactFilters = false
+  @State var archiveDirectory: URL?
   @Environment(\.chooseFile) var chooseFile
   @Environment(\.chooseFileSaveDestination) var chooseSaveDestination
 
@@ -64,7 +65,14 @@ struct HistoryView: View {
     }
     .environment(\.colorScheme, model.effectiveDark ? .dark : .light)
     .inspectWindow { model.attachWindow($0) }
-    .task { await model.load() }
+    .task { @MainActor in
+      await model.load()
+      // Fixture input only: keep the real native chooser/default-name path,
+      // while its initial directory and untouched default save stay private.
+      if archiveDirectory == nil && CommandLine.arguments.contains("--smoke-root") {
+        archiveDirectory = DesktopApplicationContext.dataRoot
+      }
+    }
     .onChange(of: model.selectedID) { Task { @MainActor in await model.loadPreview() } }
   }
 
@@ -287,11 +295,14 @@ struct HistoryView: View {
       Button(model.t("Save content settings")) {
         Task { @MainActor in await model.applyContentSettings() }
       }
+      Text(model.t("ZIP archives work with Mac. Use .json for the legacy export format."))
       Button(model.t("Export history")) {
         Task { @MainActor in
           if let destination = await chooseSaveDestination(
-            title: model.t("Export history"), defaultFileName: "clipboard-history.clipboard.json")
+            title: model.t("Export history"), initialDirectory: archiveDirectory,
+            defaultFileName: "clipboard-history.zip")
           {
+            archiveDirectory = destination.deletingLastPathComponent()
             await model.exportHistory(to: destination)
           }
         }
@@ -309,7 +320,10 @@ struct HistoryView: View {
       }
       Button(model.t("Import history")) {
         Task { @MainActor in
-          if let source = await chooseFile(title: model.t("Import history")) {
+          if let source = await chooseFile(
+            title: model.t("Import history"), initialDirectory: archiveDirectory)
+          {
+            archiveDirectory = source.deletingLastPathComponent()
             await model.importHistory(from: source)
           }
         }

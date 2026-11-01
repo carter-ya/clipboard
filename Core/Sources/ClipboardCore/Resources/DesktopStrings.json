@@ -56,9 +56,11 @@
     "History stays on this device. Sensitive items stay in memory.": "Der Verlauf bleibt auf diesem Gerät. Vertrauliche Einträge bleiben im Arbeitsspeicher.",
     "Image": "Bild",
     "Image · {bytes} bytes": "Bild · {bytes} Byte",
+    "Import failed. Choose a Clipboard ZIP or JSON archive.": "Import fehlgeschlagen. Wähle ein Clipboard-ZIP- oder JSON-Archiv.",
     "Import failed. Choose a self-contained Clipboard JSON archive.": "Import fehlgeschlagen. Wähle ein vollständiges Clipboard-JSON-Archiv.",
     "Import history": "Verlauf importieren",
     "Imported {added} items; {skipped} duplicates skipped.": "{added} Einträge importiert; {skipped} Duplikate übersprungen.",
+    "Imported {added} items; {skipped} skipped; {missing} missing blobs.": "{added} Einträge importiert; {skipped} übersprungen; {missing} mit fehlenden Dateien.",
     "Item deleted": "Eintrag gelöscht",
     "Item pinned": "Eintrag angeheftet",
     "Item unpinned": "Eintrag gelöst",
@@ -140,6 +142,7 @@
     "Waiting for the desktop shortcut portal.": "Warten auf das Tastenkürzel-Portal des Desktops.",
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland erkennt keine Quell-Apps. App-Ausschlüsse greifen bei unbekannten Quellen nicht; Hinweise auf vertrauliche Inhalte gelten weiterhin.",
     "Your clipboard history, on this device.": "Dein Zwischenablageverlauf auf diesem Gerät.",
+    "ZIP archives work with Mac. Use .json for the legacy export format.": "ZIP-Archive funktionieren mit Mac. Verwende .json für das bisherige Exportformat.",
     "{count} items": "{count} Einträge"
   },
   "en": {
@@ -199,9 +202,11 @@
     "History stays on this device. Sensitive items stay in memory.": "History stays on this device. Sensitive items stay in memory.",
     "Image": "Image",
     "Image · {bytes} bytes": "Image · {bytes} bytes",
+    "Import failed. Choose a Clipboard ZIP or JSON archive.": "Import failed. Choose a Clipboard ZIP or JSON archive.",
     "Import failed. Choose a self-contained Clipboard JSON archive.": "Import failed. Choose a self-contained Clipboard JSON archive.",
     "Import history": "Import history",
     "Imported {added} items; {skipped} duplicates skipped.": "Imported {added} items; {skipped} duplicates skipped.",
+    "Imported {added} items; {skipped} skipped; {missing} missing blobs.": "Imported {added} items; {skipped} skipped; {missing} missing blobs.",
     "Item deleted": "Item deleted",
     "Item pinned": "Item pinned",
     "Item unpinned": "Item unpinned",
@@ -283,6 +288,7 @@
     "Waiting for the desktop shortcut portal.": "Waiting for the desktop shortcut portal.",
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.",
     "Your clipboard history, on this device.": "Your clipboard history, on this device.",
+    "ZIP archives work with Mac. Use .json for the legacy export format.": "ZIP archives work with Mac. Use .json for the legacy export format.",
     "{count} items": "{count} items"
   },
   "es": {
@@ -342,9 +348,11 @@
     "History stays on this device. Sensitive items stay in memory.": "El historial permanece en este dispositivo. Los elementos sensibles solo permanecen en memoria.",
     "Image": "Imagen",
     "Image · {bytes} bytes": "Imagen · {bytes} bytes",
+    "Import failed. Choose a Clipboard ZIP or JSON archive.": "Error al importar. Elige un archivo ZIP o JSON de Clipboard.",
     "Import failed. Choose a self-contained Clipboard JSON archive.": "Error al importar. Elige un archivo JSON de Clipboard con todos los datos incluidos.",
     "Import history": "Importar historial",
     "Imported {added} items; {skipped} duplicates skipped.": "Se importaron {added} elementos; se omitieron {skipped} duplicados.",
+    "Imported {added} items; {skipped} skipped; {missing} missing blobs.": "{added} elementos importados; {skipped} omitidos; {missing} con archivos ausentes.",
     "Item deleted": "Elemento eliminado",
     "Item pinned": "Elemento fijado",
     "Item unpinned": "Elemento desfijado",
@@ -426,6 +434,7 @@
     "Waiting for the desktop shortcut portal.": "Esperando al portal de atajos del escritorio.",
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland no identifica las apps de origen. Las exclusiones no se aplican a orígenes desconocidos; las marcas de contenido sensible siguen vigentes.",
     "Your clipboard history, on this device.": "Tu historial del portapapeles, en este dispositivo.",
+    "ZIP archives work with Mac. Use .json for the legacy export format.": "Los archivos ZIP son compatibles con Mac. Usa .json para el formato de exportación anterior.",
     "{count} items": "{count} elementos"
   },
   "ja": {
@@ -485,9 +494,11 @@
     "History stays on this device. Sensitive items stay in memory.": "履歴はこのデバイスに保存されます。機密項目はメモリ内にのみ保持されます。",
     "Image": "画像",
     "Image · {bytes} bytes": "画像 · {bytes} バイト",
+    "Import failed. Choose a Clipboard ZIP or JSON archive.": "読み込みに失敗しました。Clipboard の ZIP または JSON アーカイブを選択してください。",
     "Import failed. Choose a self-contained Clipboard JSON archive.": "読み込みに失敗しました。必要なデータをすべて含む Clipboard JSON アーカイブを選んでください。",
     "Import history": "履歴を読み込む",
     "Imported {added} items; {skipped} duplicates skipped.": "{added} 件を読み込み、重複する {skipped} 件をスキップしました。",
+    "Imported {added} items; {skipped} skipped; {missing} missing blobs.": "{added} 件を読み込み、{skipped} 件をスキップ。ファイルが見つからない項目: {missing} 件。",
     "Item deleted": "項目を削除しました",
     "Item pinned": "項目を固定しました",
     "Item unpinned": "項目の固定を解除しました",
@@ -569,6 +580,7 @@
     "Waiting for the desktop shortcut portal.": "デスクトップのショートカットポータルを待っています。",
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland はコピー元アプリを識別しません。不明なコピー元にはアプリ除外を適用できませんが、機密フラグは有効です。",
     "Your clipboard history, on this device.": "このデバイスに保存されるクリップボード履歴。",
+    "ZIP archives work with Mac. Use .json for the legacy export format.": "ZIP アーカイブは Mac と共有できます。従来の形式で書き出すには .json を使用してください。",
     "{count} items": "{count} 件"
   },
   "ko": {
@@ -628,9 +640,11 @@
     "History stays on this device. Sensitive items stay in memory.": "기록은 이 기기에 저장됩니다. 민감한 항목은 메모리에만 유지됩니다.",
     "Image": "이미지",
     "Image · {bytes} bytes": "이미지 · {bytes}바이트",
+    "Import failed. Choose a Clipboard ZIP or JSON archive.": "가져오지 못했습니다. Clipboard ZIP 또는 JSON 보관 파일을 선택하세요.",
     "Import failed. Choose a self-contained Clipboard JSON archive.": "가져오기에 실패했습니다. 모든 데이터가 포함된 Clipboard JSON 아카이브를 선택하세요.",
     "Import history": "기록 가져오기",
     "Imported {added} items; {skipped} duplicates skipped.": "{added}개 항목을 가져왔으며 중복된 {skipped}개 항목은 건너뛰었습니다.",
+    "Imported {added} items; {skipped} skipped; {missing} missing blobs.": "{added}개 가져옴, {skipped}개 건너뜀, 파일 누락 {missing}개.",
     "Item deleted": "항목을 삭제했습니다",
     "Item pinned": "항목을 고정했습니다",
     "Item unpinned": "항목 고정을 해제했습니다",
@@ -712,6 +726,7 @@
     "Waiting for the desktop shortcut portal.": "데스크톱 단축키 포털을 기다리는 중입니다.",
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland는 클립보드의 원본 앱을 식별하지 않습니다. 알 수 없는 원본에는 앱 제외 규칙이 적용되지 않지만 민감 정보 표시는 유효합니다.",
     "Your clipboard history, on this device.": "이 기기에 저장되는 클립보드 기록입니다.",
+    "ZIP archives work with Mac. Use .json for the legacy export format.": "ZIP 보관 파일은 Mac과 호환됩니다. 기존 형식으로 내보내려면 .json을 사용하세요.",
     "{count} items": "{count}개 항목"
   },
   "zh-Hans": {
@@ -771,9 +786,11 @@
     "History stays on this device. Sensitive items stay in memory.": "历史保存在此设备，敏感条目仅保留在内存。",
     "Image": "图片",
     "Image · {bytes} bytes": "图片 · {bytes} 字节",
+    "Import failed. Choose a Clipboard ZIP or JSON archive.": "导入失败。请选择 Clipboard ZIP 或 JSON 归档。",
     "Import failed. Choose a self-contained Clipboard JSON archive.": "导入失败，请选择完整的 Clipboard JSON 归档。",
     "Import history": "导入历史",
     "Imported {added} items; {skipped} duplicates skipped.": "已导入 {added} 条，跳过 {skipped} 条重复内容。",
+    "Imported {added} items; {skipped} skipped; {missing} missing blobs.": "已导入 {added} 项；跳过 {skipped} 项；缺失文件 {missing} 项。",
     "Item deleted": "条目已删除",
     "Item pinned": "已置顶",
     "Item unpinned": "已取消置顶",
@@ -855,6 +872,7 @@
     "Waiting for the desktop shortcut portal.": "正在等待桌面快捷键授权服务。",
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland 不提供剪贴板来源应用信息，应用排除规则无法匹配未知来源；敏感标记仍然有效。",
     "Your clipboard history, on this device.": "此设备上的剪贴板历史。",
+    "ZIP archives work with Mac. Use .json for the legacy export format.": "ZIP 归档可与 Mac 互通。使用 .json 可导出旧格式。",
     "{count} items": "{count} 条"
   },
   "zh-Hant": {
@@ -914,9 +932,11 @@
     "History stays on this device. Sensitive items stay in memory.": "歷程保存在此裝置，敏感條目僅保留在記憶體。",
     "Image": "圖片",
     "Image · {bytes} bytes": "圖片 · {bytes} 位元組",
+    "Import failed. Choose a Clipboard ZIP or JSON archive.": "匯入失敗。請選擇 Clipboard ZIP 或 JSON 封存。",
     "Import failed. Choose a self-contained Clipboard JSON archive.": "導入失敗，請選擇完整的 Clipboard JSON 歸檔。",
     "Import history": "導入歷程",
     "Imported {added} items; {skipped} duplicates skipped.": "已導入 {added} 條，跳過 {skipped} 條重復內容。",
+    "Imported {added} items; {skipped} skipped; {missing} missing blobs.": "已匯入 {added} 項；略過 {skipped} 項；缺少檔案 {missing} 項。",
     "Item deleted": "條目已刪除",
     "Item pinned": "已置頂",
     "Item unpinned": "已取消置頂",
@@ -998,6 +1018,7 @@
     "Waiting for the desktop shortcut portal.": "正在等待桌面快捷鍵授權服務。",
     "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply.": "Wayland 不提供剪貼簿來源應用資訊，應用排除規則無法匹配未知來源；敏感標記仍然有效。",
     "Your clipboard history, on this device.": "此裝置上的剪貼簿歷程。",
+    "ZIP archives work with Mac. Use .json for the legacy export format.": "ZIP 封存可與 Mac 互通。使用 .json 可匯出舊格式。",
     "{count} items": "{count} 條"
   }
 }

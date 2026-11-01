@@ -8,6 +8,33 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+# GTK has server-side AccessKit providers; native common-dialog controls use
+# the managed client's Win32 proxies. Register from a compiled caller before
+# traversing HWNDs: ProxyManager's default-loader stack walk is not reliable
+# when the first caller is a generated PowerShell method.
+# https://github.com/dotnet/wpf/blob/main/src/Microsoft.DotNet.Wpf/src/UIAutomation/UIAutomationClient/MS/Internal/Automation/ProxyManager.cs
+$automationClient = [Windows.Automation.AutomationElement].Assembly
+$proxyName = $automationClient.GetName()
+$proxyName.Name = 'UIAutomationClientsideProviders'
+$standardProviders = [Reflection.Assembly]::Load($proxyName)
+Add-Type -ReferencedAssemblies $automationClient.Location -TypeDefinition @'
+using System.Reflection;
+using System.Windows.Automation;
+public static class ClipboardStandardProviders {
+  public static void Register(AssemblyName assembly) {
+    try {
+      ClientSettings.RegisterClientSideProviderAssembly(assembly);
+    } catch (System.NullReferenceException) {
+      // .NET Framework marks its default-proxy attempt consumed before walking
+      // reflection-generated PowerShell frames. That first walk can throw;
+      // a single explicit retry registers the requested table without that walk.
+      // Other failures, and any failure of the second call, remain hard errors.
+      ClientSettings.RegisterClientSideProviderAssembly(assembly);
+    }
+  }
+}
+'@
+[ClipboardStandardProviders]::Register($standardProviders.GetName())
 Add-Type -AssemblyName System.Drawing
 Add-Type -TypeDefinition @'
 using System;
@@ -16,6 +43,35 @@ public static class PreviewNative {
   [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
   private delegate bool EnumWindowProc(IntPtr hwnd, IntPtr parameter);
   [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowProc callback, IntPtr parameter);
+  [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumWindowProc callback, IntPtr parameter);
+  [DllImport("user32.dll")] private static extern int GetDlgCtrlID(IntPtr control);
+  public static IntPtr[] DialogFields(IntPtr parent, bool filenameOnly) {
+    var result = new System.Collections.Generic.List<IntPtr>();
+    EnumChildWindows(parent, (control, _) => {
+      var type = new System.Text.StringBuilder(128);
+      GetClassName(control, type, type.Capacity);
+      int id = GetDlgCtrlID(control);
+      if ((type.ToString() == "Edit" || type.ToString() == "ComboBox" || type.ToString() == "ComboBoxEx32") &&
+          (!filenameOnly || id == 1001 || id == 1148)) result.Add(control);
+      return result.Count < 32;
+    }, IntPtr.Zero);
+    return result.ToArray();
+  }
+  public static IntPtr DialogButton(IntPtr parent, int id) {
+    IntPtr result = IntPtr.Zero;
+    EnumChildWindows(parent, (control, _) => {
+      var type = new System.Text.StringBuilder(128);
+      GetClassName(control, type, type.Capacity);
+      if (GetDlgCtrlID(control) == id && type.ToString() == "Button") { result = control; return false; }
+      return true;
+    }, IntPtr.Zero);
+    return result;
+  }
+  public static string DescribeDialogField(IntPtr control) {
+    var type = new System.Text.StringBuilder(128);
+    GetClassName(control, type, type.Capacity);
+    return GetDlgCtrlID(control).ToString() + ":" + type.ToString();
+  }
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetWindowText(IntPtr hwnd, System.Text.StringBuilder text, int max);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder text, int max);
@@ -35,6 +91,19 @@ public static class PreviewNative {
         if (title.ToString() == "Clipboard" && windowClass.ToString() != "ConsoleWindowClass") {
           found = hwnd; return false;
         }
+      }
+      return true;
+    }, IntPtr.Zero);
+    return found;
+  }
+  public static IntPtr FindDialog(uint processId, string title) {
+    IntPtr found = IntPtr.Zero;
+    EnumWindows((hwnd, _) => {
+      uint owner;
+      GetWindowThreadProcessId(hwnd, out owner);
+      var text = new System.Text.StringBuilder(512);
+      if (owner == processId && IsWindowVisible(hwnd) && GetWindowText(hwnd, text, text.Capacity) > 0 && text.ToString() == title) {
+        found = hwnd; return false;
       }
       return true;
     }, IntPtr.Zero);
@@ -274,6 +343,106 @@ function Invoke-Button([string]$Label) {
   } ('enabled_button_' + $Label)
   $pattern = $element.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
   $pattern.Invoke()
+}
+function Get-ArchiveFilenamePattern($Element) {
+  try {
+    $pattern = $Element.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
+    if (!$pattern.Current.IsReadOnly) { return $pattern }
+  } catch {}
+  return $null
+}
+function Complete-ArchiveDialog([string]$Title, [string]$Path, [bool]$CheckDefault = $false) {
+  $handle = Wait-For {
+    $candidate = [PreviewNative]::FindDialog([uint32]$application.Id, $Title)
+    if ($candidate -ne [IntPtr]::Zero) { $candidate }
+  } 'archive_native_dialog'
+  $dialog = [Windows.Automation.AutomationElement]::FromHandle($handle)
+  # Windows common dialogs may expose the filename as an editable ComboBox
+  # rather than an Edit node. Anchor only to known filename host/control IDs,
+  # then require a writable native accessibility value; never pick the address/search editor.
+  $value = $null
+  try {
+    $value = Wait-For {
+    # Native child handles also cover controls omitted from the dialog's
+    # provider fragment. Accessibility remains mandatory; no text messages/keys.
+    foreach ($native in [PreviewNative]::DialogFields($handle, $true)) {
+      try {
+        $candidate = [Windows.Automation.AutomationElement]::FromHandle($native)
+        $pattern = Get-ArchiveFilenamePattern $candidate
+        if ($pattern) { return $pattern }
+      } catch {}
+    }
+    foreach ($id in @('1001', '1148', 'FileNameControlHost')) {
+      $condition = [Windows.Automation.PropertyCondition]::new(
+        [Windows.Automation.AutomationElement]::AutomationIdProperty, $id)
+      foreach ($hostControl in $dialog.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)) {
+        $controls = @($hostControl)
+        if ($id -eq 'FileNameControlHost') {
+          $editable = [Windows.Automation.PropertyCondition]::new(
+            [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)
+          $controls += @($hostControl.FindAll([Windows.Automation.TreeScope]::Descendants, $editable))
+        }
+        foreach ($control in $controls) {
+          if (!$control.Current.IsEnabled) { continue }
+          $pattern = Get-ArchiveFilenamePattern $control
+          if ($pattern) { return $pattern }
+        }
+      }
+    }
+    } 'archive_filename_editor'
+  } catch {
+    # Bounded native IDs/classes and capability booleans only. Never record
+    # names, paths, editor values, clipboard content or exception text.
+    $metadata = @()
+    foreach ($native in [PreviewNative]::DialogFields($handle, $false)) {
+      $supportsValue = $false
+      try {
+        $element = [Windows.Automation.AutomationElement]::FromHandle($native)
+        $supportsValue = [bool]$element.GetCurrentPropertyValue([Windows.Automation.AutomationElement]::IsValuePatternAvailableProperty)
+      } catch {}
+      $metadata += @{ control = [PreviewNative]::DescribeDialogField($native); valuePattern = $supportsValue }
+    }
+    [IO.File]::WriteAllText((Join-Path $OutputDirectory 'archive-native-controls.json'), (ConvertTo-Json -InputObject $metadata), [Text.UTF8Encoding]::new($false))
+    throw 'archive_filename_editor'
+  }
+  if ($CheckDefault) {
+    $defaultName = $value.Current.Value
+    # Classify only this fixed synthetic default. Never emit a field value.
+    $defaultMetadata = @{
+      literalZIP = $defaultName -ceq 'clipboard-history.zip'
+      extensionHidden = $defaultName -ceq 'clipboard-history'
+      quotedZIP = $defaultName -ceq '"clipboard-history.zip"'
+      empty = [string]::IsNullOrEmpty($defaultName)
+    }
+    [IO.File]::WriteAllText((Join-Path $OutputDirectory 'archive-default-name.json'), ($defaultMetadata | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+    if (!$defaultMetadata.literalZIP -and !$defaultMetadata.extensionHidden) { throw 'archive_unexpected_default_name' }
+    $expected = [IO.Path]::GetFullPath((Join-Path $historyRoot 'clipboard-history.zip'))
+    if ([IO.Path]::GetFullPath($Path) -cne $expected -or (Test-Path -LiteralPath $Path)) { throw 'archive_default_fixture_not_empty_or_private' }
+  } else {
+    $value.SetValue($Path)
+  }
+  $acceptCondition = [Windows.Automation.AndCondition]::new(
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Button),
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, '1'))
+  $accept = Wait-For {
+    $native = [PreviewNative]::DialogButton($handle, 1)
+    $button = if ($native -ne [IntPtr]::Zero) { [Windows.Automation.AutomationElement]::FromHandle($native) }
+              else { $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, $acceptCondition) }
+    if (!$button) { return $null }
+    try {
+      if ($button.Current.IsEnabled) {
+        return $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
+      }
+    } catch {}
+    return $null
+  } 'archive_dialog_accept'
+  $accept.Invoke()
+  if ($CheckDefault) {
+    # The shell may hide a known extension in its edit control. Leave the
+    # filename untouched and require the real default save to create this ZIP.
+    Wait-For { Test-Path -LiteralPath $Path -PathType Leaf } 'native_default_zip_export_created' | Out-Null
+    Add-Check 'native_archive_save_dialog_defaults_to_zip' $true
+  }
 }
 function Set-Search([string]$Text) {
   $element = Wait-For { Get-Editor } 'search_control'
@@ -741,6 +910,53 @@ try {
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'rich_budget_quit_timeout' }
     Add-Check 'rich_budget_profile_quits_cleanly' ($application.ExitCode -eq 0)
+
+    $historyRoot = Join-Path $OutputDirectory ('archive-state-' + [Guid]::NewGuid().ToString('N'))
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+      -ArgumentList @('--smoke-root', ('"' + $historyRoot + '"')) -PassThru `
+      -RedirectStandardOutput (Join-Path $OutputDirectory 'archive.stdout.log') -RedirectStandardError (Join-Path $OutputDirectory 'archive.stderr.log')
+    $null = $application.Handle
+    $nativeWindowHandle = Wait-For {
+      $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
+      if ($handle -ne [IntPtr]::Zero) { $handle }
+    } 'archive_private_window'
+    $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'archive_private_profile' | Out-Null
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'archive_preferences' | Out-Null
+    Invoke-Button 'Export history'
+    $archivePath = Join-Path $historyRoot 'clipboard-history.zip'
+    Complete-ArchiveDialog 'Export history' $archivePath $true
+    Wait-For { (Test-Path $archivePath) -and (Find-Named 'History exported. Sensitive items excluded.') } 'archive_export_finished' | Out-Null
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($archivePath)
+    try {
+      $reader = [IO.StreamReader]::new($archive.GetEntry('history.json').Open(), [Text.Encoding]::UTF8)
+      try { $exported = $reader.ReadToEnd() | ConvertFrom-Json }
+      finally { $reader.Dispose() }
+    } finally { $archive.Dispose() }
+    Add-Check 'native_archive_export_contains_mac_history' ($exported.items.Count -eq 3 -and @($exported.items | Where-Object { $_.sensitive }).Count -eq 0)
+    Invoke-Button 'Clear history'
+    Invoke-Button 'Delete all history'
+    Wait-For { Find-Named 'History cleared' } 'archive_source_cleared' | Out-Null
+    Invoke-Button 'Import history'
+    Complete-ArchiveDialog 'Import history' $archivePath
+    Wait-For { Find-Named 'Imported 3 items; 0 skipped; 0 missing blobs.' } 'archive_native_round_trip' | Out-Null
+    $restored = Read-SharedJson (Join-Path $historyRoot 'history.json')
+    Add-Check 'native_archive_import_preserves_original_order_and_content' (($restored.items.sha256 -join ',') -ceq ($exported.items.sha256 -join ','))
+    Invoke-Button 'Import history'
+    Complete-ArchiveDialog 'Import history' $archivePath
+    Wait-For { Find-Named 'Imported 0 items; 3 skipped; 0 missing blobs.' } 'archive_duplicate_result' | Out-Null
+    Add-Check 'native_archive_duplicate_import_is_counted' ((Read-SharedJson (Join-Path $historyRoot 'history.json')).items.Count -eq 3)
+    Invoke-Button 'Quit Clipboard'
+    if (!$application.WaitForExit(10000)) { throw 'archive_state_quit_timeout' }
+    if ($application.ExitCode -ne 0) {
+      # Process metadata only: retain a nullable numeric code for a real crash
+      # or an unexpected process-object lifetime issue, never payload/log text.
+      $exitMetadata = @{ hasExited = $application.HasExited; exitCode = $application.ExitCode }
+      [IO.File]::WriteAllText((Join-Path $OutputDirectory 'archive-exit.json'), ($exitMetadata | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+    }
+    Add-Check 'archive_state_profile_quits_cleanly' ($application.ExitCode -eq 0)
 
     $historyRoot = Join-Path $OutputDirectory ('startup-state-' + [Guid]::NewGuid().ToString('N'))
     $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
