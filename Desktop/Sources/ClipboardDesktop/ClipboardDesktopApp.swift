@@ -41,7 +41,8 @@ struct HistoryView: View {
 
   var body: some View {
     GeometryReader { geometry in
-      let compact = geometry.size.width < 820
+      let viewportWidth = model.responsiveWidth(proposed: geometry.size.width)
+      let compact = viewportWidth < 820
       VStack(alignment: .leading, spacing: 12) {
         header(compact: compact)
         ScrollView {
@@ -206,7 +207,16 @@ struct HistoryView: View {
             DesktopImagePreview(image: image).frame(
               minWidth: 250, maxWidth: .infinity, minHeight: 180, maxHeight: 240)
           }
-          Text(model.previewText).frame(maxWidth: .infinity, alignment: .leading)
+          Text(
+            model.canRevealSensitivePreview
+              ? model.t("Sensitive content is hidden.") : model.previewText
+          )
+          .frame(maxWidth: .infinity, alignment: .leading)
+          if model.canRevealSensitivePreview {
+            Button(model.t("Reveal for this session")) {
+              Task { @MainActor in await model.revealSensitivePreview() }
+            }
+          }
           if model.previewTruncated {
             Text(model.t("Preview truncated. Copy keeps the full text."))
               .font(.system(size: 12)).foregroundColor(.gray)

@@ -9,7 +9,8 @@ private final class DecodeBounds {
 }
 
 /// Only a bounded, decoded thumbnail crosses onto the UI actor. Original bytes
-/// remain in the Core payload; sensitive images are never passed to this loader.
+/// remain in the Core payload; sensitive images require an explicit active reveal.
+/// Decoding stays in memory and never creates a preview file.
 final class DesktopPreviewImage: @unchecked Sendable {
   let pixbuf: OpaquePointer
   private init(_ pixbuf: OpaquePointer) { self.pixbuf = pixbuf }
