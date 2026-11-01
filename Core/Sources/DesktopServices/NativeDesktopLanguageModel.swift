@@ -47,10 +47,13 @@ public struct NativeDesktopLanguageModel: DesktopLocalLanguageProcessing, Sendab
       let task: DesktopLocalLanguageTask
       let language: String?
     }
+    let responseTag =
+      language.flatMap { $0.isEmpty || $0 == "system" ? nil : $0 }
+      ?? DesktopUILanguage.resolve(override: nil).rawValue
     let data = try JSONEncoder().encode(
       Input(
         model: path, text: text, task: task,
-        language: remoteAIResponseLanguageName(for: language)))
+        language: remoteAIResponseLanguageName(for: responseTag)))
     do {
       let bytes = try await NativeDesktopByteWorker(
         executable: executable, timeout: timeout, inputLimit: 512 * 1024, outputLimit: 4096,
