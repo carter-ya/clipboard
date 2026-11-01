@@ -151,6 +151,11 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - ZIP export must charge every logical payload reference against the same 256 MiB budget used by import, independently of unique blob storage. Shared large HTML/image payloads must not produce a successful but unrestorable backup. Windows Core CI provisions verified static zlib 1.3.2 headers/import library; desktop packages keep their native GTK dependency closure. Native Linux archive chooser tests identify only the synthetic filename in the current mapped dialog, double-click through the private X server and require real import/order/dedup results. No keyboard events or clipboard path entry.
 
+- Remote analysis fallback uses only independently authorized local engines and automatic-local settings. Reload the current item and recheck both original and local permissions before switching the same owned task; live local revocation must cancel that local phase. Retain the original retry ticket, report the actual running/result engine and keep first-success-only persistence.
+
+
 - Private PowerShell fixture control pipes use UTF-8 without a preamble when supported by modern .NET. Windows PowerShell 5.1 lacks ProcessStartInfo.StandardInputEncoding: guard that property and accept one optional UTF-8 BOM on the first private command in the server. Retain real held-request tests for BOM/no-BOM and LF/CRLF without EOF; never infer protocol success from a screenshot after cleanup.
 
 - PowerShell wait diagnostic variables must not shadow predicate caller variables. Keep the real helper scope regression, exact public-control predicates and per-action deadlines; correct screenshots alone do not prove accessibility predicates succeeded.
+
+- The expanded offline Linux installed suite has a 1200-second aggregate budget within the 90-minute CI job. Preserve all native per-action deadlines, owned-service/process limits and assertions; a stalled individual operation must still fail promptly. This budget follows the recorded x64 600-second outer timeout during successful file/PDF checks.

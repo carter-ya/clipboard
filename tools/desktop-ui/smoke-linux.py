@@ -1356,6 +1356,66 @@ try:
           fixture_report.get('requests') == 2 and fixture_report.get('fixedTestsOnly') and
           fixture_report.get('noAuthorization') and fixture_report.get('noCookies'))
 
+    fallback_environment = os.environ.copy()
+    fallback_environment.update(CLIPBOARD_PRIVATE_AI_TEST='1', CLIPBOARD_PRIVATE_AI_MODE='fallback')
+    server = subprocess.Popen(['/usr/bin/python3', str(Path(__file__).with_name('ai-probe-server.py'))],
+                              env=fallback_environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+    try:
+        if not select.select([server.stdout], [], [], 10)[0]:
+            raise RuntimeError('fallback_server_startup')
+        ready = server.stdout.readline(32).decode('ascii').strip()
+        if not ready.startswith('ready:') or not ready[6:].isdigit():
+            raise RuntimeError('fallback_server_ready')
+        history_root = out / ('analysis-fallback-' + uuid.uuid4().hex)
+        history_root.mkdir()
+        lead = 'Local fallback fixture begins with a useful sentence.'
+        body = lead + ' More local context.' * 10
+        candidate = dict(id=str(uuid.uuid4()), createdAt='2023-11-14T22:13:20Z', kind='text',
+                         preview='Fallback fixture', pinned=False, sensitive=False,
+                         sha256=hashlib.sha256(body.encode()).hexdigest(), sizeBytes=len(body.encode()),
+                         payloads=[dict(pasteboardType='public.utf8-plain-text', inlineData=base64.b64encode(body.encode()).decode())])
+        (history_root / 'history.json').write_text(json.dumps({'version': 1, 'items': [candidate]}))
+        (history_root / 'desktop-settings.json').write_text(json.dumps({'ai': {
+            'enabled': True, 'allowText': True, 'allowImages': False, 'allowFiles': False,
+            'usesCredential': False, 'endpoint': 'http://127.0.0.1:' + ready[6:] + '/v1',
+            'model': 'fixture-model', 'timeoutSeconds': 60}}))
+        app = subprocess.Popen([str(Path(args.executable).resolve()), '--data-root', str(history_root)],
+                               stdout=log, stderr=log, start_new_session=True)
+        wait_for(lambda: has_texts('Ready', '1 items'), 'fallback_profile_ready')
+        click('Summarize')
+        wait_for(lambda: has_text('Could not generate a summary.') and button('Retry summary'), 'fallback_without_permission_failed')
+        snapshot = json.loads((history_root / 'history.json').read_text())
+        check('remote_failure_does_not_run_unapproved_local_analysis', not snapshot['items'][0].get('summary'))
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'fallback_preferences')
+        click_visible_public_control('Enable local text summaries')
+        click_visible_public_control('Save AI settings')
+        wait_for(lambda: json.loads((history_root / 'desktop-settings.json').read_text()).get('localTextSummariesEnabled'), 'fallback_permission_saved')
+        click('Back to history')
+        click('Retry summary')
+        wait_for(lambda: has_texts('Summary ready', 'Local excerpt', lead), 'fallback_local_result_ready')
+        snapshot = json.loads((history_root / 'history.json').read_text())['items'][0]
+        check('remote_failure_falls_back_to_explicitly_enabled_local_excerpt',
+              snapshot.get('summarySource') == 'localExtractive' and snapshot.get('summary') == lead and
+              base64.b64decode(snapshot['payloads'][0]['inlineData']).decode() == body)
+        screenshot('remote-local-fallback.png')
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'fallback_quit_settings')
+        click('Quit Clipboard')
+        app.wait(timeout=10)
+        check('fallback_profile_quits_cleanly', app.returncode == 0)
+    finally:
+        server.stdin.close()
+        try:
+            server.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            server.kill()
+            server.wait(timeout=5)
+    fixture_report = json.loads(server.stdout.readline(4096))
+    check('fallback_retries_send_only_two_fixed_requests_without_credentials_or_cookies',
+          fixture_report.get('requests') == 2 and fixture_report.get('fixedTestsOnly') and
+          fixture_report.get('noAuthorization') and fixture_report.get('noCookies'))
+
     sensitive_probe = True
     history_root = out / ('sensitive-preview-' + uuid.uuid4().hex)
     app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root), '--smoke-sensitive'],

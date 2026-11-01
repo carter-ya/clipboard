@@ -59,6 +59,12 @@ public enum DesktopItemAnalysisProgress: Equatable, Sendable {
     }
     publish()
   }
+  public func useLocalFallback(_ ticket: Ticket) {
+    guard isCurrent(ticket), ticket.remote else { return }
+    // Keep the original retry engine, but show the engine currently running.
+    entries[ticket.id] = (ticket, .running(remote: false))
+    publish()
+  }
   public func remove(id: UUID) {
     if entries.removeValue(forKey: id) != nil { publish() }
   }
