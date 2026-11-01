@@ -364,7 +364,8 @@ final class HistoryModel: ObservableObject {
     } catch DesktopShellError.shortcutConflict {
       shellStatus = "The global shortcut is already in use. Choose another in Settings."
     } catch { shellStatus = "The global shortcut is unavailable in this desktop session." }
-    shell.updateLanguage(settings.languageOverride ?? Locale.preferredLanguages.first ?? "en")
+    shell.updateLanguage(
+      settings.languageOverride ?? DesktopLanguagePreferences.preferredLanguages.first ?? "en")
     reconcileShellCapabilities()
     let actions = shell.actions
     if let instance = DesktopApplicationContext.instance {
@@ -854,7 +855,7 @@ final class HistoryModel: ObservableObject {
       try await settingsStore.save(next)
       settings = next
       uiLanguage = value
-      shell?.updateLanguage(value ?? Locale.preferredLanguages.first ?? "en")
+      shell?.updateLanguage(value ?? DesktopLanguagePreferences.preferredLanguages.first ?? "en")
       status = "Language saved"
     } catch { status = "Settings could not be saved." }
   }
