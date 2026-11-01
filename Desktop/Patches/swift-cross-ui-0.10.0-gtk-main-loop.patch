@@ -1,0 +1,39 @@
+--- a/Sources/GtkBackend/Features/Core.swift
++++ b/Sources/GtkBackend/Features/Core.swift
+@@ -78,7 +78,11 @@
+                 return 0
+             },
+             Unmanaged<ThreadActionContext>.passRetained(action).toOpaque(),
+-            { _ in }
++            { context in
++                if let context {
++                    Unmanaged<ThreadActionContext>.fromOpaque(context).release()
++                }
++            }
+         )
+     }
+ 
+@@ -89,7 +93,9 @@
+         let action = ThreadActionContext(action: action)
+         g_timeout_add_full(
+             0,
+-            guint(max(delay, 0)),
++            // A zero-delay default-priority timeout starves GTK idle sources,
++            // including AccessKit actions on Windows. Leave an idle dispatch gap.
++            guint(max(delay, 1)),
+             { context in
+                 guard let context else {
+                     fatalError("Gtk action callback called without context")
+@@ -106,7 +112,11 @@
+                 return 0
+             },
+             Unmanaged<ThreadActionContext>.passRetained(action).toOpaque(),
+-            { _ in }
++            { context in
++                if let context {
++                    Unmanaged<ThreadActionContext>.fromOpaque(context).release()
++                }
++            }
+         )
+     }
+ 

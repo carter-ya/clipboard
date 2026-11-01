@@ -1,0 +1,204 @@
+--- a/gtk/a11y/gtkaccesskitcontext.c
++++ b/gtk/a11y/gtkaccesskitcontext.c
+@@ -1496,6 +1496,9 @@
+       GTK_IS_SWITCH (accessible) ||
+       GTK_IS_EXPANDER (accessible))
+     accesskit_node_add_action (node, ACCESSKIT_ACTION_CLICK);
++  if (GTK_IS_EDITABLE (accessible) &&
++      gtk_editable_get_editable (GTK_EDITABLE (accessible)))
++    accesskit_node_add_action (node, ACCESSKIT_ACTION_SET_VALUE);
+   /* TODO: other actions */
+ 
+   set_bounds (accessible, node);
+@@ -1578,6 +1581,13 @@
+                        accesskit_node_set_role_description, node);
+   set_string_property (ctx, GTK_ACCESSIBLE_PROPERTY_VALUE_TEXT,
+                        accesskit_node_set_value, node);
++
++  /* Editable values must exclude decorative children such as placeholders.
++   * Password widgets retain their protected-text representation. */
++  if (GTK_IS_EDITABLE (accessible) && role == ACCESSKIT_ROLE_TEXT_INPUT &&
++      !gtk_accessible_is_password_text (accessible))
++    accesskit_node_set_value (node,
++                              gtk_editable_get_text (GTK_EDITABLE (accessible)));
+ 
+   set_size_from_property (ctx, GTK_ACCESSIBLE_PROPERTY_LEVEL,
+                           accesskit_node_set_level, node);
+@@ -2030,6 +2040,19 @@
+     gtk_widget_grab_focus (widget);
+     break;
+ 
++  case ACCESSKIT_ACTION_SET_VALUE:
++    if (!request->data.has_value ||
++        request->data.value.tag != ACCESSKIT_ACTION_DATA_VALUE ||
++        !request->data.value.value || !GTK_IS_EDITABLE (accessible))
++      return;
++    if (!GTK_IS_WIDGET (accessible) ||
++        !gtk_widget_is_sensitive (GTK_WIDGET (accessible)) ||
++        !gtk_widget_is_visible (GTK_WIDGET (accessible)) ||
++        !gtk_editable_get_editable (GTK_EDITABLE (accessible)))
++      return;
++    gtk_editable_set_text (GTK_EDITABLE (accessible), request->data.value.value);
++    break;
++
+   case ACCESSKIT_ACTION_SET_TEXT_SELECTION:
+     if (!request->data.has_value ||
+         request->data.value.tag != ACCESSKIT_ACTION_DATA_SET_TEXT_SELECTION)
+--- a/gtk/a11y/gtkaccesskitroot.c
++++ b/gtk/a11y/gtkaccesskitroot.c
+@@ -47,6 +47,7 @@
+   gboolean requested_initial_tree;
+ 
+ #if defined(GDK_WINDOWING_WIN32)
++  guint32 root_id;
+   accesskit_windows_subclassing_adapter *adapter;
+ #elif defined(GDK_WINDOWING_MACOS)
+   accesskit_macos_subclassing_adapter *adapter;
+@@ -283,6 +284,9 @@
+ do_action_main_thread (gpointer data_generic)
+ {
+   DoActionData *data = data_generic;
++  if (g_getenv ("CLIPBOARD_UI_DIAGNOSTICS"))
++    g_printerr ("clipboard-a11y: dispatch action=%u target=%" G_GUINT64_FORMAT "\n",
++                data->request->action, data->request->target);
+ 
+   if (data->request->target == (data->request->target & 0xffffffff))
+     {
+@@ -292,6 +296,8 @@
+ 
+       if (accesskit_ctx)
+         gtk_accesskit_context_do_action (accesskit_ctx, data->request);
++      else if (g_getenv ("CLIPBOARD_UI_DIAGNOSTICS"))
++        g_printerr ("clipboard-a11y: missing target context\n");
+     }
+ 
+   g_object_unref (data->root);
+@@ -309,7 +315,11 @@
+ 
+   main_thread_data->request = request;
+   main_thread_data->root = g_object_ref (root);
+-  g_idle_add (do_action_main_thread, main_thread_data);
++  if (g_getenv ("CLIPBOARD_UI_DIAGNOSTICS"))
++    g_printerr ("clipboard-a11y: received action=%u target=%" G_GUINT64_FORMAT "\n",
++                request->action, request->target);
++  /* Accessibility actions are input, and must not wait behind idle work. */
++  g_idle_add_full (G_PRIORITY_DEFAULT, do_action_main_thread, main_thread_data, NULL);
+ }
+ 
+ #if defined(GDK_WINDOWING_WAYLAND) || defined(GDK_WINDOWING_X11)
+@@ -418,9 +428,32 @@
+ GtkAccessKitRoot *
+ gtk_accesskit_root_new (GtkRoot *root_widget)
+ {
++#if defined(GDK_WINDOWING_WIN32)
++  GdkSurface *surface = gtk_native_get_surface (GTK_NATIVE (root_widget));
++  GtkAccessKitRoot *root = g_object_get_data (G_OBJECT (surface),
++                                              "gtk-accesskit-root");
++
++  /* Hiding a GTK widget unrealizes its accessible contexts, but preserves the
++   * native HWND. AccessKit permits exactly one subclassing adapter per HWND.
++   * Keep that adapter with the native surface and rebuild its tree on reuse. */
++  if (root)
++    {
++      root->did_initial_update = FALSE;
++      root->requested_initial_tree = TRUE;
++      g_clear_pointer (&root->update_queue, g_array_unref);
++      return g_object_ref (root);
++    }
++  root = g_object_new (GTK_TYPE_ACCESSKIT_ROOT,
++                        "root-widget", root_widget,
++                        NULL);
++  g_object_set_data_full (G_OBJECT (surface), "gtk-accesskit-root",
++                          g_object_ref (root), g_object_unref);
++  return root;
++#else
+   return g_object_new (GTK_TYPE_ACCESSKIT_ROOT,
+                        "root-widget", root_widget,
+                        NULL);
++#endif
+ }
+ 
+ static void
+@@ -469,11 +502,60 @@
+   return ++self->next_id;
+ }
+ 
++#if defined(GDK_WINDOWING_WIN32)
++typedef struct {
++  GWeakRef root;
++  guint32 id;
++} WidgetIdentity;
++
++static void
++free_widget_identity (gpointer data)
++{
++  WidgetIdentity *identity = data;
++  g_weak_ref_clear (&identity->root);
++  g_free (identity);
++}
++#endif
++
+ guint32
+ gtk_accesskit_root_add_context (GtkAccessKitRoot    *self,
+                                 GtkAccessKitContext *context)
+ {
+-  guint32 id = gtk_accesskit_root_new_id (self);
++  guint32 id;
++
++#if defined(GDK_WINDOWING_WIN32)
++  GtkAccessible *accessible = gtk_at_context_get_accessible (GTK_AT_CONTEXT (context));
++  WidgetIdentity *identity = g_object_get_data (G_OBJECT (accessible),
++                                                "gtk-accesskit-widget-identity");
++  GtkAccessKitRoot *previous = identity ? g_weak_ref_get (&identity->root) : NULL;
++
++  /* Unmapping may recreate contexts while their widgets and HWND survive.
++   * Existing UIA providers must continue to address those same live widgets. */
++  if (previous == self)
++    id = identity->id;
++  else if (accessible == GTK_ACCESSIBLE (self->root_widget))
++    {
++      if (!self->root_id)
++        self->root_id = gtk_accesskit_root_new_id (self);
++      id = self->root_id;
++    }
++  else
++    id = gtk_accesskit_root_new_id (self);
++  g_clear_object (&previous);
++
++  if (!identity)
++    {
++      identity = g_new0 (WidgetIdentity, 1);
++      g_weak_ref_init (&identity->root, self);
++      g_object_set_data_full (G_OBJECT (accessible), "gtk-accesskit-widget-identity",
++                              identity, free_widget_identity);
++    }
++  else
++    g_weak_ref_set (&identity->root, self);
++  identity->id = id;
++#else
++  id = gtk_accesskit_root_new_id (self);
++#endif
+   g_hash_table_insert (self->contexts, GUINT_TO_POINTER (id), context);
+ 
+   if (self->did_initial_update)
+--- a/gtk/gtklabel.c
++++ b/gtk/gtklabel.c
+@@ -3263,8 +3263,18 @@
+       return;
+     }
+ 
++  /* Accessible text layouts cache their runs even when the widget's bounds
++   * do not change. Notify removal before replacing the old contents. */
++  if (self->text && *self->text)
++    gtk_accessible_text_update_contents (GTK_ACCESSIBLE_TEXT (self),
++                                         GTK_ACCESSIBLE_TEXT_CONTENT_CHANGE_REMOVE,
++                                         0, g_utf8_strlen (self->text, -1));
+   g_free (self->text);
+   self->text = str;
++  if (self->text && *self->text)
++    gtk_accessible_text_update_contents (GTK_ACCESSIBLE_TEXT (self),
++                                         GTK_ACCESSIBLE_TEXT_CONTENT_CHANGE_INSERT,
++                                         0, g_utf8_strlen (self->text, -1));
+ 
+   role = gtk_accessible_get_accessible_role (GTK_ACCESSIBLE (self));
+ 

@@ -70,4 +70,23 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - Native text clipboard adapters live in `DesktopClipboard` plus a C system shim. Windows uses Unicode clipboard APIs; Linux X11 uses XFixes notifications and an event-driven selection owner. Wayland is explicitly unsupported until CP7. Native tests exchange synthetic text with an independent process in the CI clipboard or isolated Xvfb; no user desktop clipboard is used locally.
 
+- `Desktop/` is the Windows/Linux SwiftCrossUI application package. It explicitly uses GtkBackend; Windows GTK must include AccessKit and pass native UI Automation controls. The historical WinUI crash is not accepted as a successful port. Normal launches never seed sample history; only --smoke-root may inject synthetic fixtures. Keep GTK/Win32/X11 dependencies out of portable Core contracts.
+
+- The pinned SwiftCrossUI GTK main-loop patch releases one-shot callback contexts and prevents zero-delay timeouts from starving AccessKit idle actions. Keep native accessibility focus/button checks as hard gates; a visible tree alone is insufficient.
+
+- The pinned GTK AccessKit patch handles editable SetValue with native sensitivity/editability checks and schedules accessibility input at default priority. Optional CI diagnostics contain action/target IDs only, never text. UI Automation clients run MTA; native focus/action success remains required.
+
+- GTK archive sources retain LF; normalize reviewed patch input before applying it on Windows, and include the patch/helper in runtime cache keys. Do not normalize unrelated source files.
+
+- The pinned GTK label patch emits accessible text removal/insertion notifications when contents change, so equal-sized updates invalidate cached text runs. Keep baseline Counter: 0 → 1 and 3 → 1 search-result checks; no UI polling or renderer-independent flush is needed.
+
+- Native UI probes wait for exact restored editor values after asynchronous view reconstruction, retaining the bounded timeout and value assertion. Failure diagnostics expose lengths/control metadata, never text contents.
+
+- Plain GTK text inputs expose their actual GtkEditable value rather than aggregating decorative/placeholder children. Password/protected widgets must never enter this plaintext-value override.
+
+- Windows GTK keeps one AccessKit root/subclassing adapter per native GdkSurface across hide/reopen, rebuilds the tree on reuse, and releases it with that surface. Recreating adapters for a surviving HWND causes an abort. Hidden editor preservation and lifecycle/resource checks remain hard gates.
+
+- A surviving Windows HWND keeps its accessible root node ID across hide/reopen; rebuilding descendant contexts must not invalidate UIA window references.
+
+- Surviving Windows widgets keep their accessible node IDs through context recreation. Their identity records use weak root references and are released with the widget; reparenting to another root receives a new ID.
 - X11 selection requestors may disappear before a reply. The clipboard adapter recovers BadWindow only on registered private connections and delegates other connections/errors to the prior host handler. The portability workflow permanently exercises cancelled requests and registry cleanup in private Xvfb.
