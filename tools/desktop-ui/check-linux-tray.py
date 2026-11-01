@@ -93,6 +93,19 @@ try:
     layout = menu.GetLayout(dbus.Int32(0), dbus.Int32(-1), dbus.Array([], signature='s'))
     labels = [str(child[1]['label']) for child in layout[1][2]]
     check('menu_contains_real_native_actions', labels == ['Show history', 'Start recording', 'Settings', 'Quit'])
+    peer.stdin.write(b'language:zh\n')
+    peer.stdin.flush()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and props.Get('org.kde.StatusNotifierItem', 'Title') != 'Clipboard - 已暂停':
+        time.sleep(0.05)
+    layout = menu.GetLayout(dbus.Int32(0), dbus.Int32(-1), dbus.Array([], signature='s'))
+    check('native_tray_menu_localizes_without_restart', [str(child[1]['label']) for child in layout[1][2]] == ['显示历史', '开始录制', '设置', '退出'])
+    check('native_tray_tooltip_localizes_without_restart', props.Get('org.kde.StatusNotifierItem', 'ToolTip')[3] == '已暂停')
+    peer.stdin.write(b'language:en\n')
+    peer.stdin.flush()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and props.Get('org.kde.StatusNotifierItem', 'Title') != 'Clipboard - paused':
+        time.sleep(0.05)
     dbus.Interface(item, 'org.kde.StatusNotifierItem').Activate(dbus.Int32(0), dbus.Int32(0))
     wait_line('action:2')
     check('native_tray_activation_reaches_action_stream', True)

@@ -198,3 +198,7 @@ remain required on both Windows and Linux.
 
 CP2 local macOS regression: 159 Core tests, one existing Keychain skip, zero
 failures; strict Core/App lint passed. Fresh native CI results are pending.
+
+Windows CP6 service CI confirms credential and startup checks, but OCR fails. The fixture wrapper reports only fixed OCR stage codes to distinguish WinRT, language, decode and recognition failures without logging content. Linux CP6 services and 32 GTK UI checks pass.
+
+Windows OCR failure was traced to case-sensitive lookup of `SystemRoot` in a copied environment whose key is `SYSTEMROOT`. The native adapter now resolves it case-insensitively; the Python fixture uses Windows' case-insensitive environment mapping. Runtime OCR is rechecked by CI rather than skipped.

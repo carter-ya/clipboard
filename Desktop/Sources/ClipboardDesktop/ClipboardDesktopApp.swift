@@ -44,12 +44,13 @@ struct HistoryView: View {
       Spacer()
       Divider()
       HStack {
-        Text(model.status).foregroundColor(.gray)
+        Text(model.t(model.status)).foregroundColor(.gray)
         Spacer()
-        Text("Local history").foregroundColor(.gray)
+        Text(model.t("Local history")).foregroundColor(.gray)
       }
     }
     .padding(24)
+    .environment(\.colorScheme, model.effectiveDark ? .dark : .light)
     .inspectWindow { model.attachWindow($0) }
     .task { await model.load() }
     .onChange(of: model.selectedID) { Task { @MainActor in await model.loadPreview() } }
@@ -58,58 +59,61 @@ struct HistoryView: View {
   var header: some View {
     HStack {
       VStack(alignment: .leading, spacing: 4) {
-        Text("Clipboard").font(.system(size: 26))
-        Text("Your clipboard history, on this device.").foregroundColor(.gray)
+        Text(model.t("Clipboard")).font(.system(size: 26))
+        Text(model.t("Your clipboard history, on this device.")).foregroundColor(.gray)
       }
       Spacer()
-      Button(model.recording ? "Pause recording" : "Start recording") {
+      Button(model.t(model.recording ? "Pause recording" : "Start recording")) {
         Task { @MainActor in await model.toggleRecording() }
       }.disabled(!model.ready || model.recordingTransition)
-      if model.canHide { Button("Hide") { model.hide() } }
-      Button("Settings") { model.showPreferences() }
+      if model.canHide { Button(model.t("Hide")) { model.hide() } }
+      Button(model.t("Settings")) { model.showPreferences() }
     }
   }
 
   var history: some View {
     VStack(alignment: .leading, spacing: 14) {
-      TextField("Search history", text: $model.query)
+      TextField(model.t("Search history"), text: $model.query)
         .inspect { model.attachSearch($0) }
         .onChange(of: model.query) { Task { @MainActor in await model.refresh() } }
       HStack(spacing: 10) {
-        Button("All") {
+        Button(model.t("All")) {
           model.onlyPinned = false
           Task { @MainActor in await model.refresh() }
         }
-        Button("Pinned") {
+        Button(model.t("Pinned")) {
           model.onlyPinned = true
           Task { @MainActor in await model.refresh() }
         }
         Spacer()
-        Text("\(model.items.count) items").foregroundColor(.gray)
+        Text(model.t("\(model.items.count) items")).foregroundColor(.gray)
       }
       HStack(spacing: 8) {
-        Button("All types") {
+        Button(model.t("All types")) {
           model.kindFilter = nil
           Task { @MainActor in await model.refresh() }
         }
         ForEach(ClipKind.allCases.filter { $0 != .mixed }, id: \.self) { kind in
-          Button(kind.rawValue.capitalized) {
+          Button(model.t(kind.rawValue.capitalized)) {
             model.kindFilter = kind
             Task { @MainActor in await model.refresh() }
           }
         }
       }
-      TextField("Source app ID (optional)", text: $model.sourceFilter)
+      TextField(model.t("Source app ID (optional)"), text: $model.sourceFilter)
         .onChange(of: model.sourceFilter) { Task { @MainActor in await model.refresh() } }
       Divider()
       HStack(alignment: .top, spacing: 20) {
         ScrollView {
           List(model.items, selection: $model.selectedID) { item in
             VStack(alignment: .leading, spacing: 7) {
-              Text(item.sensitive ? "Sensitive content" : item.preview)
+              Text(item.sensitive ? model.t("Sensitive content") : item.preview)
                 .lineLimit(2)
-              Text((item.pinned ? "Pinned · " : "") + item.kind.rawValue.capitalized)
-                .font(.system(size: 12)).foregroundColor(.gray)
+              Text(
+                (item.pinned ? model.t("Pinned") + " · " : "")
+                  + model.t(item.kind.rawValue.capitalized)
+              )
+              .font(.system(size: 12)).foregroundColor(.gray)
             }.padding(10)
           }
         }.frame(minWidth: 300, maxWidth: 340, minHeight: 280)
@@ -120,10 +124,10 @@ struct HistoryView: View {
   }
 
   var preview: some View {
-    VStack(alignment: .leading, spacing: 18) {
-      Text("Preview").font(.system(size: 18))
+    VStack(alignment: .leading, spacing: 12) {
+      Text(model.t("Preview")).font(.system(size: 18))
       if let source = model.selected?.sourceBundleID {
-        Text("Source: " + source).font(.system(size: 12)).foregroundColor(.gray)
+        Text(model.t("Source: ") + source).font(.system(size: 12)).foregroundColor(.gray)
       }
       ScrollView {
         VStack(alignment: .leading, spacing: 12) {
@@ -132,53 +136,70 @@ struct HistoryView: View {
               minWidth: 250, maxWidth: .infinity, minHeight: 180, maxHeight: 240)
           }
           Text(model.previewText).frame(maxWidth: .infinity, alignment: .leading)
+          if let summary = model.selected?.summary, model.selected?.sensitive != true {
+            Text(model.t("OCR / AI result")).font(.system(size: 14))
+            Text(summary).frame(maxWidth: .infinity, alignment: .leading)
+            Button(model.t("Copy result")) {
+              Task { @MainActor in await model.copyAnalysisResult() }
+            }
+          }
         }
-      }.frame(minHeight: 180, maxHeight: 220)
+      }.frame(minHeight: 100, maxHeight: 180)
       HStack(spacing: 10) {
-        Button("Copy") { Task { @MainActor in await model.copySelected() } }.disabled(
+        Button(model.t("Copy")) { Task { @MainActor in await model.copySelected() } }.disabled(
           model.selected == nil)
-        Button("Pin / unpin") { Task { @MainActor in await model.togglePin() } }
+        Button(model.t("Pin / unpin")) { Task { @MainActor in await model.togglePin() } }
           .disabled(model.selected == nil)
-        Button("Delete") { Task { @MainActor in await model.deleteSelected() } }
+        Button(model.t("Delete")) { Task { @MainActor in await model.deleteSelected() } }
           .disabled(model.selected == nil)
       }
-      Text("Copy here, then paste in your app.")
+      HStack(spacing: 10) {
+        Button(model.t("Recognize text")) { model.analyze(remote: false) }
+          .disabled(
+            model.selected?.kind != .image || model.selected?.sensitive == true
+              || model.analysisBusy)
+        Button(model.t("Summarize")) { model.analyze(remote: true) }
+          .disabled(!model.canSummarize || model.analysisBusy)
+      }
+      Text(model.t("Copy here, then paste in your app."))
         .font(.system(size: 12)).foregroundColor(.gray)
     }
   }
 
   var contentSettings: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text("History capacity (1–5000)")
-      TextField("100", text: $model.capacityDraft)
-      Text("Maximum clipboard item (MiB, 1–16)")
-      TextField("10", text: $model.maxSizeDraft)
-      Toggle("Mark blocked source apps as sensitive", isOn: $model.blocklistEnabledDraft)
-      TextField("Blocked app IDs, separated by commas", text: $model.blockedAppsDraft)
-      Button("Save content settings") {
+      Text(model.t("History capacity (1–5000)"))
+      TextField(model.t("100"), text: $model.capacityDraft)
+      Text(model.t("Maximum clipboard item (MiB, 1–16)"))
+      TextField(model.t("10"), text: $model.maxSizeDraft)
+      Toggle(model.t("Mark blocked source apps as sensitive"), isOn: $model.blocklistEnabledDraft)
+      TextField(model.t("Blocked app IDs, separated by commas"), text: $model.blockedAppsDraft)
+      Button(model.t("Save content settings")) {
         Task { @MainActor in await model.applyContentSettings() }
       }
-      Button("Export history") {
+      Button(model.t("Export history")) {
         Task { @MainActor in
           if let destination = await chooseSaveDestination(
-            title: "Export history", defaultFileName: "clipboard-history.clipboard.json")
+            title: model.t("Export history"), defaultFileName: "clipboard-history.clipboard.json")
           {
             await model.exportHistory(to: destination)
           }
         }
       }
       if model.confirmsClearHistory {
-        Text("Delete all history, including pinned items?")
+        Text(model.t("Delete all history, including pinned items?"))
         HStack {
-          Button("Delete all history") { Task { @MainActor in await model.clearHistory() } }
-          Button("Cancel") { model.confirmsClearHistory = false }
+          Button(model.t("Delete all history")) {
+            Task { @MainActor in await model.clearHistory() }
+          }
+          Button(model.t("Cancel")) { model.confirmsClearHistory = false }
         }
       } else {
-        Button("Clear history") { model.confirmsClearHistory = true }
+        Button(model.t("Clear history")) { model.confirmsClearHistory = true }
       }
-      Button("Import history") {
+      Button(model.t("Import history")) {
         Task { @MainActor in
-          if let source = await chooseFile(title: "Import history") {
+          if let source = await chooseFile(title: model.t("Import history")) {
             await model.importHistory(from: source)
           }
         }
@@ -186,27 +207,71 @@ struct HistoryView: View {
     }
   }
 
+  var serviceSettings: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text(model.t("System services")).font(.system(size: 18))
+      Button(model.t(model.startupEnabled ? "Disable launch at login" : "Enable launch at login")) {
+        Task { @MainActor in await model.toggleStartup() }
+      }.disabled(!model.startupAvailable)
+      Text(
+        "Local OCR uses installed system language packs. Apple-only models are unavailable here.")
+      Toggle(model.t("Automatically recognize images"), isOn: $model.automaticOCRDraft)
+      Text(
+        "Remote AI is off by default. Enabling it sends eligible content to your chosen endpoint.")
+      Toggle(model.t("Enable remote AI"), isOn: $model.aiEnabledDraft)
+      Toggle(model.t("Allow image uploads"), isOn: $model.aiImagesDraft)
+      Toggle(model.t("Automatically summarize new items"), isOn: $model.automaticSummariesDraft)
+      TextField(model.t("API endpoint"), text: $model.aiEndpointDraft)
+      TextField(model.t("Model name"), text: $model.aiModelDraft)
+      SecureField(model.t("API key"), text: $model.aiKeyDraft)
+      HStack {
+        Button(model.t("Save API key")) { Task { @MainActor in await model.saveAPIKey() } }
+        Button(model.t("Delete API key")) { Task { @MainActor in await model.deleteAPIKey() } }
+      }
+      Toggle(model.t("Use saved API key"), isOn: $model.aiCredentialDraft)
+      Button(model.t("Save AI settings")) { Task { @MainActor in await model.saveAISettings() } }
+    }
+  }
+  var presentationSettings: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text(model.t("Appearance")).font(.system(size: 18))
+      HStack {
+        Button(model.t("System")) { Task { @MainActor in await model.setAppearance("system") } }
+        Button(model.t("Light")) { Task { @MainActor in await model.setAppearance("light") } }
+        Button(model.t("Dark")) { Task { @MainActor in await model.setAppearance("dark") } }
+      }
+      Text(model.t("Language")).font(.system(size: 18))
+      HStack {
+        Button(model.t("System language")) { Task { @MainActor in await model.setLanguage(nil) } }
+        Button(model.t("English")) { Task { @MainActor in await model.setLanguage("en") } }
+        Button(model.t("简体中文")) { Task { @MainActor in await model.setLanguage("zh-Hans") } }
+      }
+    }
+  }
+
   var settings: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
-        Text("Preferences").font(.system(size: 22))
+        Text(model.t("Preferences")).font(.system(size: 22))
         Spacer()
-        Button("Back to history") { Task { @MainActor in await model.showHistory() } }
+        Button(model.t("Back to history")) { Task { @MainActor in await model.showHistory() } }
       }
       ScrollView {
         VStack(alignment: .leading, spacing: 16) {
-          Text("History stays on this device. Sensitive items stay in memory.")
+          Text(model.t("History stays on this device. Sensitive items stay in memory."))
           contentSettings
-          Text("Recording: \(model.recording ? "On" : "Paused")")
-          Toggle("Enable global shortcut", isOn: $model.shortcutEnabledDraft)
-          TextField("Ctrl+Alt+V", text: $model.shortcutDraft)
-          Button("Apply shortcut") { Task { @MainActor in await model.applyShortcut() } }
-          Toggle("Keep running when closing the window", isOn: $model.closeToTrayDraft)
-          Toggle("Show history when starting", isOn: $model.showOnLaunchDraft)
-          Toggle("Record when starting", isOn: $model.recordOnLaunchDraft)
-          Button("Save behavior") { Task { @MainActor in await model.applyBehavior() } }
-          if !model.shellStatus.isEmpty { Text(model.shellStatus).lineLimit(3) }
-          Button("Quit Clipboard") { Task { @MainActor in await model.shutdown() } }
+          serviceSettings
+          presentationSettings
+          Text(model.t("Recording: \(model.recording ? "On" : "Paused")"))
+          Toggle(model.t("Enable global shortcut"), isOn: $model.shortcutEnabledDraft)
+          TextField(model.t("Ctrl+Alt+V"), text: $model.shortcutDraft)
+          Button(model.t("Apply shortcut")) { Task { @MainActor in await model.applyShortcut() } }
+          Toggle(model.t("Keep running when closing the window"), isOn: $model.closeToTrayDraft)
+          Toggle(model.t("Show history when starting"), isOn: $model.showOnLaunchDraft)
+          Toggle(model.t("Record when starting"), isOn: $model.recordOnLaunchDraft)
+          Button(model.t("Save behavior")) { Task { @MainActor in await model.applyBehavior() } }
+          if !model.shellStatus.isEmpty { Text(model.t(model.shellStatus)).lineLimit(3) }
+          Button(model.t("Quit Clipboard")) { Task { @MainActor in await model.shutdown() } }
         }.frame(maxWidth: .infinity, alignment: .topLeading)
       }.frame(minHeight: 320, maxHeight: 360)
     }.frame(maxWidth: .infinity, alignment: .topLeading)

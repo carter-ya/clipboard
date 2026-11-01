@@ -152,6 +152,7 @@ struct ClipPreviewView: View {
   private func sourceBadge(for source: SummarySource) -> String {
     switch source {
     case .vision: return "Vision"
+    case .localOCR: return "OCR"
     case .naturalLanguage: return "NL"
     case .foundationModels: return "FM"
     case .remoteOpenAI: return NSLocalizedString("remoteAI.badge.remote", comment: "")

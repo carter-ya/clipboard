@@ -12,6 +12,7 @@ clipboard_shell *clipboard_shell_create(const char *key, uint32_t modifiers,
                                         void *context, int *error);
 uint32_t clipboard_shell_capabilities(clipboard_shell *shell);
 uint32_t clipboard_shell_activation_time(clipboard_shell *shell);
+void clipboard_shell_set_language(clipboard_shell *shell, int chinese);
 void clipboard_shell_set_recording(clipboard_shell *shell, int recording);
 void clipboard_shell_destroy(clipboard_shell *shell);
 #endif

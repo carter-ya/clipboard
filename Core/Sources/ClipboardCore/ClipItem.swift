@@ -8,6 +8,7 @@ public enum SummarySource: String, Sendable, Codable, Equatable {
   case naturalLanguage
   case foundationModels
   case remoteOpenAI
+  case localOCR
 }
 
 public struct ClipItem: Sendable, Codable, Equatable, Identifiable {

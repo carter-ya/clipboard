@@ -14,12 +14,15 @@ public struct DesktopSettings: Codable, Equatable, Sendable {
   public var blockedAppIDs = Array(BlocklistFilter.defaults).sorted()
   public var appearance = "system"
   public var languageOverride: String?
+  public var ai = DesktopAISettings()
+  public var automaticSummaries = false
+  public var automaticOCR = false
   public init() {}
 
   private enum CodingKeys: String, CodingKey {
     case recordingEnabled, shortcutEnabled, shortcut, closeToTray, showOnLaunch
     case historyCapacity, maxClipSizeBytes, skipSensitive, blocklistEnabled, blockedAppIDs
-    case appearance, languageOverride
+    case appearance, languageOverride, ai, automaticSummaries, automaticOCR
   }
   public init(from decoder: any Decoder) throws {
     self.init()
@@ -42,6 +45,10 @@ public struct DesktopSettings: Codable, Equatable, Sendable {
       try values.decodeIfPresent([String].self, forKey: .blockedAppIDs) ?? blockedAppIDs
     appearance = try values.decodeIfPresent(String.self, forKey: .appearance) ?? appearance
     languageOverride = try values.decodeIfPresent(String.self, forKey: .languageOverride)
+    ai = try values.decodeIfPresent(DesktopAISettings.self, forKey: .ai) ?? ai
+    automaticSummaries =
+      try values.decodeIfPresent(Bool.self, forKey: .automaticSummaries) ?? automaticSummaries
+    automaticOCR = try values.decodeIfPresent(Bool.self, forKey: .automaticOCR) ?? automaticOCR
     try validate()
   }
 
@@ -51,6 +58,7 @@ public struct DesktopSettings: Codable, Equatable, Sendable {
       (1...(16 * 1024 * 1024)).contains(maxClipSizeBytes),
       ["system", "light", "dark"].contains(appearance)
     else { throw ValidationError.invalidValue }
+    try ai.validate()
     if shortcutEnabled { _ = try DesktopShortcut(parsing: shortcut) }
   }
 }
