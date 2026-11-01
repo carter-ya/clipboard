@@ -26,6 +26,7 @@ private final class GtkActionBox: @unchecked Sendable {
   var closeRequested: (@MainActor () -> Void)?
   var reopenRequested: (@MainActor () -> Void)?
   var hidden: (@MainActor () -> Void)?
+  var presentationChanged: (@MainActor () -> Void)?
 
   var isVisible: Bool {
     guard let window else { return false }
@@ -58,9 +59,11 @@ private final class GtkActionBox: @unchecked Sendable {
       }
     }
     connect(UnsafeMutableRawPointer(native.widgetPointer), signal: "map") { [weak self] in
-      guard let self, self.focusRequested else { return }
-      self.focusSearch()
+      guard let self else { return }
+      if self.focusRequested { self.focusSearch() }
+      self.presentationChanged?()
     }
+    observeActivation(native)
     // Revoke sensitive previews synchronously before a hidden window can be restored.
     connect(UnsafeMutableRawPointer(native.widgetPointer), signal: "unmap", immediate: true) {
       [weak self] in self?.hidden?()
@@ -72,6 +75,32 @@ private final class GtkActionBox: @unchecked Sendable {
         Task { @MainActor in self?.closeRequested?() }
       }
     }
+  }
+
+  private func observeActivation(_ native: Gtk.Window) {
+    let context = Unmanaged.passRetained(
+      GtkActionBox { [weak self] in
+        guard let self, let window = self.window, self.isVisible,
+          gtk_window_is_active(UnsafeMutablePointer<GtkWindow>(OpaquePointer(window.widgetPointer)))
+            != 0
+        else { return }
+        self.presentationChanged?()
+      }
+    ).toOpaque()
+    let callback:
+      @convention(c) (UnsafeMutableRawPointer?, OpaquePointer?, UnsafeMutableRawPointer?) -> Void =
+        {
+          _, _, context in
+          guard let context else { return }
+          let box = Unmanaged<GtkActionBox>.fromOpaque(context).takeUnretainedValue()
+          Task { @MainActor in box.action() }
+        }
+    let object = UnsafeMutableRawPointer(native.widgetPointer)
+    let id = g_signal_connect_data(
+      object, "notify::is-active", unsafeBitCast(callback, to: GCallback.self), context,
+      { context, _ in if let context { Unmanaged<GtkActionBox>.fromOpaque(context).release() } },
+      GConnectFlags(rawValue: 0))
+    signals.append((object, id))
   }
 
   func observeAppearance(_ action: @escaping @MainActor @Sendable (String) -> Void) {

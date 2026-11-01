@@ -322,7 +322,7 @@ struct HistoryView: View {
       Text(model.t("System services")).font(.system(size: 18))
       Button(model.t(model.startupEnabled ? "Disable launch at login" : "Enable launch at login")) {
         Task { @MainActor in await model.toggleStartup() }
-      }.disabled(!model.startupAvailable)
+      }.disabled(!model.startupAvailable || model.startupBusy)
       Text(
         model.t(
           "Local OCR uses installed system language packs. Apple-only models are unavailable here.")
