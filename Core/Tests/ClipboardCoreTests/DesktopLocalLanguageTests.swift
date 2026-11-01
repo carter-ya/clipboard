@@ -58,10 +58,12 @@ final class DesktopLocalLanguageTests: XCTestCase {
     var concealed = missing
     concealed.payloads.append(.init(pasteboardType: SensitivityFilter.concealedType))
     for candidate in [sensitive, concealed] {
-      do {
-        _ = try await service().analyzeLanguageLocally(candidate, task: .summary)
-        XCTFail("Private item reached model or payload resolution")
-      } catch { XCTAssertEqual(error as? DesktopServiceError, .sensitiveContent) }
+      for task in [DesktopLocalLanguageTask.summary, .enrichment] {
+        do {
+          _ = try await service().analyzeLanguageLocally(candidate, task: task)
+          XCTFail("Private item reached model or payload resolution")
+        } catch { XCTAssertEqual(error as? DesktopServiceError, .sensitiveContent) }
+      }
     }
     do {
       _ = try await service().analyzeLanguageLocally(missing, task: .summary)

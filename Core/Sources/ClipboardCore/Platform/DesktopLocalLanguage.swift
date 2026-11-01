@@ -42,8 +42,10 @@ public struct DesktopLocalLanguageOutput: Equatable, Sendable {
       })
     else { throw DesktopServiceError.invalidValue }
     if let languageCode {
-      guard (2...3).contains(languageCode.utf8.count),
-        languageCode.utf8.allSatisfy({ (97...122).contains($0) })
+      guard
+        ((2...3).contains(languageCode.utf8.count)
+          && languageCode.utf8.allSatisfy({ (97...122).contains($0) }))
+          || ["zh-Hans", "zh-Hant"].contains(languageCode)
       else { throw DesktopServiceError.invalidValue }
     }
     let normalized: String?
@@ -110,7 +112,10 @@ public struct DesktopLocalLanguageOutput: Equatable, Sendable {
     } else {
       content = found.joined(separator: ", ")
     }
-    let locale = language.map(Locale.init(identifier:)) ?? .current
+    let locale =
+      language.flatMap { tag in
+        tag.isEmpty || tag == "system" ? nil : Locale(identifier: tag)
+      } ?? .current
     let name = languageCode.flatMap { locale.localizedString(forLanguageCode: $0) }
     let result = name.map { $0 + " · " + content } ?? content
     return String(DesktopTextPreview(result, maxUTF8Bytes: 2048).text.prefix(200))

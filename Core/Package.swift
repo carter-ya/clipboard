@@ -83,6 +83,7 @@ let package = Package(
       resources: [
         .copy("Resources/DesktopStrings.json"),
         .copy("Resources/DesktopLocalLanguageModel.json"),
+        .copy("Resources/DesktopLocalEntityModel.json"),
       ]
     ),
     .target(

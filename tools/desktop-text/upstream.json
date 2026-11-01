@@ -1,0 +1,125 @@
+{
+  "fastTextCommit": "5b5943c118b0ec5fb9cd8d20587de2b2d3966dfe",
+  "fastTextSource": {
+    "name": "fasttext-5b5943c.tar.gz",
+    "url": "https://codeload.github.com/facebookresearch/fastText/tar.gz/5b5943c118b0ec5fb9cd8d20587de2b2d3966dfe",
+    "size": 4037052,
+    "sha256": "d8ea020f1df7c88a3fb968f4f20c7b2edfd5c70a3523d7e04c84abb5dedd8439",
+    "digestOrigin": "computed over fixed official download"
+  },
+  "languageModel": {
+    "name": "lid.176.ftz",
+    "url": "https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.ftz",
+    "size": 938013,
+    "sha256": "8f3472cfe8738a7b6099e8e999c3cbfae0dcd15696aac7d7738a8039db603e83",
+    "digestOrigin": "computed over fixed official download"
+  },
+  "entityManifest": "Core/Sources/ClipboardCore/Resources/DesktopLocalEntityModel.json",
+  "onnxRuntimeManifest": "tools/desktop-image/upstream.json",
+  "unicodeSourceManifest": "tools/desktop-language/upstream.json",
+  "vocabulary": {
+    "name": "google-vocab.txt",
+    "url": "https://huggingface.co/google-bert/bert-base-multilingual-cased/resolve/3f076fdb1ab68d5b2880cb87a0886f315b8146f8/vocab.txt",
+    "size": 995526,
+    "sha256": "fe0fda7c425b48c516fc8f160d594c8022a0808447475c1a7c6d6479763f310c"
+  },
+  "entityMetadata": [
+    {
+      "name": "config.json",
+      "url": "https://huggingface.co/onnx-community/bert-base-multilingual-cased-ner-hrl-ONNX/resolve/cfe67b1c1c4c91c1b26ac192955fc0971e62d8c8/config.json",
+      "size": 1275,
+      "sha256": "8e5caefadaf9923a9e7d3de42ca97780c68fc4d83519d333f141b299e40af638",
+      "digestOrigin": "computed over immutable upstream file"
+    },
+    {
+      "name": "tokenizer.json",
+      "url": "https://huggingface.co/onnx-community/bert-base-multilingual-cased-ner-hrl-ONNX/resolve/cfe67b1c1c4c91c1b26ac192955fc0971e62d8c8/tokenizer.json",
+      "size": 2919362,
+      "sha256": "bf1b59b7b11c95f194f51708d918eea378e09d05f84c0e1656dc5180e8117088",
+      "digestOrigin": "computed over immutable upstream file"
+    },
+    {
+      "name": "tokenizer_config.json",
+      "url": "https://huggingface.co/onnx-community/bert-base-multilingual-cased-ner-hrl-ONNX/resolve/cfe67b1c1c4c91c1b26ac192955fc0971e62d8c8/tokenizer_config.json",
+      "size": 1273,
+      "sha256": "470cff6e0353b08e2a6e9b4f61729ecdc47ccb3ced335fa5520e9ce334572d59",
+      "digestOrigin": "computed over immutable upstream file"
+    }
+  ],
+  "scriptData": {
+    "name": "TSCharacters.txt",
+    "url": "https://raw.githubusercontent.com/BYVoid/OpenCC/556ed22496d650bd0b13b6c163be9814637970ae/data/dictionary/TSCharacters.txt",
+    "size": 34627,
+    "sha256": "6b5a0a799bea2bb22c001f635eaa3fc2904310f0c08addbff275477a80ecf09a"
+  },
+  "notices": [
+    {
+      "name": "Google-BERT-README.md",
+      "url": "https://huggingface.co/google-bert/bert-base-multilingual-cased/resolve/3f076fdb1ab68d5b2880cb87a0886f315b8146f8/README.md",
+      "size": 7104,
+      "sha256": "f68ac58055880eebf82c52b1371528e7a254027211257e9100f574baf9d1b517"
+    },
+    {
+      "name": "Entity-original-README.md",
+      "url": "https://huggingface.co/Davlan/bert-base-multilingual-cased-ner-hrl/resolve/e756de7f7b8f64fea0c3d7c3872f1322fab747b1/README.md",
+      "size": 3103,
+      "sha256": "b66541651cbd58862affa9bf5ad70ee2dde8a1a1a736d24332f7556a065ed9e3"
+    },
+    {
+      "name": "Entity-converter-README.md",
+      "url": "https://huggingface.co/onnx-community/bert-base-multilingual-cased-ner-hrl-ONNX/resolve/cfe67b1c1c4c91c1b26ac192955fc0971e62d8c8/README.md",
+      "size": 3763,
+      "sha256": "079b75d8f9e4291013249b8e072869f4960ebf4849e24e78e48f33d0b765015f"
+    },
+    {
+      "name": "AFL-3.0.txt",
+      "url": "https://raw.githubusercontent.com/spdx/license-list-data/v3.26.0/text/AFL-3.0.txt",
+      "size": 10334,
+      "sha256": "de0612c5780d0d21f9982d2cadfd715d2d3b7a0dfeb532a5023d42a1d4fdce5c"
+    },
+    {
+      "name": "CC-BY-SA-3.0.txt",
+      "url": "https://raw.githubusercontent.com/spdx/license-list-data/v3.26.0/text/CC-BY-SA-3.0.txt",
+      "size": 22240,
+      "sha256": "3f941b3b89cf7b8370ceb83cc76d2120d471b58735d8ca60238a751a48d7f72f"
+    },
+    {
+      "name": "Tokenizers-LICENSE",
+      "url": "https://raw.githubusercontent.com/huggingface/tokenizers/v0.22.1/LICENSE",
+      "size": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "name": "OpenCC-LICENSE",
+      "url": "https://raw.githubusercontent.com/BYVoid/OpenCC/556ed22496d650bd0b13b6c163be9814637970ae/LICENSE",
+      "size": 9165,
+      "sha256": "b534e465949558eec2597b04f5092b5e161236a68dfbfd04d547592ac3964308"
+    }
+  ],
+  "tokenizerReference": {
+    "implementation": "huggingface/tokenizers v0.22.1, encode_special_tokens=true, cased BERT, 512 tokens",
+    "sourceTokenizerSHA256": "bf1b59b7b11c95f194f51708d918eea378e09d05f84c0e1656dc5180e8117088"
+  },
+  "entityModelDistribution": {
+    "publisher": "ONNX Community",
+    "originalModel": "Davlan/bert-base-multilingual-cased-ner-hrl",
+    "originalWeightEquivalenceVerified": false,
+    "runtimeClassMap": [
+      "O",
+      "B-DATE",
+      "I-DATE",
+      "B-PER",
+      "I-PER",
+      "B-ORG",
+      "I-ORG",
+      "B-LOC",
+      "I-LOC"
+    ],
+    "emittedTypes": [
+      "PER",
+      "ORG",
+      "LOC"
+    ],
+    "confidenceThreshold": 0.7
+  }
+}
