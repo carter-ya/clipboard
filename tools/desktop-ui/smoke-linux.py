@@ -176,6 +176,22 @@ def editor_with_value(value):
     return None
 
 
+def wait_restored_history_search(value, name):
+    def restored():
+        search = editor_with_value(value)
+        filters = button('All types')
+        if not search or not filters:
+            return None
+        # GTK 4.6 exposes VISIBLE and real bounds but omits SHOWING.
+        for control in [search, filters]:
+            bounds = control.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+            if (not control.getState().contains(pyatspi.STATE_VISIBLE) or
+                    bounds.width <= 0 or bounds.height <= 0 or bounds.x < 0 or bounds.y < 0):
+                return None
+        return search
+    return wait_for(restored, name)
+
+
 def window_id():
     tree = subprocess.check_output(['xwininfo', '-root', '-tree'], text=True)
     for line in tree.splitlines():
@@ -1225,7 +1241,7 @@ try:
               not local_settings['ai']['enabled'] and not local_settings['ai']['allowImages'] and
               not local_settings['automaticSummaries'])
         click('Back to history')
-        wait_for(editor, 'local_image_recording_search').queryEditableText().setTextContents('')
+        wait_restored_history_search('Local image fixture', 'local_image_recording_search').queryEditableText().setTextContents('')
         wait_for(lambda: has_text('2 items'), 'local_image_recording_history')
         click('Start recording')
         wait_for(lambda: has_text('Recording clipboard'), 'local_image_recording_ready')
@@ -1263,13 +1279,7 @@ try:
         wait_for(lambda: json.loads(settings_path.read_text()).get('automaticLocalImageSummaries') is True,
                  'local_image_auto_restored')
         click('Back to history')
-        def restored_image_history_search():
-            search = editor_with_value(auto_item['preview'])
-            filters = button('All types')
-            return search if (search and filters and
-                search.getState().contains(pyatspi.STATE_SHOWING) and
-                filters.getState().contains(pyatspi.STATE_SHOWING)) else None
-        wait_for(restored_image_history_search, 'local_image_auto_query').queryEditableText().setTextContents('')
+        wait_restored_history_search(auto_item['preview'], 'local_image_auto_query').queryEditableText().setTextContents('')
         wait_for(lambda: has_text('3 items'), 'local_image_auto_library')
         release_image.unlink()
         auto_image_file = out / 'local-auto-image.png'
