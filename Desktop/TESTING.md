@@ -10,6 +10,7 @@ remain blocked by the open interactive gates below.
 | --- | --- |
 | Shared logic and existing macOS app | `swift-portability.yml`: real Core tests on Windows/Ubuntu/macOS, existing macOS app build |
 | Native clipboard and services | Independent synthetic peers, bounded rich formats, sensitivity, credentials/startup/OCR and opt-in HTTP failure cases |
+| History selection | Private fixtures choose a later row through real search controls, then independently read fresh Copy results after reopen, kind/tab changes and middle/last-row deletion. Query/tab/source are retained on reopen; the transient kind resets. Keyboard/IME and row activation remain separate gates. |
 | Linux native UI | Private Xvfb/DBus, native AT-SPI controls, search/pin/delete/settings/copy and shell lifecycle |
 | Native Wayland | Private Sway without XWayland, independent wl-clipboard peers, portal protocol fixture and pointer-only copy fallback |
 | Restricted Wayland | Weston reports absent data control; its unregistered headless AT-SPI tree is not a UI pass |

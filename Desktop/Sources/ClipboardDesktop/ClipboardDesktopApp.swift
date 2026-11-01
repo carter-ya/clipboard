@@ -113,15 +113,13 @@ struct HistoryView: View {
       HStack(spacing: 10) {
         HStack(spacing: 4) {
           Button(model.t("All")) {
-            model.onlyPinned = false
-            Task { @MainActor in await model.refresh() }
+            Task { @MainActor in await model.selectTab(onlyPinned: false) }
           }
           countBadge(model.allItemsCount)
         }
         HStack(spacing: 4) {
           Button(model.t("Pinned")) {
-            model.onlyPinned = true
-            Task { @MainActor in await model.refresh() }
+            Task { @MainActor in await model.selectTab(onlyPinned: true) }
           }
           countBadge(model.pinnedItemsCount)
         }
@@ -194,8 +192,7 @@ struct HistoryView: View {
   var allTypesButton: some View {
     HStack(spacing: 4) {
       Button(model.t("All types")) {
-        model.kindFilter = nil
-        Task { @MainActor in await model.refresh() }
+        Task { @MainActor in await model.selectKind(nil) }
       }.frame(minWidth: 104)
       countBadge(model.allTypesCount)
     }
@@ -203,8 +200,7 @@ struct HistoryView: View {
   func typeButton(_ kind: ClipKind) -> some View {
     HStack(spacing: 4) {
       Button(model.t(kind.rawValue.capitalized)) {
-        model.kindFilter = kind
-        Task { @MainActor in await model.refresh() }
+        Task { @MainActor in await model.selectKind(kind) }
       }.frame(minWidth: 96)
       countBadge(model.kindCounts[kind, default: 0])
     }

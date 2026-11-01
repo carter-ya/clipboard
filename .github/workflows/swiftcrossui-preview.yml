@@ -52,6 +52,7 @@ jobs:
           $FixturePython = (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
           ./tools/desktop-ui/test-private-fixture-python.ps1 -FixturePython $FixturePython
           ./tools/desktop-ui/test-private-fixture-wire.ps1 -FixturePython $FixturePython
+          ./tools/desktop-ui/test-private-selection-scope.ps1
       - name: Verify private fixture on Windows PowerShell 5.1
         if: runner.os == 'Windows'
         shell: powershell
