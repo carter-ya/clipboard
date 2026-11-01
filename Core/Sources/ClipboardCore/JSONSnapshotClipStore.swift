@@ -16,7 +16,7 @@ public actor JSONSnapshotClipStore: ClipStore {
   private let historyURL: URL
   private let historyBackupURL: URL
   private let blobStore: BlobStore
-  private let cap: Int
+  private var cap: Int
   private let inlineThresholdBytes: Int
   private let debounceNanos: UInt64
   private let fileManager: FileManager
@@ -92,6 +92,14 @@ public actor JSONSnapshotClipStore: ClipStore {
     if !item.sensitive {
       scheduleWrite()
     }
+  }
+
+  /// Apply a user-selected limit without recreating the store or losing memory-only items.
+  public func setCapacity(_ capacity: Int) async throws {
+    guard (1...5000).contains(capacity) else { throw DesktopSettings.ValidationError.invalidValue }
+    cap = capacity
+    await enforceCapacity()
+    scheduleWrite()
   }
 
   public func all() async -> [ClipItem] { items }

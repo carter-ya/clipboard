@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import select
 import subprocess
 import time
 import traceback
@@ -16,6 +17,7 @@ import pyatspi
 parser = argparse.ArgumentParser()
 parser.add_argument('--executable', required=True)
 parser.add_argument('--output', required=True)
+parser.add_argument('--clipboard-peer')
 args = parser.parse_args()
 out = Path(args.output).resolve()
 out.mkdir(parents=True, exist_ok=True)
@@ -249,6 +251,43 @@ try:
     wait_for(lambda: has_text('2 items'), 'remaining_history')
     history = json.loads((history_root / 'history.json').read_text())
     check('store_persistence_matches_ui', len(history['items']) == 2)
+    if args.clipboard_peer:
+        click('Start recording')
+        wait_for(lambda: has_text('Recording clipboard'), 'rich_recording_enabled')
+        for fixture, kind, count in [('rich', 'Image', '1 items'), ('files', 'File', '1 items')]:
+            peer = subprocess.Popen([str(Path(args.clipboard_peer).resolve()), 'rich-clipboard-peer', fixture],
+                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+            try:
+                if not select.select([peer.stdout], [], [], 10)[0] or peer.stdout.readline() != b'ready\n':
+                    raise RuntimeError('rich_peer_startup')
+                click(kind)
+                wait_for(lambda: has_text(count) and has_text('Source: linux:ClipboardDesktop'), 'capture_native_' + fixture)
+                check('native_' + fixture + '_capture_reaches_type_filter_and_preview', True)
+                if fixture == 'rich':
+                    check('image_preview_has_native_picture', any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()))
+                    screenshot('image-preview.png')
+                    click('Copy')
+                    wait_for(lambda: has_text('Copied to clipboard'), 'copy_image_status')
+                    image = subprocess.check_output(['xclip', '-selection', 'clipboard', '-out', '-target', 'image/png'], timeout=10)
+                    check('image_copy_keeps_original_native_png', image.startswith(b'\x89PNG\r\n\x1a\n'))
+                else:
+                    wait_for(lambda: has_text('fixture 中文.txt') or any('fixture 中文.txt' in getattr(node, 'name', '') for node in nodes()), 'file_paths_preview')
+                    click('Copy')
+                    wait_for(lambda: has_text('Copied to clipboard'), 'copy_files_status')
+                    uris = subprocess.check_output(['xclip', '-selection', 'clipboard', '-out', '-target', 'text/uri-list'], timeout=10)
+                    check('file_copy_keeps_both_native_uris', len(uris.decode('utf-8').splitlines()) == 2)
+            finally:
+                peer.stdin.close()
+                try:
+                    peer.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    peer.kill()
+                    peer.wait(timeout=5)
+        click('Pause recording')
+        wait_for(lambda: has_text('Recording paused'), 'rich_recording_paused')
+        check('recording_can_pause_after_native_rich_capture', True)
+        click('All types')
+        wait_for(lambda: has_text('4 items'), 'all_content_restored')
     click('Settings')
     wait_for(lambda: has_text('Preferences'), 'preferences_for_save')
     click('Save behavior')

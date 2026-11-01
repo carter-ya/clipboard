@@ -2,7 +2,7 @@
 
 Windows/Linux desktop application built with SwiftCrossUI 0.10.0 and GTK 4.
 The existing macOS SwiftUI/AppKit application remains independent. This package
-uses the real Core store and native text clipboard adapter; normal launches do
+uses the real Core store and native rich clipboard adapter; normal launches do
 not insert sample history. Recording starts paused unless the user explicitly saves
 record-on-start behavior. Runtime pause does not change that startup preference.
 
@@ -44,14 +44,35 @@ missing tray is reported, shortcut conflicts retain the previous binding, and
 closing quits when neither tray nor shortcut can reopen the window. Windows uses
 Shell_NotifyIcon/RegisterHotKey; Linux uses StatusNotifierItem/dbusmenu and XGrabKey.
 Wayland global shortcuts are not advertised through XWayland. The IPC channel
-exchanges activation only and never clipboard payloads. Rich content, system
-services, Wayland and installer delivery remain subsequent layers
+exchanges activation only and never clipboard payloads. System services, Wayland and installer delivery remain subsequent layers
 tracked in harness.json.cross_platform_delivery. Real keyboard/IME, focus
 handoff and multi-monitor DPI acceptance remain separate interactive gates.
 Windows GTK/AccessKit build and native control results are pending.
 
 Local CP4 evidence: 166 macOS Core tests (one existing Keychain skip), Linux
 6 native instance checks, 7 shortcut ownership checks, 10 private-session tray
-checks and 18 GTK UI/lifecycle checks. Native Windows results remain pending.
+checks and 18 GTK UI/lifecycle checks. Windows Core and native shell checks passed in Actions run 41016884988; Windows GUI results remain pending.
+
+## Rich content and archives
+
+CP5 captures/copies Unicode text, HTML, RTF, PNG/JPEG/TIFF/BMP and multiple file
+references. Linux uses native MIME targets and bounded INCR transfers; Windows
+uses registered formats, CF_DIB, CF_HDROP and CF_TIFF. Images are decoded off the
+UI thread into bounded thumbnails; sensitive previews remain hidden. Source
+filters use the actual clipboard owner's executable/WM_CLASS where available;
+unknown source metadata is never replaced with the current foreground app.
+Content settings configure type/source filters, capacity and maximum item size.
+
+Export/import uses a self-contained `clipboard-history.clipboard.json` file,
+with a 256 MiB maximum. Sensitive items are excluded; imports do not extract or
+follow blob paths and recompute content identity. This format is separate from
+the macOS application's ZIP archives. Original HTML/RTF formatting is preserved
+on copy; plain previews do not execute HTML or load external resources. Complex
+legacy RTF code pages may need the source application's plain-text sidecar.
+
+Local CP5 evidence: 175 macOS Core tests (one existing Keychain skip), 156 Linux
+Core tests and 24 GTK UI/rich-capture/lifecycle checks passed. Native format,
+sensitivity, aggregate limits and large INCR transfers use independent peers.
+Windows rich transport and UI results remain pending in CI.
 
 SwiftCrossUI 0.10.0 hard-codes Unix C integer widths in four GTK wrapper calls. Windows uses `gulong=UInt32` and `gsize=UInt64`, so the reviewed patch in `Desktop/Patches/` uses the actual C typedefs. The build helper verifies the pinned revision, applies this patch idempotently and then builds. Use this helper for native builds; the application does not change its dependency revision or bypass native UI checks.

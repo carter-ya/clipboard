@@ -12,14 +12,15 @@ public enum ClipKind: String, Sendable, Codable, CaseIterable, Equatable {
   /// thumbnails, preview pane, image summarizer) share one definition
   /// instead of copy-pasting the literal set.
   public static let imagePayloadTypes: Set<String> = [
-    "public.png", "public.tiff", "public.jpeg", "public.image",
+    "public.png", "public.tiff", "public.jpeg", "public.image", "com.microsoft.bmp",
   ]
 
   /// Maps a raw pasteboard type identifier to its primary kind, if any.
   static func primary(for pasteboardType: String) -> ClipKind? {
     switch pasteboardType {
     case "public.rtf": return .rtf
-    case "public.png", "public.tiff", "public.jpeg", "public.image": return .image
+    case "public.png", "public.tiff", "public.jpeg", "public.image", "com.microsoft.bmp":
+      return .image
     case "public.file-url": return .file
     case "public.utf8-plain-text", "public.string", "public.plain-text", "NSStringPboardType":
       return .text
@@ -76,7 +77,7 @@ public enum ClipKind: String, Sendable, Codable, CaseIterable, Equatable {
         where: { $0.pasteboardType == "public.file-url" })
     else { return .image }
     guard let urlString = String(data: urlPayload.data, encoding: .utf8),
-      let url = URL(string: urlString)
+      let url = URL(string: urlString.components(separatedBy: .newlines).first ?? urlString)
     else { return .image }
     let ext = url.pathExtension.lowercased()
     let imageExtensions: Set<String> = [
@@ -93,6 +94,7 @@ extension String {
   public var blobExtension: String {
     switch self {
     case "public.png": return "png"
+    case "com.microsoft.bmp": return "bmp"
     case "public.tiff": return "tiff"
     case "public.jpeg": return "jpeg"
     case "public.rtf": return "rtf"

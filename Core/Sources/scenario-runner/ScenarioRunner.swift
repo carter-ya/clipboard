@@ -121,6 +121,12 @@ enum ScenarioRunner {
   static func main() async {
     let scenario = CommandLine.arguments.dropFirst().first ?? "rich-types"
     #if os(Linux) || os(Windows)
+      if scenario == "rich-clipboard-peer" {
+        do {
+          try runRichClipboardPeer()
+          return
+        } catch { exit(1) }
+      }
       if scenario == "instance-peer" {
         do {
           try runInstancePeer()
@@ -150,6 +156,8 @@ enum ScenarioRunner {
     switch scenario {
     case "rich-types":
       report = await runRichTypes()
+    case "platform-rich-clipboard":
+      report = await runPlatformRichClipboard()
     case "platform-instance":
       report = await runPlatformInstance()
     case "platform-shell":

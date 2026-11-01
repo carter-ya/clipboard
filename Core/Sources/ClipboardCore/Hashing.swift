@@ -13,7 +13,7 @@ enum Hashing {
   /// pasteboard with slightly different UTI metadata for the same
   /// content (e.g., NSStringPboardType presence varies by source app).
   static let primaryContentPriority: [String] = [
-    "public.png", "public.tiff", "public.jpeg", "public.image",
+    "public.png", "public.tiff", "public.jpeg", "public.image", "com.microsoft.bmp",
     "public.rtf",
     "public.utf8-plain-text", "public.plain-text", "public.string",
     "public.html",

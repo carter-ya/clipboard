@@ -17,6 +17,15 @@ final class HistoryModel: ObservableObject {
   @Published var recordingTransition = false
   @Published var ready = false
   @Published var previewText = "Choose an item to preview its content."
+  @Published var previewImage: DesktopPreviewImage?
+  @Published var kindFilter: ClipKind?
+  @Published var sourceFilter = ""
+  @Published var confirmsClearHistory = false
+  @Published var capacityDraft = "100"
+  @Published var maxSizeDraft = "10"
+  @Published var blockedAppsDraft = ""
+  @Published var blocklistEnabledDraft = true
+  @Published var skipSensitiveDraft = true
   @Published var shellStatus = ""
   @Published var canHide = false
   @Published var shortcutDraft = "Ctrl+Alt+V"
@@ -29,9 +38,9 @@ final class HistoryModel: ObservableObject {
   private var settingsStore: (any DesktopSettingsPersisting)?
   private var settings = DesktopSettings()
   private var root: URL?
-  private var clipboard: (any TextClipboardAccess)?
-  private var clipboardTask: Task<any TextClipboardAccess, Error>?
-  private var monitor: TextClipboardMonitor?
+  private var clipboard: (any RichClipboardAccess)?
+  private var clipboardTask: Task<any RichClipboardAccess, Error>?
+  private var monitor: RichClipboardMonitor?
   private var shell: NativeDesktopShell?
   private var captureTask: Task<Void, Never>?
   private var eventsTask: Task<Void, Never>?
@@ -73,35 +82,73 @@ final class HistoryModel: ObservableObject {
   }
   @MainActor func attachSearch(_ entry: Gtk.Entry) {
     searchEntry = entry
+    entry.activate = { [weak self] _ in
+      Task { @MainActor in
+        guard let self else { return }
+        await self.copySelected()
+        if self.status == "Copied to clipboard" { self.hide() }
+      }
+    }
     nativeWindow?.attachSearch(entry)
   }
 
   @MainActor func loadPreview() async {
     guard let selected else {
       loadedPreviewID = nil
+      previewImage = nil
       previewText = "Choose an item to preview its content."
       return
     }
     guard loadedPreviewID != selected.id else { return }
     loadedPreviewID = selected.id
+    previewImage = nil
     if selected.sensitive {
       previewText = "Sensitive content is hidden."
       return
     }
     previewText = "Loading preview…"
     let resolver = PayloadResolver(blobRoot: root?.appendingPathComponent("blobs"))
-    let text = await Task.detached(priority: .userInitiated) {
-      guard
+    let result = await Task.detached(priority: .userInitiated) {
+      () -> (String, DesktopPreviewImage?) in
+      if selected.kind == .image,
         let payload = selected.payloads.first(where: {
-          $0.pasteboardType == "public.utf8-plain-text"
+          ClipKind.imagePayloadTypes.contains($0.pasteboardType)
         }),
+        let bytes = try? resolver.data(for: payload)
+      {
+        return ("Image · \(selected.sizeBytes) bytes", DesktopPreviewImage.decode(bytes))
+      }
+      if selected.kind == .file,
+        let payload = selected.payloads.first(where: { $0.pasteboardType == "public.file-url" }),
+        let bytes = try? resolver.data(for: payload),
+        let urls = try? ClipboardFormats.fileURLs(from: bytes)
+      {
+        return (urls.map(\.path).joined(separator: "\n"), nil)
+      }
+      if let payload = selected.payloads.first(where: {
+        ["public.utf8-plain-text", "public.plain-text", "public.string"].contains($0.pasteboardType)
+      }),
         let bytes = try? resolver.data(for: payload),
         let text = String(data: bytes, encoding: .utf8)
-      else { return selected.preview }
-      return String(text.prefix(8000))
+      {
+        return (String(text.prefix(8000)), nil)
+      }
+      let rich = selected.payloads.compactMap { payload -> RawPayload? in
+        guard ["public.html", "public.rtf"].contains(payload.pasteboardType),
+          let bytes = try? resolver.data(for: payload)
+        else { return nil }
+        return .init(pasteboardType: payload.pasteboardType, data: bytes)
+      }
+      let text = RichTextPreview.text(from: rich)
+      return (
+        text.isEmpty
+          ? (selected.preview.isEmpty
+            ? "Rich content · copy to use its original formatting." : selected.preview) : text, nil
+      )
     }.value
     guard selectedID == selected.id else { return }
-    previewText = text
+    previewText = result.0
+    previewImage = result.1
   }
 
   @MainActor func load() async {
@@ -127,6 +174,11 @@ final class HistoryModel: ObservableObject {
       do { settings = try await settingsStore.load() } catch {
         shellStatus = "Saved settings could not be read. Recording starts paused."
       }
+      capacityDraft = String(settings.historyCapacity)
+      maxSizeDraft = String(settings.maxClipSizeBytes / (1024 * 1024))
+      blockedAppsDraft = settings.blockedAppIDs.joined(separator: ", ")
+      blocklistEnabledDraft = settings.blocklistEnabled
+      skipSensitiveDraft = settings.skipSensitive
       shortcutDraft = settings.shortcut
       shortcutEnabledDraft = settings.shortcutEnabled
       closeToTrayDraft = settings.closeToTray
@@ -233,8 +285,16 @@ final class HistoryModel: ObservableObject {
     guard let store else { return }
     let requestedQuery = query
     let requestedPinned = onlyPinned
-    let found = await store.search(query: requestedQuery, filters: SearchFilters())
-    guard query == requestedQuery, onlyPinned == requestedPinned else { return }
+    let requestedKind = kindFilter
+    let requestedSource = sourceFilter
+    let found = await store.search(
+      query: requestedQuery,
+      filters: SearchFilters(
+        kinds: requestedKind.map { Set([$0]) },
+        sourceBundleID: requestedSource.isEmpty ? nil : requestedSource))
+    guard query == requestedQuery, onlyPinned == requestedPinned, kindFilter == requestedKind,
+      sourceFilter == requestedSource
+    else { return }
     items = requestedPinned ? found.filter(\.pinned) : found
     if !items.contains(where: { $0.id == selectedID }) { selectedID = items.first?.id }
     await loadPreview()
@@ -255,10 +315,10 @@ final class HistoryModel: ObservableObject {
     status = "Item deleted"
   }
 
-  @MainActor private func nativeClipboard() async throws -> any TextClipboardAccess {
+  @MainActor private func nativeClipboard() async throws -> any RichClipboardAccess {
     if let clipboard { return clipboard }
     if clipboardTask == nil {
-      clipboardTask = Task.detached { try SystemTextClipboard() as any TextClipboardAccess }
+      clipboardTask = Task.detached { try SystemRichClipboard() as any RichClipboardAccess }
     }
     guard let task = clipboardTask else { throw TextClipboardError.unavailable }
     do {
@@ -273,7 +333,7 @@ final class HistoryModel: ObservableObject {
   @MainActor func copySelected() async {
     guard let selected else { return }
     do {
-      let writer = TextPasteboardWriter(
+      let writer = RichPasteboardWriter(
         clipboard: try await nativeClipboard(), blobRoot: root?.appendingPathComponent("blobs"))
       try await Task.detached(priority: .userInitiated) { try writer.write(selected) }.value
       status = "Copied to clipboard"
@@ -298,7 +358,7 @@ final class HistoryModel: ObservableObject {
         let clipboard = try await nativeClipboard()
         let preferences = settings
         let monitor = await Task.detached {
-          TextClipboardMonitor(
+          RichClipboardMonitor(
             clipboard: clipboard,
             filter: FilterChain(filters: [
               SizeFilter(maxClipSizeBytes: preferences.maxClipSizeBytes),
@@ -318,7 +378,7 @@ final class HistoryModel: ObservableObject {
         }
         await Task.detached { monitor.start() }.value
         recording = true
-        status = "Recording text clipboard"
+        status = "Recording clipboard"
       } catch { status = "Clipboard is unavailable in this session." }
     }
     let value = recording
@@ -365,6 +425,68 @@ final class HistoryModel: ObservableObject {
       settings = next
       status = "Settings saved"
     } catch { status = "Settings could not be saved." }
+  }
+
+  @MainActor func applyContentSettings() async {
+    guard !applyingSettings, let settingsStore, let store,
+      let capacity = Int(capacityDraft), let megabytes = Int(maxSizeDraft),
+      (1...16).contains(megabytes)
+    else {
+      status = "Enter a capacity of 1–5000 and a size of 1–16 MiB."
+      return
+    }
+    applyingSettings = true
+    defer { applyingSettings = false }
+    var next = settings
+    next.historyCapacity = capacity
+    next.maxClipSizeBytes = megabytes * 1024 * 1024
+    next.blockedAppIDs = blockedAppsDraft.split(separator: ",").map {
+      $0.trimmingCharacters(in: .whitespacesAndNewlines)
+    }.filter { !$0.isEmpty }
+    next.blocklistEnabled = blocklistEnabledDraft
+    next.skipSensitive = skipSensitiveDraft
+    do {
+      try next.validate()
+      try await settingsStore.save(next)
+      settings = next
+      try await store.setCapacity(capacity)
+      let wasRecording = recording
+      if wasRecording {
+        await setRecording(false)
+        await setRecording(true)
+      }
+      await refresh()
+      status = "Content settings saved"
+    } catch { status = "Content settings could not be saved." }
+  }
+  @MainActor func clearHistory() async {
+    guard let store else { return }
+    confirmsClearHistory = false
+    await store.clearAll()
+    await store.flush()
+    await refresh()
+    status = "History cleared"
+  }
+  @MainActor func exportHistory(to destination: URL) async {
+    guard let store else { return }
+    let items = await store.all()
+    let blobRoot = root?.appendingPathComponent("blobs")
+    do {
+      try await Task.detached {
+        try DesktopHistoryArchive.write(items: items, blobRoot: blobRoot, to: destination)
+      }.value
+      status = "History exported. Sensitive items excluded."
+    } catch { status = "Export failed. Check the destination and archive size (256 MiB maximum)." }
+  }
+  @MainActor func importHistory(from source: URL) async {
+    guard let store else { return }
+    do {
+      let items = try await Task.detached { try DesktopHistoryArchive.read(from: source) }.value
+      let result = await store.importItems(items, blobsRoot: nil)
+      await store.flush()
+      await refresh()
+      status = "Imported \(result.added) items; \(result.skipped) duplicates skipped."
+    } catch { status = "Import failed. Choose a self-contained Clipboard JSON archive." }
   }
 
   @MainActor func shutdown() async {
