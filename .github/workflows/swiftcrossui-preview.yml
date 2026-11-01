@@ -46,13 +46,23 @@ jobs:
       CLIPBOARD_UI_DIAGNOSTICS: '1'
     steps:
       - uses: actions/checkout@v4
-      - name: Verify private fixture interpreter with an isolated PATH
+      - name: Verify private fixture interpreter and pipe encoding
         shell: pwsh
         run: |
           $FixturePython = (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
           ./tools/desktop-ui/test-private-fixture-python.ps1 -FixturePython $FixturePython
+          ./tools/desktop-ui/test-private-fixture-wire.ps1 -FixturePython $FixturePython
+      - name: Verify private fixture on Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $FixturePython = (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+          ./tools/desktop-ui/test-private-fixture-python.ps1 -FixturePython $FixturePython
+          ./tools/desktop-ui/test-private-fixture-wire.ps1 -FixturePython $FixturePython
       - name: Verify private AI fixture response cancellation
         run: python tools/desktop-ui/test-ai-probe-errors.py
+      - name: Verify private AI fixture pipe protocol
+        run: python tools/desktop-ui/test-ai-probe-server.py
       - name: Install GTK and isolated desktop test tools
         if: runner.os == 'Linux'
         shell: bash

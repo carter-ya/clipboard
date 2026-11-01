@@ -975,6 +975,69 @@ try:
     app.wait(timeout=10)
     check('startup_state_profile_quits_cleanly', app.returncode == 0)
 
+    # Per-item progress uses a fresh synthetic profile and an owned loopback
+    # service. Only the selected seeded item can enter these two requests.
+    analysis_environment = os.environ.copy()
+    analysis_environment['CLIPBOARD_PRIVATE_AI_TEST'] = '1'
+    analysis_environment['CLIPBOARD_PRIVATE_AI_MODE'] = 'analysis'
+    server = subprocess.Popen(['/usr/bin/python3', str(Path(__file__).with_name('ai-probe-server.py'))],
+                              env=analysis_environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
+    try:
+        if not select.select([server.stdout], [], [], 10)[0]:
+            raise RuntimeError('analysis_server_startup')
+        ready = server.stdout.readline(32).decode('ascii').strip()
+        if not ready.startswith('ready:') or not ready[6:].isdigit():
+            raise RuntimeError('analysis_server_ready')
+        history_root = out / ('analysis-progress-' + uuid.uuid4().hex)
+        history_root.mkdir()
+        (history_root / 'desktop-settings.json').write_text(json.dumps({'ai': {
+            'enabled': True, 'allowText': True, 'allowImages': False, 'usesCredential': False,
+            'endpoint': 'http://127.0.0.1:' + ready[6:] + '/v1', 'model': 'fixture-model',
+            'timeoutSeconds': 60}}))
+        app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root)],
+                               stdout=log, stderr=log, start_new_session=True)
+        wait_for(lambda: has_texts('Ready', '3 items'), 'analysis_profile_ready')
+        editor().queryEditableText().setTextContents('Release')
+        wait_for(lambda: has_text('1 items'), 'analysis_item_selected')
+        click('Summarize')
+        wait_for(lambda: has_text('Generating summary…'), 'analysis_progress_visible')
+        if not select.select([server.stdout], [], [], 10)[0] or server.stdout.readline(32).strip() != b'blocked':
+            raise RuntimeError('analysis_request_not_active')
+        editor().queryEditableText().setTextContents('Welcome')
+        wait_for(lambda: has_text('1 items') and not has_text('Generating summary…'), 'other_item_has_no_progress')
+        check('analysis_progress_is_scoped_to_the_selected_item', not has_text('Could not generate a summary.'))
+        editor().queryEditableText().setTextContents('Release')
+        wait_for(lambda: has_text('Generating summary…'), 'analysis_progress_restored')
+        server.stdin.write(b'release\n')
+        server.stdin.flush()
+        wait_for(lambda: has_text('Could not generate a summary.') and button('Retry summary'), 'analysis_failure_with_retry')
+        check('analysis_failure_offers_item_retry', True)
+        screenshot('analysis-failure-retry.png')
+        click('Retry summary')
+        wait_for(lambda: has_texts('Summary ready', 'Private summary fixture'), 'analysis_retry_succeeded')
+        check('analysis_retry_updates_only_the_original_item',
+              sum(item.get('summary') == 'Private summary fixture'
+                  for item in json.loads((history_root / 'history.json').read_text())['items']) == 1)
+        editor().queryEditableText().setTextContents('Welcome')
+        wait_for(lambda: not has_text('Private summary fixture'), 'analysis_result_not_on_other_item')
+        check('analysis_result_and_failure_do_not_follow_selection', not has_text('Could not generate a summary.'))
+        click('Settings')
+        wait_for(lambda: has_text('Preferences'), 'analysis_settings_for_quit')
+        click('Quit Clipboard')
+        app.wait(timeout=10)
+        check('analysis_progress_profile_quits_cleanly', app.returncode == 0)
+    finally:
+        server.stdin.close()
+        try:
+            server.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            server.kill()
+            server.wait(timeout=5)
+    fixture_report = json.loads(server.stdout.readline(4096))
+    check('analysis_retry_sends_only_selected_synthetic_item_without_keys_or_cookies',
+          fixture_report.get('requests') == 2 and fixture_report.get('fixedTestsOnly') and
+          fixture_report.get('noAuthorization') and fixture_report.get('noCookies'))
+
     sensitive_probe = True
     history_root = out / ('sensitive-preview-' + uuid.uuid4().hex)
     app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(history_root), '--smoke-sensitive'],
