@@ -18,11 +18,11 @@ public final class DesktopAnalysisScheduler {
       guard item.id == id, !item.sensitive,
         !item.payloads.contains(where: { $0.pasteboardType == SensitivityFilter.concealedType })
       else { return false }
+      if remote && !settings.ai.allowsSummary(of: item.kind) { return false }
       guard automatic else { return true }
       guard item.summary == nil else { return false }
       if remote {
-        return settings.automaticSummaries && settings.ai.enabled && item.kind != .file
-          && (item.kind != .image || settings.ai.allowImages)
+        return settings.automaticSummaries
       }
       return settings.automaticOCR && item.kind == .image
     }
