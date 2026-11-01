@@ -195,6 +195,16 @@ try {
     Invoke-Button 'Copy'
     Wait-For { Find-Named 'Copied to clipboard' } 'copy_status' | Out-Null
     Add-Check 'copy_button_writes_native_clipboard' ([PreviewNative]::ReadClipboard() -eq 'Release checklist · build, test, publish')
+    Set-Search 'Welcome'
+    Wait-For { (Find-Named '1 items') -and (Find-Named 'Welcome to Clipboard Preview') } 'older_item_selected' | Out-Null
+    $PreviousCopyRevision = [PreviewNative]::GetClipboardSequenceNumber()
+    Invoke-Button 'Copy'
+    Wait-For {
+      $promotedHistory = Get-Content -Raw -Encoding UTF8 (Join-Path $historyRoot 'history.json') | ConvertFrom-Json
+      ([PreviewNative]::GetClipboardSequenceNumber() -ne $PreviousCopyRevision) -and
+        ($promotedHistory.items[0].preview -eq 'Welcome to Clipboard Preview')
+    } 'copied_item_promoted_while_capture_paused' | Out-Null
+    Add-Check 'copy_promotes_older_item_with_capture_paused' ([PreviewNative]::ReadClipboard() -eq 'Welcome to Clipboard Preview')
     Set-Search '中文'
     Wait-For { (Find-Named '1 items') -and (Find-Named '中文笔记 · 设计评审与输入测试') } 'unicode_search_results' | Out-Null
     Add-Check 'native_unicode_search_updates_list' $true
