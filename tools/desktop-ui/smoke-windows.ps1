@@ -62,6 +62,22 @@ public static class PreviewNative {
   }
   [DllImport("kernel32.dll")] public static extern IntPtr GlobalLock(IntPtr handle);
   [DllImport("kernel32.dll")] public static extern bool GlobalUnlock(IntPtr handle);
+  [DllImport("kernel32.dll")] public static extern UIntPtr GlobalSize(IntPtr handle);
+  public static byte[] ReadRichClipboard(string format) {
+    if (!OpenClipboard(IntPtr.Zero)) throw new Exception("clipboard_busy");
+    try {
+      IntPtr handle = GetClipboardData(RegisterClipboardFormat(format));
+      ulong length = GlobalSize(handle).ToUInt64();
+      if (length == 0 || length > 1024 * 1024) throw new Exception("fixture_format_size");
+      IntPtr data = GlobalLock(handle);
+      if (data == IntPtr.Zero) throw new Exception("clipboard_unavailable");
+      try {
+        byte[] bytes = new byte[(int)length];
+        Marshal.Copy(data, bytes, 0, bytes.Length);
+        return bytes;
+      } finally { GlobalUnlock(handle); }
+    } finally { CloseClipboard(); }
+  }
   public static string ReadClipboard() {
     if (!OpenClipboard(IntPtr.Zero)) throw new Exception("clipboard_busy");
     try {
@@ -115,6 +131,17 @@ function Get-ImagePreview {
   $condition = [Windows.Automation.PropertyCondition]::new(
     [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Image)
   return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+}
+function Read-SharedJson([string]$Path) {
+  # Snapshot replacement needs delete sharing on Windows. Get-Content's live
+  # read handle can otherwise make the application fail its own rename.
+  $sharing = [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete
+  $stream = [IO.FileStream]::new($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, $sharing)
+  try {
+    $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::UTF8)
+    try { return ($reader.ReadToEnd() | ConvertFrom-Json) }
+    finally { $reader.Dispose() }
+  } finally { $stream.Dispose() }
 }
 function Invoke-Button([string]$Label) {
   $element = Wait-For {
@@ -206,7 +233,7 @@ try {
     $PreviousCopyRevision = [PreviewNative]::GetClipboardSequenceNumber()
     Invoke-Button 'Copy'
     Wait-For {
-      $promotedHistory = Get-Content -Raw -Encoding UTF8 (Join-Path $historyRoot 'history.json') | ConvertFrom-Json
+      $promotedHistory = Read-SharedJson (Join-Path $historyRoot 'history.json')
       ([PreviewNative]::GetClipboardSequenceNumber() -ne $PreviousCopyRevision) -and
         ($promotedHistory.items[0].preview -eq 'Welcome to Clipboard Preview')
     } 'copied_item_promoted_while_capture_paused' | Out-Null
@@ -269,7 +296,7 @@ try {
     Invoke-Button 'All'
     Set-Search ''
     Wait-For { Find-Named '2 items' } 'remaining_history' | Out-Null
-    $history = Get-Content -Raw -Encoding UTF8 (Join-Path $historyRoot 'history.json') | ConvertFrom-Json
+    $history = Read-SharedJson (Join-Path $historyRoot 'history.json')
     Add-Check 'store_persistence_matches_ui' ($history.items.Count -eq 2)
     if ($ClipboardPeer) {
       foreach ($fixture in @('rich', 'files')) {
@@ -424,7 +451,7 @@ try {
     Invoke-Button 'Save behavior'
     $settingsFile = Join-Path $historyRoot 'desktop-settings.json'
     Wait-For { Test-Path $settingsFile } 'saved_settings_file' | Out-Null
-    $saved = Get-Content -Raw -Encoding UTF8 $settingsFile | ConvertFrom-Json
+    $saved = Read-SharedJson $settingsFile
     Add-Check 'behavior_saved_without_enabling_recording' (!$saved.recordingEnabled -and $saved.closeToTray)
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'explicit_quit_timeout' }
@@ -465,7 +492,7 @@ try {
     if (!$application.WaitForExit(10000)) { throw 'background_quit_timeout' }
     $historyRoot = Join-Path $OutputDirectory ('history-counts-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $historyRoot | Out-Null
-    $snapshot = Get-Content -Raw -Encoding UTF8 (Join-Path $primaryHistoryRoot 'history.json') | ConvertFrom-Json
+    $snapshot = Read-SharedJson (Join-Path $primaryHistoryRoot 'history.json')
     Copy-Item -Path (Join-Path $primaryHistoryRoot 'blobs') -Destination (Join-Path $historyRoot 'blobs') -Recurse
     $mixedBytes = [Text.Encoding]::UTF8.GetBytes('Legacy mixed fixture')
     $sha = [Security.Cryptography.SHA256]::Create()
@@ -513,6 +540,57 @@ try {
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'counted_history_quit_timeout' }
     Add-Check 'counted_history_quits_cleanly' ($application.ExitCode -eq 0)
+
+    $historyRoot = Join-Path $OutputDirectory ('rich-preview-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path (Join-Path $historyRoot 'blobs') -Force | Out-Null
+    $snapshot = Read-SharedJson (Join-Path $primaryHistoryRoot 'history.json')
+    $createdAt = $snapshot.items[0].createdAt
+    $fixtures = @(
+      @{ name = 'HTML budget fixture'; kind = 'public.html'; body = '<p>' + ('中😀' * 12000) + ' HTML_COPY_TAIL</p>'; format = 'HTML Format' },
+      @{ name = 'RTF budget fixture'; kind = 'public.rtf'; body = '{\rtf1 ' + ('x' * 70000) + ' RTF_COPY_TAIL}'; format = 'Rich Text Format' })
+    $snapshot.items = @($fixtures | ForEach-Object {
+      $bytes = [Text.Encoding]::UTF8.GetBytes($_.body)
+      $sha = [Security.Cryptography.SHA256]::Create()
+      try { $hash = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '').ToLowerInvariant() }
+      finally { $sha.Dispose() }
+      @{ id = [Guid]::NewGuid().ToString(); createdAt = $createdAt; kind = 'rtf'; preview = $_.name;
+         pinned = $false; sensitive = $false; sha256 = $hash; sizeBytes = $bytes.Length;
+         payloads = @(@{ pasteboardType = $_.kind; inlineData = [Convert]::ToBase64String($bytes) }) }
+    })
+    [IO.File]::WriteAllText((Join-Path $historyRoot 'history.json'), ($snapshot | ConvertTo-Json -Depth 12), [Text.UTF8Encoding]::new($false))
+    $application = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
+      -ArgumentList @('--data-root', ('"' + $historyRoot + '"')) -PassThru `
+      -RedirectStandardOutput (Join-Path $OutputDirectory 'rich-budget.stdout.log') `
+      -RedirectStandardError (Join-Path $OutputDirectory 'rich-budget.stderr.log')
+    $null = $application.Handle
+    $nativeWindowHandle = Wait-For {
+      $handle = [PreviewNative]::FindWindow([uint32]$application.Id)
+      if ($handle -ne [IntPtr]::Zero) { $handle }
+    } 'rich_budget_window'
+    $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+    Wait-For { (Find-Named 'Ready') -and (Find-Named '2 items') } 'rich_budget_profile' | Out-Null
+    foreach ($fixture in $fixtures) {
+      Set-Search $fixture.name
+      Wait-For { (Find-Named '1 items') -and (Find-Named $fixture.name) -and (Find-Named 'Preview truncated. Copy keeps the full text.') } 'rich_budget_notice' | Out-Null
+      Add-Check ('rich_' + $fixture.kind + '_reports_truncation') (!(Find-Named 'HTML_COPY_TAIL') -and !(Find-Named 'RTF_COPY_TAIL'))
+      $copyRevision = [PreviewNative]::GetClipboardSequenceNumber()
+      Invoke-Button 'Copy'
+      Wait-For { (Find-Named 'Copied to clipboard') -and [PreviewNative]::GetClipboardSequenceNumber() -ne $copyRevision } 'rich_budget_copied' | Out-Null
+      $native = [Text.Encoding]::UTF8.GetString([PreviewNative]::ReadRichClipboard($fixture.format)).TrimEnd([char]0)
+      if ($fixture.kind -eq 'public.html') {
+        $start = [int]([regex]::Match($native, 'StartFragment:(\d+)').Groups[1].Value)
+        $end = [int]([regex]::Match($native, 'EndFragment:(\d+)').Groups[1].Value)
+        $nativeBytes = [Text.Encoding]::UTF8.GetBytes($native)
+        if ($start -lt 0 -or $end -le $start -or $end -gt $nativeBytes.Length) { throw 'fixture_html_offsets' }
+        $native = [Text.Encoding]::UTF8.GetString($nativeBytes, $start, $end - $start)
+      }
+      Add-Check ('rich_' + $fixture.kind + '_copy_preserves_complete_payload') ($native -ceq $fixture.body)
+    }
+    Invoke-Button 'Settings'
+    Wait-For { Find-Named 'Preferences' } 'rich_budget_quit_settings' | Out-Null
+    Invoke-Button 'Quit Clipboard'
+    if (!$application.WaitForExit(10000)) { throw 'rich_budget_quit_timeout' }
+    Add-Check 'rich_budget_profile_quits_cleanly' ($application.ExitCode -eq 0)
 
     $sensitiveProbe = $true
     $historyRoot = Join-Path $OutputDirectory ('sensitive-preview-' + [Guid]::NewGuid().ToString('N'))
@@ -576,7 +654,7 @@ try {
     Set-Search ''
     Wait-For { (Find-Named '1 items') -and (Find-Named 'Reveal for this session') } 'selection_change_revoked_reveal' | Out-Null
     Add-Check 'selection_change_revokes_sensitive_reveal' ($null -eq (Find-Named $secret))
-    $persisted = Get-Content -Raw -Encoding UTF8 (Join-Path $historyRoot 'history.json') | ConvertFrom-Json
+    $persisted = Read-SharedJson (Join-Path $historyRoot 'history.json')
     $sensitiveRows = @($persisted.items | Where-Object { $_.sensitive })
     $blobFiles = @(Get-ChildItem -File (Join-Path $historyRoot 'blobs'))
     Add-Check 'sensitive_reveal_keeps_history_memory_only' ($persisted.items.Count -eq 3 -and $sensitiveRows.Count -eq 0 -and $blobFiles.Count -eq 0)

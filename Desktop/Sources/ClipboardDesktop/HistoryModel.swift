@@ -228,12 +228,13 @@ final class HistoryModel: ObservableObject {
         else { return nil }
         return .init(pasteboardType: payload.pasteboardType, data: bytes)
       }
-      let text = RichTextPreview.text(from: rich)
+      let preview = RichTextPreview.preview(from: rich)
+      let text = preview.text
       return (
         text.isEmpty
           ? (selected.preview.isEmpty
             ? "Rich content · copy to use its original formatting." : selected.preview) : text, nil,
-        false
+        preview.isTruncated
       )
     }.value
     guard selectedID == selected.id, generation == previewGeneration,

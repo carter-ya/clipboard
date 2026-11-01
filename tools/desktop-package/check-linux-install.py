@@ -61,7 +61,10 @@ try:
                 probe_command += ['--ocr-fixture', str(Path(args.ocr_fixture).resolve())]
         probe_environment = os.environ.copy()
         probe_environment['PATH'] = str(root / 'commands') + os.pathsep + probe_environment.get('PATH', '')
-        probe = subprocess.run(probe_command, env=probe_environment, timeout=300)
+        # The complete suite now includes rich-only/sensitive previews and the
+        # installed lifecycle cycles. Keep each action's original deadline;
+        # allow the expanded set of required checks to finish within ten minutes.
+        probe = subprocess.run(probe_command, env=probe_environment, timeout=600)
         check('installed_application_passes_native_ui_probe', probe.returncode == 0)
         history_files = list((output / 'ui').glob('history-*/history.json'))
         check('private_history_was_persisted', bool(history_files))

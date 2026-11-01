@@ -368,10 +368,10 @@ public actor JSONSnapshotClipStore: ClipStore {
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     do {
       let data = try encoder.encode(envelope)
-      let tmpURL = historyURL.appendingPathExtension("tmp")
-      try data.write(to: tmpURL, options: .atomic)
-      _ = try? fileManager.removeItem(at: historyURL)
-      try fileManager.moveItem(at: tmpURL, to: historyURL)
+      // Let Foundation replace the destination atomically. Removing it before
+      // moving a fixed temporary path creates a missing-file window and can
+      // discard the previous snapshot when the subsequent move fails.
+      try data.write(to: historyURL, options: .atomic)
     } catch {
       Log.store.error(
         "store.writeFailed err=\(String(describing: error), privacy: .public)"
