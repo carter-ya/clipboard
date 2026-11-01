@@ -297,6 +297,22 @@ public struct DesktopAnalysis: Sendable {
       }.map { RawPayload(pasteboardType: $0.pasteboardType, data: try resolver.data(for: $0)) }
     }.value
   }
+  static func responseLanguage(
+    language: String?,
+    preferredLanguages: [String] = DesktopLanguagePreferences.preferredLanguages
+  ) -> String? {
+    let tag = language ?? preferredLanguages.first ?? "en"
+    let locale = Locale(identifier: tag)
+    let code = locale.language.languageCode?.identifier ?? "en"
+    if code == "zh" {
+      let script = locale.language.script?.identifier
+      let traditional =
+        script == "Hant"
+        || (script != "Hans" && ["TW", "HK", "MO"].contains(locale.region?.identifier ?? ""))
+      return traditional ? "Traditional Chinese" : "Simplified Chinese"
+    }
+    return remoteAIResponseLanguageName(for: code)
+  }
   public func summarize(_ item: ClipItem, settings: DesktopAISettings, language: String? = nil)
     async throws -> String
   {
@@ -307,6 +323,7 @@ public struct DesktopAnalysis: Sendable {
     guard let base = validateRemoteAIBaseURL(settings.endpoint) else {
       throw DesktopServiceError.invalidValue
     }
+    let responseLanguage = Self.responseLanguage(language: language)
     let messages: [RemoteOpenAIMessage]
     let resolver = resolver
     if item.kind == .image {
@@ -319,14 +336,14 @@ public struct DesktopAnalysis: Sendable {
       guard data.count <= 2 * 1024 * 1024 else { throw DesktopServiceError.tooLarge }
       messages = buildRemoteOpenAIImageMessages(
         data, mime: payload.pasteboardType == "public.png" ? "image/png" : "image/jpeg",
-        responseLanguage: language)
+        responseLanguage: responseLanguage)
     } else if item.kind == .file {
       let text = try await resolvedFileText(item)
-      messages = buildRemoteOpenAITextMessages(text, responseLanguage: language)
+      messages = buildRemoteOpenAITextMessages(text, responseLanguage: responseLanguage)
     } else {
       let text = try await resolvedText(item)
       guard !text.isEmpty else { throw DesktopServiceError.invalidValue }
-      messages = buildRemoteOpenAITextMessages(text, responseLanguage: language)
+      messages = buildRemoteOpenAITextMessages(text, responseLanguage: responseLanguage)
     }
     var request = URLRequest(url: base.appendingPathComponent("chat/completions"))
     request.httpMethod = "POST"
