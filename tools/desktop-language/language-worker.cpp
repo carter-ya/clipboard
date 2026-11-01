@@ -130,7 +130,7 @@ static std::string generate(llama_model *model, const std::string &text,
                             const std::string &language, bool &truncated) {
     const llama_vocab *vocab = llama_model_get_vocab(model);
     std::string instruction = "Write one concise sentence summarizing the input's main point, not merely its opening. Keep it under 160 characters. Return only the sentence, without preamble, quotations, bullets or reasoning. Reply in " + language + ".";
-    std::string task_prompt = "Summarize the main point of the following source in one sentence. Preserve facts and do not invent details. Reply in " + language + ".\n<source>\n";
+    std::string task_prompt = "Summarize the main point of the following source in one sentence. Preserve facts, event order, purposes and plans. Do not turn a purpose into a completed action. For example, 'The shop closed early to repair its heater' means it closed FOR repairs, not AFTER repairs were completed. Do not invent details. Reply in " + language + ".\n<source>\n";
     if (language == "Simplified Chinese") task_prompt = u8"请用简体中文写一句摘要，概括以下内容的核心意思。保留原文事实，不要编造信息。只输出摘要。\n<source>\n";
     if (language == "Traditional Chinese") task_prompt = u8"請用繁體中文寫一句摘要，概括以下內容的核心意思。保留原文事實，不要編造資訊。只輸出摘要。\n<source>\n";
     if (language == "Japanese") task_prompt = u8"次の内容の要点を日本語の一文で要約してください。原文の事実を保ち、情報を付け加えないでください。要約だけを出力してください。\n<source>\n";

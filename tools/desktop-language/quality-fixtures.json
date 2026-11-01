@@ -1,5 +1,33 @@
 [
   {
+    "id": "planned-work-held-out",
+    "language": "English",
+    "text": "Automatic success fixture. The project team met on Tuesday to review schedules and paperwork. After inspecting a damaged fuel valve, space agency engineers postponed the Mars launch until Friday to complete repairs and safety checks.",
+    "requiredConcepts": [
+      [
+        "Mars"
+      ],
+      [
+        "Friday"
+      ],
+      [
+        "postpon",
+        "delay"
+      ],
+      [
+        "repair",
+        "fuel",
+        "valve"
+      ]
+    ],
+    "forbidden": [
+      "and completing",
+      "after completing",
+      "repairs completed",
+      "checks completed"
+    ]
+  },
+  {
     "id": "launch-1",
     "language": "English",
     "text": "The project team met on Tuesday to review schedules and paperwork. After inspecting a damaged fuel valve, NASA engineers postponed the Mars launch until Friday to complete repairs and safety checks.",
@@ -19,6 +47,12 @@
       [
         "launch"
       ]
+    ],
+    "forbidden": [
+      "and completing",
+      "after completing",
+      "repairs completed",
+      "checks completed"
     ]
   },
   {
