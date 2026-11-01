@@ -849,16 +849,18 @@ final class HistoryModel: ObservableObject {
   }
 
   @MainActor func applyContentSettings() async {
-    guard let settingsStore, let store,
-      let capacity = Int(capacityDraft),
+    guard let settingsStore, let store else { return }
+    await settingsSaveGate.acquire()
+    defer { settingsSaveGate.release() }
+    guard !shuttingDown else { return }
+    // Invalid submissions belong to the same FIFO as successful saves. A
+    // previous save must finish before the next validation message is shown.
+    guard let capacity = Int(capacityDraft),
       let byteLimit = DesktopSizeLimit.bytes(fromMiB: maxSizeDraft)
     else {
       status = "Enter a capacity of 1–5000 and a valid size in MiB."
       return
     }
-    await settingsSaveGate.acquire()
-    defer { settingsSaveGate.release() }
-    guard !shuttingDown else { return }
     var next = settings
     next.historyCapacity = capacity
     next.maxClipSizeBytes = byteLimit
