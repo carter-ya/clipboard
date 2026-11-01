@@ -143,4 +143,72 @@ final class DesktopAnalysisSchedulerTests: XCTestCase {
     XCTAssertEqual(requests, 1)
     XCTAssertFalse(scheduler.isBusy)
   }
+  @MainActor func testPauseDrainsUncooperativeWorkAndOverlappingOwnersCannotResumeEachOther() async
+  {
+    let started = expectation(description: "active worker owns its file")
+    let pausing = expectation(description: "first pause acquired")
+    let resumed = expectation(description: "fresh request after both pauses")
+    var release: CheckedContinuation<Void, Never>?
+    var calls = 0
+    let scheduler = DesktopAnalysisScheduler { _ in
+      calls += 1
+      if calls == 1 {
+        await withCheckedContinuation {
+          release = $0
+          started.fulfill()
+        }
+        XCTAssertTrue(Task.isCancelled)
+      } else {
+        resumed.fulfill()
+      }
+    }
+    scheduler.submit(.init(id: UUID(), remote: false, automatic: true))
+    await fulfillment(of: [started], timeout: 3)
+    scheduler.submit(.init(id: UUID(), remote: false, automatic: true))
+    var firstReturned = false
+    let first = Task { @MainActor in
+      let value = await scheduler.pauseAndDrain()
+      firstReturned = true
+      pausing.fulfill()
+      return value
+    }
+    // A scheduling yield lets the pause take ownership before a second caller.
+    let firstDeadline = Date().addingTimeInterval(3)
+    while !scheduler.isPaused && Date() < firstDeadline { await Task.yield() }
+    XCTAssertTrue(scheduler.isPaused)
+    XCTAssertEqual(scheduler.pendingCount, 0)
+    XCTAssertEqual(scheduler.submit(.init(id: UUID(), remote: false, automatic: true)), .busy)
+    let second = Task { @MainActor in await scheduler.pauseAndDrain() }
+    let secondDeadline = Date().addingTimeInterval(3)
+    while scheduler.pauseCount < 2 && Date() < secondDeadline { await Task.yield() }
+    XCTAssertEqual(scheduler.pauseCount, 2)
+    XCTAssertFalse(firstReturned)
+    XCTAssertTrue(scheduler.isBusy)
+    release?.resume()
+    let firstLease = await first.value
+    let secondLease = await second.value
+    await fulfillment(of: [pausing], timeout: 3)
+    XCTAssertFalse(scheduler.isBusy)
+    XCTAssertEqual(calls, 1)
+    scheduler.resume(firstLease)
+    scheduler.resume(firstLease)
+    XCTAssertTrue(scheduler.isPaused)
+    XCTAssertEqual(scheduler.submit(.init(id: UUID(), remote: false, automatic: false)), .busy)
+    scheduler.resume(secondLease)
+    XCTAssertFalse(scheduler.isPaused)
+    XCTAssertEqual(scheduler.submit(.init(id: UUID(), remote: false, automatic: false)), .started)
+    await fulfillment(of: [resumed], timeout: 3)
+    await scheduler.stopAndDrain()
+    XCTAssertEqual(scheduler.submit(.init(id: UUID(), remote: false, automatic: true)), .stopped)
+  }
+
+  @MainActor func testResumingAnIdlePauseCannotRestartAStoppedScheduler() async {
+    let scheduler = DesktopAnalysisScheduler { _ in XCTFail("Stopped work started") }
+    let pause = await scheduler.pauseAndDrain()
+    await scheduler.stopAndDrain()
+    scheduler.resume(pause)
+    XCTAssertFalse(scheduler.isPaused)
+    XCTAssertEqual(scheduler.submit(.init(id: UUID(), remote: false, automatic: true)), .stopped)
+  }
+
 }

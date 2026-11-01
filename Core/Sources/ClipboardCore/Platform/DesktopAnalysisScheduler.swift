@@ -46,6 +46,12 @@ public final class DesktopAnalysisScheduler {
     }
   }
   public enum Submission: Equatable { case started, queued, duplicate, full, busy, stopped }
+  /// A pause owns the exclusion until its specific lease is resumed. Callers
+  /// must use defer to resume even if their model operation fails or is cancelled.
+  public struct Pause: Equatable, Sendable { fileprivate let id: UUID }
+  private var pauses: Set<UUID> = []
+  public var isPaused: Bool { !pauses.isEmpty }
+  var pauseCount: Int { pauses.count }
   public private(set) var isBusy = false
   public var pendingCount: Int { pending.count }
   public var currentRequest: Request? { current }
@@ -71,6 +77,7 @@ public final class DesktopAnalysisScheduler {
   @discardableResult
   public func submit(_ request: Request) -> Submission {
     guard !stopped else { return .stopped }
+    guard !isPaused else { return .busy }
     if !request.automatic && isBusy { return .busy }
     guard current?.id != request.id, !pending.contains(where: { $0.id == request.id }) else {
       return .duplicate
@@ -108,6 +115,24 @@ public final class DesktopAnalysisScheduler {
     return true
   }
 
+  /// Revoke queued work and prevent new work before awaiting the active task.
+  /// A dependency ignoring cancellation must still release its owned file/process
+  /// before this returns. Overlapping callers retain independent pause leases.
+  public func pauseAndDrain() async -> Pause {
+    let pause = Pause(id: UUID())
+    pauses.insert(pause.id)
+    cancelAll()
+    let active = task
+    await active?.value
+    return pause
+  }
+  public func resume(_ pause: Pause) { pauses.remove(pause.id) }
+  public func stopAndDrain() async {
+    stop()
+    let active = task
+    await active?.value
+  }
+
   public func stop() {
     stopped = true
     pending.removeAll()
@@ -123,7 +148,7 @@ public final class DesktopAnalysisScheduler {
     task = Task { [weak self] in
       guard let self else { return }
       await self.perform(request)
-      if !self.stopped && !self.pending.isEmpty {
+      if !self.stopped && !self.isPaused && !self.pending.isEmpty {
         self.start(self.pending.removeFirst())
       } else {
         self.current = nil

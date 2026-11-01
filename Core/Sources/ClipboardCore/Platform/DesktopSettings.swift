@@ -22,6 +22,10 @@ public struct DesktopSettings: Codable, Equatable, Sendable {
   public var automaticLocalSummaries = false
   public var localFileSummariesEnabled = false
   public var automaticLocalFileSummaries = false
+  public var localGenerativeSummariesEnabled = false
+  public var automaticLocalGenerativeSummaries = false
+  public var localLanguageSummariesEnabled = false
+  public var automaticLocalLanguageSummaries = false
   public init() {}
 
   private enum CodingKeys: String, CodingKey {
@@ -31,6 +35,8 @@ public struct DesktopSettings: Codable, Equatable, Sendable {
     case automaticLocalImageSummaries
     case localTextSummariesEnabled, automaticLocalSummaries
     case localFileSummariesEnabled, automaticLocalFileSummaries
+    case localGenerativeSummariesEnabled, automaticLocalGenerativeSummaries
+    case localLanguageSummariesEnabled, automaticLocalLanguageSummaries
   }
   public init(from decoder: any Decoder) throws {
     self.init()
@@ -67,6 +73,14 @@ public struct DesktopSettings: Codable, Equatable, Sendable {
       try values.decodeIfPresent(Bool.self, forKey: .localFileSummariesEnabled) ?? false
     automaticLocalFileSummaries =
       try values.decodeIfPresent(Bool.self, forKey: .automaticLocalFileSummaries) ?? false
+    localGenerativeSummariesEnabled =
+      try values.decodeIfPresent(Bool.self, forKey: .localGenerativeSummariesEnabled) ?? false
+    automaticLocalGenerativeSummaries =
+      try values.decodeIfPresent(Bool.self, forKey: .automaticLocalGenerativeSummaries) ?? false
+    localLanguageSummariesEnabled =
+      try values.decodeIfPresent(Bool.self, forKey: .localLanguageSummariesEnabled) ?? false
+    automaticLocalLanguageSummaries =
+      try values.decodeIfPresent(Bool.self, forKey: .automaticLocalLanguageSummaries) ?? false
     try validate()
   }
 
