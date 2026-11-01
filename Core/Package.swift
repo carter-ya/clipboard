@@ -83,6 +83,9 @@ let package = Package(
       ]
     ),
     .testTarget(
+      name: "DesktopServicesTests", dependencies: ["DesktopServices"],
+      resources: [.copy("Fixtures")]),
+    .testTarget(
       name: "ClipboardCoreTests",
       dependencies: [
         "ClipboardCore",
