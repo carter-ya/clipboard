@@ -1,8 +1,10 @@
+import ClipboardCore
 import Foundation
 
 enum DesktopLocalization {
   static func isChinese(_ language: String?) -> Bool {
-    (language ?? Locale.preferredLanguages.first ?? "en").lowercased().hasPrefix("zh")
+    (language ?? DesktopLanguagePreferences.preferredLanguages.first ?? "en").lowercased()
+      .hasPrefix("zh")
   }
   static func text(_ value: String, language: String?) -> String {
     guard isChinese(language) else { return value }
