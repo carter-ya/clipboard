@@ -27,9 +27,12 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   [DllImport("user32.dll", SetLastError = true)] static extern uint SendInput(uint count, Input[] inputs, int size);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr window);
+  [StructLayout(LayoutKind.Sequential)] struct WindowRect { public int left, top, right, bottom; }
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window, out WindowRect rectangle);
   [DllImport("user32.dll")] static extern short GetAsyncKeyState(int key);
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
   [DllImport("user32.dll")] static extern IntPtr GetKeyboardLayout(uint thread);
+  [DllImport("user32.dll")] static extern uint MapVirtualKey(uint code, uint mapType);
   [DllImport("user32.dll")] static extern int GetKeyboardLayoutList(int count, [Out] IntPtr[] layouts);
   [DllImport("imm32.dll")] static extern bool ImmIsIME(IntPtr layout);
   [DllImport("imm32.dll")] static extern IntPtr ImmGetContext(IntPtr window);
@@ -51,8 +54,14 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
 
   sealed class PasteEditor : TextBox {
     public int PasteCount;
+    public int KeyMessages, ScannedKeyMessages, ImeMessages;
     protected override void WndProc(ref Message message) {
       if (message.Msg == 0x0302) PasteCount++; // WM_PASTE from the actual Ctrl+V.
+      if (message.Msg == 0x0100 || message.Msg == 0x0104) {
+        KeyMessages++;
+        if (((long)message.LParam & 0x00ff0000) != 0) ScannedKeyMessages++;
+      }
+      if (message.Msg >= 0x010d && message.Msg <= 0x010f) ImeMessages++;
       base.WndProc(ref message);
     }
   }
@@ -103,6 +112,28 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   public int PasteCount { get { return OnPeer<int>(delegate { return editor.PasteCount; }); } }
   public string Text { get { return OnPeer<string>(delegate { return editor.Text; }); } }
   public int SelectionLength { get { return OnPeer<int>(delegate { return editor.SelectionLength; }); } }
+  public int KeyMessageCount { get { return OnPeer<int>(delegate { return editor.KeyMessages; }); } }
+  public int ScannedKeyMessageCount { get { return OnPeer<int>(delegate { return editor.ScannedKeyMessages; }); } }
+  public int ImeMessageCount { get { return OnPeer<int>(delegate { return editor.ImeMessages; }); } }
+  public long InputLayout { get { return OnPeer<long>(delegate { uint owner; return (long)GetKeyboardLayout(GetWindowThreadProcessId(editor.Handle, out owner)); }); } }
+  public byte[] CaptureOwnedForegroundWindow() {
+    return OnPeer<byte[]>(delegate {
+      uint owner;
+      GetWindowThreadProcessId(handle, out owner);
+      WindowRect rectangle;
+      if (GetForegroundWindow() != handle || owner != (uint)System.Diagnostics.Process.GetCurrentProcess().Id ||
+          !GetWindowRect(handle, out rectangle)) throw new InvalidOperationException("ime_capture_requires_owned_foreground");
+      int width = rectangle.right - rectangle.left, height = rectangle.bottom - rectangle.top;
+      if (width <= 0 || height <= 0 || width > 2048 || height > 2048) throw new InvalidOperationException("ime_capture_bound");
+      using (var bitmap = new System.Drawing.Bitmap(width, height))
+      using (var graphics = System.Drawing.Graphics.FromImage(bitmap))
+      using (var output = new System.IO.MemoryStream()) {
+        graphics.CopyFromScreen(rectangle.left, rectangle.top, 0, 0, bitmap.Size);
+        bitmap.Save(output, System.Drawing.Imaging.ImageFormat.Png);
+        return output.ToArray();
+      }
+    });
+  }
 
   void CheckTarget(IntPtr expected) {
     if (disposed || expected == IntPtr.Zero || GetForegroundWindow() != expected)
@@ -159,7 +190,12 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
     foreach (char character in text) {
       if (character < 'a' || character > 'z') throw new InvalidOperationException("ascii_fixture_only_lowercase_letters");
       ushort key = (ushort)(character - 'a' + 'A');
-      inputs.Add(Key(key, false)); inputs.Add(Key(key, true));
+      uint scan = MapVirtualKey(key, 0);
+      if (scan == 0 || scan > 0xff) throw new InvalidOperationException("latin_key_scan_unavailable");
+      Input down = new Input { type = 1, data = new InputData {
+        keyboard = new KeyboardInput { scan = (ushort)scan, flags = 8 } } };
+      Input up = down; up.data.keyboard.flags |= 2;
+      inputs.Add(down); inputs.Add(up);
     }
     Send(target, inputs.ToArray());
   }

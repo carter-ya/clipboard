@@ -32,14 +32,18 @@ suspend/resume unverified. The interactive gates below continue to track them.
 
 Manual runs may select `windows_input_environment: inspect` for a content-free
 OS/display/input inventory, or `prepare` to request the official Chinese basic
-typing capability and user input profile on that disposable Windows VM. These
-modes run only the eight-minute-bounded environment job, with no Swift build,
+typing capability and user input profile on that disposable Windows VM.
+Preparation also starts the available Windows text-input service and requests the
+system CTF monitor in that VM; service states are recorded without process scans.
+Both modes run only the eight-minute-bounded environment job, with no Swift build,
 model transfer, clipboard access, sleep or restart. Preparation then exercises
 the actual Windows input method in an owned native editor: Latin key events
 must produce composition and candidates, Escape must cancel without committing,
 Space must commit the observed first Chinese candidate and a number key must
 commit the observed distinct second candidate. No Unicode input packets supply
-these results. `ime-receipt.json` records only fixed stages/counts. GTK app
+these results. `ime-receipt.json` records only fixed stages/counts. A failed
+native probe may capture only its owned foreground synthetic editor for visual
+diagnosis before cleanup. GTK app
 composition integration remains a separate gate. The default
 is `off`; PR/main acceptance keeps its normal platforms and scope. The retained
 `input-environment.json` separates provisioned resources from actual IME

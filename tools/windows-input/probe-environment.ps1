@@ -27,6 +27,8 @@ $report = [ordered]@{
     'This inventory/provisioning step does not send keys, access clipboard, sleep, change displays or restart.');
   errorType = $null; errorCode = $null
 }
+$report.inputServices = @()
+$report.ctfMonitorRequested = $false
 try {
   $capabilityName = 'Language.Basic~~~zh-CN~0.0.1.0'
   $capability = Get-WindowsCapability -Online -Name $capabilityName
@@ -46,6 +48,19 @@ try {
       $languages.Add('zh-CN')
       Set-WinUserLanguageList -LanguageList $languages -Force
     }
+    foreach ($name in @('TextInputManagementService', 'TabletInputService')) {
+      $service = Get-Service -Name $name -ErrorAction SilentlyContinue
+      if ($service) {
+        if ($service.StartType -eq 'Disabled') { Set-Service -Name $name -StartupType Manual }
+        if ($service.Status -ne 'Running') { Start-Service -Name $name }
+      }
+    }
+    $brokerPath = Join-Path ([Environment]::GetFolderPath('System')) 'ctfmon.exe'
+    if (Test-Path -LiteralPath $brokerPath -PathType Leaf) {
+      $broker = Start-Process -FilePath $brokerPath -PassThru
+      $report.ctfMonitorRequested = $true
+      $broker.Dispose()
+    }
   }
   $languages = @(Get-WinUserLanguageList)
   $report.chineseInputProfileCount = @($languages | Where-Object {
@@ -54,6 +69,8 @@ try {
   $report.inputLanguages = @([Windows.Forms.InputLanguage]::InstalledInputLanguages | ForEach-Object {
     $_.Culture.Name
   } | Sort-Object -Unique)
+  $report.inputServices = @(Get-Service -Name 'TextInputManagementService', 'TabletInputService' -ErrorAction SilentlyContinue |
+    ForEach-Object { @{ name = $_.Name; state = [string]$_.Status; startup = [string]$_.StartType } })
   $report.provisioningComplete = $report.basicTypingStateAfter -eq 'Installed' -and
     !$report.restartNeeded -and $report.chineseInputProfileCount -gt 0
 } catch {

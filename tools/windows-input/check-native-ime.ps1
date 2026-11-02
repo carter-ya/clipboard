@@ -4,7 +4,8 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or $env:OS -ne 'Windows_NT') { throw 'native
 Add-Type -Path (Join-Path $PSScriptRoot '../desktop-ui/windows-keyboard-fixture.cs') `
   -ReferencedAssemblies @('System.dll', 'System.Core.dll', 'System.Windows.Forms.dll', 'System.Drawing.dll')
 $report = [ordered]@{ passed = $false; stage = 'starting'; checks = @();
-  errorType = $null; errorCode = $null; activationResult = $null;
+  errorType = $null; errorCode = $null; activationResult = $null; inputLayout = $null;
+  keyMessages = 0; scannedKeyMessages = 0; imeMessages = 0;
   imeOpen = $false; compositionLength = 0; candidateCount = 0;
   textLength = 0; limitations = @('Actual Windows input method in an owned native editor; GTK application integration is a separate gate.') }
 $peer = $null
@@ -64,9 +65,16 @@ try {
   $report.errorCode = $failure.HResult
 } finally {
   if ($peer) {
+    if (!$report.passed) {
+      try { [IO.File]::WriteAllBytes([IO.Path]::ChangeExtension($Output, 'png'), $peer.CaptureOwnedForegroundWindow()) } catch { }
+    }
     try {
       $report.imeOpen = $peer.ImeOpen
       $report.activationResult = $peer.ImeActivationResult
+      $report.inputLayout = $peer.InputLayout
+      $report.keyMessages = $peer.KeyMessageCount
+      $report.scannedKeyMessages = $peer.ScannedKeyMessageCount
+      $report.imeMessages = $peer.ImeMessageCount
       $report.compositionLength = $peer.CompositionLength
       $report.candidateCount = $peer.CandidateCount
       $report.textLength = $peer.Text.Length

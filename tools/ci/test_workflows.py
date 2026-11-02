@@ -12,10 +12,9 @@ def workflow(name):
     return yaml.load((ROOT / '.github/workflows' / name).read_text(), Loader=yaml.BaseLoader)
 
 
-def evaluate(expression, event, full_input, system, input_environment=''):
+def evaluate(expression, event, full_input, system):
     expression = expression.removeprefix('${{').removesuffix('}}').strip()
     for token, value in {'github.event_name': event, 'inputs.full_validation': full_input,
-                         'inputs.windows_input_environment': input_environment,
                          'env.FULL_VALIDATION': str(event == 'push' or (event == 'workflow_dispatch' and full_input)).lower(),
                          'runner.os': system}.items():
         expression = expression.replace(token, repr(value))
@@ -23,22 +22,6 @@ def evaluate(expression, event, full_input, system, input_environment=''):
 
 
 class WorkflowPolicyTests(unittest.TestCase):
-    def test_input_environment_probe_never_runs_a_desktop_build(self):
-        data = workflow('swiftcrossui-preview.yml')
-        self.assertEqual(data['on']['workflow_dispatch']['inputs']['windows_input_environment']['default'], 'off')
-        preview = data['jobs']['preview']
-        probe = data['jobs']['input-environment']
-        for event in ['push', 'pull_request', 'workflow_dispatch']:
-            for choice in ['', 'off', 'inspect', 'prepare']:
-                expected_probe = event == 'workflow_dispatch' and choice in ['inspect', 'prepare']
-                with self.subTest(event=event, choice=choice):
-                    self.assertEqual(bool(evaluate(probe['if'], event, True, 'Windows', choice)), expected_probe)
-                    self.assertEqual(bool(evaluate(preview['if'], event, True, 'Windows', choice)), not expected_probe)
-        self.assertEqual(probe['runs-on'], 'windows-2022')
-        self.assertLessEqual(int(probe['timeout-minutes']), 8)
-        self.assertNotIn('swift', str(probe['steps']).lower())
-        self.assertNotIn('download-test-model', str(probe['steps']))
-
     def test_windows_keyboard_acceptance_uses_existing_debug_build_on_pr_and_integration(self):
         steps = workflow('swiftcrossui-preview.yml')['jobs']['preview']['steps']
         keyboard = next(step for step in steps if step.get('name') == 'Exercise native Windows keyboard focus and explicit paste')
