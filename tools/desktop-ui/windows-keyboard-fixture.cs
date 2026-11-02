@@ -6,6 +6,12 @@ using System.Threading;
 using System.Windows.Forms;
 
 public sealed class ClipboardKeyboardFixture : IDisposable {
+  public sealed class TargetImeStatus {
+    public long Layout;
+    public int Language;
+    public bool WindowPresent, QuerySucceeded, Open;
+    public ulong Conversion;
+  }
   [StructLayout(LayoutKind.Sequential)] struct KeyboardInput {
     public ushort key, scan;
     public uint flags, time;
@@ -193,6 +199,26 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
     CheckTarget(target, false);
     uint process;
     return (int)((long)GetKeyboardLayout(GetWindowThreadProcessId(target, out process)) & 0xffff);
+  }
+  // Content-free observation of the owned target only. These WM_IME_CONTROL
+  // commands query state; they never set a profile, mode, text or composition.
+  public TargetImeStatus ReadTargetImeStatus(IntPtr target) {
+    CheckTarget(target, false);
+    uint process;
+    long layout = GetKeyboardLayout(GetWindowThreadProcessId(target, out process)).ToInt64();
+    var state = new TargetImeStatus { Layout = layout, Language = (int)(layout & 0xffff) };
+    IntPtr ime = ImmGetDefaultIMEWnd(target);
+    state.WindowPresent = ime != IntPtr.Zero;
+    if (!state.WindowPresent) return state;
+    UIntPtr open = UIntPtr.Zero, conversion = UIntPtr.Zero;
+    state.QuerySucceeded =
+      SendMessageTimeout(ime, 0x0283, new UIntPtr(5), IntPtr.Zero, 3, 1000, out open) != IntPtr.Zero &&
+      SendMessageTimeout(ime, 0x0283, new UIntPtr(1), IntPtr.Zero, 3, 1000, out conversion) != IntPtr.Zero;
+    if (state.QuerySucceeded) {
+      state.Open = open.ToUInt64() != 0;
+      state.Conversion = conversion.ToUInt64();
+    }
+    return state;
   }
   // Query only the OS-created IME window associated with this owned target.
   // This does not set conversion flags or synthesize composition messages.

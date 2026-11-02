@@ -1131,6 +1131,17 @@
             "windows_debug_keyboard": 63,
             "scope": "head562ce12; do not use as exact-head evidence for newer security/decoder changes"
           }
+        },
+        "windows_ime_reliability_followup": {
+          "branch": "codex/windows-ime-state-diagnostics",
+          "status": "diagnosis_in_progress_not_fixed",
+          "failed_main_run": 41475202168,
+          "head": "6ceedf366667ac90b80d3128a23be24b07682f64",
+          "failure": "ime_complete_native_candidates_before_cancel",
+          "observed": "Independent native IME7, browser17, RTF10, actual Notepad English/Chinese and ordinary keyboard input pass. GTK actual search contains literal nihao with no candidate UI; no pass claimed for actual GTK IME or installed scope.",
+          "diagnostic": "Read-only owned-target HKL/language/default-IME open/conversion status, candidate-host and fixed synthetic query booleans before/after profile selection/mode shortcut/Latin input and on the existing failed candidate wait. Existing key batches, 40s action deadlines and exact candidate/commit assertions stay unchanged.",
+          "local_validation": "Actual keyboard fixture compiles CSharp5/net48; existing actual keyboard argument/caret checks pass without desktop input.",
+          "next": "Narrow application Actions mode with cached Debug/Release/installer keyboard only, no model fixtures or complete GUI suite."
         }
       }
     }

@@ -166,17 +166,23 @@ function Invoke-WindowsChineseImeAcceptance($KeyboardPeer) {
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x11, 0x41))
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x08))
   Wait-For { Get-EditorWithValue '' } 'ime_empty_search_before_language_switch' | Out-Null
+  $script:imeModeShortcutSent = $false
+  Save-WindowsImeTargetState 'before_profile_switch' $KeyboardPeer
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x5b, 0x20))
   Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and $KeyboardPeer.TargetInputLanguage($nativeWindowHandle) -eq 0x0804 } 'ime_actual_os_shortcut_selects_chinese_profile' | Out-Null
+  Save-WindowsImeTargetState 'after_profile_switch' $KeyboardPeer
   if (!$KeyboardPeer.TargetChineseMode($nativeWindowHandle)) {
     $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x10))
+    $script:imeModeShortcutSent = $true
   }
   Wait-For { $KeyboardPeer.TargetChineseMode($nativeWindowHandle) } 'ime_actual_chinese_conversion_mode' | Out-Null
+  Save-WindowsImeTargetState 'chinese_before_latin' $KeyboardPeer
 
   # Pinyin candidate generation is asynchronous even with ordered OS key events.
   # A selection key must wait for the complete native candidate pair, not just
   # for Latin keys to have entered the input queue.
   $KeyboardPeer.TypeLatinKeys($nativeWindowHandle, 'nihao')
+  Save-WindowsImeTargetState 'first_latin_submitted' $KeyboardPeer
   Wait-WindowsPinyinCandidates 'ime_complete_native_candidates_before_cancel'
   Add-Check 'actual_pinyin_candidates_are_visible_native_controls' $true
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x1b))
@@ -270,7 +276,7 @@ function Get-WindowsPinyinHost {
 }
 
 function Wait-WindowsPinyinCandidates([string]$Stage) {
-  Wait-For {
+  try { Wait-For {
     $candidateHost = Get-WindowsPinyinHost
     if (!$candidateHost) { return $false }
     $condition = [Windows.Automation.PropertyCondition]::new(
@@ -281,7 +287,31 @@ function Wait-WindowsPinyinCandidates([string]$Stage) {
     $second = $buttons[1].GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
     $buttons[0].Current.IsEnabled -and $buttons[1].Current.IsEnabled -and
       $first -ceq '你好' -and $second -ceq '你号'
-  } $Stage | Out-Null
+  } $Stage | Out-Null } catch {
+    Save-WindowsImeTargetState ($Stage + '_failed') $script:imeDiagnosticPeer
+    throw
+  }
+}
+
+function Save-WindowsImeTargetState([string]$Stage, $KeyboardPeer) {
+  if (!$ChineseIme -or !$KeyboardOnly -or $env:GITHUB_ACTIONS -ne 'true' -or $env:OS -ne 'Windows_NT') {
+    throw 'ime_status_receipt_requires_owned_keyboard_profile'
+  }
+  $script:imeDiagnosticPeer = $KeyboardPeer
+  $receipt = [ordered]@{ stage = $Stage; modeShortcutSent = [bool]$script:imeModeShortcutSent;
+    target = $null; foregroundMatches = $false; candidateHostPresent = $false;
+    queryIsLatinNihao = $false; queryIsEmpty = $false; errorType = $null }
+  try {
+    $receipt.target = $KeyboardPeer.ReadTargetImeStatus($nativeWindowHandle)
+    $receipt.foregroundMatches = [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle
+    $receipt.candidateHostPresent = $null -ne (Get-WindowsPinyinHost)
+    $receipt.queryIsLatinNihao = $null -ne (Get-EditorWithValue 'nihao')
+    $receipt.queryIsEmpty = $null -ne (Get-EditorWithValue '')
+  } catch { $receipt.errorType = $_.Exception.GetType().FullName }
+  try {
+    $receipt | ConvertTo-Json -Depth 5 -Compress |
+      Add-Content -Encoding UTF8 (Join-Path $OutputDirectory 'ime-target-state.jsonl')
+  } catch { Write-Warning 'owned_ime_status_receipt_unavailable' }
 }
 
 function Invoke-WindowsKeyboardButton([string]$Label, $KeyboardPeer) {

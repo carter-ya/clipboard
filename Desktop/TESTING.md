@@ -722,3 +722,12 @@ permutations match the independent reference. The preprocessed Linux adapter
 is byte-identical before/after, and both Linux GNU C syntax checks pass. This
 closes the native bitmap-transform defect; ordinary platform/UI review and
 installed product/browser confirmation remain required. No ICC claim is made.
+
+Main Windows integration41475202168 fails the GTK candidate gate after the
+independent native IME7/browser17/RTF10 references and ordinary Notepad English/
+Chinese input pass. The owned search contains literal `nihao` with no candidate
+UI. This remains a failed gate, not an accepted environment exception. The next
+narrow application probe adds only content-free owned-target HKL/language, IME
+open/conversion, candidate-host and fixed-query booleans around profile/mode
+selection and submitted input, plus a failure receipt. It does not change any
+key batch, retry input, change a deadline or relax candidate/commit assertions.
