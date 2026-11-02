@@ -125,6 +125,12 @@ jobs:
           python -m pip install --disable-pip-version-check PyYAML==6.0.3
           python -m unittest discover -s tools/ci -p 'test_*.py' -v
           python tools/desktop-ui/test-input-environment-policy.py
+      - name: Verify native browser formats before application builds
+        if: runner.os == 'Windows' && env.CHINESE_IME_VALIDATION == 'true'
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force ui-artifacts/input | Out-Null
+          & ./tools/desktop-ui/check-windows-browser.ps1 -Output ui-artifacts/input/browser.json
       - name: Verify private fixture interpreter and pipe encoding
         shell: pwsh
         run: |
@@ -291,7 +297,7 @@ jobs:
           $BinaryDirectory = (& swift build --package-path Desktop --configuration debug --show-bin-path).Trim()
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $ImeArguments = @()
-          if ($env:CHINESE_IME_VALIDATION -eq 'true') { $ImeArguments += '-ChineseIme' }
+          if ($env:CHINESE_IME_VALIDATION -eq 'true') { $ImeArguments += @('-ChineseIme', '-BrowserPaste') }
           & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
             -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -KeyboardOnly -OutputDirectory ui-artifacts/keyboard @ImeArguments
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -351,7 +357,7 @@ jobs:
           ./tools/desktop-ui/install-windows-gtk.ps1 -ConfigureOnly
           ./tools/desktop-package/build-windows-installer.ps1 -Binary (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -Output dist
           $Installer = (Get-ChildItem dist/*-setup.exe | Select-Object -First 1).FullName
-          ./tools/desktop-package/check-windows-install.ps1 -Installer $Installer -Output ui-artifacts/keyboard-package -Probe tools/desktop-ui/smoke-windows.ps1 -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png -KeyboardOnly -ChineseIme
+          ./tools/desktop-package/check-windows-install.ps1 -Installer $Installer -Output ui-artifacts/keyboard-package -Probe tools/desktop-ui/smoke-windows.ps1 -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png -KeyboardOnly -ChineseIme -BrowserPaste
       - name: Exercise GTK window and capture screenshots
         if: env.FULL_VALIDATION == 'true' && runner.os == 'Linux'
         shell: bash
@@ -477,7 +483,7 @@ jobs:
           ./tools/desktop-ui/install-windows-gtk.ps1 -ConfigureOnly
           ./tools/desktop-package/build-windows-installer.ps1 -Binary (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -Output dist
           $Installer = (Get-ChildItem dist/*-setup.exe | Select-Object -First 1).FullName
-          ./tools/desktop-package/check-windows-install.ps1 -Installer $Installer -Output ui-artifacts/package -Probe tools/desktop-ui/smoke-windows.ps1 -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png -SummaryModel $env:CLIPBOARD_TEST_SUMMARY_MODEL -EntityModel $env:CLIPBOARD_TEST_ENTITY_MODEL -ModelDefinitions Core/Sources/ClipboardCore/Resources -ChineseIme
+          ./tools/desktop-package/check-windows-install.ps1 -Installer $Installer -Output ui-artifacts/package -Probe tools/desktop-ui/smoke-windows.ps1 -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png -SummaryModel $env:CLIPBOARD_TEST_SUMMARY_MODEL -EntityModel $env:CLIPBOARD_TEST_ENTITY_MODEL -ModelDefinitions Core/Sources/ClipboardCore/Resources -ChineseIme -BrowserPaste
       - name: Upload installable previews and checksums
         if: env.FULL_VALIDATION == 'true'
         uses: actions/upload-artifact@v4

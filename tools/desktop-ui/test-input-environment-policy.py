@@ -37,6 +37,7 @@ class InputEnvironmentPolicyTests(unittest.TestCase):
         expression = data['env']['CHINESE_IME_VALIDATION'].removeprefix('${{').removesuffix('}}').strip()
         steps = data['jobs']['preview']['steps']
         provision = next(step for step in steps if step.get('name') == 'Provision and verify the actual Windows Chinese input method')
+        browser = next(step for step in steps if step.get('name') == 'Verify native browser formats before application builds')
         keyboard = next(step for step in steps if step.get('name') == 'Exercise native Windows keyboard focus and explicit paste')
         for event in ['push', 'pull_request', 'workflow_dispatch']:
             for full in [False, True]:
@@ -49,10 +50,18 @@ class InputEnvironmentPolicyTests(unittest.TestCase):
                         condition = provision['if'].replace('runner.os', repr(system)).replace('env.CHINESE_IME_VALIDATION', repr(str(enabled).lower()))
                         actual = eval(condition.replace('&&', ' and '), {'__builtins__': {}})
                         self.assertEqual(bool(actual), system == 'Windows' and expected)
+                        browser_condition = browser['if'].replace('runner.os', repr(system)).replace('env.CHINESE_IME_VALIDATION', repr(str(enabled).lower()))
+                        self.assertEqual(bool(eval(browser_condition.replace('&&', ' and '), {'__builtins__': {}})), system == 'Windows' and expected)
         self.assertLess(steps.index(provision), steps.index(keyboard))
         self.assertIn('check-native-ime.ps1', provision['run'])
         self.assertIn("$env:CHINESE_IME_VALIDATION -eq 'true'", keyboard['run'])
         self.assertIn("'-ChineseIme'", keyboard['run'])
+        self.assertIn("'-BrowserPaste'", keyboard['run'])
+        self.assertLess(steps.index(browser), next(index for index, step in enumerate(steps) if step.get('name') == 'Install Swift 6.3.3 on Windows'))
+        self.assertIn('check-windows-browser.ps1', browser['run'])
+        for step in steps:
+            if 'check-windows-install.ps1' in step.get('run', ''):
+                self.assertIn('-BrowserPaste', step['run'])
         self.assertIn('-ChineseIme', next(step for step in steps if 'check-windows-install.ps1' in step.get('run', ''))['run'])
 
     def test_probe_never_runs_a_desktop_build_or_changes_normal_event_scope(self):

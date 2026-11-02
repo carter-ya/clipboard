@@ -125,6 +125,22 @@ The original complete HTML text/default-bold assertions pass unchanged after
 the reference writer supplies explicit UTF-8 bytes instead of a managed string.
 This reference pass does not establish product or installed-app format acceptance.
 
+The optional private `-KeyboardOnly -BrowserPaste` mode connects that same owned
+browser receiver to actual Clipboard capture and copy. An independent native
+writer supplies text/HTML/PNG/two existing files while capture is explicitly on;
+the persisted new record and unique query must appear before capture is paused.
+From empty foreground Chrome the actual registered shortcut must focus the app's
+retained query; Enter must write a fresh clipboard revision, promote that record
+and hide. Chrome must remain empty until actual Ctrl+V, then satisfy the unchanged
+native reference text, HTML bold, PNG pixels and file-name/byte assertions.
+Original file hashes must remain unchanged. The owned browser job/profile must
+be removed on success or failure, and content-free diagnostics remain bounded.
+This extension is pending native validation. Manual application input and full
+integration add it after the existing keyboard/IME/Notepad checks in Debug and
+the installed Release; ordinary PRs keep their one-Debug-build scope and do not
+start Chrome. A cheap browser reference gate runs before those integration builds,
+and keyboard-package mode still refuses optional model fixtures/downloads.
+
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
 installation. They first run the Debug checks and save their dependency cache,

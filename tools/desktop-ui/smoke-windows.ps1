@@ -8,6 +8,7 @@
       [switch]$ModelSettingsOnly,
       [switch]$KeyboardOnly,
       [switch]$ChineseIme,
+      [switch]$BrowserPaste,
       [switch]$LocalTextOnly,
       [switch]$LocalFileModelsOnly,
       [switch]$ModelOperationsOnly,
@@ -17,6 +18,7 @@
       [int]$LifecycleCycles = 0)
 $ErrorActionPreference = 'Stop'
 if ($ChineseIme -and !$KeyboardOnly) { throw 'chinese_ime_requires_keyboard_only_profile' }
+if ($BrowserPaste -and !$KeyboardOnly) { throw 'browser_paste_requires_keyboard_only_profile' }
 if (@($ModelSettingsOnly, $KeyboardOnly, $LocalTextOnly, $ModelOperationsOnly, $LocalFileModelsOnly | Where-Object { $_ }).Count -gt 1) {
   throw 'private_model_modes_are_mutually_exclusive'
 }
@@ -897,6 +899,10 @@ try {
     Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'initial_history' | Out-Null
     Add-Check 'native_window_and_history_visible' $true
     if ($KeyboardOnly) {
+      if ($BrowserPaste) {
+        . (Join-Path $PSScriptRoot 'windows-browser-functions.ps1')
+        . (Join-Path $PSScriptRoot 'windows-browser-acceptance.ps1')
+      }
       . (Join-Path $PSScriptRoot 'windows-notepad-acceptance.ps1')
       . (Join-Path $PSScriptRoot 'windows-keyboard-acceptance.ps1')
       Invoke-WindowsKeyboardAcceptance
@@ -2985,7 +2991,8 @@ try {
     @('Owned Windows Actions keyboard events and explicit text paste into a native test editor and spawned classic Notepad; not physical keyboard hardware.',
       $(if ($ChineseIme) { 'Actual Pinyin cancel/commit/selection and focus handoffs in GTK; native preedit is verified separately in the owned editor.' }
         else { 'Chinese Unicode input does not verify an IME candidate/composition session.' }),
-      'Mixed-monitor DPI, real suspend/resume, rich-format paste and applications other than the tested recipients remain unverified.')
+      $(if ($BrowserPaste) { 'Actual product-to-Chrome text/HTML/PNG/files paste is required; other applications, physical client input, mixed-monitor DPI and real suspend/resume remain unverified.' }
+        else { 'Mixed-monitor DPI, real suspend/resume, rich-format paste and applications other than the tested recipients remain unverified.' }))
   } else {
     @('Native accessibility value/invoke operations and an owned CI-only mouse activation fixture; no keyboard injection in this mode.',
       'Chinese IME and real hotkey focus transfer are not exercised by this mode.')

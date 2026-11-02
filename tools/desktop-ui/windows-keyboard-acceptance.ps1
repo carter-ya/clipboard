@@ -11,6 +11,7 @@ function Invoke-WindowsKeyboardAcceptance {
     @{ input = 'SendInput'; recipient = 'owned native WinForms editor';
        installedChineseLegacyImeCount = $keyboardPeer.InstalledChineseImeCount();
        chineseComposition = $(if ($ChineseIme) { 'required_see_actual_ime_checks' } else { 'not_verified' });
+       browserFormats = $(if ($BrowserPaste) { 'required_see_actual_app_browser_checks' } else { 'not_verified' });
        mixedMonitorDpi = 'not_verified'; suspendResume = 'not_verified' } |
       ConvertTo-Json | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'keyboard-capabilities.json')
 
@@ -135,6 +136,7 @@ function Invoke-WindowsKeyboardAcceptance {
     $keyboardPeer.Chord($keyboardPeer.Handle, [UInt16[]]@(0x11, 0x12, 0x56))
     Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and (Get-Editor).Current.HasKeyboardFocus } 'keyboard_final_reopen' | Out-Null
     if ($ChineseIme) { Invoke-WindowsChineseImeAcceptance $keyboardPeer }
+    if ($BrowserPaste) { Invoke-WindowsBrowserAcceptance $keyboardPeer }
     Invoke-WindowsKeyboardButton 'Settings' $keyboardPeer
     Wait-For { Find-Named 'Preferences' } 'keyboard_quit_settings' | Out-Null
     Invoke-WindowsKeyboardButton 'Quit Clipboard' $keyboardPeer
