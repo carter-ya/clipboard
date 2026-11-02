@@ -1,0 +1,54 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:">
+<title>Clipboard owned paste fixture</title>
+<style>body { font: 18px sans-serif; } #paste { min-height: 180px; border: 2px solid; padding: 12px; }</style>
+<h1>Owned synthetic paste recipient</h1>
+<div id="paste" contenteditable="true" role="textbox" aria-label="Owned paste target"></div>
+<script>
+'use strict';
+(() => {
+  const target = document.getElementById('paste');
+  const state = { owner: '@@OWNER_TOKEN@@', receipts: [], error: null };
+  const base64 = bytes => btoa(String.fromCharCode(...bytes));
+  target.addEventListener('paste', event => {
+    // Observe actual trusted delivery. Never dispatch a paste event or read the
+    // clipboard through navigator.clipboard. Browser default paste still runs.
+    const transfer = event.clipboardData;
+    const receipt = { trusted: event.isTrusted, types: [...transfer.types],
+      text: transfer.getData('text/plain'), html: transfer.getData('text/html'), files: [], ready: false };
+    state.receipts.push(receipt);
+    if (!event.isTrusted || state.receipts.length > 1 || transfer.files.length > 2 ||
+        receipt.text.length > 4096 || receipt.html.length > 16384) {
+      state.error = 'unexpected_paste_scope'; return;
+    }
+    Promise.all([...transfer.files].map(async file => {
+      if (file.size > 16384) throw new Error('file_bound');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      return { name: file.name, type: file.type, size: file.size, data: base64(bytes) };
+    })).then(files => { receipt.files = files; receipt.ready = true; })
+      .catch(() => { state.error = 'file_read_failed'; });
+  });
+  window.clipboardProbe = Object.freeze({
+    reset() { target.replaceChildren(); state.receipts = []; state.error = null; target.focus(); return true; },
+    focus() { target.focus(); return document.activeElement === target; },
+    snapshot() {
+      const image = target.querySelector('img');
+      const original = state.receipts[0] && state.receipts[0].html
+        ? new DOMParser().parseFromString(state.receipts[0].html, 'text/html') : null;
+      let pixels = null;
+      if (image && image.complete && image.naturalWidth > 0 && image.naturalWidth <= 16 && image.naturalHeight <= 16) {
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+        const context = canvas.getContext('2d'); context.drawImage(image, 0, 0);
+        pixels = base64(context.getImageData(0, 0, canvas.width, canvas.height).data);
+      }
+      return { owner: state.owner, receipts: state.receipts, error: state.error,
+        focused: document.activeElement === target, text: target.innerText, content: target.textContent,
+        bold: [...target.querySelectorAll('*')].filter(e => Number(getComputedStyle(e).fontWeight) >= 700).map(e => e.textContent),
+        sourceHtml: original ? { text: original.body.textContent, bold: [...original.querySelectorAll('b,strong')].map(e => e.textContent) } : null,
+        image: image ? { width: image.naturalWidth, height: image.naturalHeight, pixels } : null };
+    }
+  });
+})();
+</script>

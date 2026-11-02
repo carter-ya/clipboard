@@ -40,10 +40,10 @@ on:
         default: all
         options: [all, windows, linux]
       windows_input_environment:
-        description: Inspect/prepare input alone, or select application with platform Windows
+        description: Inspect/prepare input, browser reference alone, or application with platform Windows
         type: choice
         default: 'off'
-        options: ['off', inspect, prepare, application]
+        options: ['off', inspect, prepare, browser, application]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -58,12 +58,13 @@ permissions:
 
 jobs:
   input-environment:
-    if: github.event_name == 'workflow_dispatch' && (inputs.windows_input_environment == 'inspect' || inputs.windows_input_environment == 'prepare')
+    if: github.event_name == 'workflow_dispatch' && (inputs.windows_input_environment == 'inspect' || inputs.windows_input_environment == 'prepare' || inputs.windows_input_environment == 'browser')
     runs-on: windows-2022
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - name: Inspect or provision the isolated Windows input environment
+        if: inputs.windows_input_environment != 'browser'
         shell: powershell
         env:
           PREPARE_CHINESE_INPUT: ${{ inputs.windows_input_environment == 'prepare' }}
@@ -74,6 +75,10 @@ jobs:
         shell: powershell
         run: |
           & ./tools/windows-input/check-native-ime.ps1 -Output ime-receipt.json
+      - name: Exercise native browser input without an application build
+        if: inputs.windows_input_environment == 'browser'
+        shell: powershell
+        run: ./tools/desktop-ui/check-windows-browser.ps1 -Output browser-input.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -82,6 +87,7 @@ jobs:
             input-environment.json
             ime-receipt.json
             ime-receipt.png
+            browser-input.json
           if-no-files-found: error
   preview:
     if: github.event_name != 'workflow_dispatch' || inputs.windows_input_environment == '' || inputs.windows_input_environment == 'off' || inputs.windows_input_environment == 'application'
