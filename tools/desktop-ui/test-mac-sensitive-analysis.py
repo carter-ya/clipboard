@@ -35,7 +35,8 @@ with tempfile.TemporaryDirectory(prefix='clipboard-mac-sensitive-analysis-') as 
             path = old
         sources.append(str(path))
     executable = folder/'probe'
-    command = ['swiftc','-swift-version','5','-parse-as-library','-I',str(binary),
+    command = ['swiftc','-swift-version','5','-parse-as-library',
+               '-I',str(binary/'Modules'),'-I',str(binary),
                '-Xcc','-fmodule-map-file='+str(module_map),'-I',str(ROOT/'Core/Sources/CDesktopModelFiles/include'),
                '-module-cache-path',str(folder/'modules')]
     if args.baseline: command += ['-D','LIFECYCLE_ONLY']

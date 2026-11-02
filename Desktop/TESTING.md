@@ -660,3 +660,8 @@ This reproduces and repairs a startup-readiness defect. The earlier full main
 integration failure reported only an identity mismatch, so its exact underlying
 process state remains unknown until native evidence is collected. Full Debug/
 installed keyboard, Pinyin and original-format paste checks remain required.
+
+The actual Mac analysis probe supports both native SwiftPM `debug/Modules` and
+Xcode `Products/Debug` module layouts. Its hosted module-lookup failure is
+reproduced locally using real compiled artifacts in the native directory layout;
+the corrected lookup passes the complete automatic/manual cancellation probes.
