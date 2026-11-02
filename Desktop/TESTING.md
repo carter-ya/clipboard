@@ -30,6 +30,15 @@ pass. `keyboard-capabilities.json` records installed legacy Chinese IME count
 and explicitly leaves candidate/composition, mixed-monitor DPI and real
 suspend/resume unverified. The interactive gates below continue to track them.
 
+Manual runs may select `windows_input_environment: inspect` for a content-free
+OS/display/input inventory, or `prepare` to request the official Chinese basic
+typing capability and user input profile on that disposable Windows VM. These
+modes run only the eight-minute-bounded environment job, with no Swift build,
+model transfer, keyboard input, clipboard access, sleep or restart. The default
+is `off`; PR/main acceptance keeps its normal platforms and scope. The retained
+`input-environment.json` separates provisioned resources from actual IME
+composition/candidate evidence, which this environment-only job cannot supply.
+
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
 installation. They first run the Debug checks and save their dependency cache,
