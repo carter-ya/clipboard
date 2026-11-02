@@ -147,8 +147,9 @@ product/browser Debug flow passes all 52 keyboard checks at head 8105a30 in run
 41429868239; the independent browser reference passes 11 checks and Core passes
 all 17 native PNG regressions in run 41429427987. The branch Release phase was
 intentionally cancelled after the identical merged main tree started full UI and
-installation acceptance in run 41433432627; installed browser acceptance remains
-pending that run. Manual application input and full integration add it after the existing
+installation acceptance in run 41433432627. That main run now passes all
+Windows native/installed UI (182/210), Debug/installed keyboard (52/52), actual
+model suites and full installer/runtime/upgrade/uninstall (17) checks. Manual application input and full integration add it after the existing
 keyboard/IME/Notepad checks in Debug and
 the installed Release; ordinary PRs keep their one-Debug-build scope and do not
 start Chrome. A cheap browser reference gate runs before those integration builds,
@@ -158,8 +159,10 @@ A subsequent browser-fixture follow-up adds fully transparent and half-transpare
 pixels to the same 3×2 multicolor PNG. The real paste event must expose a complete PNG
 File whose bytes exactly match the independent native writer's original encoded
 image, in addition to exact default DOM dimensions and RGBA pixels. A PNG signature
-alone cannot establish original-file preservation. This stronger fixture is
-pending its separate native reference and application/installed runs.
+alone cannot establish original-file preservation. Native reference run
+41434916229 passes all 11 checks. The same fixture and assertions pass the actual
+product capture/copy/paste path in Debug and installed Release at head 5b95142
+in run 41440536848, with all 63 keyboard checks per configuration.
 
 Manual windows_input_environment richtext mode runs only an eight-minute native
 RTF reference, with no toolchain, browser, IME provisioning, application build or
@@ -172,8 +175,9 @@ must close the receiver and both owned UI threads must stop. This reference is
 also required to survive an actual delayed UI callback after its dispatch wait
 times out. The regression reproduces a late-completion exception before the
 wait-handle lifetime fix; a timed-out queued invocation must retain its event
-until completion. The strengthened reference is pending native validation and
-does not establish application RTF copy or Office
+until completion. Run 41438011509 reproduces that defect; the identical real UI
+regression and all ten reference checks pass in run 41438520654 after the fix.
+This reference alone does not establish application RTF copy or Office
 compatibility. Content-free receipts are saved as richtext-input.json.
 
 The optional private -KeyboardOnly -RtfPaste mode connects that receiver to the
@@ -184,8 +188,20 @@ must hide the app, promote the same record and publish exact original RTF bytes.
 The recipient must remain empty until actual Ctrl+V. The shared native reference
 assertions then require all text and formatting, unchanged clipboard revision,
 actual Alt+F4, retained app selection and complete owned-thread cleanup. Native
-reference and product paths use the same style checker. Application and installed
-acceptance are pending. Manual application/full integration runs enable this
+reference and product paths use the same style checker. Run 41440536848 at head
+5b95142 passes all 63 keyboard checks in Debug and installed Release, native
+browser 11, shared native RTF 10 and narrowed installer/runtime/upgrade/uninstall
+12. Its reports and four-format browser plus RTF receipts have been audited;
+exact PNG bytes/transparency and native RTF formatting are required in both
+configurations. Main full Core run 41433432465 passes all three platforms.
+Main UI run 41433432627 passes complete Linux native/installed checks (181/211)
+and its models/Wayland/scaling/language/install suites. The same run passes
+Windows native/installed UI (182/210), full installation (17), and the native
+and installed actual text (23 each), model-operation (16 each) and file/PDF
+(21 each) suites. All named CP9/CP10 component assertions have been re-audited
+against all four complete native/installed UI reports. These hosted gates do not close
+physical client, Office/additional formats, mixed-monitor DPI or suspend gates.
+Manual application/full integration runs enable this
 alongside the browser checks after a cheap native RTF preflight; ordinary PRs
 retain one Debug configuration and do not start these optional receivers.
 
@@ -340,14 +356,18 @@ A supported alternative does not establish identical model behavior.
 ## Implementation history
 
 The following notes retain the development sequence. Pending statements describe
-those earlier stages. Current feature evidence is run
-[41379565901](https://github.com/carter-ya/clipboard/actions/runs/41379565901),
-with 182/210 native/installed Windows UI checks and 181/211 Linux checks, plus
-actual model and installer suites. Core/platform run
-[41378794849](https://github.com/carter-ya/clipboard/actions/runs/41378794849)
-passes on all three platforms at that same feature head. `harness.json` maps the
-CP9/CP10 component assertions to all four retained UI reports. Later input checks
-and open physical/client gates retain their separately scoped records above.
+those earlier stages. Current complete feature evidence is main run
+[41433432627](https://github.com/carter-ya/clipboard/actions/runs/41433432627)
+at 7885862, with 182/210 native/installed Windows UI checks and 181/211 Linux
+checks, plus actual model and installer suites. Full Core/platform run
+[41433432465](https://github.com/carter-ya/clipboard/actions/runs/41433432465)
+passes all three platforms at that same main head. All named CP9/CP10 component
+assertions are present and true in all four applicable retained UI reports;
+harness.json records their exact scopes. The earlier feature run 41379565901
+remains historical evidence. Later tests-only PNG/RTF acceptance at 5b95142 is
+separately proven in run 41440536848 (63 Debug and 63 installed keyboard checks).
+Physical/client gates remain open; these records do not claim identical entire
+commit trees across the earlier and later evidence heads.
 
 The offline backend now ships a hash-pinned SqueezeNet 1.1 model and ONNX
 Runtime 1.31.1 CPU library with their licenses and dependency notices. Every
