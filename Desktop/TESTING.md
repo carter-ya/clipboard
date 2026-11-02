@@ -366,7 +366,22 @@ original bytes and sensitivity but lack a standard bitmap for recipients, with
 eight bitmap availability/pixel assertions failing. The Windows adapter now
 extends its existing bounded WIC bitmap representation to valid JPEG/TIFF while
 retaining originals and suppressing the derived duplicate on readback. The same
-native regression is pending after the fix; actual app/browser paste, orientation
+native regression passes all 27 checks in Core run 41451204402 at 1d2ac7b,
+including independent pixels, original bytes, sensitivity and cleanup. That
+head also passes three-platform Core and Windows/Linux UI, with 26 ordinary
+Windows keyboard checks. PR59's main merge tree exactly matches the tested head;
+full integration runs 41452804149/41452803944 are in progress.
+
+The lightweight browser reference additionally generates valid opaque 3×2
+JPEG/TIFF with independent GDI+ encoding/decoding. Each source must expose exact
+native encoded bytes and a GDI+ bitmap, without a supplied PNG. Actual Ctrl+V
+into owned Chrome must produce a trusted image/png paste and default DOM raster
+with exact independently decoded RGBA pixels, unchanged clipboard revision and
+the original native JPEG/TIFF bytes still present. The receipt distinguishes
+retained native originals from Chrome's converted PNG; it does not claim that
+Chrome exposes the original encoded file. Existing PNG checks still require
+exact original encoded PNG bytes and transparency. This reference extension is
+pending native execution; actual product JPEG/TIFF capture/copy/paste, orientation
 and color-profile fidelity remain separate, unverified gates.
 
 ## Implementation history

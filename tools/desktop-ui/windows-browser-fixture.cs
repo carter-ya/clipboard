@@ -1,5 +1,6 @@
 // Owned Windows Actions browser only. No production application references.
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Drawing;
@@ -76,7 +77,10 @@ public sealed class ClipboardBrowserFixture : IDisposable {
   public string BoldText { get { return "rich \u4e2d\u6587\ud83d\ude00"; } }
   // Canvas returns zero RGB for fully transparent pixels. Half-transparent
   // magenta also checks alpha without ambiguous rounding of color channels.
-  public string PixelData { get { return Convert.ToBase64String(new byte[] {255,0,0,255, 0,255,0,255, 0,0,0,0, 255,255,0,255, 0,255,255,255, 255,0,255,128}); } }
+  string rasterData;
+  byte[] encodedImage;
+  string encodedKind;
+  public string PixelData { get { return rasterData ?? Convert.ToBase64String(new byte[] {255,0,0,255, 0,255,0,255, 0,0,0,0, 255,255,0,255, 0,255,255,255, 255,0,255,128}); } }
   public string PngData { get; private set; }
   public string[] Files { get { return new string[] { Path.Combine(Root, "alpha \u4e2d\u6587.txt"), Path.Combine(Root, "beta space.txt") }; } }
   static void Guard() {
@@ -221,6 +225,23 @@ public sealed class ClipboardBrowserFixture : IDisposable {
       finally { GlobalUnlock(data); }
     } finally { CloseClipboard(); }
   }
+  public bool EncodedImageMatches(string kind) {
+    Running();
+    if ((kind != "jpeg" && kind != "tiff") || kind != encodedKind ||
+        encodedImage == null || encodedImage.Length > 65536 || !OpenClipboard(IntPtr.Zero)) return false;
+    try {
+      IntPtr value = GetClipboardData(kind == "jpeg" ? RegisterClipboardFormat("JFIF") : 6u);
+      if (value == IntPtr.Zero || GlobalSize(value).ToUInt64() != (ulong)encodedImage.Length) return false;
+      IntPtr pointer = GlobalLock(value);
+      if (pointer == IntPtr.Zero) return false;
+      try {
+        byte[] actual = new byte[encodedImage.Length]; Marshal.Copy(pointer, actual, 0, actual.Length);
+        for (int index = 0; index < actual.Length; index++)
+          if (actual[index] != encodedImage[index]) return false;
+        return true;
+      } finally { GlobalUnlock(value); }
+    } finally { CloseClipboard(); }
+  }
   public void WriteFixture(string kind) {
     Running(); Exception failure = null;
     var writer = new Thread(delegate() {
@@ -238,6 +259,7 @@ public sealed class ClipboardBrowserFixture : IDisposable {
         } else if (kind == "files") {
           var paths = new StringCollection(); paths.AddRange(Files); data.SetFileDropList(paths);
         } else if (kind == "image") {
+          rasterData = null; encodedImage = null; encodedKind = null;
           using (var image = new Bitmap(3, 2))
           using (var png = new MemoryStream()) {
             var colors = new Color[] { Color.Red, Color.Lime, Color.FromArgb(0, 0, 0, 255),
@@ -247,6 +269,34 @@ public sealed class ClipboardBrowserFixture : IDisposable {
             PngData = Convert.ToBase64String(png.ToArray());
             data.SetData("PNG", false, png); data.SetImage(image);
             Clipboard.SetDataObject(data, true, 0, 0); return;
+          }
+        } else if (kind == "jpeg" || kind == "tiff") {
+          using (var image = new Bitmap(3, 2))
+          using (var encoded = new MemoryStream()) {
+            var colors = new Color[] { Color.Red, Color.Lime, Color.Blue, Color.Yellow, Color.Cyan, Color.Magenta };
+            for (int index = 0; index < colors.Length; index++)
+              image.SetPixel(index % 3, index / 3, kind == "jpeg" ? Color.FromArgb(80, 80, 80) : colors[index]);
+            image.Save(encoded, kind == "jpeg" ? System.Drawing.Imaging.ImageFormat.Jpeg : System.Drawing.Imaging.ImageFormat.Tiff);
+            encodedImage = encoded.ToArray(); encodedKind = kind; PngData = null;
+            encoded.Position = 0;
+            using (var decoded = new Bitmap(encoded)) {
+              if (decoded.Width != 3 || decoded.Height != 2) throw new InvalidOperationException("browser_encoded_image_dimensions");
+              var pixels = new List<byte>();
+              for (int row = 0; row < 2; row++)
+                for (int column = 0; column < 3; column++) {
+                  Color color = decoded.GetPixel(column, row);
+                  if (color.A != 255) throw new InvalidOperationException("browser_encoded_image_requires_opaque_fixture");
+                  pixels.AddRange(new byte[] { color.R, color.G, color.B, color.A });
+                }
+              rasterData = Convert.ToBase64String(pixels.ToArray());
+              encoded.Position = 0;
+              data.SetData(kind == "jpeg" ? "JFIF" : DataFormats.Tiff, false, encoded);
+              // Independent GDI+ bitmap fallback, with no supplied PNG. Chrome
+              // converts the native bitmap to PNG; compare its decoded pixels,
+              // while separately requiring the exact native JPEG/TIFF bytes.
+              data.SetImage(decoded);
+              Clipboard.SetDataObject(data, true, 0, 0); return;
+            }
           }
         } else throw new InvalidOperationException("unknown_browser_fixture");
         Clipboard.SetDataObject(data, true, 0, 0);
