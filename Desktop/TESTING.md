@@ -60,6 +60,30 @@ Native Windows Actions [41386908227](https://github.com/carter-ya/clipboard/acti
 passes all five actual IME checks. This proves the provisioned native editor,
 not yet the GTK application search field or physical client hardware.
 
+The follow-up `application` mode with `platform: windows` and
+`full_validation: false` provisions/preflights Pinyin, reuses the Debug build
+and adds actual Win+Space language selection, Escape/Space/number-key candidate
+behavior in GTK, and continued Chinese input after settings and hotkey reopen.
+After Debug passes, this manual mode builds Release from its dependency cache
+and runs the installed keyboard scope while skipping the full GUI/model suites
+and optional model downloads. Installation/runtime integrity and upgrade/
+uninstall checks remain active and the report names `keyboard_package`.
+Full integration retains all native GUI/model suites and installed checks.
+Ordinary PRs retain the existing keyboard checks without provisioning language
+resources. Native execution of this GTK follow-up is pending; adding the
+script does not establish a pass. IME mode queries are read-only and bounded;
+only real language/mode shortcuts and Latin key events change input.
+Post-focus append checks establish the insertion point with actual Ctrl+A/Right,
+validated independently in the owned native Pinyin editor. Native candidate
+buttons must contain the complete expected pair before selection keys.
+The private Windows Actions profile also enables a read-only native GTK state
+receipt. Ctrl+A must establish the actual full selection; Right must then
+produce a fresh collapsed end position on that same mapped, focused editor
+before the script begins another composition. The receipt contains only
+lengths, numeric widget identities, selection/cursor offsets and booleans.
+It never sets text, selection or focus, and normal profiles/platforms cannot
+enable it. The authorization function is exercised in 96 compiled cases.
+
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
 installation. They first run the Debug checks and save their dependency cache,

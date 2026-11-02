@@ -40,10 +40,10 @@ on:
         default: all
         options: [all, windows, linux]
       windows_input_environment:
-        description: Inspect or prepare Chinese input without building the app
+        description: Inspect/prepare input alone, or select application with platform Windows
         type: choice
         default: 'off'
-        options: ['off', inspect, prepare]
+        options: ['off', inspect, prepare, application]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -51,6 +51,7 @@ concurrency:
 
 env:
   FULL_VALIDATION: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.full_validation) }}
+  CHINESE_IME_VALIDATION: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.full_validation || inputs.windows_input_environment == 'application')) }}
 
 permissions:
   contents: read
@@ -83,7 +84,7 @@ jobs:
             ime-receipt.png
           if-no-files-found: error
   preview:
-    if: github.event_name != 'workflow_dispatch' || inputs.windows_input_environment == '' || inputs.windows_input_environment == 'off'
+    if: github.event_name != 'workflow_dispatch' || inputs.windows_input_environment == '' || inputs.windows_input_environment == 'off' || inputs.windows_input_environment == 'application'
     name: UI / ${{ matrix.os }} / ${{ matrix.backend }}
     strategy:
       fail-fast: false
@@ -105,6 +106,13 @@ jobs:
       CLIPBOARD_UI_DIAGNOSTICS: '1'
     steps:
       - uses: actions/checkout@v4
+      - name: Provision and verify the actual Windows Chinese input method
+        if: runner.os == 'Windows' && env.CHINESE_IME_VALIDATION == 'true'
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force ui-artifacts/input | Out-Null
+          & ./tools/windows-input/probe-environment.ps1 -Prepare -Output ui-artifacts/input/environment.json
+          & ./tools/windows-input/check-native-ime.ps1 -Output ui-artifacts/input/native-ime.json
       - name: Verify CI policy and stable cache identifiers
         if: runner.os == 'Linux'
         run: |
@@ -229,6 +237,8 @@ jobs:
           }
       - name: Verify content validation follows queued saves
         run: python tools/desktop-ui/test-content-validation-order.py
+      - name: Verify native input state is restricted to the owned Windows fixture
+        run: python tools/desktop-ui/test-ime-state-guard.py
       - name: Build Desktop UI
         shell: pwsh
         run: |
@@ -274,18 +284,20 @@ jobs:
         run: |
           $BinaryDirectory = (& swift build --package-path Desktop --configuration debug --show-bin-path).Trim()
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $ImeArguments = @()
+          if ($env:CHINESE_IME_VALIDATION -eq 'true') { $ImeArguments += '-ChineseIme' }
           & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
-            -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -KeyboardOnly -OutputDirectory ui-artifacts/keyboard
+            -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -KeyboardOnly -OutputDirectory ui-artifacts/keyboard @ImeArguments
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Restore compiled release dependencies
-        if: env.FULL_VALIDATION == 'true'
+        if: (env.FULL_VALIDATION == 'true' || (github.event_name == 'workflow_dispatch' && inputs.windows_input_environment == 'application' && runner.os == 'Windows'))
         id: release-cache
         uses: ./.github/actions/swift-build-cache
         with:
           package: Desktop
           configuration: release
       - name: Restore release dependency symbolic links on Windows
-        if: env.FULL_VALIDATION == 'true' && runner.os == 'Windows' && steps.release-cache.outputs.cache-matched-key != ''
+        if: (env.FULL_VALIDATION == 'true' || (github.event_name == 'workflow_dispatch' && inputs.windows_input_environment == 'application' && runner.os == 'Windows')) && runner.os == 'Windows' && steps.release-cache.outputs.cache-matched-key != ''
         shell: pwsh
         run: |
           # Windows cache extraction can leave relative directory links unresolved.
@@ -303,7 +315,7 @@ jobs:
             }
           }
       - name: Build optimized desktop artifacts
-        if: env.FULL_VALIDATION == 'true'
+        if: (env.FULL_VALIDATION == 'true' || (github.event_name == 'workflow_dispatch' && inputs.windows_input_environment == 'application' && runner.os == 'Windows'))
         shell: pwsh
         run: |
           & python tools/desktop-ui/build-desktop.py --configuration release --jobs 2 2>&1 | Tee-Object -FilePath release-build.log
@@ -317,11 +329,23 @@ jobs:
           & swift build --package-path Core --scratch-path Desktop/.build --configuration release --jobs 2 --product scenario-runner
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Save compiled release dependencies before full acceptance
-        if: env.FULL_VALIDATION == 'true' && steps.release-cache.outputs.cache-hit != 'true'
+        if: (env.FULL_VALIDATION == 'true' || (github.event_name == 'workflow_dispatch' && inputs.windows_input_environment == 'application' && runner.os == 'Windows')) && steps.release-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: Desktop/.build
           key: ${{ steps.release-cache.outputs.key }}
+      - name: Build and exercise Windows keyboard installer
+        if: github.event_name == 'workflow_dispatch' && inputs.windows_input_environment == 'application' && env.FULL_VALIDATION != 'true' && runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CLIPBOARD_PRIVATE_INSTALL_TEST: '1'
+        run: |
+          $BinaryDirectory = (& swift build --package-path Desktop --configuration release --show-bin-path).Trim()
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./tools/desktop-ui/install-windows-gtk.ps1 -ConfigureOnly
+          ./tools/desktop-package/build-windows-installer.ps1 -Binary (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -Output dist
+          $Installer = (Get-ChildItem dist/*-setup.exe | Select-Object -First 1).FullName
+          ./tools/desktop-package/check-windows-install.ps1 -Installer $Installer -Output ui-artifacts/keyboard-package -Probe tools/desktop-ui/smoke-windows.ps1 -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png -KeyboardOnly -ChineseIme
       - name: Exercise GTK window and capture screenshots
         if: env.FULL_VALIDATION == 'true' && runner.os == 'Linux'
         shell: bash
@@ -447,7 +471,7 @@ jobs:
           ./tools/desktop-ui/install-windows-gtk.ps1 -ConfigureOnly
           ./tools/desktop-package/build-windows-installer.ps1 -Binary (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -Output dist
           $Installer = (Get-ChildItem dist/*-setup.exe | Select-Object -First 1).FullName
-          ./tools/desktop-package/check-windows-install.ps1 -Installer $Installer -Output ui-artifacts/package -Probe tools/desktop-ui/smoke-windows.ps1 -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png -SummaryModel $env:CLIPBOARD_TEST_SUMMARY_MODEL -EntityModel $env:CLIPBOARD_TEST_ENTITY_MODEL -ModelDefinitions Core/Sources/ClipboardCore/Resources
+          ./tools/desktop-package/check-windows-install.ps1 -Installer $Installer -Output ui-artifacts/package -Probe tools/desktop-ui/smoke-windows.ps1 -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png -SummaryModel $env:CLIPBOARD_TEST_SUMMARY_MODEL -EntityModel $env:CLIPBOARD_TEST_ENTITY_MODEL -ModelDefinitions Core/Sources/ClipboardCore/Resources -ChineseIme
       - name: Upload installable previews and checksums
         if: env.FULL_VALIDATION == 'true'
         uses: actions/upload-artifact@v4

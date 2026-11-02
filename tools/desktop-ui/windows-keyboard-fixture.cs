@@ -33,6 +33,8 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
   [DllImport("user32.dll")] static extern IntPtr GetKeyboardLayout(uint thread);
   [DllImport("user32.dll")] static extern uint MapVirtualKey(uint code, uint mapType);
+  [DllImport("user32.dll", SetLastError = true)] static extern IntPtr SendMessageTimeout(IntPtr window, uint message, UIntPtr parameter, IntPtr data, uint flags, uint timeout, out UIntPtr result);
+  [DllImport("imm32.dll")] static extern IntPtr ImmGetDefaultIMEWnd(IntPtr window);
   [DllImport("user32.dll")] static extern int GetKeyboardLayoutList(int count, [Out] IntPtr[] layouts);
   [DllImport("imm32.dll")] static extern bool ImmIsIME(IntPtr layout);
   [DllImport("imm32.dll")] static extern IntPtr ImmGetContext(IntPtr window);
@@ -82,6 +84,11 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
     AppContext.SetSwitch("Switch.System.Windows.Forms.DoNotSupportSelectAllShortcutInMultilineTextBox", false);
     thread = new Thread(delegate() {
       try {
+        InputLanguage english = null;
+        foreach (InputLanguage language in InputLanguage.InstalledInputLanguages)
+          if (language.Culture.Name == "en-US") { english = language; break; }
+        if (english == null) throw new InvalidOperationException("owned_peer_requires_english_input_profile");
+        InputLanguage.CurrentInputLanguage = english;
         form = new Form { Text = "Clipboard owned synthetic paste target", Width = 500, Height = 180 };
         editor = new PasteEditor { Multiline = true, Dock = DockStyle.Fill, AcceptsReturn = true };
         form.Controls.Add(editor);
@@ -132,7 +139,7 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
     });
   }
 
-  void CheckTarget(IntPtr expected) {
+  void CheckTarget(IntPtr expected, bool checkModifiers = true) {
     if (disposed || expected == IntPtr.Zero || GetForegroundWindow() != expected)
       throw new InvalidOperationException("keyboard_target_is_not_foreground");
     uint owner;
@@ -141,13 +148,20 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
         ? owner != (uint)System.Diagnostics.Process.GetCurrentProcess().Id
         : owner != applicationProcess))
       throw new InvalidOperationException("keyboard_target_not_owned");
-    foreach (int modifier in new int[] { 0x10, 0x11, 0x12, 0x5b, 0x5c })
-      if ((GetAsyncKeyState(modifier) & 0x8000) != 0)
-        throw new InvalidOperationException("keyboard_modifier_already_held");
+    if (checkModifiers)
+      foreach (int modifier in new int[] { 0x10, 0x11, 0x12, 0x5b, 0x5c })
+        if ((GetAsyncKeyState(modifier) & 0x8000) != 0)
+          throw new InvalidOperationException("keyboard_modifier_already_held");
   }
   static Input Key(ushort key, bool up) {
+    // Navigation keys and Windows keys carry the E0 extended-key flag on a
+    // physical keyboard. Without it an IME may interpret keypad navigation.
+    bool extended = (key >= 0x21 && key <= 0x28) || key == 0x2d || key == 0x2e ||
+                    key == 0x5b || key == 0x5c || key == 0xa3 || key == 0xa5;
+    ushort scan = (ushort)(MapVirtualKey(key, 0) & 0xff);
+    if (scan == 0) throw new InvalidOperationException("keyboard_virtual_key_has_no_scan_code");
     return new Input { type = 1, data = new InputData {
-      keyboard = new KeyboardInput { key = key, flags = up ? 2u : 0u } } };
+      keyboard = new KeyboardInput { key = key, scan = scan, flags = (extended ? 1u : 0u) | (up ? 2u : 0u) } } };
   }
   void Send(IntPtr target, Input[] inputs) {
     CheckTarget(target);
@@ -174,6 +188,23 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
     foreach (ushort key in keys) inputs.Add(Key(key, false));
     for (int i = keys.Length - 1; i >= 0; i--) inputs.Add(Key(keys[i], true));
     Send(target, inputs.ToArray());
+  }
+  public int TargetInputLanguage(IntPtr target) {
+    CheckTarget(target, false);
+    uint process;
+    return (int)((long)GetKeyboardLayout(GetWindowThreadProcessId(target, out process)) & 0xffff);
+  }
+  // Query only the OS-created IME window associated with this owned target.
+  // This does not set conversion flags or synthesize composition messages.
+  public bool TargetChineseMode(IntPtr target) {
+    CheckTarget(target, false);
+    IntPtr ime = ImmGetDefaultIMEWnd(target);
+    if (ime == IntPtr.Zero) throw new InvalidOperationException("owned_target_ime_window_unavailable");
+    UIntPtr open, conversion;
+    if (SendMessageTimeout(ime, 0x0283, new UIntPtr(5), IntPtr.Zero, 3, 1000, out open) == IntPtr.Zero ||
+        SendMessageTimeout(ime, 0x0283, new UIntPtr(1), IntPtr.Zero, 3, 1000, out conversion) == IntPtr.Zero)
+      throw new InvalidOperationException("owned_target_ime_status_timeout");
+    return open.ToUInt64() != 0 && (conversion.ToUInt64() & 1) != 0;
   }
   public void TypeAscii(IntPtr target, string text) {
     uint ignored;
