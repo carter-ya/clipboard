@@ -626,3 +626,22 @@ uninstall/integrity gates, all 211 full UI/lifecycle checks, eight model setting
 nineteen text-model checks, fourteen model-operation checks and nineteen real
 file-model checks in a runtime-only Linux image without networking or mounted
 development resources. Native Windows exact-head validation remains open.
+
+Sensitive recapture review regressions preserve all representations of the original
+record even when a later capture shares its primary hash but carries fewer
+formats. Snapshot removal must succeed before original blob references are
+released; materialization, snapshot and physical-deletion failures retain an
+explicit pending retry, and concurrent flushes cannot release another record's
+shared reference. Six synthetic Core tests cover these cases and dispatch
+revocation while credentials are held.
+
+`test-sensitive-analysis-revocation.py` executes the actual Desktop store-event
+switch with held tasks: sensitivity cancels the matching work while unrelated
+work remains active. On macOS, `test-mac-sensitive-analysis.py` compiles the
+actual application coordinator and remote summarizer against Core, using only
+private temporary stores, volatile defaults, stub local engines and fake HTTP.
+Automatic and manual held attempts must cancel without a local fallback, and
+a held key-provider case must fail current-item authorization before dispatch
+even without UI cancellation. These probes never start the application UI or
+access the local desktop clipboard. Existing history/import reclassification
+and escaped rich-text tails beyond parser budgets remain open.

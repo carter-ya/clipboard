@@ -136,6 +136,7 @@ public actor FakeDesktopAITransport: DesktopAITransport {
 /// A second privacy gate next to native hints and the store's memory-only rule.
 /// No payload resolution, credential lookup or request happens for sensitive clips.
 public struct DesktopAnalysis: Sendable {
+  public typealias ItemLookup = @Sendable (UUID) async -> ClipItem?
   private let credentials: any DesktopCredentialStoring
   private let transport: any DesktopAITransport
   private let ocr: any DesktopOCRRecognizing
@@ -143,12 +144,14 @@ public struct DesktopAnalysis: Sendable {
   private let fileReader: (any DesktopFileTextReading)?
   private let imageClassifier: (any DesktopImageClassifying)?
   private let localLanguage: (any DesktopLocalLanguageProcessing)?
+  private let latestItem: ItemLookup?
   public init(
     credentials: any DesktopCredentialStoring, transport: any DesktopAITransport,
     ocr: any DesktopOCRRecognizing, blobRoot: URL?,
     fileReader: (any DesktopFileTextReading)? = nil,
     imageClassifier: (any DesktopImageClassifying)? = nil,
-    localLanguage: (any DesktopLocalLanguageProcessing)? = nil
+    localLanguage: (any DesktopLocalLanguageProcessing)? = nil,
+    latestItem: ItemLookup? = nil
   ) {
     self.credentials = credentials
     self.transport = transport
@@ -156,6 +159,7 @@ public struct DesktopAnalysis: Sendable {
     self.fileReader = fileReader
     self.imageClassifier = imageClassifier
     self.localLanguage = localLanguage
+    self.latestItem = latestItem
     resolver = .init(blobRoot: blobRoot)
   }
   private func allow(_ item: ClipItem) throws {
@@ -163,10 +167,22 @@ public struct DesktopAnalysis: Sendable {
       !item.payloads.contains(where: { $0.pasteboardType == SensitivityFilter.concealedType })
     else { throw DesktopServiceError.sensitiveContent }
   }
+  private func revalidate(_ item: ClipItem) async throws {
+    try Task.checkCancellation()
+    try allow(item)
+    if let latestItem {
+      guard let current = await latestItem(item.id), current.id == item.id,
+        current.sha256 == item.sha256
+      else { throw DesktopServiceError.sensitiveContent }
+      try allow(current)
+    }
+    try Task.checkCancellation()
+  }
   public func recognize(_ item: ClipItem, language: String? = nil) async throws -> String {
     let data = try await resolvedImageData(item)
+    try await revalidate(item)
     let text = try await ocr.recognize(data, language: language)
-    try Task.checkCancellation()
+    try await revalidate(item)
     return String(text.prefix(8000))
   }
   /// OCR remains the preferred signal. Empty/unavailable OCR may fall back to
@@ -174,12 +190,13 @@ public struct DesktopAnalysis: Sendable {
   public func summarizeImageLocally(_ item: ClipItem, language: String? = nil) async throws
     -> DesktopLocalImageResult
   {
-    try allow(item)
+    try await revalidate(item)
     guard item.kind == .image else { throw DesktopServiceError.disabled }
     let data = try await resolvedImageData(item)
+    try await revalidate(item)
     do {
       let text = try await ocr.recognize(data, language: language)
-      try Task.checkCancellation()
+      try await revalidate(item)
       let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
       if !trimmed.isEmpty {
         return .init(text: DesktopTextPreview(trimmed, maxUTF8Bytes: 8000).text, source: .localOCR)
@@ -189,12 +206,13 @@ public struct DesktopAnalysis: Sendable {
     }
     try Task.checkCancellation()
     guard let imageClassifier else { throw DesktopServiceError.unavailable }
+    try await revalidate(item)
     let result = try await imageClassifier.classify(data)
-    try Task.checkCancellation()
+    try await revalidate(item)
     return .init(text: result.summary, source: .localImage)
   }
   private func resolvedImageData(_ item: ClipItem) async throws -> Data {
-    try allow(item)
+    try await revalidate(item)
     try Task.checkCancellation()
     guard
       let payload = item.payloads.first(where: {
@@ -203,20 +221,20 @@ public struct DesktopAnalysis: Sendable {
     else { throw DesktopServiceError.invalidValue }
     let resolver = resolver
     let data = try await Task.detached { try resolver.data(for: payload) }.value
-    try Task.checkCancellation()
+    try await revalidate(item)
     guard !data.isEmpty, data.count <= 16 * 1024 * 1024 else {
       throw DesktopServiceError.tooLarge
     }
     return data
   }
   public func summarizeLocally(_ item: ClipItem) async throws -> String {
-    try allow(item)
+    try await revalidate(item)
     guard [.text, .rtf, .mixed, .file].contains(item.kind) else {
       throw DesktopServiceError.disabled
     }
     try Task.checkCancellation()
     let text = try await (item.kind == .file ? resolvedFileText(item) : resolvedText(item))
-    try Task.checkCancellation()
+    try await revalidate(item)
     guard let result = DesktopLocalTextSummary.summarize(text) else {
       throw DesktopServiceError.invalidValue
     }
@@ -225,7 +243,7 @@ public struct DesktopAnalysis: Sendable {
   public func analyzeLanguageLocally(
     _ item: ClipItem, task: DesktopLocalLanguageTask, language: String? = nil
   ) async throws -> DesktopLocalLanguageResult {
-    try allow(item)
+    try await revalidate(item)
     guard [.text, .rtf, .mixed, .file].contains(item.kind) else {
       throw DesktopServiceError.disabled
     }
@@ -238,13 +256,13 @@ public struct DesktopAnalysis: Sendable {
     } else {
       bounded = RichTextPreview.preview(from: try await resolvedTextPayloads(item))
     }
-    try Task.checkCancellation()
+    try await revalidate(item)
     let input = bounded.text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !input.isEmpty, task != .enrichment || input.count >= 100 else {
       throw DesktopServiceError.invalidValue
     }
     let output = try await localLanguage.process(text: input, task: task, language: language)
-    try Task.checkCancellation()
+    try await revalidate(item)
     guard output.task == task else { throw DesktopServiceError.invalidValue }
     return .init(
       text: try output.renderedText(for: input, language: language), task: task,
@@ -271,6 +289,7 @@ public struct DesktopAnalysis: Sendable {
     try DesktopFileTextPolicy.validate(file)
     try Task.checkCancellation()
     guard let fileReader else { throw DesktopServiceError.fileUnavailable }
+    try await revalidate(item)
     let text = try await fileReader.text(from: file, maxBytes: DesktopFileTextPolicy.maximumBytes)
     try Task.checkCancellation()
     guard text.utf8.count <= DesktopFileTextPolicy.maximumBytes else {
@@ -286,8 +305,9 @@ public struct DesktopAnalysis: Sendable {
     RichTextPreview.text(from: try await resolvedTextPayloads(item), limit: 16000)
   }
   private func resolvedTextPayloads(_ item: ClipItem) async throws -> [RawPayload] {
+    try await revalidate(item)
     let resolver = resolver
-    return try await Task.detached {
+    let payloads = try await Task.detached {
       try item.payloads.filter {
         [
           "public.utf8-plain-text", "public.plain-text", "public.string", "public.html",
@@ -296,6 +316,8 @@ public struct DesktopAnalysis: Sendable {
         .contains($0.pasteboardType)
       }.map { RawPayload(pasteboardType: $0.pasteboardType, data: try resolver.data(for: $0)) }
     }.value
+    try await revalidate(item)
+    return payloads
   }
   static func responseLanguage(
     language: String?,
@@ -316,7 +338,7 @@ public struct DesktopAnalysis: Sendable {
   public func summarize(_ item: ClipItem, settings: DesktopAISettings, language: String? = nil)
     async throws -> String
   {
-    try allow(item)
+    try await revalidate(item)
     guard settings.allowsSummary(of: item.kind) else { throw DesktopServiceError.disabled }
     try settings.validate()
     try Task.checkCancellation()
@@ -349,6 +371,7 @@ public struct DesktopAnalysis: Sendable {
     request.httpMethod = "POST"
     request.timeoutInterval = TimeInterval(settings.timeoutSeconds)
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    try await revalidate(item)
     if settings.usesCredential {
       guard let key = try await credentials.read(account: settings.credentialAccount), !key.isEmpty
       else { throw DesktopServiceError.unavailable }
@@ -357,9 +380,9 @@ public struct DesktopAnalysis: Sendable {
     try Task.checkCancellation()
     request.httpBody = try JSONEncoder().encode(
       RemoteOpenAIRequest(model: settings.model, messages: messages, temperature: 0.2))
-    try Task.checkCancellation()
+    try await revalidate(item)
     let response = try await transport.send(request, maxResponseBytes: 64 * 1024)
-    try Task.checkCancellation()
+    try await revalidate(item)
     guard response.status == 200 else { throw DesktopServiceError.networkFailure }
     return String(try decodeRemoteOpenAIResponse(response.data).prefix(200))
   }

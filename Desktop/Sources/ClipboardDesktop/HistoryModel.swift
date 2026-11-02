@@ -510,6 +510,10 @@ final class HistoryModel: ObservableObject {
         for await event in events {
           guard !Task.isCancelled, let self else { break }
           switch event {
+          case .updated(let item) where item.sensitive:
+            self.analysisScheduler.cancel(id: item.id)
+            self.analysisProgress.remove(id: item.id)
+            self.resetSensitivePreview()
           case .deleted(let id), .evicted(let id, _, _):
             self.analysisScheduler.cancel(id: id)
             self.analysisProgress.remove(id: id)
@@ -1277,7 +1281,8 @@ final class HistoryModel: ObservableObject {
     DesktopAnalysis(
       credentials: credentials, transport: transport, ocr: ocr,
       blobRoot: root?.appendingPathComponent("blobs"), fileReader: NativeDesktopFileTextReader(),
-      imageClassifier: imageClassifier, localLanguage: processor)
+      imageClassifier: imageClassifier, localLanguage: processor,
+      latestItem: { [store] id in await store?.item(id: id) })
   }
   @MainActor private func performLocalTextAnalysis(
     _ request: DesktopAnalysisScheduler.Request, ticket: DesktopAnalysisProgressState.Ticket

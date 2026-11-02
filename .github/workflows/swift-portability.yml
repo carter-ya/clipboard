@@ -18,6 +18,8 @@ on:
       - tools/desktop-ui/check-windows-png.*
       - tools/desktop-ui/check-windows-valid-images.*
       - tools/desktop-ui/windows-valid-image-fixtures.cs
+      - tools/desktop-ui/test-mac-sensitive-analysis.py
+      - tools/desktop-ui/mac-sensitive-analysis-probe.swift
       - tools/ci/**
       - .github/actions/swift-build-cache/**
       - .github/workflows/swift-portability.yml
@@ -37,6 +39,8 @@ on:
       - tools/desktop-ui/check-windows-png.*
       - tools/desktop-ui/check-windows-valid-images.*
       - tools/desktop-ui/windows-valid-image-fixtures.cs
+      - tools/desktop-ui/test-mac-sensitive-analysis.py
+      - tools/desktop-ui/mac-sensitive-analysis-probe.swift
       - tools/ci/**
       - .github/actions/swift-build-cache/**
       - .github/workflows/swift-portability.yml
@@ -346,6 +350,8 @@ jobs:
           swift --version
           swift test --package-path Core
           swift run --package-path Core scenario-runner rich-types
+      - name: Verify actual Mac sensitive analysis cancellation
+        run: python3 tools/desktop-ui/test-mac-sensitive-analysis.py
       - name: Save compiled Core dependencies before native validation
         if: steps.core-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
