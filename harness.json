@@ -921,7 +921,15 @@
           "package_runtime_upgrade_uninstall_checks": 12,
           "behavior": "Owned classic Notepad foreground, registered app hotkey, Enter copies full English/Chinese original without automatic paste, explicit Ctrl+V, exact native editor and saved-file text, normal Alt+F4 close.",
           "scope": "Pinned Windows Server classic Notepad plain text only; no Windows client, other common applications, rich-format/image/file paste, physical input, mixed-monitor or suspend claim.",
-          "merge_tree_matches_tested_head": true
+          "merge_tree_matches_tested_head": true,
+          "readiness_followup": {
+            "branch": "codex/windows-notepad-process-readiness",
+            "status": "native_ci_pending",
+            "reproduction": "The original actual process guard rejects an initial null MainModule while the retained process is alive. This is a reproduced readiness defect; the earlier main failure did not retain enough process metadata to prove its exact cause.",
+            "repair": "Observe only the retained spawned process for at most10 seconds. Wait only for absent module metadata; a mismatched executable, exited process or query failure is terminal before any input. Never scan for or adopt another process/window.",
+            "regression": "Eight no-desktop cases execute the actual gate, including pending-to-ready, case-insensitive exact identity, wrong/exited/unreadable refusal and bounded timeout. Both PowerShell runtimes run before expensive builds. A separate native preflight performs3 launches of owned empty Notepad documents and records initial module readiness with no input or clipboard access. Existing full keyboard/paste assertions are retained.",
+            "scope": "Existing actual-keyboard CI remains automatic for ordinary Windows PRs. Actual Pinyin/browser/RTF and installed Release acceptance remain at integration or the narrow manual application mode; no optional model download/build added."
+          }
         },
         "windows_rich_format_followup": {
           "stack": [
@@ -1064,9 +1072,9 @@
           "ui": {
             "run": 41452803944,
             "windows": "failed_installed_keyboard_notepad_spawned_process_identity_mismatch",
-            "linux": "in_progress_runtime_only_installation"
+            "linux": "success_reports_pending_audit"
           },
-          "meaning": "Failure is retained as a failed gate. PR61 narrowed installed input passes78 checks; do not infer the complete integration/installed-model suite passed."
+          "meaning": "Failure is retained as a failed gate. PR61 narrowed installed input passes78 checks; do not infer the complete integration/installed-model suite passed. Linux full job completed successfully; detailed reports still require assertion audit. The Notepad readiness defect is reproduced separately; do not claim this proves the earlier identity failure was caused by null module metadata."
         }
       }
     }

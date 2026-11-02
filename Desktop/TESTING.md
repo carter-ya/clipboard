@@ -645,3 +645,18 @@ a held key-provider case must fail current-item authorization before dispatch
 even without UI cancellation. These probes never start the application UI or
 access the local desktop clipboard. Existing history/import reclassification
 and escaped rich-text tails beyond parser budgets remain open.
+
+The Notepad identity gate now waits up to ten seconds for the retained spawned
+process's module metadata to become available. A different executable, exited
+process or unreadable process is rejected before any keyboard submission.
+It never adopts another PID/window or retries an input mutation. Eight
+no-desktop regression cases run in both PowerShell runtimes before builds; a
+Windows-native preflight then launches three owned empty Notepad documents,
+checks the actual gate and cleans up only those processes. Its content-free
+`input/notepad-process.json` records initial module availability; this preflight
+has no keyboard or clipboard access and adds no application/model build.
+
+This reproduces and repairs a startup-readiness defect. The earlier full main
+integration failure reported only an identity mismatch, so its exact underlying
+process state remains unknown until native evidence is collected. Full Debug/
+installed keyboard, Pinyin and original-format paste checks remain required.
