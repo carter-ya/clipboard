@@ -176,6 +176,19 @@ until completion. The strengthened reference is pending native validation and
 does not establish application RTF copy or Office
 compatibility. Content-free receipts are saved as richtext-input.json.
 
+The optional private -KeyboardOnly -RtfPaste mode connects that receiver to the
+real application. Capture must persist a new RTF record with its complete native
+Unicode preview and uniquely select it before recording stops. From the empty
+foreground recipient, actual Ctrl+Alt+V must restore the retained query; Enter
+must hide the app, promote the same record and publish exact original RTF bytes.
+The recipient must remain empty until actual Ctrl+V. The shared native reference
+assertions then require all text and formatting, unchanged clipboard revision,
+actual Alt+F4, retained app selection and complete owned-thread cleanup. Native
+reference and product paths use the same style checker. Application and installed
+acceptance are pending. Manual application/full integration runs enable this
+alongside the browser checks after a cheap native RTF preflight; ordinary PRs
+retain one Debug configuration and do not start these optional receivers.
+
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
 installation. They first run the Debug checks and save their dependency cache,

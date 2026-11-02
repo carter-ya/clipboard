@@ -53,6 +53,25 @@ $browser = [PSCustomObject]@{ window = [IntPtr]1; keys = $keyboardPeer }
 foreach ($chord in $browserChords) { Invoke-Expression $chord.Extent.Text }
 Write-Host 'Actual browser/app hotkey, Enter and explicit Ctrl+V batches resolve correctly'
 
+# Evaluate actual RichEdit argument expressions too; this never loads native
+# types or touches any desktop. Selection loops use the same typed key arrays.
+$Receiver = [PSCustomObject]@{ Handle = [IntPtr]1 }
+$Keys = $keyboardPeer
+$rtfKeys = $keyboardPeer
+$rtfKeys | Add-Member -Force NoteProperty Handle ([IntPtr]1)
+$rtfBatchCount = 0
+foreach ($rtfFile in @('windows-richtext-functions.ps1', 'check-windows-richtext.ps1', 'windows-richtext-acceptance.ps1')) {
+  $rtfAst = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $rtfFile), [ref]$tokens, [ref]$errors)
+  if ($errors.Count) { throw 'rtf_native_or_app_acceptance_syntax_failed' }
+  $rtfChords = @($rtfAst.FindAll({ param($node)
+    $node -is [Management.Automation.Language.InvokeMemberExpressionAst] -and
+      $node.Member.Value -ceq 'Chord' -and $node.Expression.Extent.Text -iin @('$Keys', '$rtfKeys', '$AppKeys')
+  }, $true))
+  foreach ($chord in $rtfChords) { Invoke-Expression $chord.Extent.Text; $rtfBatchCount++ }
+}
+if ($rtfBatchCount -ne 12) { throw 'rtf_actual_input_batches_missing' }
+Write-Host 'Actual RichEdit reference/app paste, selection, hotkey and close input batches resolve correctly'
+
 # GtkEntry selects its text on refocus. Execute the real post-refocus input
 # statements against that selection state, rather than assuming a trailing caret.
 $definitions = @($ast.FindAll({ param($node)
