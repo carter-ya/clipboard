@@ -338,6 +338,19 @@ jobs:
           & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
             -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -KeyboardOnly -OutputDirectory ui-artifacts/keyboard @ImeArguments
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Retain Windows input diagnostics before package builds
+        if: always() && runner.os == 'Windows' && env.CHINESE_IME_VALIDATION == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-debug-input-${{ github.run_attempt }}
+          path: |
+            ui-artifacts/input/environment.json
+            ui-artifacts/input/native-ime.json
+            ui-artifacts/keyboard/ime-target-state.jsonl
+            ui-artifacts/keyboard/keyboard-capabilities.json
+            ui-artifacts/keyboard/keyboard-peer-state.json
+            ui-artifacts/keyboard/results.json
+          if-no-files-found: ignore
       - name: Restore compiled release dependencies
         if: (env.FULL_VALIDATION == 'true' || (github.event_name == 'workflow_dispatch' && inputs.windows_input_environment == 'application' && runner.os == 'Windows'))
         id: release-cache

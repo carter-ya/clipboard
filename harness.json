@@ -1141,7 +1141,10 @@
           "observed": "Independent native IME7, browser17, RTF10, actual Notepad English/Chinese and ordinary keyboard input pass. GTK actual search contains literal nihao with no candidate UI; no pass claimed for actual GTK IME or installed scope.",
           "diagnostic": "Read-only owned-target HKL/language/default-IME open/conversion status, candidate-host and fixed synthetic query booleans before/after profile selection/mode shortcut/Latin input and on the existing failed candidate wait. Existing key batches, 40s action deadlines and exact candidate/commit assertions stay unchanged.",
           "local_validation": "Actual keyboard fixture compiles CSharp5/net48; existing actual keyboard argument/caret checks pass without desktop input.",
-          "next": "Narrow application Actions mode with cached Debug/Release/installer keyboard only, no model fixtures or complete GUI suite."
+          "next": "Narrow application Actions mode with cached Debug/Release/installer keyboard only, no model fixtures or complete GUI suite.",
+          "early_receipt": "After the Windows actual-input step, always upload only six explicitly listed content-free input/status/result files before any release restore/build. Scope requires Windows+actual IME validation, names include run_attempt, no history/body/model files. A fifth input-policy regression verifies the ordering and allowlist.",
+          "diagnostic_run": 41479407954,
+          "diagnostic_observed": "Debug actual Pinyin/browser/RTF input passes with read-only observations; optimized/installed confirmation is live. This is diagnosis, not proof of a root-cause repair."
         }
       }
     }

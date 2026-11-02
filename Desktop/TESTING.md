@@ -731,3 +731,12 @@ narrow application probe adds only content-free owned-target HKL/language, IME
 open/conversion, candidate-host and fixed-query booleans around profile/mode
 selection and submitted input, plus a failure receipt. It does not change any
 key batch, retry input, change a deadline or relax candidate/commit assertions.
+
+Actual Windows-input runs retain six explicit content-free environment/native-
+IME/target-state/capability/peer/result receipts immediately after Debug input,
+before release dependency restore or packaging. The upload runs on input
+failure too, is restricted to Windows actual-IME scope and uses a run-attempt
+name. It includes no history, clipboard body or model file. The ordering and
+allowlist have a permanent policy regression, so future input diagnosis need
+not wait for a lengthy optimized/package build. Existing runs keep their
+original immutable workflow; this improves subsequent runs only.
