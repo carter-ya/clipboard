@@ -8,6 +8,21 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class InputEnvironmentPolicyTests(unittest.TestCase):
+    def test_native_input_receipts_are_available_before_package_builds(self):
+        data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
+        steps = data['jobs']['preview']['steps']
+        receipt = next(step for step in steps if step.get('name') == 'Retain Windows input diagnostics before package builds')
+        self.assertEqual(receipt['if'], "always() && runner.os == 'Windows' && env.CHINESE_IME_VALIDATION == 'true'")
+        self.assertIn('github.run_attempt', receipt['with']['name'])
+        paths = receipt['with']['path'].split()
+        self.assertEqual(set(paths), {
+            'ui-artifacts/input/environment.json', 'ui-artifacts/input/native-ime.json',
+            'ui-artifacts/keyboard/ime-target-state.jsonl', 'ui-artifacts/keyboard/keyboard-capabilities.json',
+            'ui-artifacts/keyboard/keyboard-peer-state.json', 'ui-artifacts/keyboard/results.json',
+        })
+        self.assertLess(next(i for i, step in enumerate(steps) if step.get('name') == 'Exercise native Windows keyboard focus and explicit paste'), steps.index(receipt))
+        self.assertLess(steps.index(receipt), next(i for i, step in enumerate(steps) if step.get('name') == 'Restore compiled release dependencies'))
+
     def test_notepad_readiness_fails_before_expensive_builds(self):
         data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
         steps = data['jobs']['preview']['steps']

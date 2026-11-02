@@ -722,3 +722,38 @@ permutations match the independent reference. The preprocessed Linux adapter
 is byte-identical before/after, and both Linux GNU C syntax checks pass. This
 closes the native bitmap-transform defect; ordinary platform/UI review and
 installed product/browser confirmation remain required. No ICC claim is made.
+
+Main Windows integration41475202168 fails the GTK candidate gate after the
+independent native IME7/browser17/RTF10 references and ordinary Notepad English/
+Chinese input pass. The owned search contains literal `nihao` with no candidate
+UI. This remains a failed gate, not an accepted environment exception. The next
+narrow application probe adds only content-free owned-target HKL/language, IME
+open/conversion, candidate-host and fixed-query booleans around profile/mode
+selection and submitted input, plus a failure receipt. It does not change any
+key batch, retry input, change a deadline or relax candidate/commit assertions.
+
+Actual Windows-input runs retain six explicit content-free environment/native-
+IME/target-state/capability/peer/result receipts immediately after Debug input,
+before release dependency restore or packaging. The upload runs on input
+failure too, is restricted to Windows actual-IME scope and uses a run-attempt
+name. It includes no history, clipboard body or model file. The ordering and
+allowlist have a permanent policy regression, so future input diagnosis need
+not wait for a lengthy optimized/package build. Existing runs keep their
+original immutable workflow; this improves subsequent runs only.
+
+The first read-only observation run41479407954 passes78 Debug and78 installed
+Release input checks plus12 keyboard-package checks; all reports are audited.
+Both receipts already show native Chinese mode after profile selection and
+never submit a mode shortcut. They do not reproduce or establish the specific
+cause of the earlier main failure.
+
+A separate deterministic test of the actual mode-selection statements exposes
+a driver hazard: one initial closed/pending sample immediately sends Shift,
+even if the provider subsequently settles to native Chinese without a key.
+The hardened preparation requires three matching owned-target layout/open/
+conversion samples before choosing that single mode action, then stable native
+Chinese state before submitting the unchanged Latin/candidate checks. It uses
+the existing40-second per-stage observer; this adds a readiness stage, not a
+new application timer or input retry. Ten pure-state cases cover initialization,
+legitimate mode selection, post-key transients and unavailable/oscillating
+provider refusal. Fresh native confirmation remains required.
