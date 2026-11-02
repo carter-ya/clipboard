@@ -6,7 +6,16 @@ remain blocked by the open interactive gates below.
 
 ## Current evidence
 
-The latest full integration is [41475202168](https://github.com/carter-ya/clipboard/actions/runs/41475202168)
+The current Windows-only full integration is
+[41491062151](https://github.com/carter-ya/clipboard/actions/runs/41491062151)
+at `48b872a`. Its hardened Debug input passes all 78 strict keyboard/IME/browser/
+RTF checks, retaining every previous assertion name, and the independent native
+IME receipt passes seven checks. The early archive contains exactly the six
+allowed content-free files. Complete native UI, real models and installed
+acceptance remain pending. No complete Windows pass is
+claimed from this early receipt.
+
+The latest completed combined integration is [41475202168](https://github.com/carter-ya/clipboard/actions/runs/41475202168)
 at `6ceedf3`. Linux passes the complete native/installed suites; downloaded
 reports contain 181 native and 211 installed UI assertions, every named CP9/CP10
 assertion, 15 installation checks, installed real text models (19), model
@@ -34,6 +43,14 @@ privacy inspection are merged as PR63/65/66. Each final head has clean review,
 three-platform Core and both ordinary UI jobs passing; native independent text
 and rich-source sensitivity/Copy assertions are audited. Full Linux acceptance
 includes these changes. Final full Windows integration is still required.
+The latest Core run [41489198405](https://github.com/carter-ya/clipboard/actions/runs/41489198405)
+at `fd29fb2` passes all three platforms; the final main merge tree exactly
+matches that reviewed head. The downloaded Windows/Linux reports retain all
+named unmarked-key inference, memory-only and sensitive original-Copy checks
+(text nine each, rich text 22/31). The 14 recognition, eight history-policy and
+six transition tests pass on each platform. Actual Mac App-source probes also
+pass automatic/manual held-attempt cancellation and live dispatch authorization
+with fake HTTP and private preferences, and the existing Mac application builds.
 The implementation-history section below retains older evidence and statements
 of what was pending at those stages; `harness.json` records exact scopes.
 
@@ -56,8 +73,12 @@ Windows Core 6.1.3 and UI 6.3.3 also enable the pinned setup action's downloaded
 installer cache, keyed by version/build and explicit `amd64` architecture. The
 upstream action otherwise defaults this cache off. This caches `installer.exe`,
 not an installed system directory; installation and unconditional version
-checks still run. The first cache fill and subsequent speedup require hosted
-measurement, so this does not claim an observed duration reduction.
+checks still run. PR69's UI run records an initial miss and successful cache
+save; a default-branch fill and subsequent hit still need separate evidence.
+Terminal logs from the cancelled old run41486628199 show about14m57s downloading
+Swift and48s installing it, before any application build. This establishes that
+run's download bottleneck. A faster download on a later cache miss does not
+prove cache speedup, and no measured duration reduction is claimed.
 
 Windows PRs also run `smoke-windows.ps1 -KeyboardOnly` using the same Debug
 executable. At the user's request this mode sends actual OS keyboard input on
