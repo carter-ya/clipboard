@@ -143,7 +143,7 @@ function Assert-WindowsBrowserPaste($Context, [string]$Kind) {
     }
     'image' {
       if (@($receipt.files).Count -ne 1 -or $receipt.files[0].type -cne 'image/png' -or
-          $receipt.files[0].data -notmatch '^iVBORw0KGgo' -or $snapshot.image.width -ne 3 -or
+          [string]::IsNullOrEmpty($native.PngData) -or $receipt.files[0].data -cne $native.PngData -or $snapshot.image.width -ne 3 -or
           $snapshot.image.height -ne 2 -or $snapshot.image.pixels -cne $native.PixelData) {
         throw 'browser_png_original_or_default_render_pixels_mismatch'
       }
@@ -192,6 +192,8 @@ function Get-WindowsBrowserDiagnostic($Context) {
     imageWidth = $snapshot.image.width
     imageHeight = $snapshot.image.height
     pixelsMatch = $snapshot.image.pixels -ceq $Context.native.PixelData
+    pngFileBytesMatch = @($receipt.files).Count -eq 1 -and
+      ![string]::IsNullOrEmpty($Context.native.PngData) -and $receipt.files[0].data -ceq $Context.native.PngData
     files = @($receipt.files).Count
   }
 }

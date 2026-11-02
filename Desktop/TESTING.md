@@ -143,12 +143,23 @@ Windows adapter now retains the original PNG first and adds a separately bounded
 CF_DIB. Undecodable or larger images retain their original PNG. A cheap native C
 regression checks exact original bytes, top-down pixels/transparency, COM apartment
 balance, malformed/large image fallback and the maximum sensitive bundle. The
-product/browser extension and the bitmap fix are pending native validation.
-Manual application input and full integration add it after the existing
+product/browser Debug flow passes all 52 keyboard checks at head 8105a30 in run
+41429868239; the independent browser reference passes 11 checks and Core passes
+all 17 native PNG regressions in run 41429427987. The branch Release phase was
+intentionally cancelled after the identical merged main tree started full UI and
+installation acceptance in run 41433432627; installed browser acceptance remains
+pending that run. Manual application input and full integration add it after the existing
 keyboard/IME/Notepad checks in Debug and
 the installed Release; ordinary PRs keep their one-Debug-build scope and do not
 start Chrome. A cheap browser reference gate runs before those integration builds,
 and keyboard-package mode still refuses optional model fixtures/downloads.
+
+A subsequent browser-fixture follow-up adds fully transparent and half-transparent
+pixels to the same 3×2 multicolor PNG. The real paste event must expose a complete PNG
+File whose bytes exactly match the independent native writer's original encoded
+image, in addition to exact default DOM dimensions and RGBA pixels. A PNG signature
+alone cannot establish original-file preservation. This stronger fixture is
+pending its separate native reference and application/installed runs.
 
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
