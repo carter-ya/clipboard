@@ -8,12 +8,16 @@ remain blocked by the open interactive gates below.
 
 The current Windows-only full integration is
 [41491062151](https://github.com/carter-ya/clipboard/actions/runs/41491062151)
-at `48b872a`. Its hardened Debug input passes all 78 strict keyboard/IME/browser/
-RTF checks, retaining every previous assertion name, and the independent native
-IME receipt passes seven checks. The early archive contains exactly the six
-allowed content-free files. Complete native UI, real models and installed
-acceptance remain pending. No complete Windows pass is
-claimed from this early receipt.
+at `48b872a`, and it is complete. The downloaded ZIP digest and 17 required
+report sets are audited: native/installed UI 182/210, Debug/installed strict
+keyboard/IME/browser/RTF 78/78, real text models 23/23, model operations 16/16,
+file/PDF models 21/21, and installation/upgrade/uninstall 17. Independent native
+IME/browser/RTF references pass 7/17/10. All named CP9/CP10 assertions are present
+and true in both complete UI reports. Repeated secondary-launch observations
+are not treated as additional distinct coverage. The early input archive also
+matches its exact six-file content-free allowlist. Installed history/count and
+real generated-summary screenshots are inspected. This closes the previous
+full Windows automated gap; physical/client gates remain open.
 
 The latest completed combined integration is [41475202168](https://github.com/carter-ya/clipboard/actions/runs/41475202168)
 at `6ceedf3`. Linux passes the complete native/installed suites; downloaded
@@ -21,10 +25,12 @@ reports contain 181 native and 211 installed UI assertions, every named CP9/CP10
 assertion, 15 installation checks, installed real text models (19), model
 operations (14) and file/PDF models (19). Both private Wayland modes pass 40
 checks. Core run [41475202676](https://github.com/carter-ya/clipboard/actions/runs/41475202676)
-passes all three platforms. Windows fails the Debug actual-Pinyin candidate
-gate, so this is not a complete cross-platform pass. Its failure remains open
-until a fresh full Windows integration passes; a narrower keyboard run does not
-substitute for installed models or the full UI suite.
+passes all three platforms. Windows at that earlier head fails the Debug
+actual-Pinyin candidate gate; retain that historical failure. The fresh full
+Windows result above passes the strict candidate and installed/model gates too.
+Successful later runs do not establish the exact cause of the original failure.
+Linux evidence is inherited only for the unchanged components described below,
+without claiming the two entire tested commit trees are identical.
 
 PR62's actual GTK orientation matrix passes 113 assertions on each hosted OS.
 PR67 additionally fixes the independent Windows standard-bitmap EXIF transform:
@@ -42,7 +48,7 @@ Credential capture, existing/imported-history policy and complete rich-text
 privacy inspection are merged as PR63/65/66. Each final head has clean review,
 three-platform Core and both ordinary UI jobs passing; native independent text
 and rich-source sensitivity/Copy assertions are audited. Full Linux acceptance
-includes these changes. Final full Windows integration is still required.
+includes these changes, as does the fresh full Windows result above.
 The latest Core run [41489198405](https://github.com/carter-ya/clipboard/actions/runs/41489198405)
 at `fd29fb2` passes all three platforms; the final main merge tree exactly
 matches that reviewed head. The downloaded Windows/Linux reports retain all
@@ -53,6 +59,8 @@ pass automatic/manual held-attempt cancellation and live dispatch authorization
 with fake HTTP and private preferences, and the existing Mac application builds.
 The implementation-history section below retains older evidence and statements
 of what was pending at those stages; `harness.json` records exact scopes.
+Later acceptance notes and native-reference host/diagnostic follow-ups leave
+the Core, App, Desktop and actual worker source components unchanged.
 
 ## Automated gates
 
@@ -74,7 +82,11 @@ installer cache, keyed by version/build and explicit `amd64` architecture. The
 upstream action otherwise defaults this cache off. This caches `installer.exe`,
 not an installed system directory; installation and unconditional version
 checks still run. PR69's UI run records an initial miss and successful cache
-save; a default-branch fill and subsequent hit still need separate evidence.
+save. The default-branch installer cache is now verified too; its completed-PR
+duplicate (about1.76 GB) is removed only after the same-key main cache is checked.
+A subsequent cache hit/speedup still needs separate evidence. Release compilation
+in the fresh full run takes221 seconds versus1416 in the earlier full reference;
+these are observed durations from different hosted runs, not a controlled benchmark.
 Terminal logs from the cancelled old run41486628199 show about14m57s downloading
 Swift and48s installing it, before any application build. This establishes that
 run's download bottleneck. A faster download on a later cache miss does not
@@ -105,6 +117,26 @@ checks. Mixed-monitor DPI and real suspend/resume remain unverified.
 Manual runs may select `windows_input_environment: inspect` for a content-free
 OS/display/input inventory, or `prepare` to request the official Chinese basic
 typing capability and user input profile on that disposable Windows VM.
+The native reference job may additionally select `windows_input_runner:
+windows-11-arm` for the hosted Windows 11 Arm client desktop, with the same
+eight-minute bound. Its default remains `windows-2022`; the application build
+matrix is independent of this reference-only choice. Inventory records OS
+caption/product type and OS/process architecture as well as build and display
+information. A client native-reference result does not establish GTK application
+or x64-client/physical-hardware acceptance. The original exact preedit, candidate
+selection and foreground assertions remain unchanged; native client execution
+is pending. Its first capability-provisioning run times out before input, with
+no receipt because the process is terminated before finally. Environment receipts
+now persist content-free stages before potentially blocking capability queries
+or installation. Five private-provider regressions execute the actual statements:
+hard-killed query/install retain their report, client profile-only configures
+without capability calls, and server/non-prepare profile-only requests refuse
+without mutation. The client reference now prepares only the user input profile,
+reports capability state as not queried and leaves `provisioningComplete` false;
+the separate unchanged native IME checks must prove actual candidates. Server
+application provisioning retains its installed-capability requirement.
+Availability is documented in the
+[GitHub-hosted runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 Preparation also starts the available Windows text-input service and requests the
 system CTF monitor in that VM; service states are recorded without process scans.
 Both modes run only the eight-minute-bounded environment job, with no Swift build,
@@ -458,8 +490,9 @@ receiver must stay empty until explicit paste and its paste must not change the
 clipboard revision. Every completed synthetic image record is removed through
 the real Delete control, with exact ID removal and zero matching image rows,
 so subsequent formats cannot pass by reusing a prior image. Existing PNG byte
-and transparency requirements remain. This application extension is pending
-Debug/installed execution; orientation and color-profile fidelity remain open.
+and transparency requirements remain. The application extension passes all78
+Debug and78 installed input checks in41491062151. EXIF transforms are verified
+by the separate GTK and actual Windows-adapter matrices; ICC fidelity remains open.
 
 The Mac reference preview explicitly applies ImageIO's embedded orientation.
 The unchanged actual GTK decoder reproduced a parity defect with independently
@@ -472,9 +505,10 @@ and hover sizing, all 113 pass in an offline Linux arm64 container. Temporary
 transform references are released on all exits, while the preview retains its
 own reference. Existing decode/pixel/thumbnail bounds stay active. Normal
 Windows/Linux UI CI now runs this actual-decoder check without a desktop or
-clipboard. Hosted results and the changed preview's full UI are pending;
-Windows clipboard-derived bitmap orientation and ICC/color fidelity are separate
-unverified gates.
+clipboard. The113-check matrix passes on hosted Windows/Linux and both full
+native/installed UI scopes pass at their recorded platform heads. The separate
+actual Windows standard-bitmap matrix passes245 checks. ICC/color fidelity
+remains unverified.
 
 Recognizable credential text is classified by the shared Core sensitivity
 filter, under the existing Mask sensitive items preference, enabled by default.
@@ -498,10 +532,10 @@ UTF-16, rich escaping, the capture/store/export path, no AI transport and the
 old-duplicate/late-result regressions. The existing native Windows/Linux text
 scenario additionally writes an unmarked synthetic key from its independent
 process and requires inferred sensitivity, memory-only storage and exact
-explicit Copy with a sensitive native hint. Hosted execution is pending.
-Stored history/import reclassification and escaped rich-text tails beyond the
-existing rendering budget remain follow-up gates; recognition of every possible
-credential format is not claimed.
+explicit Copy with a sensitive native hint. The latest hosted native text/rich
+checks pass in41489198405. Stored history/import reclassification and complete
+escaped-rich-tail inspection are reviewed, merged and verified in PR65/66 and
+the current full acceptance records; universal credential recognition is not claimed.
 
 ## Implementation history
 

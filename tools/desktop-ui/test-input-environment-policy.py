@@ -9,6 +9,35 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class InputEnvironmentPolicyTests(unittest.TestCase):
+    def test_client_profile_only_never_changes_server_application_provisioning(self):
+        data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
+        steps = data['jobs']['input-environment']['steps']
+        prepare = next(step for step in steps if step.get('name') == 'Inspect or provision the isolated Windows input environment')
+        self.assertEqual(prepare['env']['CLIENT_PROFILE_ONLY'], "${{ inputs.windows_input_runner == 'windows-11-arm' }}")
+        self.assertIn("-ProfileOnly:($env:PREPARE_CHINESE_INPUT -eq 'true' -and $env:CLIENT_PROFILE_ONLY -eq 'true')", prepare['run'])
+        application = next(step for step in data['jobs']['preview']['steps'] if step.get('name') == 'Provision and verify the actual Windows Chinese input method')
+        self.assertNotIn('ProfileOnly', str(application))
+        for name in ['Verify private fixture interpreter and pipe encoding', 'Verify private fixture on Windows PowerShell 5.1']:
+            step = next(step for step in data['jobs']['preview']['steps'] if step.get('name') == name)
+            self.assertIn('test-environment-receipt.ps1', step['run'])
+
+    def test_client_host_is_an_explicit_manual_native_reference_choice(self):
+        data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
+        choice = data['on']['workflow_dispatch']['inputs']['windows_input_runner']
+        self.assertEqual(choice['default'], 'windows-2022')
+        self.assertEqual(choice['options'], ['windows-2022', 'windows-11-arm'])
+        probe = data['jobs']['input-environment']
+        expression = probe['runs-on'].removeprefix('${{').removesuffix('}}').strip()
+        for event in ['push', 'pull_request', 'workflow_dispatch']:
+            for host in ['', 'windows-2022', 'windows-11-arm', 'self-hosted', 'windows-2025']:
+                selected = expression.replace('github.event_name', repr(event)).replace('inputs.windows_input_runner', repr(host))
+                actual = eval(selected.replace('&&', ' and ').replace('||', ' or '), {'__builtins__': {}})
+                self.assertEqual(actual, 'windows-11-arm' if event == 'workflow_dispatch' and host == 'windows-11-arm' else 'windows-2022')
+        # The existing build matrix is independent of this reference-only choice.
+        self.assertNotIn('windows_input_runner', str(data['jobs']['preview']))
+        self.assertEqual(probe['timeout-minutes'], '8')
+        self.assertNotIn('swift', str(probe['steps']).lower())
+
     def test_acceptance_notes_alone_do_not_build_but_mixed_code_changes_do(self):
         data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
         for event in ['push', 'pull_request']:
@@ -140,7 +169,7 @@ class InputEnvironmentPolicyTests(unittest.TestCase):
                     selected = eval(expression.replace('&&', ' and ').replace('||', ' or '), {'__builtins__': {}})
                     with self.subTest(event=event, choice=choice, job=job.get('name', '')):
                         self.assertEqual(bool(selected), expected)
-        self.assertEqual(probe['runs-on'], 'windows-2022')
+        self.assertIn("'windows-11-arm' || 'windows-2022'", probe['runs-on'])
         self.assertLessEqual(int(probe['timeout-minutes']), 8)
         self.assertNotIn('swift', str(probe['steps']).lower())
         self.assertNotIn('download-test-model', str(probe['steps']))
