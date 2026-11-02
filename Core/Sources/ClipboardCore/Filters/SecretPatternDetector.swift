@@ -3,6 +3,13 @@ import Foundation
 /// Local format recognition only. Never verifies credentials, contacts providers,
 /// reads copied files or returns the matching secret as a diagnostic.
 enum SecretPatternDetector {
+  static func isInspectableText(_ type: String) -> Bool {
+    [
+      "public.utf8-plain-text", "public.plain-text", "public.string", "public.text", "public.html",
+      "public.rtf", "NSStringPboardType", "public.utf16-plain-text",
+      "public.utf16-external-plain-text",
+    ].contains(type)
+  }
   private static let patterns: [NSRegularExpression] = [
     #"(?<![A-Za-z0-9_])sk-[A-Za-z0-9_-]{16,}(?![A-Za-z0-9_])"#,
     #"(?<![A-Za-z0-9_])(?:sk|rk)_(?:live|test|org)_[A-Za-z0-9_]{16,}(?![A-Za-z0-9_])"#,

@@ -665,3 +665,23 @@ The actual Mac analysis probe supports both native SwiftPM `debug/Modules` and
 Xcode `Products/Debug` module layouts. Its hosted module-lookup failure is
 reproduced locally using real compiled artifacts in the native directory layout;
 the corrected lookup passes the complete automatic/manual cancellation probes.
+
+Hosted Windows run41470747030 passes all26 ordinary Debug keyboard checks
+with full English/Chinese Notepad editor and saved-file readback, plus all3
+native process-readiness checks. Both PowerShell gate suites and exact-head
+review pass at a4e0861. All3 native launches had module metadata available
+immediately; they do not reproduce the earlier main failure. Installed Release
+and actual Pinyin/browser/RTF confirmation stay in final integration scope.
+
+The secret-history policy follow-up applies the saved password preference
+before initial history exposure on Mac and Desktop. Enabling it also reclassifies
+current records; sensitive upgrades retain ID/pinning/all original formats, clear
+old summaries and revoke owned analysis. Disabling does not downgrade sensitive
+items. New inserts enforce the current policy even if a capture was queued
+before the preference change. Imports validate complete payloads and owned
+blob names/digests before target writes; detected credentials stay in memory
+and the source archive remains unchanged. Unreadable current text stays masked
+with an explicit pending cleanup that can retry after the original is restored.
+Eight synthetic history-policy tests and the existing storage/import/analysis
+suites cover these boundaries. Escaped rich-text tails beyond display parser
+budgets remain tracked separately; no universal credential detector claim is made.

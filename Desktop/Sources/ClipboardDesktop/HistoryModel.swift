@@ -475,7 +475,9 @@ final class HistoryModel: ObservableObject {
       closeToTrayDraft = settings.closeToTray
       showOnLaunchDraft = settings.showOnLaunch
       recordOnLaunchDraft = settings.recordingEnabled
-      let store = try await JSONSnapshotClipStore(root: directory, cap: settings.historyCapacity)
+      let store = try await JSONSnapshotClipStore(
+        root: directory, cap: settings.historyCapacity, sensitiveTextMasking: settings.skipSensitive
+      )
       self.store = store
       await configureModels(directory)
       if args.contains("--smoke-root"), await store.all().isEmpty {
@@ -925,6 +927,7 @@ final class HistoryModel: ObservableObject {
       try next.validate()
       try await settingsStore.save(next)
       settings = next
+      _ = await store.setSensitiveTextMasking(next.skipSensitive)
       try await store.setCapacity(capacity)
       let wasRecording = recording
       if wasRecording {

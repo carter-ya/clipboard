@@ -12,7 +12,8 @@ final class SensitiveTransitionTests: XCTestCase {
   func testPromotionPreservesAllOriginalRepresentationsOnPrimaryHashDedup() async throws {
     let root = root()
     defer { try? FileManager.default.removeItem(at: root) }
-    let store = try await JSONSnapshotClipStore(root: root, inlineThresholdBytes: 1)
+    let store = try await JSONSnapshotClipStore(
+      root: root, inlineThresholdBytes: 1, sensitiveTextMasking: false)
     let html = Data("<b>independent original representation</b>".utf8)
     let originalPayloads = [
       RawPayload(pasteboardType: "public.utf8-plain-text", data: text),
@@ -48,7 +49,7 @@ final class SensitiveTransitionTests: XCTestCase {
     let root = root()
     defer { try? FileManager.default.removeItem(at: root) }
     let store = try await JSONSnapshotClipStore(
-      root: root, inlineThresholdBytes: 1, debounceInterval: 3600)
+      root: root, inlineThresholdBytes: 1, debounceInterval: 3600, sensitiveTextMasking: false)
     let payload = RawPayload(pasteboardType: "public.utf8-plain-text", data: text)
     await store.insert(RawClipItem(payloads: [payload], totalBytes: text.count))
     await store.flush()
@@ -87,7 +88,7 @@ final class SensitiveTransitionTests: XCTestCase {
     let root = root()
     defer { try? FileManager.default.removeItem(at: root) }
     let store = try await JSONSnapshotClipStore(
-      root: root, inlineThresholdBytes: 1, debounceInterval: 3600)
+      root: root, inlineThresholdBytes: 1, debounceInterval: 3600, sensitiveTextMasking: false)
     let html = Data("<b>original HTML must survive a temporary read failure</b>".utf8)
     let payloads = [
       RawPayload(pasteboardType: "public.utf8-plain-text", data: text),
@@ -169,7 +170,7 @@ final class SensitiveTransitionTests: XCTestCase {
     defer { try? FileManager.default.removeItem(at: root) }
     let store = try await JSONSnapshotClipStore(
       root: root, inlineThresholdBytes: 1,
-      debounceInterval: 3600, fileManager: files)
+      debounceInterval: 3600, fileManager: files, sensitiveTextMasking: false)
     let payload = RawPayload(pasteboardType: "public.utf8-plain-text", data: text)
     await store.insert(RawClipItem(payloads: [payload], totalBytes: text.count))
     await store.flush()
@@ -199,7 +200,7 @@ final class SensitiveTransitionTests: XCTestCase {
       let root = root()
       defer { try? FileManager.default.removeItem(at: root) }
       let store = try await JSONSnapshotClipStore(
-        root: root, inlineThresholdBytes: 1, debounceInterval: 3600)
+        root: root, inlineThresholdBytes: 1, debounceInterval: 3600, sensitiveTextMasking: false)
       let first = RawPayload(pasteboardType: "public.utf8-plain-text", data: text)
       let other = RawPayload(pasteboardType: "public.utf8-plain-text", data: text + Data([66]))
       // The transport deliberately treats opaque image bytes as binary. This
@@ -239,7 +240,8 @@ final class SensitiveTransitionTests: XCTestCase {
   func testLiveSensitivityCheckStopsHeldCredentialRequestBeforeUICancellation() async throws {
     let root = root()
     defer { try? FileManager.default.removeItem(at: root) }
-    let store = try await JSONSnapshotClipStore(root: root, inlineThresholdBytes: 1)
+    let store = try await JSONSnapshotClipStore(
+      root: root, inlineThresholdBytes: 1, sensitiveTextMasking: false)
     let payload = RawPayload(pasteboardType: "public.utf8-plain-text", data: text)
     await store.insert(RawClipItem(payloads: [payload], totalBytes: text.count))
     let items = await store.all()

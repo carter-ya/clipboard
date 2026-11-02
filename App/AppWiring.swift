@@ -18,6 +18,8 @@ final class AppWiring {
   private var skipTask: Task<Void, Never>?
   private var hotkeyTask: Task<Void, Never>?
   private var storeEventsTask: Task<Void, Never>?
+  private var preferenceApplicationTask: Task<Void, Never>?
+  private var preferenceEpoch: UInt64 = 0
   private var blobRoot: URL?
   private(set) var isMonitoringPaused: Bool = false
 
@@ -37,7 +39,8 @@ final class AppWiring {
       let blobRoot = root.appendingPathComponent("blobs")
       self.blobRoot = blobRoot
 
-      let store = try await JSONSnapshotClipStore(root: root, cap: prefs.cap)
+      let store = try await JSONSnapshotClipStore(
+        root: root, cap: prefs.cap, sensitiveTextMasking: prefs.skipSensitive)
       self.store = store
 
       self.pasteboardWriter = NSPasteboardWriter(blobRoot: blobRoot)
@@ -77,6 +80,10 @@ final class AppWiring {
   }
 
   func stop() async {
+    preferenceEpoch &+= 1
+    preferenceApplicationTask?.cancel()
+    await preferenceApplicationTask?.value
+    preferenceApplicationTask = nil
     monitor?.stop()
     consumerTask?.cancel()
     consumerTask = nil
@@ -124,7 +131,20 @@ final class AppWiring {
   func applyPreferences(_ prefs: Preferences) {
     monitor?.stop()
     consumerTask?.cancel()
-    installMonitor(prefs: prefs)
+    preferenceEpoch &+= 1
+    let epoch = preferenceEpoch
+    let previous = preferenceApplicationTask
+    preferenceApplicationTask = Task { [weak self] in
+      await previous?.value
+      guard let self, !Task.isCancelled, self.preferenceEpoch == epoch else { return }
+      if let store = self.store as? JSONSnapshotClipStore {
+        if !(await store.setSensitiveTextMasking(prefs.skipSensitive)) {
+          Log.store.error("store.sensitiveHistoryCleanupPending")
+        }
+      }
+      guard !Task.isCancelled, self.preferenceEpoch == epoch else { return }
+      self.installMonitor(prefs: prefs)
+    }
   }
 
   func clearHistory() async {
