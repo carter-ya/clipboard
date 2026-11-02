@@ -64,6 +64,24 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
     [PreserveSig] int Reset();
     [PreserveSig] int Skip(uint count);
   }
+  [ComImport, Guid("4ea48a35-60ae-446f-8fd6-e6a8d82459f7"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface TsfSource {
+    [PreserveSig] int AdviseSink(ref Guid iid, [MarshalAs(UnmanagedType.IUnknown)] object sink, out uint cookie);
+    [PreserveSig] int UnadviseSink(uint cookie);
+  }
+  [ComVisible(true), Guid("ea1ea136-19df-11d7-a6d2-00065b84435c"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  public interface UiElementSink {
+    [PreserveSig] int BeginUIElement(uint id, [MarshalAs(UnmanagedType.Bool)] ref bool show);
+    [PreserveSig] int UpdateUIElement(uint id);
+    [PreserveSig] int EndUIElement(uint id);
+  }
+  [ComVisible(true), ClassInterface(ClassInterfaceType.None)]
+  public sealed class CandidateObserver : UiElementSink {
+    public int Begins, Updates, Ends;
+    public int BeginUIElement(uint id, ref bool show) { Begins++; show = true; return 0; }
+    public int UpdateUIElement(uint id) { Updates++; return 0; }
+    public int EndUIElement(uint id) { Ends++; return 0; }
+  }
   // Include ITfUIElement's four inherited slots before candidate-list methods.
   [ComImport, Guid("ea1ea138-19df-11d7-a6d2-00065b84435c"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
   interface CandidateElement {
@@ -80,6 +98,12 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   public int ImeActivationResult { get; private set; }
   public int TsfCandidateResult { get; private set; }
   public int TsfUiElementCount { get; private set; }
+  public int TsfSinkResult { get; private set; }
+  object tsfThread;
+  TsfSource tsfSource;
+  CandidateObserver candidateObserver;
+  uint sinkCookie;
+  public int CandidateBeginCount { get { return OnPeer<int>(delegate { return candidateObserver == null ? 0 : candidateObserver.Begins; }); } }
 
   sealed class PasteEditor : TextBox {
     public int PasteCount;
@@ -238,6 +262,18 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   }
   public void UseChineseIme() {
     OnPeer<bool>(delegate {
+      if (tsfThread == null) {
+        IntPtr threadPointer;
+        TsfSinkResult = TF_GetThreadMgr(out threadPointer);
+        if (TsfSinkResult < 0 || threadPointer == IntPtr.Zero) throw new InvalidOperationException("native_tsf_thread_unavailable");
+        try { tsfThread = Marshal.GetObjectForIUnknown(threadPointer); }
+        finally { Marshal.Release(threadPointer); }
+        tsfSource = (TsfSource)tsfThread;
+        candidateObserver = new CandidateObserver();
+        Guid sinkId = typeof(UiElementSink).GUID;
+        TsfSinkResult = tsfSource.AdviseSink(ref sinkId, candidateObserver, out sinkCookie);
+        if (TsfSinkResult < 0) throw new InvalidOperationException("native_tsf_candidate_observer_unavailable");
+      }
       InputLanguage chinese = null;
       foreach (InputLanguage language in InputLanguage.InstalledInputLanguages)
         if (language.Culture.Name == "zh-CN") { chinese = language; break; }
@@ -302,9 +338,12 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
       object threadObject = null, enumObject = null;
       TsfUiElementCount = 0;
       try {
-        TsfCandidateResult = TF_GetThreadMgr(out threadPointer);
-        if (TsfCandidateResult < 0 || threadPointer == IntPtr.Zero) return empty;
-        threadObject = Marshal.GetObjectForIUnknown(threadPointer);
+        if (tsfThread != null) threadObject = tsfThread;
+        else {
+          TsfCandidateResult = TF_GetThreadMgr(out threadPointer);
+          if (TsfCandidateResult < 0 || threadPointer == IntPtr.Zero) return empty;
+          threadObject = Marshal.GetObjectForIUnknown(threadPointer);
+        }
         var manager = threadObject as UiElementManager;
         if (manager == null) return empty;
         TsfCandidateResult = manager.EnumUIElements(out enumPointer);
@@ -336,7 +375,7 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
       } finally {
         if (enumObject != null) Marshal.ReleaseComObject(enumObject);
         if (enumPointer != IntPtr.Zero) Marshal.Release(enumPointer);
-        if (threadObject != null) Marshal.ReleaseComObject(threadObject);
+        if (threadObject != null && threadPointer != IntPtr.Zero) Marshal.ReleaseComObject(threadObject);
         if (threadPointer != IntPtr.Zero) Marshal.Release(threadPointer);
       }
     });
@@ -395,7 +434,13 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   }
   public void Dispose() {
     if (disposed) return;
-    if (form != null && thread.IsAlive) OnPeer<bool>(delegate { form.Close(); return true; });
+    if (form != null && thread.IsAlive) OnPeer<bool>(delegate {
+      if (tsfSource != null && TsfSinkResult >= 0) tsfSource.UnadviseSink(sinkCookie);
+      tsfSource = null;
+      candidateObserver = null;
+      if (tsfThread != null) { Marshal.ReleaseComObject(tsfThread); tsfThread = null; }
+      form.Close(); return true;
+    });
     if (!thread.Join(5000)) throw new InvalidOperationException("keyboard_peer_shutdown_timeout");
     disposed = true;
     ready.Dispose();
