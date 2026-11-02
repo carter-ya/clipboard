@@ -587,6 +587,16 @@ function Wait-RestoredHistorySearch([string]$Query, [string]$WaitCheckName) {
     if ($control -and !$control.Current.IsOffscreen -and $filters -and !$filters.Current.IsOffscreen) { $control }
   } $WaitCheckName
 }
+function Wait-RestoredLocalTextProgress([string]$Query, [string]$Engine, [int]$Count,
+    [string]$ProgressLabel, [string]$WaitCheckName) {
+  Wait-RestoredHistorySearch $Query $WaitCheckName | Out-Null
+  # History filters/editor map before the selected preview's progress subtree.
+  # Require the same held request to remain active when its exact label returns.
+  Wait-For {
+    (Test-LocalTextCounter $Engine $Count) -and !(Test-LocalTextCounter $Engine $Count $true) -and
+      (Find-Named $ProgressLabel)
+  } $WaitCheckName | Out-Null
+}
 function Wake-Existing {
   $peer = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) `
     -ArgumentList @('--data-root', ('"' + $historyRoot + '"')) -PassThru
@@ -1126,7 +1136,7 @@ try {
       Invoke-VisibleConnectionButton 'Remove names model'
       Wait-For { (Find-Named 'Names model removal complete') -and (Test-PublicControlEnabled 'Verify local models') } 'language_only_noop_removal_finished' | Out-Null
       Invoke-VisibleConnectionButton 'Back to history'
-      Wait-RestoredHistorySearch 'Tim Cook' 'language_only_noop_removal_history' | Out-Null
+      Wait-RestoredLocalTextProgress 'Tim Cook' 'language' 4 'Identifying language and names locally…' 'language_only_noop_removal_history'
       Add-Check 'removing_an_absent_entity_model_keeps_language_only_analysis' (!(Test-LocalTextCounter 'language' 4 $true) -and $null -ne (Find-Named 'Identifying language and names locally…'))
       Set-LocalTextSettings @('Enable local generated summaries', 'Enable local language and names') 'Tim Cook'
       Wait-For { Test-LocalTextCounter 'language' 4 $true } 'language_only_permission_change_drained' | Out-Null
@@ -1139,7 +1149,7 @@ try {
       Invoke-VisibleConnectionButton 'Remove names model'
       Wait-For { (Find-Named 'Names model removal complete') -and (Test-PublicControlEnabled 'Verify local models') } 'unrelated_model_removal_finished' | Out-Null
       Invoke-VisibleConnectionButton 'Back to history'
-      Wait-RestoredHistorySearch 'NASA engineers' 'unrelated_model_removal_history' | Out-Null
+      Wait-RestoredLocalTextProgress 'NASA engineers' 'generative' 5 'Generating a local summary…' 'unrelated_model_removal_history'
       Add-Check 'removing_an_uninstalled_unrelated_model_keeps_active_generation' (!(Test-LocalTextCounter 'generative' 5 $true) -and $null -ne (Find-Named 'Generating a local summary…'))
       Set-LocalTextSettings @('Enable local generated summaries') 'NASA engineers'
       Wait-For { Test-LocalTextCounter 'generative' 5 $true } 'manual_generation_revocation_drained' | Out-Null
