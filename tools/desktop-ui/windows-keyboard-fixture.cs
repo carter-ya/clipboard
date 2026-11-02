@@ -84,6 +84,11 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
     AppContext.SetSwitch("Switch.System.Windows.Forms.DoNotSupportSelectAllShortcutInMultilineTextBox", false);
     thread = new Thread(delegate() {
       try {
+        InputLanguage english = null;
+        foreach (InputLanguage language in InputLanguage.InstalledInputLanguages)
+          if (language.Culture.Name == "en-US") { english = language; break; }
+        if (english == null) throw new InvalidOperationException("owned_peer_requires_english_input_profile");
+        InputLanguage.CurrentInputLanguage = english;
         form = new Form { Text = "Clipboard owned synthetic paste target", Width = 500, Height = 180 };
         editor = new PasteEditor { Multiline = true, Dock = DockStyle.Fill, AcceptsReturn = true };
         form.Controls.Add(editor);

@@ -10,10 +10,17 @@ function Wait-Peer([scriptblock]$Predicate, [string]$Stage) {
   throw $Stage
 }
 $ownedPeer = $null
+$originalInput = [Windows.Forms.InputLanguage]::CurrentInputLanguage
 try {
+  $chineseProfile = [Windows.Forms.InputLanguage]::InstalledInputLanguages | Where-Object { $_.Culture.Name -eq 'zh-CN' } | Select-Object -First 1
+  if ($chineseProfile) { [Windows.Forms.InputLanguage]::CurrentInputLanguage = $chineseProfile }
   $ownedPeer = [ClipboardKeyboardFixture]::new([uint32]$PID)
   $ownedPeer.Activate()
   Wait-Peer { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $ownedPeer.Handle } 'native_peer_foreground'
+  if ($ownedPeer.TargetInputLanguage($ownedPeer.Handle) -ne 0x0409) { throw 'owned_peer_must_establish_english_after_chinese_preflight' }
+  if ($chineseProfile -and [Windows.Forms.InputLanguage]::CurrentInputLanguage.Handle -ne $chineseProfile.Handle) {
+    throw 'owned_peer_must_not_change_parent_thread_input_language'
+  }
   $ownedPeer.TypeAscii($ownedPeer.Handle, 'welcome')
   Wait-Peer { $ownedPeer.Text -ceq 'welcome' } 'native_peer_ascii_input'
   $ownedPeer.Chord($ownedPeer.Handle, [UInt16[]]@(0x11, 0x41))
@@ -24,5 +31,6 @@ try {
   if ($ownedPeer.PasteCount -ne 0) { throw 'native_peer_selftest_must_not_paste' }
   Write-Host 'Owned native recipient accepts ASCII, selects all by Ctrl+A and replaces it with Unicode input'
 } finally {
-  if ($ownedPeer) { $ownedPeer.Dispose() }
+  try { if ($ownedPeer) { $ownedPeer.Dispose() } }
+  finally { [Windows.Forms.InputLanguage]::CurrentInputLanguage = $originalInput }
 }

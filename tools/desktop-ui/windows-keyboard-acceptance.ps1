@@ -29,6 +29,14 @@ function Invoke-WindowsKeyboardAcceptance {
     } 'actual_global_hotkey_focuses_search_from_other_window' | Out-Null
     Add-Check 'actual_global_hotkey_focuses_search_from_other_window' $true
 
+    # The separate IME preflight can change the runner's last active profile.
+    # Establish the English baseline by an actual OS shortcut on this app.
+    if ($keyboardPeer.TargetInputLanguage($nativeWindowHandle) -eq 0x0804) {
+      $keyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x5b, 0x20))
+      Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and
+        $keyboardPeer.TargetInputLanguage($nativeWindowHandle) -eq 0x0409 } 'keyboard_establishes_english_baseline' | Out-Null
+    }
+
     $keyboardPeer.TypeAscii($nativeWindowHandle, 'welcomex')
     Wait-For { (Get-EditorWithValue 'welcomex') -and (Find-Named '0 items') } 'keyboard_ascii_filters_history' | Out-Null
     Add-Check 'keyboard_events_edit_the_actual_search' $true
