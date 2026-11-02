@@ -74,7 +74,10 @@ public sealed class ClipboardBrowserFixture : IDisposable {
   public string PlainText { get { return "Browser fixture \u4e2d\u6587\ud83d\ude00\nsecond line"; } }
   public string HtmlText { get { return "Browser rich \u4e2d\u6587\ud83d\ude00"; } }
   public string BoldText { get { return "rich \u4e2d\u6587\ud83d\ude00"; } }
-  public string PixelData { get { return Convert.ToBase64String(new byte[] {255,0,0,255, 0,255,0,255, 0,0,255,255, 255,255,0,255, 0,255,255,255, 255,0,255,255}); } }
+  // Canvas returns zero RGB for fully transparent pixels. Half-transparent
+  // magenta also checks alpha without ambiguous rounding of color channels.
+  public string PixelData { get { return Convert.ToBase64String(new byte[] {255,0,0,255, 0,255,0,255, 0,0,0,0, 255,255,0,255, 0,255,255,255, 255,0,255,128}); } }
+  public string PngData { get; private set; }
   public string[] Files { get { return new string[] { Path.Combine(Root, "alpha \u4e2d\u6587.txt"), Path.Combine(Root, "beta space.txt") }; } }
   static void Guard() {
     if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" || Environment.OSVersion.Platform != PlatformID.Win32NT)
@@ -237,9 +240,11 @@ public sealed class ClipboardBrowserFixture : IDisposable {
         } else if (kind == "image") {
           using (var image = new Bitmap(3, 2))
           using (var png = new MemoryStream()) {
-            var colors = new Color[] { Color.Red, Color.Lime, Color.Blue, Color.Yellow, Color.Cyan, Color.Magenta };
+            var colors = new Color[] { Color.Red, Color.Lime, Color.FromArgb(0, 0, 0, 255),
+              Color.Yellow, Color.Cyan, Color.FromArgb(128, 255, 0, 255) };
             for (int i = 0; i < colors.Length; i++) image.SetPixel(i % 3, i / 3, colors[i]);
             image.Save(png, System.Drawing.Imaging.ImageFormat.Png); png.Position = 0;
+            PngData = Convert.ToBase64String(png.ToArray());
             data.SetData("PNG", false, png); data.SetImage(image);
             Clipboard.SetDataObject(data, true, 0, 0); return;
           }
