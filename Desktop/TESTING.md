@@ -360,9 +360,14 @@ with GDI+ to obtain reference BGRA pixels. Native checks require original format
 bytes, standard bitmap availability/pixels, a single original history payload and
 both ordinary/sensitive metadata, with private fixture cleanup. The older short
 JPEG/TIFF scenario samples deliberately prove opaque-byte transport only and do
-not establish image decoding or receiver interoperability. This new audit is
-pending native execution; actual app/browser paste, orientation and color-profile
-fidelity remain separate, unverified gates.
+not establish image decoding or receiver interoperability. Run 41449124843 at
+head 1dcc4b3 confirms a compatibility defect: both valid formats retain exact
+original bytes and sensitivity but lack a standard bitmap for recipients, with
+eight bitmap availability/pixel assertions failing. The Windows adapter now
+extends its existing bounded WIC bitmap representation to valid JPEG/TIFF while
+retaining originals and suppressing the derived duplicate on readback. The same
+native regression is pending after the fix; actual app/browser paste, orientation
+and color-profile fidelity remain separate, unverified gates.
 
 ## Implementation history
 
