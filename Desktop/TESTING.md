@@ -409,6 +409,33 @@ clipboard. Hosted results and the changed preview's full UI are pending;
 Windows clipboard-derived bitmap orientation and ICC/color fidelity are separate
 unverified gates.
 
+Recognizable credential text is classified by the shared Core sensitivity
+filter, under the existing Mask sensitive items preference, enabled by default.
+The capture policy recognizes sufficiently long sk-/project/Anthropic-style,
+GitHub/GitLab, Stripe secret/restricted/webhook, Slack and npm token prefixes,
+fixed AWS access-key identifiers and private-key headers. It checks token
+boundaries/lengths and leaves ordinary words, short prefix placeholders and
+Stripe publishable keys ordinary. No provider validation or network request is
+performed. UTF-8 text is scanned in full instead of using the 256-character row
+preview; UTF-16 and the bounded plain rendering of HTML/RTF are also checked.
+Image bytes and copied file bodies are not scanned or opened by this policy.
+
+Matches use the existing sensitive flag and constant credentialPattern reason,
+so the normal password UI mask/reveal and AI/export exclusion apply. A recapture
+of an already persisted ordinary duplicate must upgrade that exact record to
+memory-only inline payloads, preserve ID/pinning/original Copy, remove obsolete
+normal snapshot/blob references, clear summaries and reject late analysis
+results. The UI receives the sensitive update before persistence suspension.
+Synthetic unit tests exercise prefixes, negative cases, complete long text,
+UTF-16, rich escaping, the capture/store/export path, no AI transport and the
+old-duplicate/late-result regressions. The existing native Windows/Linux text
+scenario additionally writes an unmarked synthetic key from its independent
+process and requires inferred sensitivity, memory-only storage and exact
+explicit Copy with a sensitive native hint. Hosted execution is pending.
+Stored history/import reclassification and escaped rich-text tails beyond the
+existing rendering budget remain follow-up gates; recognition of every possible
+credential format is not claimed.
+
 ## Implementation history
 
 The following notes retain the development sequence. Pending statements describe

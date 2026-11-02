@@ -685,6 +685,19 @@
           "windows_notepad_acceptance": {
             "reference": "cross_platform_delivery.functional_parity.current_acceptance.windows_common_application_followup"
           }
+        },
+        {
+          "id": "CP14_secret_pattern_masking",
+          "scope": "Recognized key/credential text uses the existing password masking and memory-only policy on Mac/Windows/Linux",
+          "status": "in_progress",
+          "implemented": "Shared capture filter locally recognizes defined credential prefixes/private-key headers and UTF-8/UTF-16/rich-text representations. Sensitive recapture upgrades a persisted ordinary duplicate without changing ID, pinning or original Copy bytes; it removes normal history/blob references, clears old summaries and rejects late analysis results. Native text and rich clipboard CI exercise an independent non-sensitive source, inferred classification, memory-only storage and explicit sensitive Copy.",
+          "validation": "Before-change synthetic capture/dedup regression fails15 assertions; late-summary regression independently fails before the store guard. All55 targeted Core recognition/password/source/store/archive/AI tests now pass, including10 secret tests. Strict changed-Swift lint passes. Native Windows/Linux text and rich clipboard scenarios and full hosted platform/UI checks pending.",
+          "remaining": [
+            "Exact-head Mac/Windows/Linux Core and Windows/Linux UI CI plus explicit clean review",
+            "Native prefixed-key clipboard capture checks on Windows/Linux",
+            "Existing history/import classification and the bounded escaped-rich-text tail policy require follow-up before broad completion",
+            "Final integration/installation and existing CP13 physical gates remain open"
+          ]
         }
       ],
       "current_acceptance": {
@@ -1021,8 +1034,9 @@
           "product_pr": 61,
           "product_head": "be3c791817e4826192916eef1d8854da8fe91575",
           "product_runtime": 41454151911,
-          "product_runtime_status": "in_progress",
-          "meaning": "Exact native JPEG/TIFF bytes and independent browser-converted raster pixels are distinct assertions; product Debug/installed runtime still required."
+          "product_runtime_status": "verified_Debug78_installed78_browser17_RTF10_IME7_package12",
+          "meaning": "Exact native JPEG/TIFF bytes and independent browser-converted raster pixels are distinct assertions; product Debug/installed runtime still required.",
+          "product_merge": "d23f8081056bb0113ed7587662a4ffd84b7d0721"
         },
         "gtk_image_orientation_followup": {
           "status": "fixed_and_locally_reproduced_hosted_windows_linux_pending",
@@ -1040,6 +1054,19 @@
             "Windows clipboard-derived bitmap EXIF orientation remains independently unverified",
             "ICC/color-profile fidelity, client hardware and existing CP13 gates remain open"
           ]
+        },
+        "latest_main_integration": {
+          "head": "562ce12176545aef923bbf342ed0b0995e7291da",
+          "core": {
+            "run": 41452804149,
+            "status": "success_all3platforms"
+          },
+          "ui": {
+            "run": 41452803944,
+            "windows": "failed_installed_keyboard_notepad_spawned_process_identity_mismatch",
+            "linux": "in_progress_runtime_only_installation"
+          },
+          "meaning": "Failure is retained as a failed gate. PR61 narrowed installed input passes78 checks; do not infer the complete integration/installed-model suite passed."
         }
       }
     }

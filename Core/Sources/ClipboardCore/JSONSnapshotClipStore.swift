@@ -56,7 +56,24 @@ public actor JSONSnapshotClipStore: ClipStore {
   public func insert(_ raw: RawClipItem) async {
     let sha = Hashing.sha256(of: raw.payloads)
 
-    if let existing = items.first(where: { $0.sha256 == sha }) {
+    if let index = items.firstIndex(where: { $0.sha256 == sha }) {
+      let existing = items[index]
+      if raw.isSensitive && !existing.sensitive {
+        // A new sensitive classification takes precedence over an older plain
+        // copy of the same content. Publish the memory-only state before any
+        // suspension, preserving identity/pinning and the original Copy bytes.
+        items[index].sensitive = true
+        items[index].sensitivityReason = raw.sensitivityReason
+        items[index].payloads = raw.payloads.map {
+          Payload(pasteboardType: $0.pasteboardType, inlineData: $0.data)
+        }
+        items[index].summary = nil
+        items[index].summarySource = nil
+        broadcaster.yield(.updated(items[index]))
+        scheduleWrite()
+        await writeSnapshotNow()
+        await releaseBlobs(for: existing)
+      }
       await bump(existing: existing)
       return
     }
@@ -148,7 +165,7 @@ public actor JSONSnapshotClipStore: ClipStore {
   }
 
   public func updateSummary(id: UUID, summary: String, source: SummarySource) async {
-    guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
+    guard let idx = items.firstIndex(where: { $0.id == id }), !items[idx].sensitive else { return }
     items[idx].summary = summary
     items[idx].summarySource = source
     broadcaster.yield(.updated(items[idx]))

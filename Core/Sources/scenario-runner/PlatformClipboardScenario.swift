@@ -105,7 +105,8 @@ import Foundation
       stage = "launch_peer"
       let peer = try ClipboardPeer()
       defer { peer.close() }
-      let monitor = TextClipboardMonitor(clipboard: clipboard, maxBytes: 4096)
+      let monitor = TextClipboardMonitor(
+        clipboard: clipboard, filter: SensitivityFilter(), maxBytes: 4096)
       monitor.start()
       defer { monitor.stop() }
       let fixture = "Clipboard native verification 😀 中文\nsecond line"
@@ -168,6 +169,51 @@ import Foundation
         "native_secret_is_memory_only",
         memory.contains(where: \.sensitive) && persisted.count == 1 && !secretOnDisk,
         into: &checks)
+
+      stage = "prefixed_credential_without_native_hint"
+      let credential = "sk-" + String(repeating: "Synthetic123", count: 40)
+      let credentialBytes = Data(credential.utf8)
+      var credentialRaw: RawClipItem?
+      for _ in 0..<3 {
+        let value = try await nextValue(monitor.changes) {
+          _ = try peer.request(PeerCommand(operation: "write", text: credential, sensitive: false))
+        }
+        if value.payloads.first?.data == credentialBytes {
+          credentialRaw = value
+          break
+        }
+      }
+      guard let credentialRaw else { throw TextClipboardError.timeout }
+      check(
+        "native_prefixed_key_is_inferred_sensitive_without_concealed_hint",
+        credentialRaw.isSensitive && credentialRaw.sensitivityReason == "credentialPattern"
+          && !credentialRaw.payloads.contains {
+            $0.pasteboardType == SensitivityFilter.concealedType
+          },
+        into: &checks)
+      await store.insert(credentialRaw)
+      await store.flush()
+      let credentialMemory = await store.all()
+      let afterCredential = try await JSONSnapshotClipStore(root: root)
+      let credentialPersisted = await afterCredential.all()
+      let credentialFiles = try FileManager.default.contentsOfDirectory(
+        at: root.appendingPathComponent("blobs"), includingPropertiesForKeys: nil)
+      let credentialOnDisk = try credentialFiles.contains {
+        try Data(contentsOf: $0).range(of: credentialBytes) != nil
+      }
+      check(
+        "native_prefixed_key_remains_in_memory_without_blob_or_history",
+        credentialMemory.count == 3 && credentialPersisted.count == 1 && !credentialOnDisk,
+        into: &checks)
+      guard let credentialItem = credentialMemory.first else {
+        throw TextClipboardError.unavailable
+      }
+      try TextPasteboardWriter(clipboard: clipboard, blobRoot: root.appendingPathComponent("blobs"))
+        .write(credentialItem)
+      let copiedCredential = try peer.request(PeerCommand(operation: "read"))
+      check(
+        "native_prefixed_key_explicit_copy_preserves_original_and_sensitive_hint",
+        copiedCredential.text == credential && copiedCredential.sensitive == true, into: &checks)
       stage = "size_rejection"
       let skip = try await nextValue(monitor.skips) {
         _ = try peer.request(
