@@ -84,7 +84,8 @@ not an installed system directory; installation and unconditional version
 checks still run. PR69's UI run records an initial miss and successful cache
 save. The default-branch installer cache is now verified too; its completed-PR
 duplicate (about1.76 GB) is removed only after the same-key main cache is checked.
-A subsequent cache hit/speedup still needs separate evidence. Release compilation
+Subsequent UI runs41496806384 and41501307851 confirm a hit and successful restore
+of that shared installer key. This verifies reuse, not a controlled speedup. Release compilation
 in the fresh full run takes221 seconds versus1416 in the earlier full reference;
 these are observed durations from different hosted runs, not a controlled benchmark.
 Terminal logs from the cancelled old run41486628199 show about14m57s downloading
@@ -124,8 +125,7 @@ matrix is independent of this reference-only choice. Inventory records OS
 caption/product type and OS/process architecture as well as build and display
 information. A client native-reference result does not establish GTK application
 or x64-client/physical-hardware acceptance. The original exact preedit, candidate
-selection and foreground assertions remain unchanged; native client execution
-is pending. Its first capability-provisioning run times out before input, with
+selection and foreground assertions remain unchanged. Its first capability-provisioning run times out before input, with
 no receipt because the process is terminated before finally. Environment receipts
 now persist content-free stages before potentially blocking capability queries
 or installation. Five private-provider regressions execute the actual statements:
@@ -135,6 +135,16 @@ without mutation. The client reference now prepares only the user input profile,
 reports capability state as not queried and leaves `provisioningComplete` false;
 the separate unchanged native IME checks must prove actual candidates. Server
 application provisioning retains its installed-capability requirement.
+Fresh native reference41501521997 at79747a3 verifies Windows11 Enterprise
+build26200, workstation ProductType1, ARM64, one96-DPI monitor and configured
+en-US/zh-CN input profiles. The native IME receipt then fails
+`owned_ime_target_foreground` with zero key/scanned-key/IME messages and zero
+candidate checks. This remains a failed precondition; no client IME pass is
+claimed, and the exact platform cause is unproven. Keep the expected foreground
+HWND/ownership guards and do not adopt another window or retry input.
+PR71's normal Windows/Linux checks, both PowerShell provider regressions and
+exact-head review pass. Product/full-behavior source components remain unchanged
+from the completed x64 run48b872a; the diagnostic reference does not replace it.
 Availability is documented in the
 [GitHub-hosted runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 Preparation also starts the available Windows text-input service and requests the

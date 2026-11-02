@@ -638,7 +638,7 @@
           "scope": "Distribution and platform acceptance",
           "status": "in_progress",
           "remaining": [
-            "Physical Windows10/11 and Linux desktop IME/focus and actual desktop permissions; the hosted Windows11 Arm native reference remains separately scoped and unverified after its first provisioning timeout",
+            "Physical Windows10/11 and Linux desktop IME/focus and actual desktop permissions. Hosted Windows11 Arm profile configuration is verified, but native input refuses its unmet owned-foreground prerequisite with zero key events.",
             "Mixed-monitor DPI, application/format combinations beyond the verified hosted classic Notepad, Chrome text/HTML/PNG/JPEG/TIFF/files and RichEdit RTF receivers, real suspend/resume and long-session gates in Desktop/TESTING.md",
             "Interactive official release-page launch and manual update installation on real client desktops remain unverified."
           ],
@@ -1243,10 +1243,10 @@
           "physical_client": "not_verified"
         },
         "windows_toolchain_cache": {
-          "status": "main_scoped_installer_cache_fill_verified",
+          "status": "main_fill_and_subsequent_shared_installer_hit_restore_verified",
           "action": "compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7",
           "evidence": "The pinned upstream action defaults cache=false; existing Core/UI calls omit it, so every fresh VM downloads installer.exe. Its built-in Windows cache key includes architecture, release version and build; only the downloaded installer is cached, not an installed system directory.",
-          "change": "Enable cache=true with explicit amd64 for pinned Windows Core6.1.3 and UI6.3.3. Retain installation, unconditional exact-version checks, compiled dependency caches and runtime tests. A subsequent hit and speed improvement are not yet measured.",
+          "change": "Enable cache=true with explicit amd64 for pinned Windows Core6.1.3 and UI6.3.3. Installation and unconditional exact-version validation remain. Main fill plus subsequent shared UI installer hit/restore are verified; no controlled speedup benchmark is claimed.",
           "reference": "https://github.com/compnerd/gha-setup-swift/blob/775d3f4111c5be58a0f62f2efdd353bb8fac15c7/action.yml",
           "pr": 69,
           "head": "fd29fb2c2276a09bbc3c06d1fd4b49a567904b8a",
@@ -1268,6 +1268,13 @@
             "this_full_run_seconds": 221,
             "earlier_full_reference_seconds": 1416,
             "meaning": "Observed phase durations on different hosted runs, not a controlled performance benchmark."
+          },
+          "subsequent_hit": {
+            "run": 41501307851,
+            "job": 125469196829,
+            "head": "79747a3f0f3f4ca38384f3938d8adf88a688b1e1",
+            "key": "swift-toolchain-windows-amd64-swift-6.3.3-release-6.3.3-RELEASE",
+            "observed": "Cache hit and successful restore at18:32:56Z/18:33:39Z; earlier run41496806384 also records a successful shared hit/restore."
           }
         },
         "latest_credential_core_acceptance": {
@@ -1296,7 +1303,7 @@
         },
         "windows_client_native_reference": {
           "branch": "codex/windows-client-input-reference",
-          "status": "profile_only_probe_and_durable_receipt_implemented_native_confirmation_pending",
+          "status": "profile_configuration_verified_native_owned_foreground_precondition_failed",
           "host": "windows-11-arm",
           "reference": "https://docs.github.com/en/actions/reference/runners/github-hosted-runners",
           "scope": "Explicit manual native reference jobs may select the hosted Windows11 Arm desktop with the existing8-minute bound. Default remains windows-2022; normal PR/push application matrix and all app/model/full validation scopes remain unchanged. The expression maps only the explicit manual windows-11-arm choice to that fixed label; other values fall back to Windows Server, never a supplied arbitrary/self-hosted label.",
@@ -1306,7 +1313,40 @@
           "first_head": "fa7f70a54353944bae8ebdae4d5103e045864e31",
           "first_result": "Provisioning step times out before native input; finally-only reporting leaves no receipt and artifact upload reports no files. No client IME pass is claimed.",
           "repair": "Persist content-free OS/preparation phase before potentially blocking capability operations. Explicit Windows11 client reference prepares only the user input profile, reports language capabilities as not queried and leaves provisioningComplete false. Server application preparation retains strict installed-capability readiness. Only the unchanged separate native IME receipt can prove actual preedit/selection.",
-          "regression": "Five pure actual-statement/provider cases: hard-killed query/install retain the prior receipt; explicit client profile configures without capability calls; server or non-prepare profile-only requests refuse without mutation. Before repair the killed-query case loses its report. Both PowerShell runtimes execute the regression before builds."
+          "regression": "Five pure actual-statement/provider cases: hard-killed query/install retain the prior receipt; explicit client profile configures without capability calls; server or non-prepare profile-only requests refuse without mutation. Before repair the killed-query case loses its report. Both PowerShell runtimes execute the regression before builds.",
+          "pr": 71,
+          "head": "79747a3f0f3f4ca38384f3938d8adf88a688b1e1",
+          "merge_commit": "555c90b918be0572e1f3c3d83e50b156c476d548",
+          "ordinary_ui_run": 41501307851,
+          "ordinary_ui": "both_platforms_passed",
+          "review": "clean_exact_head",
+          "merge_tree_matches_reviewed_head": true,
+          "profile_reference_run": 41501521997,
+          "profile_reference_artifact": 13168781920,
+          "observed_client": {
+            "caption": "Microsoft Windows 11 Enterprise",
+            "build": "10.0.26200.0",
+            "productType": 1,
+            "osArchitecture": "ARM 64-bit Processor",
+            "processArchitecture": "ARM64",
+            "monitorCount": 1,
+            "systemDpi": 96,
+            "inputLanguages": [
+              "en-US",
+              "zh-CN"
+            ],
+            "profileConfigurationComplete": true,
+            "provisioningComplete": false
+          },
+          "native_reference_result": {
+            "passed": false,
+            "stage": "owned_ime_target_foreground",
+            "keyMessages": 0,
+            "scannedKeyMessages": 0,
+            "imeMessages": 0,
+            "candidate_checks": 0
+          },
+          "proof_limit": "The reference does not acquire its owned foreground window and sends no input. Client IME, GTK/x64 client, physical input, mixed-monitor and suspend behavior remain unverified. Exact platform cause is unproven; never weaken ownership/foreground guards or adopt another window to claim a pass."
         },
         "previous_windows_full_followup": {
           "run": 41433432627,
@@ -1323,7 +1363,7 @@
           "physical_client": "not_verified"
         },
         "latest_feature_evidence": {
-          "status": "all_implemented_automated_components_verified_physical_gates_open",
+          "status": "all_implemented_product_automated_components_verified_physical_gates_open",
           "windows": {
             "run": 41491062151,
             "head": "48b872aea3fd6ce24a90469a3e912787b67469b1",
@@ -1339,7 +1379,13 @@
             "reviewed_head": "fd29fb2c2276a09bbc3c06d1fd4b49a567904b8a",
             "main_tree_equal_at_merge": "48b872aea3fd6ce24a90469a3e912787b67469b1"
           },
-          "scope": "Audited platform-specific complete reports and explicitly proven unchanged source components; not identical entire commit trees, physical/client acceptance, ICC fidelity or release approval."
+          "scope": "Audited platform-specific complete reports and explicitly proven unchanged source components; not identical entire commit trees, physical/client acceptance, ICC fidelity or release approval.",
+          "later_reviewed_followup": {
+            "pr": 71,
+            "head": "79747a3f0f3f4ca38384f3938d8adf88a688b1e1",
+            "merge_commit": "555c90b918be0572e1f3c3d83e50b156c476d548",
+            "scope": "Native-reference diagnostics/preparation and acceptance notes; Core/App/Desktop/worker and full runtime behavior probe components are unchanged from full Windows48b872a. Full Windows/Linux product evidence is inherited only within that component scope."
+          }
         }
       }
     }
