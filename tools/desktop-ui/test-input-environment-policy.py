@@ -8,6 +8,18 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class InputEnvironmentPolicyTests(unittest.TestCase):
+    def test_notepad_readiness_fails_before_expensive_builds(self):
+        data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
+        steps = data['jobs']['preview']['steps']
+        probe = next(step for step in steps if step.get('name') == 'Verify spawned Notepad readiness before application builds')
+        self.assertEqual(probe['if'], "runner.os == 'Windows'")
+        self.assertEqual(probe['shell'], 'powershell')
+        self.assertIn('test-windows-notepad-process.ps1', probe['run'])
+        self.assertLess(steps.index(probe), next(i for i, step in enumerate(steps) if step.get('name') == 'Install Swift 6.3.3 on Windows'))
+        for name in ['Verify private fixture interpreter and pipe encoding', 'Verify private fixture on Windows PowerShell 5.1']:
+            step = next(step for step in steps if step.get('name') == name)
+            self.assertIn('test-windows-notepad-readiness.ps1', step['run'])
+
     def test_manual_application_adds_package_keyboard_without_optional_models(self):
         data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
         steps = {step.get('name'): step for step in data['jobs']['preview']['steps']}

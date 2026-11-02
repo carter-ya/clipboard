@@ -161,6 +161,7 @@ jobs:
           ./tools/desktop-ui/test-private-visible-control-helpers.ps1
           ./tools/desktop-ui/test-private-selection-scope.ps1
           ./tools/desktop-ui/test-private-keyboard-input-types.ps1
+          ./tools/desktop-ui/test-windows-notepad-readiness.ps1
           ./tools/desktop-ui/test-private-probe-exit.ps1
       - name: Verify private fixture on Windows PowerShell 5.1
         if: runner.os == 'Windows'
@@ -172,9 +173,14 @@ jobs:
           ./tools/desktop-ui/test-private-visible-control-helpers.ps1
           ./tools/desktop-ui/test-private-selection-scope.ps1
           ./tools/desktop-ui/test-private-keyboard-input-types.ps1
+          ./tools/desktop-ui/test-windows-notepad-readiness.ps1
           ./tools/desktop-ui/test-private-probe-exit.ps1
       - name: Verify private AI fixture response cancellation
         run: python tools/desktop-ui/test-ai-probe-errors.py
+      - name: Verify spawned Notepad readiness before application builds
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./tools/desktop-ui/test-windows-notepad-process.ps1
       - name: Verify private AI fixture pipe protocol
         run: python tools/desktop-ui/test-ai-probe-server.py
       - name: Install GTK and isolated desktop test tools

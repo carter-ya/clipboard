@@ -1,4 +1,32 @@
-# Only loaded by KeyboardOnly on the disposable Windows Actions desktop.
+# Owned Notepad checks on the disposable Windows Actions desktop.
+function Wait-OwnedNotepadIdentity($Process, [string]$ExpectedExecutable) {
+  # Start-Process can return before MainModule is available. Observe only the
+  # retained process; an exited/delegated/wrong executable is never retried.
+  $identity = Wait-For {
+    try {
+      if ($Process.HasExited) { return 'exited' }
+      $Process.Refresh()
+      if ($Process.HasExited) { return 'exited' }
+      $module = $Process.MainModule
+      if ($null -eq $module -or [string]::IsNullOrWhiteSpace($module.FileName)) { return $false }
+      if (![string]::Equals($module.FileName, $ExpectedExecutable, [StringComparison]::OrdinalIgnoreCase)) {
+        return 'mismatch'
+      }
+      return 'ready'
+    } catch {
+      return 'unreadable'
+    }
+  } 'notepad_spawned_process_identity_ready' 10
+  # Wait-For normally retries UI lookup exceptions. Return terminal states from
+  # its predicate and reject them outside that loop, before any input is sent.
+  switch ($identity) {
+    'ready' { return }
+    'exited' { throw 'owned_notepad_exited_before_identity' }
+    'mismatch' { throw 'notepad_spawned_process_identity_mismatch' }
+    default { throw 'owned_notepad_identity_unreadable' }
+  }
+}
+
 function Invoke-WindowsNotepadPasteAcceptance([string]$Expected, [string]$FixtureName, [string]$Query, $AppKeys) {
   if ($env:GITHUB_ACTIONS -ne 'true' -or $env:OS -ne 'Windows_NT' -or !$KeyboardOnly -or
       !$application -or $application.HasExited -or !$historyRoot -or !$AppKeys -or !$Query -or
@@ -15,9 +43,7 @@ function Invoke-WindowsNotepadPasteAcceptance([string]$Expected, [string]$Fixtur
     $null = $notepad.Handle
     # The pinned Server runner has classic Notepad. A delegated Store process
     # or another editor must fail rather than receiving input by a broad search.
-    if ($notepad.HasExited -or ![string]::Equals($notepad.MainModule.FileName, $notepadExecutable, [StringComparison]::OrdinalIgnoreCase)) {
-      throw 'notepad_spawned_process_identity_mismatch'
-    }
+    Wait-OwnedNotepadIdentity $notepad $notepadExecutable
     $notepadWindow = Wait-For {
       if ($notepad.HasExited) { throw 'owned_notepad_exited_before_window' }
       $handle = [ClipboardOwnedNotepad]::FindWindow([uint32]$notepad.Id)
