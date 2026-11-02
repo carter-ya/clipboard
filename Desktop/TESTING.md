@@ -353,6 +353,17 @@ A supported alternative does not establish identical model behavior.
 | Local text/file summaries | Mac NaturalLanguage/Foundation Models when supported | Independent default-off generated-summary and language/name permissions, with optional pinned CPU models and explicit license/import/download/verification/removal controls. Text and PDF bodies require separate local-file permission. Bounded excerpts remain a separately labelled action and authorized fallback. Model outputs differ from Apple models; Windows/Linux native and installed checks pass in run 41379565901. |
 | Startup approval | OS login-item approval and user policy | Native registration/ownership and failure guidance are implemented; Windows Startup apps and Linux session policy can override registration. Real OS permission UI remains an interactive gate. |
 
+The manual windows_input_environment images mode audits valid JPEG/TIFF through
+the real C clipboard adapter without a Swift/application build or model transfer.
+The owned runner generates synthetic 3×2 files and independently decodes them
+with GDI+ to obtain reference BGRA pixels. Native checks require original format
+bytes, standard bitmap availability/pixels, a single original history payload and
+both ordinary/sensitive metadata, with private fixture cleanup. The older short
+JPEG/TIFF scenario samples deliberately prove opaque-byte transport only and do
+not establish image decoding or receiver interoperability. This new audit is
+pending native execution; actual app/browser paste, orientation and color-profile
+fidelity remain separate, unverified gates.
+
 ## Implementation history
 
 The following notes retain the development sequence. Pending statements describe
