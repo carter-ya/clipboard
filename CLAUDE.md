@@ -62,6 +62,8 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 ## Cross-platform desktop delivery
 
+- The user authorized actual keyboard input in Windows GitHub Actions acceptance on 2026-11-02. Keep it confined to the private KeyboardOnly smoke profile and its owned native recipient, require the expected foreground HWND before each SendInput submission, and never retry an input mutation. No host-desktop input or production automatic paste is authorized. Unicode packets do not prove real IME composition; physical mixed-DPI/suspend and unverified candidate behavior stay open.
+
 - Windows/Linux implementation is authorized through the stacked PR plan in `harness.json.cross_platform_delivery`, based on main `2fd2a97`. Preserve the existing macOS product and its macOS 13 minimum. System dependencies belong in platform adapters; shared business contracts stay portable.
 - macOS keeps OSLog and CryptoKit; the non-Apple desktop uses a private-by-default stderr logger and Swift Crypto. Native clipboard, hotkey, credentials and rich-text preview adapters remain separate work.
 - `.github/workflows/swift-portability.yml` runs Core tests and synthetic scenarios on Ubuntu/Windows plus Core/application regression on macOS for PRs, main changes and manual runs. Results and limitations belong in `docs/swift-portability.md` and `harness.json`.

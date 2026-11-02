@@ -13,7 +13,7 @@ if ($outer.Count -ne 1) { throw 'native_probe_cleanup_missing_or_ambiguous' }
 $tail = $source.Substring($outer[0].Extent.EndOffset)
 $modeReturns = @{}
 $parameters = @($ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
-foreach ($mode in @('ModelSettingsOnly', 'LocalTextOnly', 'ModelOperationsOnly', 'LocalFileModelsOnly')) {
+foreach ($mode in @('ModelSettingsOnly', 'KeyboardOnly', 'LocalTextOnly', 'ModelOperationsOnly', 'LocalFileModelsOnly')) {
   if ($mode -notin $parameters) { continue }
   $branches = @($outer[0].Body.FindAll({ param($node)
     $node -is [Management.Automation.Language.IfStatementAst]

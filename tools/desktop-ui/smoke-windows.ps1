@@ -6,6 +6,7 @@
       [switch]$Baseline,
       [switch]$ValidateOnly,
       [switch]$ModelSettingsOnly,
+      [switch]$KeyboardOnly,
       [switch]$LocalTextOnly,
       [switch]$LocalFileModelsOnly,
       [switch]$ModelOperationsOnly,
@@ -14,7 +15,7 @@
       [string]$ModelDefinitions,
       [int]$LifecycleCycles = 0)
 $ErrorActionPreference = 'Stop'
-if (@($ModelSettingsOnly, $LocalTextOnly, $ModelOperationsOnly, $LocalFileModelsOnly | Where-Object { $_ }).Count -gt 1) {
+if (@($ModelSettingsOnly, $KeyboardOnly, $LocalTextOnly, $ModelOperationsOnly, $LocalFileModelsOnly | Where-Object { $_ }).Count -gt 1) {
   throw 'private_model_modes_are_mutually_exclusive'
 }
 . (Join-Path $PSScriptRoot 'private-fixture-python.ps1')
@@ -329,7 +330,15 @@ public static class PreviewNative {
   }
 }
 '@
-if ($ValidateOnly) { exit 0 }
+if ($KeyboardOnly) {
+  if ($env:GITHUB_ACTIONS -ne 'true' -or $env:OS -ne 'Windows_NT') { throw 'keyboard_fixture_requires_windows_actions' }
+  Add-Type -Path (Join-Path $PSScriptRoot 'windows-keyboard-fixture.cs') `
+    -ReferencedAssemblies @('System.dll', 'System.Core.dll', 'System.Windows.Forms.dll', 'System.Drawing.dll')
+}
+if ($ValidateOnly) {
+  if ($KeyboardOnly) { & (Join-Path $PSScriptRoot 'test-windows-keyboard-peer.ps1') }
+  exit 0
+}
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
 $Executable = [IO.Path]::GetFullPath($Executable)
@@ -883,6 +892,11 @@ try {
   } else {
     Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'initial_history' | Out-Null
     Add-Check 'native_window_and_history_visible' $true
+    if ($KeyboardOnly) {
+      . (Join-Path $PSScriptRoot 'windows-keyboard-acceptance.ps1')
+      Invoke-WindowsKeyboardAcceptance
+      return
+    }
     if ($LocalFileModelsOnly) {
       $sourceDigests = @{}
       foreach ($filename in @('private-body.txt', 'private-body.pdf', 'automatic-body.txt')) {
@@ -2940,7 +2954,10 @@ try {
         Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'application-events.log')
     } catch { $_.Exception.Message | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'event-query.log') }
 
-    try { if ($nativeWindowHandle -ne [IntPtr]::Zero -and !$application.HasExited) { Save-Screenshot 'failure.png' } } catch { }
+    try {
+      if ($nativeWindowHandle -ne [IntPtr]::Zero -and !$application.HasExited -and
+          (!$KeyboardOnly -or [PreviewNative]::IsWindowVisible($nativeWindowHandle))) { Save-Screenshot 'failure.png' }
+    } catch { }
   }
 } finally {
   if ($application -and !$application.HasExited) {
@@ -2959,9 +2976,16 @@ try {
     $checks.Add(@{ name = 'private_model_fixture_cleanup_complete'; passed = !(Test-Path -LiteralPath $privateTextRoot) })
   }
   $passed = $checks.Count -gt 0 -and @($checks | Where-Object { !$_.passed }).Count -eq 0
+  $limitations = if ($KeyboardOnly) {
+    @('Owned Windows Actions keyboard events and explicit paste into a native test editor; not physical keyboard hardware.',
+      'Chinese Unicode input does not verify an IME candidate/composition session.',
+      'Mixed-monitor DPI, real suspend/resume and paste into other applications remain unverified.')
+  } else {
+    @('Native accessibility value/invoke operations and an owned CI-only mouse activation fixture; no keyboard injection in this mode.',
+      'Chinese IME and real hotkey focus transfer are not exercised by this mode.')
+  }
   $report = @{ platform = 'windows-gtk4-accesskit'; passed = $passed; checks = @($checks.ToArray());
-    limitations = @('Native accessibility value/invoke operations and an owned CI-only mouse activation fixture; no keyboard injection.',
-      'Real Chinese IME and global hotkey focus transfer remain untested.') }
+    limitations = $limitations }
   $json = $report | ConvertTo-Json -Depth 6
   $json | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'results.json')
   Write-Output $json

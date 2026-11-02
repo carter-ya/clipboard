@@ -47,7 +47,13 @@ the full window/search/copy/pin/settings/delete/persistence probe must succeed.
 
 `.github/workflows/swiftcrossui-preview.yml` builds and operates the actual
 Windows/Linux GUI. Windows uses native UI Automation with AccessKit, Linux uses
-AT-SPI in isolated Xvfb/DBus. No keyboard events are synthesized. Reports and
+AT-SPI in isolated Xvfb/DBus. Existing accessibility probes do not synthesize
+keyboard events. A separate Windows Actions-only `-KeyboardOnly` mode exercises
+the actual global shortcut, native editing/activation and explicit Ctrl+V into
+an owned WinForms recipient, using the existing build. Full acceptance repeats
+it against the installed executable. Unicode input is not IME composition;
+candidate selection, physical mixed-DPI and suspend/resume stay separate gates.
+Reports and
 screenshots are retained even when a probe fails. The `--smoke-root PATH` option
 isolates synthetic fixtures; `--data-root PATH` selects an empty/real store
 without seeding. Normal app data is stored under the OS Clipboard support root.

@@ -285,12 +285,6 @@ final class HistoryModel: ObservableObject {
   }
   @MainActor func attachSearch(_ entry: Gtk.Entry) {
     searchEntry = entry
-    entry.activate = { [weak self] _ in
-      Task { @MainActor in
-        guard let self, let id = self.selectedID else { return }
-        await self.activateHistoryItem(id: id)
-      }
-    }
     nativeWindow?.attachSearch(entry)
   }
 

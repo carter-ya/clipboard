@@ -22,6 +22,24 @@ def evaluate(expression, event, full_input, system):
 
 
 class WorkflowPolicyTests(unittest.TestCase):
+    def test_windows_keyboard_acceptance_uses_existing_debug_build_on_pr_and_integration(self):
+        steps = workflow('swiftcrossui-preview.yml')['jobs']['preview']['steps']
+        keyboard = next(step for step in steps if step.get('name') == 'Exercise native Windows keyboard focus and explicit paste')
+        self.assertIn('--configuration debug --show-bin-path', keyboard['run'])
+        self.assertIn('-KeyboardOnly', keyboard['run'])
+        self.assertIn('powershell.exe -NoProfile -MTA', keyboard['run'])
+        for event in ['push', 'pull_request', 'workflow_dispatch']:
+            self.assertTrue(evaluate(keyboard['if'], event, False, 'Windows'))
+            self.assertFalse(evaluate(keyboard['if'], event, True, 'Linux'))
+        save = next(step for step in steps if step.get('name') == 'Save compiled debug dependencies before native UI validation')
+        self.assertLess(steps.index(save), steps.index(keyboard))
+        submit = next(step for step in steps if step.get('name') == 'Verify search submit survives backend updates')
+        self.assertNotIn('if', submit)
+        self.assertIn('test-search-submit.py', submit['run'])
+        self.assertLess(steps.index(submit), steps.index(keyboard))
+        installer = (ROOT / 'tools/desktop-package/check-windows-install.ps1').read_text(encoding='utf-8-sig')
+        self.assertIn('-KeyboardOnly -OutputDirectory', installer)
+
     def test_manual_ui_runs_can_target_one_platform_without_narrowing_push_or_pr(self):
         data = workflow('swiftcrossui-preview.yml')
         choice = data['on']['workflow_dispatch']['inputs']['platform']
