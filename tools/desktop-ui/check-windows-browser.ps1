@@ -10,6 +10,8 @@ $failure = $null
 $diagnostic = $null
 try {
   $context = New-WindowsOwnedBrowser
+  & (Join-Path $PSScriptRoot 'test-windows-browser-cleanup.ps1')
+  $checks.Add(@{ name = 'owned_browser_teardown_failure_still_removes_private_profile'; passed = $true })
   foreach ($kind in @('text', 'html', 'image', 'files')) {
     Focus-WindowsOwnedBrowser $context -Reset
     $context.native.WriteFixture($kind)

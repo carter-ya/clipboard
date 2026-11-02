@@ -205,36 +205,51 @@ public sealed class ClipboardBrowserFixture : IDisposable {
   public void Dispose() {
     if (disposed) return;
     disposed = true;
+    Exception teardownFailure = null, profileFailure = null;
     try {
-      if (socket != null) socket.Dispose();
-      if (process != IntPtr.Zero && !processAssigned && !TerminateProcess(process, 1))
-        throw new InvalidOperationException("owned_suspended_browser_termination");
-      if (job != IntPtr.Zero) {
-        if (!TerminateJobObject(job, 0)) throw new InvalidOperationException("owned_browser_job_termination");
-        var deadline = Stopwatch.StartNew();
-        while (true) {
-          Accounting accounting;
-          if (!QueryInformationJobObject(job, 1, out accounting, (uint)Marshal.SizeOf(typeof(Accounting)), IntPtr.Zero))
-            throw new InvalidOperationException("owned_browser_job_accounting");
-          if (accounting.active == 0) break;
-          if (deadline.ElapsedMilliseconds > 5000) throw new InvalidOperationException("owned_browser_job_cleanup_timeout");
-          Thread.Sleep(50);
+      try {
+        if (socket != null) socket.Dispose();
+        if (process != IntPtr.Zero && !processAssigned && !TerminateProcess(process, 1))
+          throw new InvalidOperationException("owned_suspended_browser_termination");
+        if (job != IntPtr.Zero) {
+          if (!TerminateJobObject(job, 0)) throw new InvalidOperationException("owned_browser_job_termination");
+          var deadline = Stopwatch.StartNew();
+          while (true) {
+            Accounting accounting;
+            if (!QueryInformationJobObject(job, 1, out accounting, (uint)Marshal.SizeOf(typeof(Accounting)), IntPtr.Zero))
+              throw new InvalidOperationException("owned_browser_job_accounting");
+            if (accounting.active == 0) break;
+            if (deadline.ElapsedMilliseconds > 5000) throw new InvalidOperationException("owned_browser_job_cleanup_timeout");
+            Thread.Sleep(50);
+          }
         }
+        if (process != IntPtr.Zero && WaitForSingleObject(process, 5000) != 0)
+          throw new InvalidOperationException("owned_browser_process_exit_timeout");
+      } finally {
+        if (process != IntPtr.Zero) { CloseHandle(process); process = IntPtr.Zero; }
+        if (job != IntPtr.Zero) { CloseHandle(job); job = IntPtr.Zero; }
       }
-      if (process != IntPtr.Zero && WaitForSingleObject(process, 5000) != 0)
-        throw new InvalidOperationException("owned_browser_process_exit_timeout");
-    } finally {
-      if (process != IntPtr.Zero) { CloseHandle(process); process = IntPtr.Zero; }
-      if (job != IntPtr.Zero) { CloseHandle(job); job = IntPtr.Zero; }
+    } catch (Exception error) { teardownFailure = error; }
+    finally {
+      // Attempt private-file cleanup even if termination/accounting/handle
+      // teardown fails. Preserve both failures instead of hiding the first.
+      try {
+        if (Root != null && Directory.Exists(Root)) {
+          var deadline = Stopwatch.StartNew();
+          while (true) {
+            try { Directory.Delete(Root, true); break; }
+            catch (IOException) { if (deadline.ElapsedMilliseconds > 5000) throw; Thread.Sleep(100); }
+            catch (UnauthorizedAccessException) { if (deadline.ElapsedMilliseconds > 5000) throw; Thread.Sleep(100); }
+          }
+        }
+      } catch (Exception error) { profileFailure = error; }
     }
-    if (Root != null && Directory.Exists(Root)) {
-      var deadline = Stopwatch.StartNew();
-      while (true) {
-        try { Directory.Delete(Root, true); break; }
-        catch (IOException) { if (deadline.ElapsedMilliseconds > 5000) throw; Thread.Sleep(100); }
-        catch (UnauthorizedAccessException) { if (deadline.ElapsedMilliseconds > 5000) throw; Thread.Sleep(100); }
-      }
-    }
+    if (teardownFailure != null && profileFailure != null)
+      throw new AggregateException("owned_browser_teardown_and_profile_cleanup_failed", teardownFailure, profileFailure);
+    if (teardownFailure != null)
+      throw new InvalidOperationException("owned_browser_process_teardown_failed", teardownFailure);
+    if (profileFailure != null)
+      throw new InvalidOperationException("owned_browser_profile_cleanup_failed", profileFailure);
     CleanupComplete = true;
   }
 }
