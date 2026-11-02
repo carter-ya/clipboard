@@ -18,6 +18,9 @@ acceptance below, including real CPU models, Wayland, Release UI controls and
 installation. They first run the Debug checks and save their dependency cache,
 then build Release once and reuse that executable for full UI and package checks.
 Manual `full_validation: false` runs only the ordinary scope on the selected ref.
+Manual Desktop UI runs may also select `platform: windows` or `platform: linux`
+to validate a platform-specific repair without repeating the other platform.
+The default is `all`; pull requests and main pushes always retain both platforms.
 Verified dependency-source archives are collected on relevant `main` pushes or
 manual source-workflow runs, rather than for every stacked PR.
 

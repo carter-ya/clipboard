@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import unittest
 
 import yaml
@@ -21,6 +22,28 @@ def evaluate(expression, event, full_input, system):
 
 
 class WorkflowPolicyTests(unittest.TestCase):
+    def test_manual_ui_runs_can_target_one_platform_without_narrowing_push_or_pr(self):
+        data = workflow('swiftcrossui-preview.yml')
+        choice = data['on']['workflow_dispatch']['inputs']['platform']
+        self.assertEqual(choice['default'], 'all')
+        self.assertEqual(choice['options'], ['all', 'windows', 'linux'])
+        expression = data['jobs']['preview']['strategy']['matrix']['include']
+        expression = expression.removeprefix('${{').removesuffix('}}').strip()
+        for event in ['push', 'pull_request', 'workflow_dispatch']:
+            for platform in ['', 'all', 'windows', 'linux']:
+                selected = expression.replace('github.event_name', repr(event)).replace('inputs.platform', repr(platform))
+                matrix = eval(selected.replace('&&', ' and ').replace('||', ' or '),
+                              {'__builtins__': {}, 'fromJSON': json.loads})
+                expected = ['ubuntu-22.04', 'windows-2022']
+                if event == 'workflow_dispatch' and platform != 'all' and platform:
+                    expected = ['windows-2022' if platform == 'windows' else 'ubuntu-22.04']
+                with self.subTest(event=event, platform=platform):
+                    self.assertEqual([row['os'] for row in matrix], expected)
+                    for row in matrix:
+                        self.assertEqual(row['backend'], 'GtkBackend')
+                        self.assertEqual(row['display'], 'win32' if row['os'].startswith('windows') else 'x11')
+                        self.assertEqual(row['accessibility'], 'accesskit' if row['os'].startswith('windows') else 'atspi')
+
     def test_new_commits_cancel_only_the_same_workflow_and_pr_or_branch(self):
         for filename in ['swift-portability.yml', 'swiftcrossui-preview.yml', 'desktop-runtime-sources.yml']:
             with self.subTest(workflow=filename):

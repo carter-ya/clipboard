@@ -34,6 +34,11 @@ on:
         description: Run complete native UI, real-model and installation acceptance
         type: boolean
         default: true
+      platform:
+        description: Platform to validate for this manual run
+        type: choice
+        default: all
+        options: [all, windows, linux]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -51,15 +56,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-22.04
-            backend: GtkBackend
-            display: x11
-            accessibility: atspi
-          - os: windows-2022
-            backend: GtkBackend
-            display: win32
-            accessibility: accesskit
+        include: >-
+          ${{ fromJSON(
+            github.event_name == 'workflow_dispatch' && inputs.platform == 'windows' &&
+              '[{"os":"windows-2022","backend":"GtkBackend","display":"win32","accessibility":"accesskit"}]' ||
+            github.event_name == 'workflow_dispatch' && inputs.platform == 'linux' &&
+              '[{"os":"ubuntu-22.04","backend":"GtkBackend","display":"x11","accessibility":"atspi"}]' ||
+              '[{"os":"ubuntu-22.04","backend":"GtkBackend","display":"x11","accessibility":"atspi"},{"os":"windows-2022","backend":"GtkBackend","display":"win32","accessibility":"accesskit"}]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ github.event_name == 'pull_request' && 45 || 90 }}
     env:
@@ -92,6 +95,7 @@ jobs:
           ./tools/desktop-ui/test-private-fixture-python.ps1 -FixturePython $FixturePython
           ./tools/desktop-ui/test-private-fixture-wire.ps1 -FixturePython $FixturePython
           ./tools/desktop-ui/test-private-visible-control-helpers.ps1
+          ./tools/desktop-ui/test-private-selection-scope.ps1
           ./tools/desktop-ui/test-private-probe-exit.ps1
       - name: Verify private AI fixture response cancellation
         run: python tools/desktop-ui/test-ai-probe-errors.py
