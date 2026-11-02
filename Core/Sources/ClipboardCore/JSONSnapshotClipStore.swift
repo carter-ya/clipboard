@@ -339,7 +339,7 @@ public actor JSONSnapshotClipStore: ClipStore {
     if payloads.contains(where: { $0.pasteboardType == SensitivityFilter.concealedType }) {
       return "concealedType"
     }
-    return SecretPatternDetector.containsSecret(in: payloads) ? "credentialPattern" : nil
+    return SecretPatternDetector.sensitivityReason(in: payloads)
   }
 
   private func markSensitive(at index: Int, reason: String?) {
