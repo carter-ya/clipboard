@@ -41,6 +41,18 @@ $AppKeys = $keyboardPeer
 foreach ($chord in $notepadChords) { Invoke-Expression $chord.Extent.Text }
 Write-Host 'Actual Notepad global hotkey, app Enter, Ctrl+V, Ctrl+S and Alt+F4 batches resolve correctly'
 
+$browserAst = [Management.Automation.Language.Parser]::ParseFile(
+  (Join-Path $PSScriptRoot 'windows-browser-acceptance.ps1'), [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw 'browser_app_acceptance_syntax_failed' }
+$browserChords = @($browserAst.FindAll({ param($node)
+  $node -is [Management.Automation.Language.InvokeMemberExpressionAst] -and
+    $node.Member.Value -ceq 'Chord' -and $node.Expression.Extent.Text -in @('$browser.keys', '$AppKeys')
+}, $true))
+if ($browserChords.Count -ne 4) { throw 'browser_app_actual_input_batches_missing' }
+$browser = [PSCustomObject]@{ window = [IntPtr]1; keys = $keyboardPeer }
+foreach ($chord in $browserChords) { Invoke-Expression $chord.Extent.Text }
+Write-Host 'Actual browser/app hotkey, Enter and explicit Ctrl+V batches resolve correctly'
+
 # GtkEntry selects its text on refocus. Execute the real post-refocus input
 # statements against that selection state, rather than assuming a trailing caret.
 $definitions = @($ast.FindAll({ param($node)

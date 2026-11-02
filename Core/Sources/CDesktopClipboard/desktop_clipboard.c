@@ -38,12 +38,15 @@ int cb_bundle_append(cb_bundle *bundle, int format, const unsigned char *bytes,
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
+#define COBJMACROS
 #include <windows.h>
 
 #include <limits.h>
+#include <objbase.h>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <wchar.h>
+#include <wincodec.h>
 
 struct cb_session {
   int unused;
@@ -461,13 +464,103 @@ static HGLOBAL make_native_data(const cb_payload *payload) {
   GlobalUnlock(data);
   return data;
 }
+// Keep the original PNG first, but also publish a standard bitmap: Chromium's
+// available-type enumeration requires CF_DIB before exposing image/png to web
+// paste handlers. Windows synthesizes CF_DIB from CF_DIBV5. Premultiplied BGRA
+// preserves transparency for native bitmap consumers as well.
+static HGLOBAL png_dib(const cb_payload *payload) {
+  static const unsigned char signature[] = {137, 80, 78, 71, 13, 10, 26, 10};
+  if (payload->length < sizeof(signature) ||
+      payload->length > 16 * 1024 * 1024 ||
+      memcmp(payload->data, signature, sizeof(signature)))
+    return NULL;
+  IWICImagingFactory *factory = NULL;
+  IWICStream *stream = NULL;
+  IWICBitmapDecoder *decoder = NULL;
+  IWICBitmapFrameDecode *frame = NULL;
+  IWICFormatConverter *converter = NULL;
+  HGLOBAL dib = NULL;
+  BITMAPV5HEADER *header = NULL;
+  UINT width = 0, height = 0, stride = 0, size = 0;
+  int success = 0;
+  HRESULT initialized = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  if (FAILED(initialized) && initialized != RPC_E_CHANGED_MODE)
+    return NULL;
+#define PNG_WIC(call)                                                          \
+  do {                                                                         \
+    if (FAILED(call))                                                          \
+      goto done;                                                               \
+  } while (0)
+  PNG_WIC(CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
+                           &IID_IWICImagingFactory, (void **)&factory));
+  PNG_WIC(IWICImagingFactory_CreateStream(factory, &stream));
+  PNG_WIC(IWICStream_InitializeFromMemory(stream, payload->data,
+                                          (DWORD)payload->length));
+  PNG_WIC(IWICImagingFactory_CreateDecoderFromStream(
+      factory, (IStream *)stream, NULL, WICDecodeMetadataCacheOnDemand,
+      &decoder));
+  PNG_WIC(IWICBitmapDecoder_GetFrame(decoder, 0, &frame));
+  PNG_WIC(IWICBitmapFrameDecode_GetSize(frame, &width, &height));
+  // Decoding is optional and separately bounded; never discard the original
+  // bytes when an opaque/unsupported PNG cannot provide a bitmap fallback.
+  if (!width || !height || width > INT_MAX || height > INT_MAX ||
+      (uint64_t)width * height > (64 * 1024 * 1024 - sizeof(*header)) / 4)
+    goto done;
+  stride = width * 4;
+  size = stride * height;
+  PNG_WIC(IWICImagingFactory_CreateFormatConverter(factory, &converter));
+  PNG_WIC(IWICFormatConverter_Initialize(
+      converter, (IWICBitmapSource *)frame, &GUID_WICPixelFormat32bppPBGRA,
+      WICBitmapDitherTypeNone, NULL, 0, WICBitmapPaletteTypeCustom));
+  dib = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, sizeof(*header) + size);
+  if (!dib || !(header = GlobalLock(dib)))
+    goto done;
+  header->bV5Size = sizeof(*header);
+  header->bV5Width = (LONG)width;
+  header->bV5Height = -(LONG)height;
+  header->bV5Planes = 1;
+  header->bV5BitCount = 32;
+  header->bV5Compression = BI_BITFIELDS;
+  header->bV5SizeImage = size;
+  header->bV5RedMask = 0x00ff0000;
+  header->bV5GreenMask = 0x0000ff00;
+  header->bV5BlueMask = 0x000000ff;
+  header->bV5AlphaMask = 0xff000000;
+  header->bV5CSType = LCS_sRGB;
+  header->bV5Intent = LCS_GM_IMAGES;
+  PNG_WIC(IWICFormatConverter_CopyPixels(converter, NULL, stride, size,
+                                         (BYTE *)(header + 1)));
+  success = 1;
+done:
+  if (header)
+    GlobalUnlock(dib);
+  if (!success && dib) {
+    GlobalFree(dib);
+    dib = NULL;
+  }
+  if (converter)
+    IWICFormatConverter_Release(converter);
+  if (frame)
+    IWICBitmapFrameDecode_Release(frame);
+  if (decoder)
+    IWICBitmapDecoder_Release(decoder);
+  if (stream)
+    IWICStream_Release(stream);
+  if (factory)
+    IWICImagingFactory_Release(factory);
+  if (SUCCEEDED(initialized))
+    CoUninitialize();
+#undef PNG_WIC
+  return dib;
+}
 int cb_write_bundle(cb_session *s, const cb_payload *payloads, size_t count,
                     int sensitive) {
   (void)s;
   if (!count || count > 8)
     return CB_INVALID;
-  HGLOBAL handles[9] = {0};
-  UINT formats[9] = {0};
+  HGLOBAL handles[10] = {0};
+  UINT formats[10] = {0};
+  const cb_payload *png = NULL;
   size_t total = 0;
   int status = CB_INVALID;
   for (size_t i = 0; i < count; ++i) {
@@ -482,7 +575,11 @@ int cb_write_bundle(cb_session *s, const cb_payload *payloads, size_t count,
         goto cleanup;
     if (!formats[i] || !(handles[i] = make_native_data(&payloads[i])))
       goto cleanup;
+    if (payloads[i].format == CB_PNG)
+      png = &payloads[i];
   }
+  if (png && (handles[count] = png_dib(png)))
+    formats[count++] = CF_DIBV5;
   if (sensitive) {
     formats[count] = RegisterClipboardFormatW(
         L"ExcludeClipboardContentFromMonitorProcessing");
@@ -517,7 +614,7 @@ int cb_write_bundle(cb_session *s, const cb_payload *payloads, size_t count,
   CloseClipboard();
   DestroyWindow(owner);
 cleanup:
-  for (size_t i = 0; i < 9; ++i)
+  for (size_t i = 0; i < 10; ++i)
     if (handles[i])
       GlobalFree(handles[i]);
   return status;

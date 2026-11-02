@@ -6,6 +6,7 @@
       [string]$SummaryModel,
       [string]$EntityModel,
       [switch]$ChineseIme,
+      [switch]$BrowserPaste,
       [switch]$KeyboardOnly,
       [string]$ModelDefinitions)
 $ErrorActionPreference = 'Stop'
@@ -143,6 +144,7 @@ try {
     }
     $ImeArguments = @()
     if ($ChineseIme) { $ImeArguments += '-ChineseIme' }
+    if ($BrowserPaste) { $ImeArguments += '-BrowserPaste' }
     & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
       -KeyboardOnly -OutputDirectory (Join-Path $Output 'keyboard') @ImeArguments
     Check 'installed_keyboard_hotkey_focus_editing_and_explicit_paste' ($LASTEXITCODE -eq 0)

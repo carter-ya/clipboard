@@ -56,6 +56,9 @@ let package = Package(
       linkerSettings: [
         .linkedLibrary("user32", .when(platforms: [.windows])),
         .linkedLibrary("shell32", .when(platforms: [.windows])),
+        .linkedLibrary("ole32", .when(platforms: [.windows])),
+        .linkedLibrary("windowscodecs", .when(platforms: [.windows])),
+        .linkedLibrary("uuid", .when(platforms: [.windows])),
         .linkedLibrary("X11", .when(platforms: [.linux])),
         .linkedLibrary("Xfixes", .when(platforms: [.linux])),
       ]
