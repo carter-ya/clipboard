@@ -40,10 +40,10 @@ on:
         default: all
         options: [all, windows, linux]
       windows_input_environment:
-        description: Inspect/prepare input, browser/richtext reference alone, or application with platform Windows
+        description: Inspect/prepare input, browser/richtext/images reference alone, or application with platform Windows
         type: choice
         default: 'off'
-        options: ['off', inspect, prepare, browser, richtext, application]
+        options: ['off', inspect, prepare, browser, richtext, images, application]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -58,7 +58,7 @@ permissions:
 
 jobs:
   input-environment:
-    if: github.event_name == 'workflow_dispatch' && (inputs.windows_input_environment == 'inspect' || inputs.windows_input_environment == 'prepare' || inputs.windows_input_environment == 'browser' || inputs.windows_input_environment == 'richtext')
+    if: github.event_name == 'workflow_dispatch' && (inputs.windows_input_environment == 'inspect' || inputs.windows_input_environment == 'prepare' || inputs.windows_input_environment == 'browser' || inputs.windows_input_environment == 'richtext' || inputs.windows_input_environment == 'images')
     runs-on: windows-2022
     timeout-minutes: 8
     steps:
@@ -83,6 +83,17 @@ jobs:
         if: inputs.windows_input_environment == 'richtext'
         shell: powershell
         run: ./tools/desktop-ui/check-windows-richtext.ps1 -Output richtext-input.json
+      - name: Configure the native Windows compiler for valid image checks
+        if: inputs.windows_input_environment == 'images'
+        uses: compnerd/gha-setup-vsdevenv@f1ba60d553a3216ce1b89abe0201213536bc7557
+        with:
+          vswhere: C:/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe
+          arch: amd64
+          host_arch: amd64
+      - name: Verify valid JPEG and TIFF native clipboard interoperability
+        if: inputs.windows_input_environment == 'images'
+        shell: powershell
+        run: ./tools/desktop-ui/check-windows-valid-images.ps1 -Output valid-images.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -93,6 +104,7 @@ jobs:
             ime-receipt.png
             browser-input.json
             richtext-input.json
+            valid-images.json
           if-no-files-found: error
   preview:
     if: github.event_name != 'workflow_dispatch' || inputs.windows_input_environment == '' || inputs.windows_input_environment == 'off' || inputs.windows_input_environment == 'application'

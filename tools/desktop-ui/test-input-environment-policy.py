@@ -15,7 +15,7 @@ class InputEnvironmentPolicyTests(unittest.TestCase):
         package = steps['Build and exercise Windows keyboard installer']
         for event in ['push', 'pull_request', 'workflow_dispatch']:
             for full in [False, True]:
-                for mode in ['', 'off', 'browser', 'richtext', 'application']:
+                for mode in ['', 'off', 'browser', 'richtext', 'images', 'application']:
                     for system in ['Linux', 'Windows']:
                         full_scope = event == 'push' or (event == 'workflow_dispatch' and full)
                         narrow = event == 'workflow_dispatch' and mode == 'application' and system == 'Windows'
@@ -42,7 +42,7 @@ class InputEnvironmentPolicyTests(unittest.TestCase):
         keyboard = next(step for step in steps if step.get('name') == 'Exercise native Windows keyboard focus and explicit paste')
         for event in ['push', 'pull_request', 'workflow_dispatch']:
             for full in [False, True]:
-                for mode in ['', 'off', 'inspect', 'prepare', 'browser', 'richtext', 'application']:
+                for mode in ['', 'off', 'inspect', 'prepare', 'browser', 'richtext', 'images', 'application']:
                     selected = expression.replace('github.event_name', repr(event)).replace('inputs.full_validation', repr(full)).replace('inputs.windows_input_environment', repr(mode))
                     enabled = eval(selected.replace('&&', ' and ').replace('||', ' or '), {'__builtins__': {}})
                     expected = event == 'push' or (event == 'workflow_dispatch' and (full or mode == 'application'))
@@ -76,8 +76,8 @@ class InputEnvironmentPolicyTests(unittest.TestCase):
         preview = data['jobs']['preview']
         probe = data['jobs']['input-environment']
         for event in ['push', 'pull_request', 'workflow_dispatch']:
-            for choice in ['', 'off', 'inspect', 'prepare', 'browser', 'richtext', 'application']:
-                expected_probe = event == 'workflow_dispatch' and choice in ['inspect', 'prepare', 'browser', 'richtext']
+            for choice in ['', 'off', 'inspect', 'prepare', 'browser', 'richtext', 'images', 'application']:
+                expected_probe = event == 'workflow_dispatch' and choice in ['inspect', 'prepare', 'browser', 'richtext', 'images']
                 for job, expected in [(probe, expected_probe), (preview, not expected_probe)]:
                     expression = job['if'].replace('github.event_name', repr(event)).replace('inputs.windows_input_environment', repr(choice))
                     selected = eval(expression.replace('&&', ' and ').replace('||', ' or '), {'__builtins__': {}})
@@ -95,6 +95,12 @@ class InputEnvironmentPolicyTests(unittest.TestCase):
         self.assertIn('check-windows-richtext.ps1', richtext['run'])
         inspect = next(step for step in probe['steps'] if step.get('name') == 'Inspect or provision the isolated Windows input environment')
         self.assertEqual(inspect['if'], "inputs.windows_input_environment == 'inspect' || inputs.windows_input_environment == 'prepare'")
+        images = next(step for step in probe['steps'] if step.get('name') == 'Verify valid JPEG and TIFF native clipboard interoperability')
+        self.assertEqual(images['if'], "inputs.windows_input_environment == 'images'")
+        self.assertIn('check-windows-valid-images.ps1', images['run'])
+        compiler = next(step for step in probe['steps'] if step.get('name') == 'Configure the native Windows compiler for valid image checks')
+        self.assertEqual(compiler['if'], images['if'])
+        self.assertLess(probe['steps'].index(compiler), probe['steps'].index(images))
 
 
 if __name__ == '__main__':

@@ -342,7 +342,10 @@ int cb_read_bundle(cb_session *s, size_t max, cb_bundle **out) {
     UINT native = native_format(format);
     if (!native || !IsClipboardFormatAvailable(native))
       continue;
-    if (format == CB_BMP && IsClipboardFormatAvailable(native_format(CB_PNG)))
+    if (format == CB_BMP &&
+        (IsClipboardFormatAvailable(native_format(CB_PNG)) ||
+         IsClipboardFormatAvailable(native_format(CB_JPEG)) ||
+         IsClipboardFormatAvailable(native_format(CB_TIFF))))
       continue;
     HANDLE value = GetClipboardData(native);
     if (!value) {
@@ -464,15 +467,24 @@ static HGLOBAL make_native_data(const cb_payload *payload) {
   GlobalUnlock(data);
   return data;
 }
-// Keep the original PNG first, but also publish a standard bitmap: Chromium's
-// available-type enumeration requires CF_DIB before exposing image/png to web
-// paste handlers. Windows synthesizes CF_DIB from CF_DIBV5. Premultiplied BGRA
-// preserves transparency for native bitmap consumers as well.
-static HGLOBAL png_dib(const cb_payload *payload) {
+// Keep the original encoded image, but also publish a standard bitmap:
+// Chromium's available-type enumeration requires CF_DIB before exposing
+// image/png to web paste handlers. Windows synthesizes CF_DIB from CF_DIBV5.
+// Premultiplied BGRA preserves transparency for native bitmap consumers as
+// well.
+static HGLOBAL image_dib(const cb_payload *payload) {
   static const unsigned char signature[] = {137, 80, 78, 71, 13, 10, 26, 10};
-  if (payload->length < sizeof(signature) ||
-      payload->length > 16 * 1024 * 1024 ||
-      memcmp(payload->data, signature, sizeof(signature)))
+  if (payload->length > 16 * 1024 * 1024)
+    return NULL;
+  int png = payload->format == CB_PNG && payload->length >= sizeof(signature) &&
+            !memcmp(payload->data, signature, sizeof(signature));
+  int jpeg = payload->format == CB_JPEG && payload->length >= 3 &&
+             payload->data[0] == 0xff && payload->data[1] == 0xd8 &&
+             payload->data[2] == 0xff;
+  int tiff = payload->format == CB_TIFF && payload->length >= 8 &&
+             (!memcmp(payload->data, "II\x2a\x00", 4) ||
+              !memcmp(payload->data, "MM\x00\x2a", 4));
+  if (!png && !jpeg && !tiff)
     return NULL;
   IWICImagingFactory *factory = NULL;
   IWICStream *stream = NULL;
@@ -486,30 +498,31 @@ static HGLOBAL png_dib(const cb_payload *payload) {
   HRESULT initialized = CoInitializeEx(NULL, COINIT_MULTITHREADED);
   if (FAILED(initialized) && initialized != RPC_E_CHANGED_MODE)
     return NULL;
-#define PNG_WIC(call)                                                          \
+#define IMAGE_WIC(call)                                                        \
   do {                                                                         \
     if (FAILED(call))                                                          \
       goto done;                                                               \
   } while (0)
-  PNG_WIC(CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
-                           &IID_IWICImagingFactory, (void **)&factory));
-  PNG_WIC(IWICImagingFactory_CreateStream(factory, &stream));
-  PNG_WIC(IWICStream_InitializeFromMemory(stream, payload->data,
-                                          (DWORD)payload->length));
-  PNG_WIC(IWICImagingFactory_CreateDecoderFromStream(
+  IMAGE_WIC(CoCreateInstance(&CLSID_WICImagingFactory, NULL,
+                             CLSCTX_INPROC_SERVER, &IID_IWICImagingFactory,
+                             (void **)&factory));
+  IMAGE_WIC(IWICImagingFactory_CreateStream(factory, &stream));
+  IMAGE_WIC(IWICStream_InitializeFromMemory(stream, payload->data,
+                                            (DWORD)payload->length));
+  IMAGE_WIC(IWICImagingFactory_CreateDecoderFromStream(
       factory, (IStream *)stream, NULL, WICDecodeMetadataCacheOnDemand,
       &decoder));
-  PNG_WIC(IWICBitmapDecoder_GetFrame(decoder, 0, &frame));
-  PNG_WIC(IWICBitmapFrameDecode_GetSize(frame, &width, &height));
+  IMAGE_WIC(IWICBitmapDecoder_GetFrame(decoder, 0, &frame));
+  IMAGE_WIC(IWICBitmapFrameDecode_GetSize(frame, &width, &height));
   // Decoding is optional and separately bounded; never discard the original
-  // bytes when an opaque/unsupported PNG cannot provide a bitmap fallback.
+  // bytes when an opaque/unsupported image cannot provide a bitmap fallback.
   if (!width || !height || width > INT_MAX || height > INT_MAX ||
       (uint64_t)width * height > (64 * 1024 * 1024 - sizeof(*header)) / 4)
     goto done;
   stride = width * 4;
   size = stride * height;
-  PNG_WIC(IWICImagingFactory_CreateFormatConverter(factory, &converter));
-  PNG_WIC(IWICFormatConverter_Initialize(
+  IMAGE_WIC(IWICImagingFactory_CreateFormatConverter(factory, &converter));
+  IMAGE_WIC(IWICFormatConverter_Initialize(
       converter, (IWICBitmapSource *)frame, &GUID_WICPixelFormat32bppPBGRA,
       WICBitmapDitherTypeNone, NULL, 0, WICBitmapPaletteTypeCustom));
   dib = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, sizeof(*header) + size);
@@ -528,8 +541,8 @@ static HGLOBAL png_dib(const cb_payload *payload) {
   header->bV5AlphaMask = 0xff000000;
   header->bV5CSType = LCS_sRGB;
   header->bV5Intent = LCS_GM_IMAGES;
-  PNG_WIC(IWICFormatConverter_CopyPixels(converter, NULL, stride, size,
-                                         (BYTE *)(header + 1)));
+  IMAGE_WIC(IWICFormatConverter_CopyPixels(converter, NULL, stride, size,
+                                           (BYTE *)(header + 1)));
   success = 1;
 done:
   if (header)
@@ -550,7 +563,7 @@ done:
     IWICImagingFactory_Release(factory);
   if (SUCCEEDED(initialized))
     CoUninitialize();
-#undef PNG_WIC
+#undef IMAGE_WIC
   return dib;
 }
 int cb_write_bundle(cb_session *s, const cb_payload *payloads, size_t count,
@@ -560,7 +573,7 @@ int cb_write_bundle(cb_session *s, const cb_payload *payloads, size_t count,
     return CB_INVALID;
   HGLOBAL handles[10] = {0};
   UINT formats[10] = {0};
-  const cb_payload *png = NULL;
+  const cb_payload *image = NULL;
   size_t total = 0;
   int status = CB_INVALID;
   for (size_t i = 0; i < count; ++i) {
@@ -575,10 +588,13 @@ int cb_write_bundle(cb_session *s, const cb_payload *payloads, size_t count,
         goto cleanup;
     if (!formats[i] || !(handles[i] = make_native_data(&payloads[i])))
       goto cleanup;
-    if (payloads[i].format == CB_PNG)
-      png = &payloads[i];
+    // Prefer PNG when a source offers multiple encodings of the same image.
+    if (payloads[i].format == CB_PNG ||
+        (!image &&
+         (payloads[i].format == CB_JPEG || payloads[i].format == CB_TIFF)))
+      image = &payloads[i];
   }
-  if (png && (handles[count] = png_dib(png)))
+  if (image && (handles[count] = image_dib(image)))
     formats[count++] = CF_DIBV5;
   if (sensitive) {
     formats[count] = RegisterClipboardFormatW(
