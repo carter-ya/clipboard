@@ -1,7 +1,7 @@
 # Only loaded by KeyboardOnly on the disposable Windows Actions desktop.
-function Invoke-WindowsNotepadPasteAcceptance([string]$Expected, [string]$FixtureName) {
+function Invoke-WindowsNotepadPasteAcceptance([string]$Expected, [string]$FixtureName, [string]$Query, $AppKeys) {
   if ($env:GITHUB_ACTIONS -ne 'true' -or $env:OS -ne 'Windows_NT' -or !$KeyboardOnly -or
-      !$application -or $application.HasExited -or !$historyRoot -or
+      !$application -or $application.HasExited -or !$historyRoot -or !$AppKeys -or !$Query -or
       $FixtureName -notin @('english', 'chinese')) { throw 'notepad_paste_requires_private_keyboard_profile' }
   $notepad = $null
   $notepadKeys = $null
@@ -31,7 +31,25 @@ function Invoke-WindowsNotepadPasteAcceptance([string]$Expected, [string]$Fixtur
     [PreviewNative]::SetForegroundWindow($notepadWindow) | Out-Null
     Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $notepadWindow -and
       [ClipboardOwnedNotepad]::EditorFocused($notepadWindow, $notepadEditor, [uint32]$notepad.Id) } ('notepad_focus_' + $FixtureName) | Out-Null
-    Add-Check ('common_notepad_starts_empty_without_automatic_paste_' + $FixtureName) (
+    if ([ClipboardOwnedNotepad]::ReadText($notepadWindow, $notepadEditor, [uint32]$notepad.Id) -cne '') {
+      throw 'owned_notepad_document_not_initially_empty'
+    }
+    # Exercise the user flow with Notepad already foreground: open Clipboard by
+    # its registered shortcut and copy by Enter, then require Notepad to remain
+    # empty until the separately submitted Ctrl+V. Do not populate either editor.
+    $beforeCopy = [PreviewNative]::GetClipboardSequenceNumber()
+    $notepadKeys.Chord($notepadWindow, [UInt16[]]@(0x11, 0x12, 0x56))
+    Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and
+      (Get-Editor).Current.HasKeyboardFocus -and (Get-EditorWithValue $Query) -and
+      (Find-Named $Expected) } ('notepad_registered_hotkey_' + $FixtureName) | Out-Null
+    $AppKeys.Chord($nativeWindowHandle, [UInt16[]]@(0x0d))
+    Wait-For { ![PreviewNative]::IsWindowVisible($nativeWindowHandle) -and
+      [PreviewNative]::GetClipboardSequenceNumber() -ne $beforeCopy -and
+      [PreviewNative]::ReadClipboard() -ceq $Expected } ('notepad_app_copies_selected_original_' + $FixtureName) | Out-Null
+    [PreviewNative]::SetForegroundWindow($notepadWindow) | Out-Null
+    Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $notepadWindow -and
+      [ClipboardOwnedNotepad]::EditorFocused($notepadWindow, $notepadEditor, [uint32]$notepad.Id) } ('notepad_returns_after_copy_' + $FixtureName) | Out-Null
+    Add-Check ('common_notepad_remains_empty_after_app_copy_until_explicit_paste_' + $FixtureName) (
       [ClipboardOwnedNotepad]::ReadText($notepadWindow, $notepadEditor, [uint32]$notepad.Id) -ceq '')
     $beforePaste = [PreviewNative]::GetClipboardSequenceNumber()
     $notepadKeys.Chord($notepadWindow, [UInt16[]]@(0x11, 0x56))
@@ -47,7 +65,7 @@ function Invoke-WindowsNotepadPasteAcceptance([string]$Expected, [string]$Fixtur
     if (!$notepad.WaitForExit(10000) -or $notepad.ExitCode -ne 0) { throw 'owned_notepad_clean_exit_failed' }
     Add-Check ('common_notepad_saved_document_closes_normally_' + $FixtureName) $true
     @{ application = 'Windows Server 2022 classic Notepad'; fixture = $FixtureName;
-       input = 'actual Ctrl+V and Ctrl+S'; characters = $Expected.Length;
+       input = 'actual global hotkey, Enter, Ctrl+V and Ctrl+S'; characters = $Expected.Length;
        exactEditorAndSavedFileMatch = $true; clipboardUnchanged = $true;
        richFormats = 'not_verified'; otherApplications = 'not_verified' } |
       ConvertTo-Json | Out-File -Encoding UTF8 (Join-Path $notepadDirectory 'receipt.json')

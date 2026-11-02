@@ -89,8 +89,9 @@ It never sets text, selection or focus, and normal profiles/platforms cannot
 enable it. The authorization function is exercised in 96 compiled cases.
 
 The keyboard profile also starts classic Notepad from the pinned Windows Server
-runner for each English/Chinese original copied by the actual app. It requires
-an empty owned document, sends real Ctrl+V and Ctrl+S, checks the complete text
+runner for each English/Chinese original. From that foreground empty document
+it invokes the actual app shortcut and copies with Enter, requires the document
+to stay empty until explicit paste, sends real Ctrl+V and Ctrl+S, checks the complete text
 both in the native editor and saved file, checks clipboard revision continuity,
 then closes the saved document with Alt+F4. Observation is bounded and restricted
 to that exact spawned system executable/PID and its classic editor HWND. Failure
