@@ -169,7 +169,11 @@ document must retain exact Chinese/emoji/newlines; actual navigation/selection
 keys expose the bold colored 12-point run and a distinct italic run to read-only
 native observations. Clipboard revision must remain unchanged, actual Alt+F4
 must close the receiver and both owned UI threads must stop. This reference is
-pending native validation and does not establish application RTF copy or Office
+also required to survive an actual delayed UI callback after its dispatch wait
+times out. The regression reproduces a late-completion exception before the
+wait-handle lifetime fix; a timed-out queued invocation must retain its event
+until completion. The strengthened reference is pending native validation and
+does not establish application RTF copy or Office
 compatibility. Content-free receipts are saved as richtext-input.json.
 
 Pushes to `main` and manual runs with `full_validation: true` retain the complete

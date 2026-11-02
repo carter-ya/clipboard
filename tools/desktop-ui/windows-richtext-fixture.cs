@@ -94,11 +94,15 @@ public sealed class ClipboardOwnedRichText : IDisposable {
     if (disposed || form == null || !thread.IsAlive)
       throw new InvalidOperationException("owned_richtext_dispatch_unavailable");
     IAsyncResult pending = form.BeginInvoke(action);
+    WaitHandle completion = pending.AsyncWaitHandle;
+    // The queued WinForms entry still owns this event after a timeout and
+    // signals it on late completion. Leave it alive with that entry, which
+    // releases it through GC after completion; never close a pending event.
+    if (!completion.WaitOne(5000))
+      throw new InvalidOperationException("owned_richtext_dispatch_timeout");
     try {
-      if (!pending.AsyncWaitHandle.WaitOne(5000))
-        throw new InvalidOperationException("owned_richtext_dispatch_timeout");
       return (T)form.EndInvoke(pending);
-    } finally { pending.AsyncWaitHandle.Close(); }
+    } finally { completion.Close(); }
   }
   void VerifyOwned() {
     uint owner, childOwner;
