@@ -1007,6 +1007,39 @@
           "file_pdf_checks_per_configuration": 21,
           "status": "full_windows_job_passed_and_report_assertions_audited",
           "physical_client": "not_verified"
+        },
+        "windows_valid_image_followup": {
+          "status": "native_adapter_and_independent_browser_verified_product_flow_pending",
+          "adapter_pr": 59,
+          "adapter_head": "1d2ac7b1dac1dd05af9ca4b29b0f82b9b1965a49",
+          "adapter_run": 41451204402,
+          "native_adapter_checks": 27,
+          "browser_reference_pr": 60,
+          "browser_reference_head": "c13e5cd87abca3c75d09dd82a894503eb5809bbc",
+          "browser_reference_run": 41453519072,
+          "browser_reference_checks": 17,
+          "product_pr": 61,
+          "product_head": "be3c791817e4826192916eef1d8854da8fe91575",
+          "product_runtime": 41454151911,
+          "product_runtime_status": "in_progress",
+          "meaning": "Exact native JPEG/TIFF bytes and independent browser-converted raster pixels are distinct assertions; product Debug/installed runtime still required."
+        },
+        "gtk_image_orientation_followup": {
+          "status": "fixed_and_locally_reproduced_hosted_windows_linux_pending",
+          "mac_reference": "App/ClipPreviewView.swift preDecode ImageIO thumbnail with transform",
+          "reproduction": "Same orientation6 JPEG/TIFF: Mac2x3, unchanged actual GTK decoder3x2; full regression38/113 failing",
+          "local_after": "113/113 actual GTK decoder assertions pass in isolated offline Linux arm64 container",
+          "scope": [
+            "Absent/all8 EXIF orientations in valid JPEG/TIFF",
+            "Exact independent coordinate/color permutation for preview and hover",
+            "Original input bytes and existing encoded bounds retained"
+          ],
+          "remaining": [
+            "Exact-head Windows/Linux hosted regression and UI",
+            "Full integration for the changed product preview",
+            "Windows clipboard-derived bitmap EXIF orientation remains independently unverified",
+            "ICC/color-profile fidelity, client hardware and existing CP13 gates remain open"
+          ]
         }
       }
     }

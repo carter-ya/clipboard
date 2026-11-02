@@ -56,8 +56,12 @@ final class DesktopPreviewImage: @unchecked Sendable {
     }
     guard written != 0 else { return nil }
     guard gdk_pixbuf_loader_close(loader, &error) != 0, !bounds.rejected,
-      let pixbuf = gdk_pixbuf_loader_get_pixbuf(loader)
+      let decoded = gdk_pixbuf_loader_get_pixbuf(loader)
     else { return nil }
+    // Match the Mac ImageIO preview transform. JPEG/TIFF loaders retain EXIF
+    // orientation separately; apply it before both preview and hover sizing.
+    guard let pixbuf = gdk_pixbuf_apply_embedded_orientation(decoded) else { return nil }
+    defer { g_object_unref(UnsafeMutableRawPointer(pixbuf)) }
     // Prepare the hover image off the UI actor too. Its intrinsic dimensions
     // bound the native tooltip instead of relying on a minimum size request.
     let width = gdk_pixbuf_get_width(pixbuf)

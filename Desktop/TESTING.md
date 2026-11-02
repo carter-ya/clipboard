@@ -394,6 +394,21 @@ so subsequent formats cannot pass by reusing a prior image. Existing PNG byte
 and transparency requirements remain. This application extension is pending
 Debug/installed execution; orientation and color-profile fidelity remain open.
 
+The Mac reference preview explicitly applies ImageIO's embedded orientation.
+The unchanged actual GTK decoder reproduced a parity defect with independently
+generated orientation6 JPEG/TIFF: both decoded as 3×2 instead of Mac's 2×3.
+The native decoder/hover regression covers absent and all eight EXIF orientations,
+independent coordinate/color permutations, original in-memory bytes, empty and
+truncated data and the existing 16 MiB encoded cap. Before the repair 38 of 113
+assertions fail; after applying GDK Pixbuf's embedded transform before preview
+and hover sizing, all 113 pass in an offline Linux arm64 container. Temporary
+transform references are released on all exits, while the preview retains its
+own reference. Existing decode/pixel/thumbnail bounds stay active. Normal
+Windows/Linux UI CI now runs this actual-decoder check without a desktop or
+clipboard. Hosted results and the changed preview's full UI are pending;
+Windows clipboard-derived bitmap orientation and ICC/color fidelity are separate
+unverified gates.
+
 ## Implementation history
 
 The following notes retain the development sequence. Pending statements describe
