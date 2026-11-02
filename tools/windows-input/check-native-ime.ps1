@@ -8,9 +8,7 @@ $report = [ordered]@{ passed = $false; stage = 'starting'; checks = @();
   keyMessages = 0; scannedKeyMessages = 0; imeMessages = 0;
   conversionBeforeInput = $null; conversionAfterInput = $null;
   modeShortcutSent = $false;
-  tsfCandidateResult = $null; tsfUiElementCount = 0;
-  tsfSinkResult = $null; candidateBeginCount = 0; candidateEndCount = 0;
-  imeOpen = $false; compositionLength = 0; candidateCount = 0;
+  imeOpen = $false; compositionLength = 0; compositionMatchesInput = $false;
   textLength = 0; limitations = @('Actual Windows input method in an owned native editor; GTK application integration is a separate gate.') }
 $peer = $null
 function Wait-Ime([scriptblock]$Predicate, [string]$Stage) {
@@ -42,16 +40,17 @@ try {
   Wait-Ime { $peer.ImeOpen -and ($peer.ImeConversionMode -band 1) -ne 0 } 'native_chinese_ime_open'
   $report.conversionBeforeInput = $peer.ImeConversionMode
   $peer.TypeLatinKeys($peer.Handle, 'nihao')
-  Wait-Ime { $peer.CompositionLength -gt 0 -and $peer.CandidateCount -ge 2 } 'actual_pinyin_composition_and_candidates'
-  $report.checks += 'actual_pinyin_composition_and_candidates'
+  Wait-Ime { $peer.CompositionIsNihao -and $peer.Text.Length -eq 0 } 'actual_pinyin_preedit_without_committing_text'
+  $report.checks += 'actual_pinyin_preedit_without_committing_text'
   $peer.Chord($peer.Handle, [UInt16[]]@(0x1b))
   Wait-Ime { $peer.CompositionLength -eq 0 -and $peer.Text.Length -eq 0 } 'escape_cancels_uncommitted_composition'
   $report.checks += 'escape_cancels_uncommitted_composition'
   $peer.TypeLatinKeys($peer.Handle, 'nihao')
-  Wait-Ime { $peer.CompositionLength -gt 0 -and $peer.CandidateCount -ge 2 } 'pinyin_restarts_after_cancel'
-  $first = $peer.CandidateAt(0)
+  Wait-Ime { $peer.CompositionIsNihao -and $peer.Text.Length -eq 0 } 'pinyin_restarts_after_cancel'
+  # The pinned fresh Windows Server/Pinyin dictionary has these exact results.
+  # Verify actual key selection via committed native text; this provider closes
+  # TSF UI-element handles while continuing to show its own candidate window.
   $expected = [string][char]0x4f60 + [char]0x597d
-  if ($first -cne $expected) { throw 'fresh_pinyin_first_candidate_must_match_fixture' }
   $peer.Chord($peer.Handle, [UInt16[]]@(0x20))
   Wait-Ime { $peer.CompositionLength -eq 0 -and $peer.Text -ceq $expected } 'space_commits_actual_chinese_candidate'
   $report.checks += 'space_commits_actual_chinese_candidate'
@@ -60,9 +59,8 @@ try {
   $peer.Chord($peer.Handle, [UInt16[]]@(0x08))
   Wait-Ime { $peer.Text.Length -eq 0 } 'ime_clear_owned_editor'
   $peer.TypeLatinKeys($peer.Handle, 'nihao')
-  Wait-Ime { $peer.CompositionLength -gt 0 -and $peer.CandidateCount -ge 2 } 'pinyin_second_candidate_available'
-  $second = $peer.CandidateAt(1)
-  if (!$second -or $second -ceq $first) { throw 'distinct_second_candidate_required' }
+  Wait-Ime { $peer.CompositionIsNihao -and $peer.Text.Length -eq 0 } 'pinyin_second_candidate_available'
+  $second = [string][char]0x4f60 + [char]0x53f7
   $peer.Chord($peer.Handle, [UInt16[]]@(0x32))
   Wait-Ime { $peer.CompositionLength -eq 0 -and $peer.Text -ceq $second } 'number_selects_second_native_candidate'
   $report.checks += 'number_selects_second_native_candidate'
@@ -88,12 +86,7 @@ try {
       $report.imeMessages = $peer.ImeMessageCount
       $report.conversionAfterInput = $peer.ImeConversionMode
       $report.compositionLength = $peer.CompositionLength
-      $report.candidateCount = $peer.CandidateCount
-      $report.tsfCandidateResult = $peer.TsfCandidateResult
-      $report.tsfUiElementCount = $peer.TsfUiElementCount
-      $report.tsfSinkResult = $peer.TsfSinkResult
-      $report.candidateBeginCount = $peer.CandidateBeginCount
-      $report.candidateEndCount = $peer.CandidateEndCount
+      $report.compositionMatchesInput = $peer.CompositionIsNihao
       $report.textLength = $peer.Text.Length
     } catch { }
     try { $peer.Dispose() } catch { $report.passed = $false; $report.errorType = $_.Exception.GetType().FullName }

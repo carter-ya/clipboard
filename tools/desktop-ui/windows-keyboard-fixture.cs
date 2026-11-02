@@ -40,72 +40,14 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   [DllImport("imm32.dll")] static extern bool ImmGetOpenStatus(IntPtr context);
   [DllImport("imm32.dll")] static extern bool ImmGetConversionStatus(IntPtr context, out uint conversion, out uint sentence);
   [DllImport("imm32.dll", CharSet = CharSet.Unicode)] static extern int ImmGetCompositionStringW(IntPtr context, uint kind, IntPtr data, uint size);
-  [DllImport("imm32.dll", CharSet = CharSet.Unicode)] static extern uint ImmGetCandidateListW(IntPtr context, uint index, IntPtr data, uint size);
   [DllImport("msctf.dll")] static extern int TF_CreateInputProcessorProfiles(out IntPtr profiles);
-  [DllImport("msctf.dll")] static extern int TF_GetThreadMgr(out IntPtr manager);
   // First vtable entry from the official msctf.h ITfInputProcessorProfileMgr.
   [ComImport, Guid("71c6e74c-0f28-11d8-a82a-00065b84435c"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
   interface InputProcessorProfileManager {
     [PreserveSig] int ActivateProfile(uint type, ushort language, ref Guid processor,
                                     ref Guid profile, IntPtr layout, uint flags);
   }
-  [ComImport, Guid("ea1ea135-19df-11d7-a6d2-00065b84435c"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-  interface UiElementManager {
-    [PreserveSig] int BeginUIElement(IntPtr element, [MarshalAs(UnmanagedType.Bool)] ref bool show, out uint id);
-    [PreserveSig] int UpdateUIElement(uint id);
-    [PreserveSig] int EndUIElement(uint id);
-    [PreserveSig] int GetUIElement(uint id, out IntPtr element);
-    [PreserveSig] int EnumUIElements(out IntPtr enumerator);
-  }
-  [ComImport, Guid("887aa91e-acba-4931-84da-3c5208cf543f"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-  interface UiElementEnumerator {
-    [PreserveSig] int Clone(out IntPtr clone);
-    [PreserveSig] int Next(uint count, out IntPtr element, out uint fetched);
-    [PreserveSig] int Reset();
-    [PreserveSig] int Skip(uint count);
-  }
-  [ComImport, Guid("4ea48a35-60ae-446f-8fd6-e6a8d82459f7"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-  interface TsfSource {
-    [PreserveSig] int AdviseSink(ref Guid iid, [MarshalAs(UnmanagedType.IUnknown)] object sink, out uint cookie);
-    [PreserveSig] int UnadviseSink(uint cookie);
-  }
-  [ComVisible(true), Guid("ea1ea136-19df-11d7-a6d2-00065b84435c"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-  public interface UiElementSink {
-    [PreserveSig] int BeginUIElement(uint id, [MarshalAs(UnmanagedType.Bool)] ref bool show);
-    [PreserveSig] int UpdateUIElement(uint id);
-    [PreserveSig] int EndUIElement(uint id);
-  }
-  [ComVisible(true), ClassInterface(ClassInterfaceType.None)]
-  public sealed class CandidateObserver : UiElementSink {
-    public int Begins, Updates, Ends;
-    public readonly HashSet<uint> Active = new HashSet<uint>();
-    public int BeginUIElement(uint id, ref bool show) { Begins++; Active.Add(id); show = true; return 0; }
-    public int UpdateUIElement(uint id) { Updates++; return 0; }
-    public int EndUIElement(uint id) { Ends++; Active.Remove(id); return 0; }
-  }
-  // Include ITfUIElement's four inherited slots before candidate-list methods.
-  [ComImport, Guid("ea1ea138-19df-11d7-a6d2-00065b84435c"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-  interface CandidateElement {
-    [PreserveSig] int GetDescription([MarshalAs(UnmanagedType.BStr)] out string description);
-    [PreserveSig] int GetGUID(out Guid guid);
-    [PreserveSig] int Show([MarshalAs(UnmanagedType.Bool)] bool show);
-    [PreserveSig] int IsShown([MarshalAs(UnmanagedType.Bool)] out bool show);
-    [PreserveSig] int GetUpdatedFlags(out uint flags);
-    [PreserveSig] int GetDocumentMgr(out IntPtr manager);
-    [PreserveSig] int GetCount(out uint count);
-    [PreserveSig] int GetSelection(out uint index);
-    [PreserveSig] int GetString(uint index, [MarshalAs(UnmanagedType.BStr)] out string text);
-  }
   public int ImeActivationResult { get; private set; }
-  public int TsfCandidateResult { get; private set; }
-  public int TsfUiElementCount { get; private set; }
-  public int TsfSinkResult { get; private set; }
-  object tsfThread;
-  TsfSource tsfSource;
-  CandidateObserver candidateObserver;
-  uint sinkCookie;
-  public int CandidateBeginCount { get { return OnPeer<int>(delegate { return candidateObserver == null ? 0 : candidateObserver.Begins; }); } }
-  public int CandidateEndCount { get { return OnPeer<int>(delegate { return candidateObserver == null ? 0 : candidateObserver.Ends; }); } }
 
   sealed class PasteEditor : TextBox {
     public int PasteCount;
@@ -264,18 +206,6 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   }
   public void UseChineseIme() {
     OnPeer<bool>(delegate {
-      if (tsfThread == null) {
-        IntPtr threadPointer;
-        TsfSinkResult = TF_GetThreadMgr(out threadPointer);
-        if (TsfSinkResult < 0 || threadPointer == IntPtr.Zero) throw new InvalidOperationException("native_tsf_thread_unavailable");
-        try { tsfThread = Marshal.GetObjectForIUnknown(threadPointer); }
-        finally { Marshal.Release(threadPointer); }
-        tsfSource = (TsfSource)tsfThread;
-        candidateObserver = new CandidateObserver();
-        Guid sinkId = typeof(UiElementSink).GUID;
-        TsfSinkResult = tsfSource.AdviseSink(ref sinkId, candidateObserver, out sinkCookie);
-        if (TsfSinkResult < 0) throw new InvalidOperationException("native_tsf_candidate_observer_unavailable");
-      }
       InputLanguage chinese = null;
       foreach (InputLanguage language in InputLanguage.InstalledInputLanguages)
         if (language.Culture.Name == "zh-CN") { chinese = language; break; }
@@ -316,128 +246,20 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
       return bytes < 0 ? 0 : bytes / 2;
     }); }
   }
-  T WithCandidates<T>(Func<IntPtr, uint, T> action, T empty) {
-    return WithIme<T>(delegate(IntPtr context) {
-      uint size = ImmGetCandidateListW(context, 0, IntPtr.Zero, 0);
-      if (size == 0) return empty;
-      if (size < 24 || size > 65536) throw new InvalidOperationException("native_ime_candidate_bound");
-      IntPtr data = Marshal.AllocHGlobal((int)size);
+  // Read the real preedit, not the committed TextBox value. Pinyin may add
+  // syllable separators; all five Latin letters must have reached the IME.
+  public bool CompositionIsNihao {
+    get { return WithIme<bool>(delegate(IntPtr context) {
+      int bytes = ImmGetCompositionStringW(context, 8, IntPtr.Zero, 0);
+      if (bytes <= 0) return false;
+      if (bytes > 65536 || bytes % 2 != 0) throw new InvalidOperationException("native_ime_composition_bound");
+      IntPtr data = Marshal.AllocHGlobal(bytes);
       try {
-        uint read = ImmGetCandidateListW(context, 0, data, size);
-        if (read == 0 || read > size) return empty;
-        uint actual = (uint)Marshal.ReadInt32(data, 0);
-        uint count = (uint)Marshal.ReadInt32(data, 8);
-        if (actual < 24 || actual > size || count > 256 || 24 + count * 4 > actual)
-          throw new InvalidOperationException("native_ime_candidate_header");
-        return action(data, actual);
+        int read = ImmGetCompositionStringW(context, 8, data, (uint)bytes);
+        if (read < 0 || read > bytes || read % 2 != 0) throw new InvalidOperationException("native_ime_composition_read");
+        return Marshal.PtrToStringUni(data, read / 2).Replace("'", "") == "nihao";
       } finally { Marshal.FreeHGlobal(data); }
-    });
-  }
-  T WithTsfCandidate<T>(Func<CandidateElement, T> action, T empty) {
-    return OnPeer<T>(delegate {
-      if (GetForegroundWindow() != handle) return empty;
-      IntPtr threadPointer = IntPtr.Zero, enumPointer = IntPtr.Zero;
-      object threadObject = null, enumObject = null;
-      TsfUiElementCount = 0;
-      try {
-        if (tsfThread != null) threadObject = tsfThread;
-        else {
-          TsfCandidateResult = TF_GetThreadMgr(out threadPointer);
-          if (TsfCandidateResult < 0 || threadPointer == IntPtr.Zero) return empty;
-          threadObject = Marshal.GetObjectForIUnknown(threadPointer);
-        }
-        var manager = threadObject as UiElementManager;
-        if (manager == null) return empty;
-        // Microsoft documents GetUIElement with IDs delivered to the sink.
-        // Some providers notify a live element without enumerating it.
-        if (candidateObserver != null) {
-          if (candidateObserver.Active.Count > 32) throw new InvalidOperationException("native_tsf_active_element_bound");
-          foreach (uint id in candidateObserver.Active) {
-            IntPtr observedPointer;
-            TsfCandidateResult = manager.GetUIElement(id, out observedPointer);
-            if (TsfCandidateResult < 0 || observedPointer == IntPtr.Zero) continue;
-            object observedObject = null;
-            try {
-              observedObject = Marshal.GetObjectForIUnknown(observedPointer);
-              var candidate = observedObject as CandidateElement;
-              if (candidate == null) continue;
-              uint count;
-              TsfCandidateResult = candidate.GetCount(out count);
-              if (TsfCandidateResult < 0 || count == 0) continue;
-              if (count > 256) throw new InvalidOperationException("native_tsf_candidate_bound");
-              TsfUiElementCount++;
-              return action(candidate);
-            } finally {
-              if (observedObject != null) Marshal.ReleaseComObject(observedObject);
-              Marshal.Release(observedPointer);
-            }
-          }
-        }
-        TsfCandidateResult = manager.EnumUIElements(out enumPointer);
-        if (TsfCandidateResult < 0 || enumPointer == IntPtr.Zero) return empty;
-        enumObject = Marshal.GetObjectForIUnknown(enumPointer);
-        var enumerator = (UiElementEnumerator)enumObject;
-        for (int iteration = 0; iteration < 32; iteration++) {
-          IntPtr elementPointer;
-          uint fetched;
-          TsfCandidateResult = enumerator.Next(1, out elementPointer, out fetched);
-          if (TsfCandidateResult < 0 || fetched == 0 || elementPointer == IntPtr.Zero) return empty;
-          TsfUiElementCount++;
-          object elementObject = null;
-          try {
-            elementObject = Marshal.GetObjectForIUnknown(elementPointer);
-            var candidate = elementObject as CandidateElement;
-            if (candidate == null) continue;
-            uint count;
-            TsfCandidateResult = candidate.GetCount(out count);
-            if (TsfCandidateResult < 0 || count == 0) continue;
-            if (count > 256) throw new InvalidOperationException("native_tsf_candidate_bound");
-            return action(candidate);
-          } finally {
-            if (elementObject != null) Marshal.ReleaseComObject(elementObject);
-            Marshal.Release(elementPointer);
-          }
-        }
-        throw new InvalidOperationException("native_tsf_ui_element_bound");
-      } finally {
-        if (enumObject != null) Marshal.ReleaseComObject(enumObject);
-        if (enumPointer != IntPtr.Zero) Marshal.Release(enumPointer);
-        if (threadObject != null && threadPointer != IntPtr.Zero) Marshal.ReleaseComObject(threadObject);
-        if (threadPointer != IntPtr.Zero) Marshal.Release(threadPointer);
-      }
-    });
-  }
-  public int CandidateCount {
-    get {
-      int count = WithTsfCandidate<int>(delegate(CandidateElement candidate) {
-        uint value;
-        if (candidate.GetCount(out value) < 0 || value > 256) throw new InvalidOperationException("native_tsf_candidate_count");
-        return (int)value;
-      }, 0);
-      return count > 0 ? count : WithCandidates<int>(delegate(IntPtr data, uint size) { return Marshal.ReadInt32(data, 8); }, 0);
-    }
-  }
-  public string CandidateAt(int index) {
-    string modern = WithTsfCandidate<string>(delegate(CandidateElement candidate) {
-      uint count;
-      if (candidate.GetCount(out count) < 0 || index < 0 || index >= count) throw new InvalidOperationException("native_tsf_candidate_index");
-      string value;
-      if (candidate.GetString((uint)index, out value) < 0 || value == null || value.Length > 4096)
-        throw new InvalidOperationException("native_tsf_candidate_text_bound");
-      return value;
-    }, null);
-    if (modern != null) return modern;
-    return WithCandidates<string>(delegate(IntPtr data, uint size) {
-      int count = Marshal.ReadInt32(data, 8);
-      if (index < 0 || index >= count) throw new InvalidOperationException("native_ime_candidate_index");
-      uint offset = (uint)Marshal.ReadInt32(data, 24 + index * 4);
-      if (offset < 24 + count * 4 || offset >= size || offset % 2 != 0)
-        throw new InvalidOperationException("native_ime_candidate_offset");
-      int length = 0;
-      while (offset + (uint)(length + 1) * 2 <= size && Marshal.ReadInt16(data, (int)offset + length * 2) != 0) length++;
-      if (offset + (uint)(length + 1) * 2 > size) throw new InvalidOperationException("native_ime_candidate_termination");
-      return Marshal.PtrToStringUni(IntPtr.Add(data, (int)offset), length);
-    }, null);
+    }); }
   }
   public void TypeUnicode(IntPtr target, string text) {
     var inputs = new List<Input>();
@@ -461,13 +283,7 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   }
   public void Dispose() {
     if (disposed) return;
-    if (form != null && thread.IsAlive) OnPeer<bool>(delegate {
-      if (tsfSource != null && TsfSinkResult >= 0) tsfSource.UnadviseSink(sinkCookie);
-      tsfSource = null;
-      candidateObserver = null;
-      if (tsfThread != null) { Marshal.ReleaseComObject(tsfThread); tsfThread = null; }
-      form.Close(); return true;
-    });
+    if (form != null && thread.IsAlive) OnPeer<bool>(delegate { form.Close(); return true; });
     if (!thread.Join(5000)) throw new InvalidOperationException("keyboard_peer_shutdown_timeout");
     disposed = true;
     ready.Dispose();

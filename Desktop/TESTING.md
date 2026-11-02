@@ -42,13 +42,17 @@ system CTF monitor in that VM; service states are recorded without process scans
 Both modes run only the eight-minute-bounded environment job, with no Swift build,
 model transfer, clipboard access, sleep or restart. Preparation then exercises
 the actual Windows input method in an owned native editor: Latin key events
-must produce composition and candidates, Escape must cancel without committing,
-Space must commit the observed first Chinese candidate and a number key must
-commit the observed distinct second candidate. No Unicode input packets supply
+must produce the complete native `nihao` preedit without committed text,
+Escape must cancel without committing, Space must commit the fixed first
+Chinese result and a number key must commit the fixed distinct second result.
+These exact results use the fresh pinned Windows Server/Pinyin dictionary;
+a changed dictionary fails the fixture rather than accepting arbitrary text. No Unicode input packets supply
 these results. `ime-receipt.json` records only fixed stages/counts. A failed
 native probe may capture only its owned foreground synthetic editor for visual
-diagnosis before cleanup. GTK app
-composition integration remains a separate gate. The default
+diagnosis before cleanup. The provider ends its TSF UI-element handles while
+its candidate window remains visible, so assertions use actual preedit and
+exact committed output from Space/2 instead of treating an empty candidate-list
+query as failed input. GTK app composition integration remains a separate gate. The default
 is `off`; PR/main acceptance keeps its normal platforms and scope. The retained
 `input-environment.json` separates provisioned resources from actual IME
 composition/candidate evidence in that separate native receipt.
