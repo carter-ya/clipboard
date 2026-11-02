@@ -64,6 +64,15 @@ try {
   $peer.Chord($peer.Handle, [UInt16[]]@(0x32))
   Wait-Ime { $peer.CompositionLength -eq 0 -and $peer.Text -ceq $second } 'number_selects_second_native_candidate'
   $report.checks += 'number_selects_second_native_candidate'
+  # Establish the insertion point using the same actual keys as GTK after
+  # refocus. This independent editor is the native IME reference for appending.
+  $peer.Chord($peer.Handle, [UInt16[]]@(0x11, 0x41))
+  $peer.Chord($peer.Handle, [UInt16[]]@(0x27))
+  $peer.TypeLatinKeys($peer.Handle, 'nihao')
+  Wait-Ime { $peer.CompositionIsNihao } 'native_pinyin_preedit_at_established_end'
+  $peer.Chord($peer.Handle, [UInt16[]]@(0x20))
+  Wait-Ime { $peer.CompositionLength -eq 0 -and $peer.Text -ceq ($second + $expected) } 'native_pinyin_appends_after_select_all_right'
+  $report.checks += 'native_pinyin_appends_after_select_all_right'
   if (!$peer.TargetChineseMode($peer.Handle)) { throw 'native_ime_window_status_must_match_real_conversion_mode' }
   $peer.Chord($peer.Handle, [UInt16[]]@(0x5b, 0x20))
   Wait-Ime { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $peer.Handle -and

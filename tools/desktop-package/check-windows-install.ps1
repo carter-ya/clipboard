@@ -6,8 +6,12 @@
       [string]$SummaryModel,
       [string]$EntityModel,
       [switch]$ChineseIme,
+      [switch]$KeyboardOnly,
       [string]$ModelDefinitions)
 $ErrorActionPreference = 'Stop'
+if ($KeyboardOnly -and ($SummaryModel -or $EntityModel -or $ModelDefinitions)) {
+  throw 'keyboard_package_scope_does_not_accept_optional_model_fixtures'
+}
 if (($SummaryModel -or $EntityModel -or $ModelDefinitions) -and !($SummaryModel -and $EntityModel -and $ModelDefinitions)) {
   throw 'All actual-model fixture paths are required together'
 }
@@ -129,12 +133,14 @@ try {
       Move-Item -LiteralPath $_.FullName -Destination $Hidden
       $HiddenResources[$Hidden] = $_.FullName
     }
-    & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
-      -ClipboardPeer $ClipboardPeer -OCRFixture $OCRFixture -FixturePython $FixturePython -LifecycleCycles 20 -OutputDirectory (Join-Path $Output 'ui')
-    Check 'installed_gui_and_services_pass_with_bundled_runtime' ($LASTEXITCODE -eq 0)
-    & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
-      -ModelSettingsOnly -OutputDirectory (Join-Path $Output 'model-settings')
-    Check 'installed_model_settings_pass_native_consent_and_cancel_controls' ($LASTEXITCODE -eq 0)
+    if (!$KeyboardOnly) {
+      & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
+        -ClipboardPeer $ClipboardPeer -OCRFixture $OCRFixture -FixturePython $FixturePython -LifecycleCycles 20 -OutputDirectory (Join-Path $Output 'ui')
+      Check 'installed_gui_and_services_pass_with_bundled_runtime' ($LASTEXITCODE -eq 0)
+      & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
+        -ModelSettingsOnly -OutputDirectory (Join-Path $Output 'model-settings')
+      Check 'installed_model_settings_pass_native_consent_and_cancel_controls' ($LASTEXITCODE -eq 0)
+    }
     $ImeArguments = @()
     if ($ChineseIme) { $ImeArguments += '-ChineseIme' }
     & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
@@ -160,7 +166,8 @@ try {
       Move-Item -LiteralPath $Hidden -Destination $HiddenResources[$Hidden]
     }
   }
-  $Histories = @(Get-ChildItem (Join-Path $Output 'ui') -Recurse -Filter history.json)
+  $HistoryScope = if ($KeyboardOnly) { 'keyboard' } else { 'ui' }
+  $Histories = @(Get-ChildItem (Join-Path $Output $HistoryScope) -Recurse -Filter history.json)
   Check 'installed_probe_persists_private_history' ($Histories.Count -gt 0)
   $HistoryHashes = @{}
   foreach ($File in $Histories) { $HistoryHashes[$File.FullName] = (Get-FileHash -Algorithm SHA256 $File.FullName).Hash }
@@ -181,6 +188,7 @@ try {
   $env:Path = $OriginalPath
   if ($App -and !$App.HasExited) { $App.Kill(); $App.WaitForExit() }
   # Retain logs and private profiles on failure; never remove user history or OS credentials.
-  @{ passed=($Completed -and @($Checks | Where-Object { !$_.passed }).Count -eq 0); checks=$Checks } |
+  @{ passed=($Completed -and @($Checks | Where-Object { !$_.passed }).Count -eq 0); checks=$Checks;
+     scope=$(if ($KeyboardOnly) { 'keyboard_package' } else { 'full' }) } |
     ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 (Join-Path $Output 'results.json')
 }

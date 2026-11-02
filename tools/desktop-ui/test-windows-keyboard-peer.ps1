@@ -1,6 +1,19 @@
 # Native self-test of the actual recipient before the expensive Swift build.
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:OS -ne 'Windows_NT') { throw 'keyboard_peer_test_requires_windows_actions' }
+$keyFactory = [ClipboardKeyboardFixture].GetMethod('Key', [Reflection.BindingFlags]'NonPublic,Static')
+foreach ($keyCase in @(
+  @{ key = 0x23; flags = 1 }, @{ key = 0x27; flags = 1 }, @{ key = 0x2e; flags = 1 },
+  @{ key = 0x5b; flags = 1 }, @{ key = 0x11; flags = 0 }, @{ key = 0x41; flags = 0 }
+)) {
+  foreach ($up in @($false, $true)) {
+    $encodedKey = $keyFactory.Invoke($null, @([UInt16]$keyCase.key, $up))
+    $expectedFlags = $keyCase.flags -bor $(if ($up) { 2 } else { 0 })
+    if ($encodedKey.data.keyboard.flags -ne $expectedFlags -or $encodedKey.data.keyboard.scan -eq 0) {
+      throw 'actual_keyboard_factory_extended_key_flags_and_scan_code'
+    }
+  }
+}
 function Wait-Peer([scriptblock]$Predicate, [string]$Stage) {
   $deadline = [DateTime]::UtcNow.AddSeconds(10)
   while ([DateTime]::UtcNow -lt $deadline) {

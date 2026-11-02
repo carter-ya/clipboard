@@ -154,8 +154,14 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
           throw new InvalidOperationException("keyboard_modifier_already_held");
   }
   static Input Key(ushort key, bool up) {
+    // Navigation keys and Windows keys carry the E0 extended-key flag on a
+    // physical keyboard. Without it an IME may interpret keypad navigation.
+    bool extended = (key >= 0x21 && key <= 0x28) || key == 0x2d || key == 0x2e ||
+                    key == 0x5b || key == 0x5c || key == 0xa3 || key == 0xa5;
+    ushort scan = (ushort)(MapVirtualKey(key, 0) & 0xff);
+    if (scan == 0) throw new InvalidOperationException("keyboard_virtual_key_has_no_scan_code");
     return new Input { type = 1, data = new InputData {
-      keyboard = new KeyboardInput { key = key, flags = up ? 2u : 0u } } };
+      keyboard = new KeyboardInput { key = key, scan = scan, flags = (extended ? 1u : 0u) | (up ? 2u : 0u) } } };
   }
   void Send(IntPtr target, Input[] inputs) {
     CheckTarget(target);

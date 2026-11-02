@@ -8,6 +8,30 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class InputEnvironmentPolicyTests(unittest.TestCase):
+    def test_manual_application_adds_package_keyboard_without_optional_models(self):
+        data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
+        steps = {step.get('name'): step for step in data['jobs']['preview']['steps']}
+        release = steps['Build optimized desktop artifacts']
+        package = steps['Build and exercise Windows keyboard installer']
+        for event in ['push', 'pull_request', 'workflow_dispatch']:
+            for full in [False, True]:
+                for mode in ['', 'off', 'application']:
+                    for system in ['Linux', 'Windows']:
+                        full_scope = event == 'push' or (event == 'workflow_dispatch' and full)
+                        narrow = event == 'workflow_dispatch' and mode == 'application' and system == 'Windows'
+                        for step, expected in [(release, full_scope or narrow), (package, narrow and not full_scope)]:
+                            expression = step['if'].replace('github.event_name', repr(event)).replace('inputs.windows_input_environment', repr(mode)).replace('env.FULL_VALIDATION', repr(str(full_scope).lower())).replace('runner.os', repr(system))
+                            selected = eval(expression.replace('&&', ' and ').replace('||', ' or '), {'__builtins__': {}})
+                            self.assertEqual(bool(selected), expected)
+        self.assertIn('-KeyboardOnly -ChineseIme', package['run'])
+        self.assertNotIn('-SummaryModel', package['run'])
+        installer = (ROOT / 'tools/desktop-package/check-windows-install.ps1').read_text(encoding='utf-8-sig')
+        self.assertIn('keyboard_package_scope_does_not_accept_optional_model_fixtures', installer)
+        # Full GUI/model consent calls remain inside the positive full branch;
+        # the narrowed report names its actual scope rather than claiming them.
+        self.assertIn('if (!$KeyboardOnly)', installer)
+        self.assertIn("'keyboard_package'", installer)
+
     def test_application_ime_requires_explicit_manual_request_or_full_integration(self):
         data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
         expression = data['env']['CHINESE_IME_VALIDATION'].removeprefix('${{').removesuffix('}}').strip()

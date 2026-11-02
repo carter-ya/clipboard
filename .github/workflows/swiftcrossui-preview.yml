@@ -288,14 +288,14 @@ jobs:
             -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -KeyboardOnly -OutputDirectory ui-artifacts/keyboard @ImeArguments
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Restore compiled release dependencies
-        if: env.FULL_VALIDATION == 'true'
+        if: (env.FULL_VALIDATION == 'true' || (github.event_name == 'workflow_dispatch' && inputs.windows_input_environment == 'application' && runner.os == 'Windows'))
         id: release-cache
         uses: ./.github/actions/swift-build-cache
         with:
           package: Desktop
           configuration: release
       - name: Restore release dependency symbolic links on Windows
-        if: env.FULL_VALIDATION == 'true' && runner.os == 'Windows' && steps.release-cache.outputs.cache-matched-key != ''
+        if: (env.FULL_VALIDATION == 'true' || (github.event_name == 'workflow_dispatch' && inputs.windows_input_environment == 'application' && runner.os == 'Windows')) && runner.os == 'Windows' && steps.release-cache.outputs.cache-matched-key != ''
         shell: pwsh
         run: |
           # Windows cache extraction can leave relative directory links unresolved.
@@ -313,7 +313,7 @@ jobs:
             }
           }
       - name: Build optimized desktop artifacts
-        if: env.FULL_VALIDATION == 'true'
+        if: (env.FULL_VALIDATION == 'true' || (github.event_name == 'workflow_dispatch' && inputs.windows_input_environment == 'application' && runner.os == 'Windows'))
         shell: pwsh
         run: |
           & python tools/desktop-ui/build-desktop.py --configuration release --jobs 2 2>&1 | Tee-Object -FilePath release-build.log
@@ -327,11 +327,23 @@ jobs:
           & swift build --package-path Core --scratch-path Desktop/.build --configuration release --jobs 2 --product scenario-runner
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Save compiled release dependencies before full acceptance
-        if: env.FULL_VALIDATION == 'true' && steps.release-cache.outputs.cache-hit != 'true'
+        if: (env.FULL_VALIDATION == 'true' || (github.event_name == 'workflow_dispatch' && inputs.windows_input_environment == 'application' && runner.os == 'Windows')) && steps.release-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: Desktop/.build
           key: ${{ steps.release-cache.outputs.key }}
+      - name: Build and exercise Windows keyboard installer
+        if: github.event_name == 'workflow_dispatch' && inputs.windows_input_environment == 'application' && env.FULL_VALIDATION != 'true' && runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CLIPBOARD_PRIVATE_INSTALL_TEST: '1'
+        run: |
+          $BinaryDirectory = (& swift build --package-path Desktop --configuration release --show-bin-path).Trim()
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./tools/desktop-ui/install-windows-gtk.ps1 -ConfigureOnly
+          ./tools/desktop-package/build-windows-installer.ps1 -Binary (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -Output dist
+          $Installer = (Get-ChildItem dist/*-setup.exe | Select-Object -First 1).FullName
+          ./tools/desktop-package/check-windows-install.ps1 -Installer $Installer -Output ui-artifacts/keyboard-package -Probe tools/desktop-ui/smoke-windows.ps1 -ClipboardPeer (Join-Path $BinaryDirectory 'scenario-runner.exe') -OCRFixture Core/Fixtures/ocr.png -KeyboardOnly -ChineseIme
       - name: Exercise GTK window and capture screenshots
         if: env.FULL_VALIDATION == 'true' && runner.os == 'Linux'
         shell: bash
