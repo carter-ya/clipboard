@@ -48,6 +48,10 @@ function Invoke-WindowsBrowserAcceptance($AppKeys) {
       Add-Check ('browser_app_captures_and_selects_independent_native_' + $format) $true
 
       $stage = 'copy_' + $format
+      # Mac and desktop shortcuts toggle a visible history window off. Begin
+      # this summon check hidden, through the actual user-facing Hide control.
+      Invoke-Button 'Hide'
+      Wait-For { ![PreviewNative]::IsWindowVisible($nativeWindowHandle) } ('browser_app_hidden_before_hotkey_' + $format) | Out-Null
       Focus-WindowsOwnedBrowser $browser -Reset
       $copyRevision = [PreviewNative]::GetClipboardSequenceNumber()
       $browser.keys.Chord($browser.window, [UInt16[]]@(0x11, 0x12, 0x56))

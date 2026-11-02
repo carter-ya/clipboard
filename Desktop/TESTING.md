@@ -129,7 +129,8 @@ The optional private `-KeyboardOnly -BrowserPaste` mode connects that same owned
 browser receiver to actual Clipboard capture and copy. An independent native
 writer supplies text/HTML/PNG/two existing files while capture is explicitly on;
 the persisted new record and unique query must appear before capture is paused.
-From empty foreground Chrome the actual registered shortcut must focus the app's
+The actual Hide control establishes the hidden-window precondition of the
+Mac-equivalent toggle shortcut. From empty foreground Chrome it must focus the app's
 retained query; Enter must write a fresh clipboard revision, promote that record
 and hide. Chrome must remain empty until actual Ctrl+V, then satisfy the unchanged
 native reference text, HTML bold, PNG pixels and file-name/byte assertions.
