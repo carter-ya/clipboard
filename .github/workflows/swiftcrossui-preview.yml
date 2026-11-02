@@ -40,10 +40,10 @@ on:
         default: all
         options: [all, windows, linux]
       windows_input_environment:
-        description: Inspect/prepare input, browser reference alone, or application with platform Windows
+        description: Inspect/prepare input, browser/richtext reference alone, or application with platform Windows
         type: choice
         default: 'off'
-        options: ['off', inspect, prepare, browser, application]
+        options: ['off', inspect, prepare, browser, richtext, application]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -58,13 +58,13 @@ permissions:
 
 jobs:
   input-environment:
-    if: github.event_name == 'workflow_dispatch' && (inputs.windows_input_environment == 'inspect' || inputs.windows_input_environment == 'prepare' || inputs.windows_input_environment == 'browser')
+    if: github.event_name == 'workflow_dispatch' && (inputs.windows_input_environment == 'inspect' || inputs.windows_input_environment == 'prepare' || inputs.windows_input_environment == 'browser' || inputs.windows_input_environment == 'richtext')
     runs-on: windows-2022
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - name: Inspect or provision the isolated Windows input environment
-        if: inputs.windows_input_environment != 'browser'
+        if: inputs.windows_input_environment == 'inspect' || inputs.windows_input_environment == 'prepare'
         shell: powershell
         env:
           PREPARE_CHINESE_INPUT: ${{ inputs.windows_input_environment == 'prepare' }}
@@ -79,6 +79,10 @@ jobs:
         if: inputs.windows_input_environment == 'browser'
         shell: powershell
         run: ./tools/desktop-ui/check-windows-browser.ps1 -Output browser-input.json
+      - name: Exercise native RTF paste without an application build
+        if: inputs.windows_input_environment == 'richtext'
+        shell: powershell
+        run: ./tools/desktop-ui/check-windows-richtext.ps1 -Output richtext-input.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -88,6 +92,7 @@ jobs:
             ime-receipt.json
             ime-receipt.png
             browser-input.json
+            richtext-input.json
           if-no-files-found: error
   preview:
     if: github.event_name != 'workflow_dispatch' || inputs.windows_input_environment == '' || inputs.windows_input_environment == 'off' || inputs.windows_input_environment == 'application'

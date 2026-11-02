@@ -161,6 +161,21 @@ image, in addition to exact default DOM dimensions and RGBA pixels. A PNG signat
 alone cannot establish original-file preservation. This stronger fixture is
 pending its separate native reference and application/installed runs.
 
+Manual windows_input_environment richtext mode runs only an eight-minute native
+RTF reference, with no toolchain, browser, IME provisioning, application build or
+model download. A separately owned native RichEdit receives actual scanned Ctrl+V
+from an independent ASCII RTF writer with Unicode escapes. The initially empty
+document must retain exact Chinese/emoji/newlines; actual navigation/selection
+keys expose the bold colored 12-point run and a distinct italic run to read-only
+native observations. Clipboard revision must remain unchanged, actual Alt+F4
+must close the receiver and both owned UI threads must stop. This reference is
+also required to survive an actual delayed UI callback after its dispatch wait
+times out. The regression reproduces a late-completion exception before the
+wait-handle lifetime fix; a timed-out queued invocation must retain its event
+until completion. The strengthened reference is pending native validation and
+does not establish application RTF copy or Office
+compatibility. Content-free receipts are saved as richtext-input.json.
+
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
 installation. They first run the Debug checks and save their dependency cache,
