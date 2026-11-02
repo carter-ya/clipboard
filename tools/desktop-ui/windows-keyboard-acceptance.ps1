@@ -135,6 +135,7 @@ function Invoke-WindowsKeyboardAcceptance {
     if (!$application.WaitForExit(10000)) { throw 'keyboard_quit_timeout' }
     Add-Check 'keyboard_profile_quits_cleanly' ($application.ExitCode -eq 0)
   } finally {
+    if ($ChineseIme) { try { Save-WindowsImeCaretState 'final' } catch { } }
     if ($keyboardPeer) {
       try {
         @{ pasteCount = $keyboardPeer.PasteCount; textLength = $keyboardPeer.Text.Length;
@@ -149,6 +150,7 @@ function Invoke-WindowsKeyboardAcceptance {
 }
 
 function Invoke-WindowsChineseImeAcceptance($KeyboardPeer) {
+  $script:imeCaretSnapshots = @()
   # Provisioning/native IME preflight must already have passed in this VM.
   # Change the input language using the actual OS shortcut on the owned app.
   if ($KeyboardPeer.TargetInputLanguage($nativeWindowHandle) -ne 0x0409) { throw 'ime_fixture_requires_initial_english_input' }
@@ -189,9 +191,12 @@ function Invoke-WindowsChineseImeAcceptance($KeyboardPeer) {
   Wait-For { Find-Named 'Preferences' } 'ime_settings_open' | Out-Null
   Invoke-WindowsKeyboardButton 'Back to history' $KeyboardPeer
   Wait-For { (Get-EditorWithValue '你号') -and (Get-Editor).Current.HasKeyboardFocus } 'ime_settings_returns_query_and_focus' | Out-Null
+  Save-WindowsImeCaretState 'settings_before_end'
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x23))
+  Wait-WindowsImeCaretAtEnd 'ime_native_caret_at_end_after_settings'
   $KeyboardPeer.TypeLatinKeys($nativeWindowHandle, 'nihao')
   Wait-WindowsPinyinCandidates 'ime_complete_native_candidates_after_settings'
+  Save-WindowsImeCaretState 'settings_before_commit'
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x20))
   Wait-For { Get-EditorWithValue '你号你好' } 'ime_input_continues_after_settings' | Out-Null
   Add-Check 'actual_pinyin_survives_settings_focus_handoff' $true
@@ -203,9 +208,12 @@ function Invoke-WindowsChineseImeAcceptance($KeyboardPeer) {
   $KeyboardPeer.Chord($KeyboardPeer.Handle, [UInt16[]]@(0x11, 0x12, 0x56))
   Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and
     (Get-EditorWithValue '你号你好') -and (Get-Editor).Current.HasKeyboardFocus } 'ime_hotkey_restores_query_and_focus' | Out-Null
+  Save-WindowsImeCaretState 'hotkey_before_end'
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x23))
+  Wait-WindowsImeCaretAtEnd 'ime_native_caret_at_end_after_hotkey'
   $KeyboardPeer.TypeLatinKeys($nativeWindowHandle, 'nihao')
   Wait-WindowsPinyinCandidates 'ime_complete_native_candidates_after_hotkey'
+  Save-WindowsImeCaretState 'hotkey_before_commit'
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x20))
   Wait-For { Get-EditorWithValue '你号你好你好' } 'ime_input_continues_after_hotkey_reopen' | Out-Null
   Add-Check 'actual_pinyin_survives_close_and_hotkey_reopen' $true
@@ -217,6 +225,46 @@ function Invoke-WindowsChineseImeAcceptance($KeyboardPeer) {
   $KeyboardPeer.TypeAscii($nativeWindowHandle, 'a')
   Wait-For { Get-EditorWithValue '你号你好你好a' } 'ime_english_input_after_chinese' | Out-Null
   Add-Check 'actual_english_input_resumes_after_pinyin' $true
+}
+
+function Get-WindowsImeCaretState {
+  $state = [ordered]@{ pattern = $false; focused = $false; valueLength = -1;
+    rangeCount = -1; collapsed = $false; atEnd = $false; errorType = $null }
+  try {
+    $editor = Get-Editor
+    $state.focused = $editor.Current.HasKeyboardFocus
+    $state.valueLength = $editor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value.Length
+    $pattern = $null
+    if ($editor.TryGetCurrentPattern([Windows.Automation.TextPattern]::Pattern, [ref]$pattern)) {
+      $state.pattern = $true
+      $ranges = $pattern.GetSelection()
+      $state.rangeCount = $ranges.Count
+      if ($ranges.Count -eq 1) {
+        $start = [Windows.Automation.Text.TextPatternRangeEndpoint]::Start
+        $end = [Windows.Automation.Text.TextPatternRangeEndpoint]::End
+        $state.collapsed = $ranges[0].CompareEndpoints($start, $ranges[0], $end) -eq 0
+        $state.atEnd = $ranges[0].CompareEndpoints($end, $pattern.DocumentRange, $end) -eq 0
+      }
+    }
+  } catch { $state.errorType = $_.Exception.GetType().FullName }
+  return $state
+}
+
+function Save-WindowsImeCaretState([string]$Stage) {
+  $state = Get-WindowsImeCaretState
+  $state.stage = $Stage
+  $script:imeCaretSnapshots = @($script:imeCaretSnapshots) + @($state)
+  $script:imeCaretSnapshots | ConvertTo-Json -Depth 3 |
+    Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'ime-caret-state.json')
+}
+
+function Wait-WindowsImeCaretAtEnd([string]$Stage) {
+  try {
+    Wait-For {
+      $caret = Get-WindowsImeCaretState
+      $caret.pattern -and $caret.focused -and $caret.collapsed -and $caret.atEnd
+    } $Stage | Out-Null
+  } finally { Save-WindowsImeCaretState $Stage }
 }
 
 function Get-WindowsPinyinHost {
