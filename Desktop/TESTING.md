@@ -645,3 +645,8 @@ a held key-provider case must fail current-item authorization before dispatch
 even without UI cancellation. These probes never start the application UI or
 access the local desktop clipboard. Existing history/import reclassification
 and escaped rich-text tails beyond parser budgets remain open.
+
+The actual Mac analysis probe supports both native SwiftPM `debug/Modules` and
+Xcode `Products/Debug` module layouts. Its hosted module-lookup failure is
+reproduced locally using real compiled artifacts in the native directory layout;
+the corrected lookup passes the complete automatic/manual cancellation probes.
