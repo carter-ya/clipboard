@@ -1141,14 +1141,14 @@
         },
         "windows_ime_reliability_followup": {
           "branch": "codex/windows-ime-state-diagnostics",
-          "status": "script_readiness_hardened_native_confirmation_pending",
+          "status": "hardened_Debug_verified_installed_and_full_suites_pending",
           "failed_main_run": 41475202168,
-          "head": "6ceedf366667ac90b80d3128a23be24b07682f64",
+          "head": "7adf1fea962838561f16f4f16f35a6acbeb534dc",
           "failure": "ime_complete_native_candidates_before_cancel",
           "observed": "Independent native IME7, browser17, RTF10, actual Notepad English/Chinese and ordinary keyboard input pass. GTK actual search contains literal nihao with no candidate UI; no pass claimed for actual GTK IME or installed scope.",
           "diagnostic": "Read-only owned-target HKL/language/default-IME open/conversion status, candidate-host and fixed synthetic query booleans before/after profile selection/mode shortcut/Latin input and on the existing failed candidate wait. Existing key batches, 40s action deadlines and exact candidate/commit assertions stay unchanged.",
           "local_validation": "10 actual-statement state cases cover initialization, legitimate English/closed mode, post-key transients, absent/unreadable/oscillating provider failure without actions; actual key/caret arguments unchanged. CSharp5/net48 compiles clean;21 CI/input policy tests and actionlint pass.",
-          "next": "Fresh narrow application validation of the hardened gate and early receipts, then explicit PR review/ordinary CI; consolidate full Windows model/UI/package confirmation after input passes.",
+          "next": "The same one full Windows-only run continues through complete native UI, real models and installation. These scopes remain pending; do not substitute the early Debug result or the old narrow package run.",
           "early_receipt": "After the Windows actual-input step, always upload only six explicitly listed content-free input/status/result files before any release restore/build. Scope requires Windows+actual IME validation, names include run_attempt, no history/body/model files. A fifth input-policy regression verifies the ordering and allowlist.",
           "diagnostic_run": 41479407954,
           "diagnostic_observed": "All3 result reports pass and are audited. Both target-state receipts already show native Chinese conversion after profile selection, with no mode shortcut sent. This successful observation run does not reproduce or prove the exact cause of the earlier main failure.",
@@ -1157,12 +1157,32 @@
           "diagnostic_installed_release_checks": 78,
           "diagnostic_package_checks": 12,
           "driver_regression": "The actual pre-Latin mode-selection statements emit an unnecessary Shift for an initial closed state that settles to native Chinese without input. A deterministic asynchronous-state test fails before the new gate.",
-          "driver_repair": "Require3 consecutive matching owned-target layout/open/conversion snapshots before choosing a mode action; if necessary send exactly one original Shift batch, then require stable native Chinese state before the unchanged Latin/candidate tests. Use existing40s per-stage observer bound, no input retry or production change."
+          "driver_repair": "Require3 consecutive matching owned-target layout/open/conversion snapshots before choosing a mode action; if necessary send exactly one original Shift batch, then require stable native Chinese state before the unchanged Latin/candidate tests. Use existing40s per-stage observer bound, no input retry or production change.",
+          "pr": 68,
+          "failed_head": "6ceedf366667ac90b80d3128a23be24b07682f64",
+          "merge_commit": "2384a4a72143d7dbfb324747abcb11f8886ede3a",
+          "ordinary_ui_run": 41486484853,
+          "review": "clean_exact_head",
+          "merge_tree_matches_tested_head": true,
+          "hardened_runtime": 41491062151,
+          "runtime_head": "48b872aea3fd6ce24a90469a3e912787b67469b1",
+          "early_artifact": 13164892818,
+          "debug_keyboard_checks": 78,
+          "native_ime_checks": 7,
+          "early_artifact_audit": "All78 unique passing strict keyboard/IME/browser/RTF assertion names are retained, all7 independent native IME checks pass, and the archive contains exactly the six content-free allowed files. Four owned-target samples show the Chinese native mode settled before Latin input, with no mode shortcut needed in this run.",
+          "historical_failure_limit": "This successful hardened run does not reproduce or establish the exact cause of failed main41475202168. A separate deterministic driver-state regression reproduces the readiness hazard."
         },
         "documentation_ci_policy": {
-          "status": "local_policy_checks_pass_hosted_review_pending",
+          "status": "reviewed_merged_ordinary_checks_pass_docs_only_runtime_selection_pending",
           "scope": "Exclude only Desktop/TESTING.md from push/PR Desktop UI path selection. Harness-only and acceptance-note-only commits have no product change. Any matching product/test/resource/workflow path in the same commit still selects the normal job.",
-          "regression": "Ordered negative-path policy checks both events, documentation-only changes and mixed notes plus Desktop source/tests/resources/manifest, Core, native input fixture, installer and workflow changes. All existing runtime/full-validation conditions remain unchanged."
+          "regression": "Ordered negative-path policy checks both events, documentation-only changes and mixed notes plus Desktop source/tests/resources/manifest, Core, native input fixture, installer and workflow changes. All existing runtime/full-validation conditions remain unchanged.",
+          "pr": 69,
+          "head": "fd29fb2c2276a09bbc3c06d1fd4b49a567904b8a",
+          "merge_commit": "48b872aea3fd6ce24a90469a3e912787b67469b1",
+          "core_run": 41489198405,
+          "ui_run": 41489198269,
+          "review": "clean_exact_head",
+          "local_policy_tests": 23
         },
         "previous_latest_main_integration": {
           "head": "562ce12176545aef923bbf342ed0b0995e7291da",
@@ -1215,11 +1235,51 @@
           "physical_client": "not_verified"
         },
         "windows_toolchain_cache": {
-          "status": "local_policy_checks_pass_hosted_review_pending",
+          "status": "reviewed_merged_installer_cache_fill_verified_in_UI_PR_scope",
           "action": "compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7",
           "evidence": "The pinned upstream action defaults cache=false; existing Core/UI calls omit it, so every fresh VM downloads installer.exe. Its built-in Windows cache key includes architecture, release version and build; only the downloaded installer is cached, not an installed system directory.",
-          "change": "Enable cache=true with explicit amd64 for pinned Windows Core6.1.3 and UI6.3.3. Retain all installation and unconditional exact-version validation, compiled dependency caches and runtime tests. First fill and actual speed improvement are not yet measured.",
-          "reference": "https://github.com/compnerd/gha-setup-swift/blob/775d3f4111c5be58a0f62f2efdd353bb8fac15c7/action.yml"
+          "change": "Enable cache=true with explicit amd64 for pinned Windows Core6.1.3 and UI6.3.3. Retain installation, unconditional exact-version checks, compiled dependency caches and runtime tests. A subsequent hit and speed improvement are not yet measured.",
+          "reference": "https://github.com/compnerd/gha-setup-swift/blob/775d3f4111c5be58a0f62f2efdd353bb8fac15c7/action.yml",
+          "pr": 69,
+          "head": "fd29fb2c2276a09bbc3c06d1fd4b49a567904b8a",
+          "ui_run": 41489198269,
+          "observed_key": "swift-toolchain-windows-amd64-swift-6.3.3-release-6.3.3-RELEASE",
+          "observed_PR_cache": "Initial miss and successful save recorded; default-branch fill and a subsequent cache hit still need separate evidence.",
+          "bottleneck_run": 41486628199,
+          "bottleneck_download_seconds_approx": 897,
+          "bottleneck_install_seconds_approx": 48,
+          "measurement_limit": "The cancelled run demonstrates a slow Swift download, not slow application compilation or every historical CI delay. Faster download on a later miss does not prove cache speedup."
+        },
+        "active_windows_full_integration": {
+          "run": 41491062151,
+          "head": "48b872aea3fd6ce24a90469a3e912787b67469b1",
+          "scope": "Windows-only full native/installed UI, actual input, real models and installation",
+          "status": "Debug_actual_input78_and_nativeIME7_pass_full_acceptance_in_progress",
+          "proof_limit": "Early input evidence is not complete installed/model acceptance. Existing full Linux evidence remains separately scoped; this does not claim the entire Linux and Windows commit trees are identical."
+        },
+        "latest_credential_core_acceptance": {
+          "run": 41489198405,
+          "head": "fd29fb2c2276a09bbc3c06d1fd4b49a567904b8a",
+          "main_tree_matches_head": "48b872aea3fd6ce24a90469a3e912787b67469b1",
+          "status": "all_three_platform_jobs_passed_and_credential_evidence_audited",
+          "text_checks_per_Windows_Linux": 9,
+          "windows_rich_checks": 22,
+          "linux_rich_checks": 31,
+          "required_native_assertions": [
+            "native_prefixed_key_is_inferred_sensitive_without_concealed_hint",
+            "native_prefixed_key_remains_in_memory_without_blob_or_history",
+            "native_prefixed_key_explicit_copy_preserves_original_and_sensitive_hint",
+            "native_rich_monitor_infers_unmarked_credential_text",
+            "independent_credential-pattern_formats_roundtrip",
+            "independent_credential-pattern_sensitivity"
+          ],
+          "focused_suites_per_platform": {
+            "SecretPatternSensitivityTests": 14,
+            "SecretHistoryPolicyTests": 8,
+            "SensitiveTransitionTests": 6
+          },
+          "actual_Mac_App_probes": "Automatic and manual held attempts cancel without fallback; actual dispatch rechecks live sensitivity after held credential access. Fake HTTP/volatile private preferences, no real network/clipboard/GUI. Existing Mac application builds successfully.",
+          "Windows_image_adapter_regression": "All245 unique native adapter assertions pass in the latest Core artifact too."
         }
       }
     }
