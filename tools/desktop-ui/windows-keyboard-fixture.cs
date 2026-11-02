@@ -37,10 +37,8 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   [DllImport("imm32.dll")] static extern bool ImmIsIME(IntPtr layout);
   [DllImport("imm32.dll")] static extern IntPtr ImmGetContext(IntPtr window);
   [DllImport("imm32.dll")] static extern bool ImmReleaseContext(IntPtr window, IntPtr context);
-  [DllImport("imm32.dll")] static extern bool ImmSetOpenStatus(IntPtr context, bool open);
   [DllImport("imm32.dll")] static extern bool ImmGetOpenStatus(IntPtr context);
   [DllImport("imm32.dll")] static extern bool ImmGetConversionStatus(IntPtr context, out uint conversion, out uint sentence);
-  [DllImport("imm32.dll")] static extern bool ImmSetConversionStatus(IntPtr context, uint conversion, uint sentence);
   [DllImport("imm32.dll", CharSet = CharSet.Unicode)] static extern int ImmGetCompositionStringW(IntPtr context, uint kind, IntPtr data, uint size);
   [DllImport("imm32.dll", CharSet = CharSet.Unicode)] static extern uint ImmGetCandidateListW(IntPtr context, uint index, IntPtr data, uint size);
   [DllImport("msctf.dll")] static extern int TF_CreateInputProcessorProfiles(out IntPtr profiles);
@@ -229,17 +227,10 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
         if (ImeActivationResult != 0) throw new InvalidOperationException("native_pinyin_profile_activation_failed");
       } finally { Marshal.ReleaseComObject(profiles); Marshal.Release(pointer); }
       // Leave conversion policy to the actual activated text service. The
-      // fixture sets native mode explicitly below rather than letting the
+      // fixture uses the provider's normal mode shortcut rather than letting the
       // legacy Forms focus handler rewrite the provider's conversion state.
       editor.ImeMode = ImeMode.NoControl;
       editor.Focus();
-      return true;
-    });
-    WithIme<bool>(delegate(IntPtr context) {
-      uint conversion, sentence;
-      if (!ImmGetConversionStatus(context, out conversion, out sentence) ||
-          !ImmSetConversionStatus(context, (conversion | 1u) & ~8u, sentence) ||
-          !ImmSetOpenStatus(context, true)) throw new InvalidOperationException("native_chinese_ime_cannot_open");
       return true;
     });
   }

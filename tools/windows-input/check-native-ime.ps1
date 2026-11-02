@@ -7,6 +7,7 @@ $report = [ordered]@{ passed = $false; stage = 'starting'; checks = @();
   errorType = $null; errorCode = $null; activationResult = $null; inputLayout = $null;
   keyMessages = 0; scannedKeyMessages = 0; imeMessages = 0;
   conversionBeforeInput = $null; conversionAfterInput = $null;
+  modeShortcutSent = $false;
   imeOpen = $false; compositionLength = 0; candidateCount = 0;
   textLength = 0; limitations = @('Actual Windows input method in an owned native editor; GTK application integration is a separate gate.') }
 $peer = $null
@@ -30,7 +31,13 @@ try {
   Wait-Ime { $peer.Text.Length -eq 0 } 'native_editor_empty_before_ime'
   $report.stage = 'activate_native_chinese_profile'
   $peer.UseChineseIme()
-  Wait-Ime { $peer.ImeOpen } 'native_chinese_ime_open'
+  # Microsoft Pinyin's documented Shift key selects Chinese/English mode.
+  # Setting a legacy IMM flag can be replaced by the provider on the first key.
+  if (!$peer.ImeOpen -or ($peer.ImeConversionMode -band 1) -eq 0) {
+    $peer.Chord($peer.Handle, [UInt16[]]@(0x10))
+    $report.modeShortcutSent = $true
+  }
+  Wait-Ime { $peer.ImeOpen -and ($peer.ImeConversionMode -band 1) -ne 0 } 'native_chinese_ime_open'
   $report.conversionBeforeInput = $peer.ImeConversionMode
   $peer.TypeLatinKeys($peer.Handle, 'nihao')
   Wait-Ime { $peer.CompositionLength -gt 0 -and $peer.CandidateCount -ge 2 } 'actual_pinyin_composition_and_candidates'
