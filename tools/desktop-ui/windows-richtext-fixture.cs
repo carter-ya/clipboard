@@ -113,6 +113,29 @@ public sealed class ClipboardOwnedRichText : IDisposable {
     OnEditor<bool>(delegate { VerifyOwned(); form.Activate(); editor.Focus(); return true; });
     SetForegroundWindow(handle);
   }
+  // Exercise the actual dispatch timeout and a late completion on this owned
+  // UI thread. Catch UI-thread exceptions so the regression reports a failure
+  // instead of opening an unowned framework error dialog.
+  public bool DispatchTimeoutIsSafe() {
+    Running();
+    int exceptions = 0;
+    ThreadExceptionEventHandler handler = delegate { Interlocked.Increment(ref exceptions); };
+    OnEditor<bool>(delegate { Application.ThreadException += handler; return true; });
+    try {
+      bool timedOut = false;
+      try { OnEditor<bool>(delegate { Thread.Sleep(5500); return true; }); }
+      catch (InvalidOperationException error) {
+        if (error.Message != "owned_richtext_dispatch_timeout") throw;
+        timedOut = true;
+      }
+      // Queued behind the delayed callback: acknowledges its completion and
+      // continued UI processing before checking the exception receipt.
+      bool progressed = OnEditor<bool>(delegate { return true; });
+      return timedOut && progressed && Interlocked.CompareExchange(ref exceptions, 0, 0) == 0;
+    } finally {
+      OnEditor<bool>(delegate { Application.ThreadException -= handler; return true; });
+    }
+  }
   public Receipt Read() {
     Running();
     return OnEditor<Receipt>(delegate {

@@ -24,6 +24,8 @@ try {
   $receiver.Activate()
   Wait-BrowserCondition { $receiver.Read().Focused } 'owned_richtext_foreground_and_focus' | Out-Null
   Add-RtfCheck 'native_rtf_recipient_initially_empty' ($receiver.Read().Text -ceq '')
+  $stage = 'dispatch_timeout'
+  Add-RtfCheck 'native_rtf_late_dispatch_timeout_keeps_ui_completion_and_cleanup_safe' ($receiver.DispatchTimeoutIsSafe())
   $stage = 'source'
   $receiver.WriteFixture()
   Wait-BrowserCondition { $receiver.SourceMatches() } 'native_rtf_source_bytes' | Out-Null
