@@ -6,6 +6,7 @@ Add-Type -Path (Join-Path $PSScriptRoot '../desktop-ui/windows-keyboard-fixture.
 $report = [ordered]@{ passed = $false; stage = 'starting'; checks = @();
   errorType = $null; errorCode = $null; activationResult = $null; inputLayout = $null;
   keyMessages = 0; scannedKeyMessages = 0; imeMessages = 0;
+  conversionBeforeInput = $null; conversionAfterInput = $null;
   imeOpen = $false; compositionLength = 0; candidateCount = 0;
   textLength = 0; limitations = @('Actual Windows input method in an owned native editor; GTK application integration is a separate gate.') }
 $peer = $null
@@ -30,6 +31,7 @@ try {
   $report.stage = 'activate_native_chinese_profile'
   $peer.UseChineseIme()
   Wait-Ime { $peer.ImeOpen } 'native_chinese_ime_open'
+  $report.conversionBeforeInput = $peer.ImeConversionMode
   $peer.TypeLatinKeys($peer.Handle, 'nihao')
   Wait-Ime { $peer.CompositionLength -gt 0 -and $peer.CandidateCount -ge 2 } 'actual_pinyin_composition_and_candidates'
   $report.checks += 'actual_pinyin_composition_and_candidates'
@@ -75,6 +77,7 @@ try {
       $report.keyMessages = $peer.KeyMessageCount
       $report.scannedKeyMessages = $peer.ScannedKeyMessageCount
       $report.imeMessages = $peer.ImeMessageCount
+      $report.conversionAfterInput = $peer.ImeConversionMode
       $report.compositionLength = $peer.CompositionLength
       $report.candidateCount = $peer.CandidateCount
       $report.textLength = $peer.Text.Length

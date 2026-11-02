@@ -228,7 +228,10 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
           1, 0x0804, ref processor, ref profile, IntPtr.Zero, 1);
         if (ImeActivationResult != 0) throw new InvalidOperationException("native_pinyin_profile_activation_failed");
       } finally { Marshal.ReleaseComObject(profiles); Marshal.Release(pointer); }
-      editor.ImeMode = ImeMode.On;
+      // Leave conversion policy to the actual activated text service. The
+      // fixture sets native mode explicitly below rather than letting the
+      // legacy Forms focus handler rewrite the provider's conversion state.
+      editor.ImeMode = ImeMode.NoControl;
       editor.Focus();
       return true;
     });
@@ -241,6 +244,11 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
     });
   }
   public bool ImeOpen { get { return WithIme<bool>(delegate(IntPtr context) { return ImmGetOpenStatus(context); }); } }
+  public uint ImeConversionMode { get { return WithIme<uint>(delegate(IntPtr context) {
+    uint conversion, sentence;
+    if (!ImmGetConversionStatus(context, out conversion, out sentence)) throw new InvalidOperationException("native_ime_conversion_unavailable");
+    return conversion;
+  }); } }
   public int CompositionLength {
     get { return WithIme<int>(delegate(IntPtr context) {
       int bytes = ImmGetCompositionStringW(context, 8, IntPtr.Zero, 0);
