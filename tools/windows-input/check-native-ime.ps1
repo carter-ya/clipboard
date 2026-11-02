@@ -8,6 +8,7 @@ $report = [ordered]@{ passed = $false; stage = 'starting'; checks = @();
   keyMessages = 0; scannedKeyMessages = 0; imeMessages = 0;
   conversionBeforeInput = $null; conversionAfterInput = $null;
   modeShortcutSent = $false;
+  tsfCandidateResult = $null; tsfUiElementCount = 0;
   imeOpen = $false; compositionLength = 0; candidateCount = 0;
   textLength = 0; limitations = @('Actual Windows input method in an owned native editor; GTK application integration is a separate gate.') }
 $peer = $null
@@ -87,6 +88,8 @@ try {
       $report.conversionAfterInput = $peer.ImeConversionMode
       $report.compositionLength = $peer.CompositionLength
       $report.candidateCount = $peer.CandidateCount
+      $report.tsfCandidateResult = $peer.TsfCandidateResult
+      $report.tsfUiElementCount = $peer.TsfUiElementCount
       $report.textLength = $peer.Text.Length
     } catch { }
     try { $peer.Dispose() } catch { $report.passed = $false; $report.errorType = $_.Exception.GetType().FullName }

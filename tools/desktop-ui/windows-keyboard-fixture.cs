@@ -42,13 +42,44 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   [DllImport("imm32.dll", CharSet = CharSet.Unicode)] static extern int ImmGetCompositionStringW(IntPtr context, uint kind, IntPtr data, uint size);
   [DllImport("imm32.dll", CharSet = CharSet.Unicode)] static extern uint ImmGetCandidateListW(IntPtr context, uint index, IntPtr data, uint size);
   [DllImport("msctf.dll")] static extern int TF_CreateInputProcessorProfiles(out IntPtr profiles);
+  [DllImport("msctf.dll")] static extern int TF_GetThreadMgr(out IntPtr manager);
   // First vtable entry from the official msctf.h ITfInputProcessorProfileMgr.
   [ComImport, Guid("71c6e74c-0f28-11d8-a82a-00065b84435c"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
   interface InputProcessorProfileManager {
     [PreserveSig] int ActivateProfile(uint type, ushort language, ref Guid processor,
                                     ref Guid profile, IntPtr layout, uint flags);
   }
+  [ComImport, Guid("ea1ea135-19df-11d7-a6d2-00065b84435c"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface UiElementManager {
+    [PreserveSig] int BeginUIElement(IntPtr element, [MarshalAs(UnmanagedType.Bool)] ref bool show, out uint id);
+    [PreserveSig] int UpdateUIElement(uint id);
+    [PreserveSig] int EndUIElement(uint id);
+    [PreserveSig] int GetUIElement(uint id, out IntPtr element);
+    [PreserveSig] int EnumUIElements(out IntPtr enumerator);
+  }
+  [ComImport, Guid("887aa91e-acba-4931-84da-3c5208cf543f"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface UiElementEnumerator {
+    [PreserveSig] int Clone(out IntPtr clone);
+    [PreserveSig] int Next(uint count, out IntPtr element, out uint fetched);
+    [PreserveSig] int Reset();
+    [PreserveSig] int Skip(uint count);
+  }
+  // Include ITfUIElement's four inherited slots before candidate-list methods.
+  [ComImport, Guid("ea1ea138-19df-11d7-a6d2-00065b84435c"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface CandidateElement {
+    [PreserveSig] int GetDescription([MarshalAs(UnmanagedType.BStr)] out string description);
+    [PreserveSig] int GetGUID(out Guid guid);
+    [PreserveSig] int Show([MarshalAs(UnmanagedType.Bool)] bool show);
+    [PreserveSig] int IsShown([MarshalAs(UnmanagedType.Bool)] out bool show);
+    [PreserveSig] int GetUpdatedFlags(out uint flags);
+    [PreserveSig] int GetDocumentMgr(out IntPtr manager);
+    [PreserveSig] int GetCount(out uint count);
+    [PreserveSig] int GetSelection(out uint index);
+    [PreserveSig] int GetString(uint index, [MarshalAs(UnmanagedType.BStr)] out string text);
+  }
   public int ImeActivationResult { get; private set; }
+  public int TsfCandidateResult { get; private set; }
+  public int TsfUiElementCount { get; private set; }
 
   sealed class PasteEditor : TextBox {
     public int PasteCount;
@@ -264,10 +295,72 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
       } finally { Marshal.FreeHGlobal(data); }
     });
   }
+  T WithTsfCandidate<T>(Func<CandidateElement, T> action, T empty) {
+    return OnPeer<T>(delegate {
+      if (GetForegroundWindow() != handle) return empty;
+      IntPtr threadPointer = IntPtr.Zero, enumPointer = IntPtr.Zero;
+      object threadObject = null, enumObject = null;
+      TsfUiElementCount = 0;
+      try {
+        TsfCandidateResult = TF_GetThreadMgr(out threadPointer);
+        if (TsfCandidateResult < 0 || threadPointer == IntPtr.Zero) return empty;
+        threadObject = Marshal.GetObjectForIUnknown(threadPointer);
+        var manager = threadObject as UiElementManager;
+        if (manager == null) return empty;
+        TsfCandidateResult = manager.EnumUIElements(out enumPointer);
+        if (TsfCandidateResult < 0 || enumPointer == IntPtr.Zero) return empty;
+        enumObject = Marshal.GetObjectForIUnknown(enumPointer);
+        var enumerator = (UiElementEnumerator)enumObject;
+        for (int iteration = 0; iteration < 32; iteration++) {
+          IntPtr elementPointer;
+          uint fetched;
+          TsfCandidateResult = enumerator.Next(1, out elementPointer, out fetched);
+          if (TsfCandidateResult < 0 || fetched == 0 || elementPointer == IntPtr.Zero) return empty;
+          TsfUiElementCount++;
+          object elementObject = null;
+          try {
+            elementObject = Marshal.GetObjectForIUnknown(elementPointer);
+            var candidate = elementObject as CandidateElement;
+            if (candidate == null) continue;
+            uint count;
+            TsfCandidateResult = candidate.GetCount(out count);
+            if (TsfCandidateResult < 0 || count == 0) continue;
+            if (count > 256) throw new InvalidOperationException("native_tsf_candidate_bound");
+            return action(candidate);
+          } finally {
+            if (elementObject != null) Marshal.ReleaseComObject(elementObject);
+            Marshal.Release(elementPointer);
+          }
+        }
+        throw new InvalidOperationException("native_tsf_ui_element_bound");
+      } finally {
+        if (enumObject != null) Marshal.ReleaseComObject(enumObject);
+        if (enumPointer != IntPtr.Zero) Marshal.Release(enumPointer);
+        if (threadObject != null) Marshal.ReleaseComObject(threadObject);
+        if (threadPointer != IntPtr.Zero) Marshal.Release(threadPointer);
+      }
+    });
+  }
   public int CandidateCount {
-    get { return WithCandidates<int>(delegate(IntPtr data, uint size) { return Marshal.ReadInt32(data, 8); }, 0); }
+    get {
+      int count = WithTsfCandidate<int>(delegate(CandidateElement candidate) {
+        uint value;
+        if (candidate.GetCount(out value) < 0 || value > 256) throw new InvalidOperationException("native_tsf_candidate_count");
+        return (int)value;
+      }, 0);
+      return count > 0 ? count : WithCandidates<int>(delegate(IntPtr data, uint size) { return Marshal.ReadInt32(data, 8); }, 0);
+    }
   }
   public string CandidateAt(int index) {
+    string modern = WithTsfCandidate<string>(delegate(CandidateElement candidate) {
+      uint count;
+      if (candidate.GetCount(out count) < 0 || index < 0 || index >= count) throw new InvalidOperationException("native_tsf_candidate_index");
+      string value;
+      if (candidate.GetString((uint)index, out value) < 0 || value == null || value.Length > 4096)
+        throw new InvalidOperationException("native_tsf_candidate_text_bound");
+      return value;
+    }, null);
+    if (modern != null) return modern;
     return WithCandidates<string>(delegate(IntPtr data, uint size) {
       int count = Marshal.ReadInt32(data, 8);
       if (index < 0 || index >= count) throw new InvalidOperationException("native_ime_candidate_index");
