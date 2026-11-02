@@ -8,6 +8,7 @@ $checks = [Collections.Generic.List[object]]::new()
 $errorType = $null
 $failure = $null
 $diagnostic = $null
+$startupCleanup = $false
 try {
   $context = New-WindowsOwnedBrowser
   & (Join-Path $PSScriptRoot 'test-windows-browser-cleanup.ps1')
@@ -27,6 +28,11 @@ try {
 } catch {
   $errorType = $_.Exception.GetType().FullName
   $failure = $_.Exception.Message.Substring(0, [Math]::Min(1024, $_.Exception.Message.Length))
+  $errorCursor = $_.Exception
+  for ($depth = 0; $depth -lt 5 -and $errorCursor; $depth++) {
+    if ($errorCursor.Data.Contains('ownedBrowserCleanupComplete')) { $startupCleanup = $errorCursor.Data['ownedBrowserCleanupComplete'] -eq $true; break }
+    $errorCursor = $errorCursor.InnerException
+  }
   if ($context) {
     try { $diagnostic = Get-WindowsBrowserDiagnostic $context } catch { $diagnostic = @{ unavailable = $true } }
   }
@@ -37,7 +43,7 @@ finally {
     $completed = $false; $errorType = $_.Exception.GetType().FullName
     $failure = 'owned_browser_cleanup_failed'
   }
-  $cleanup = $context -and $context.native.CleanupComplete
+  $cleanup = ($context -and $context.native.CleanupComplete) -or (!$context -and $startupCleanup)
   $checks.Add(@{ name = 'owned_browser_process_job_and_private_profile_cleanup'; passed = [bool]$cleanup })
   $passed = $completed -and $cleanup -and @($checks | Where-Object { !$_.passed }).Count -eq 0
   $Output = [IO.Path]::GetFullPath($Output)

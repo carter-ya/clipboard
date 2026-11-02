@@ -40,6 +40,7 @@ public sealed class ClipboardBrowserFixture : IDisposable {
   [DllImport("kernel32.dll")] static extern bool TerminateProcess(IntPtr process, uint code);
   [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
   [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+  [DllImport("kernel32.dll")] static extern bool GetExitCodeProcess(IntPtr process, out uint code);
   [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowProc callback, IntPtr parameter);
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder name, int size);
@@ -113,8 +114,11 @@ public sealed class ClipboardBrowserFixture : IDisposable {
     }
   }
   public bool PortReady { get { Running(); return File.Exists(Path.Combine(Root, "profile", "DevToolsActivePort")); } }
-  public void Connect() {
+  public bool Connect() {
     Running();
+    uint code;
+    if (!GetExitCodeProcess(process, out code)) throw new InvalidOperationException("owned_browser_process_status");
+    if (code != 259) throw new InvalidOperationException("owned_browser_exited_before_endpoint_" + code);
     string path = Path.Combine(Root, "profile", "DevToolsActivePort");
     if (new FileInfo(path).Length > 256) throw new InvalidOperationException("owned_browser_endpoint_bound");
     string[] lines = File.ReadAllLines(path);
@@ -122,9 +126,21 @@ public sealed class ClipboardBrowserFixture : IDisposable {
     if (lines.Length != 2 || !Int32.TryParse(lines[0], out port) || port < 1024 || port > 65535 ||
         !System.Text.RegularExpressions.Regex.IsMatch(lines[1], "^/devtools/browser/[a-zA-Z0-9-]+$"))
       throw new InvalidOperationException("owned_browser_endpoint_invalid");
-    socket = new ClientWebSocket();
-    using (var deadline = new CancellationTokenSource(5000))
-      socket.ConnectAsync(new Uri("ws://127.0.0.1:" + port + lines[1]), deadline.Token).GetAwaiter().GetResult();
+    var connection = new ClientWebSocket();
+    // The endpoint is private loopback, never the runner's configured proxy.
+    connection.Options.Proxy = null;
+    try {
+      using (var deadline = new CancellationTokenSource(1000))
+        connection.ConnectAsync(new Uri("ws://127.0.0.1:" + port + lines[1]), deadline.Token).GetAwaiter().GetResult();
+      socket = connection;
+      return true;
+    } catch (WebSocketException) { connection.Dispose(); return false; }
+      catch (OperationCanceledException) { connection.Dispose(); return false; }
+      catch (System.Net.WebException error) {
+        connection.Dispose();
+        if (error.Status == System.Net.WebExceptionStatus.ConnectFailure || error.Status == System.Net.WebExceptionStatus.Timeout) return false;
+        throw;
+      }
   }
   public void Send(string packet) {
     Running();

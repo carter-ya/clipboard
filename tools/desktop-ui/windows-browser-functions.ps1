@@ -49,12 +49,16 @@ function New-WindowsOwnedBrowser {
   $native = $null
   $context = $null
   $ready = $false
+  $startupError = $null
   try {
     $page = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'windows-browser-paste.html'))
     $native = [ClipboardBrowserFixture]::new([IO.Path]::GetFullPath($chrome), $page)
     $context = [PSCustomObject]@{ native = $native; next = 0; session = ''; window = [IntPtr]::Zero; keys = $null }
     Wait-BrowserCondition { $native.PortReady } 'owned_browser_endpoint_ready' | Out-Null
-    $native.Connect()
+    # Endpoint-file creation alone is not an acknowledged WebSocket handshake.
+    # Poll transport readiness on this same live owned process, never resend keys
+    # or restart the browser. The existing per-stage bound remains 40 seconds.
+    Wait-BrowserCondition { $native.Connect() } 'owned_browser_endpoint_handshake' | Out-Null
     $processes = (Invoke-BrowserRpc $context 'SystemInfo.getProcessInfo').processInfo
     $browser = @($processes | Where-Object { $_.type -ceq 'browser' })
     if ($browser.Count -ne 1 -or $browser[0].id -ne $native.ProcessId) { throw 'browser_protocol_process_identity' }
@@ -77,8 +81,16 @@ function New-WindowsOwnedBrowser {
     $context.keys = [ClipboardKeyboardFixture]::new($native.ProcessId)
     $ready = $true
     return $context
-  } finally {
-    if (!$ready) { Close-WindowsOwnedBrowser $context $native }
+  } catch { $startupError = $_.Exception; throw }
+  finally {
+    if (!$ready) {
+      try { Close-WindowsOwnedBrowser $context $native }
+      catch {
+        if ($startupError) { throw [AggregateException]::new('owned_browser_startup_and_cleanup_failed', [Exception[]]@($startupError, $_.Exception)) }
+        throw
+      }
+      if ($startupError) { $startupError.Data['ownedBrowserCleanupComplete'] = [bool]($native -and $native.CleanupComplete) }
+    }
   }
 }
 
