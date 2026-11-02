@@ -1213,6 +1213,13 @@
           "status": "full_linux_job_passed_and_report_assertions_audited",
           "cp9_cp10_components_reaudited": 13,
           "physical_client": "not_verified"
+        },
+        "windows_toolchain_cache": {
+          "status": "local_policy_checks_pass_hosted_review_pending",
+          "action": "compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7",
+          "evidence": "The pinned upstream action defaults cache=false; existing Core/UI calls omit it, so every fresh VM downloads installer.exe. Its built-in Windows cache key includes architecture, release version and build; only the downloaded installer is cached, not an installed system directory.",
+          "change": "Enable cache=true with explicit amd64 for pinned Windows Core6.1.3 and UI6.3.3. Retain all installation and unconditional exact-version validation, compiled dependency caches and runtime tests. First fill and actual speed improvement are not yet measured.",
+          "reference": "https://github.com/compnerd/gha-setup-swift/blob/775d3f4111c5be58a0f62f2efdd353bb8fac15c7/action.yml"
         }
       }
     }

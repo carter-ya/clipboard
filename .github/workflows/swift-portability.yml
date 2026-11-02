@@ -84,6 +84,8 @@ jobs:
         with:
           swift-version: swift-6.1.3-release
           swift-build: 6.1.3-RELEASE
+          build_arch: amd64
+          cache: 'true'
       - name: Install Swift 6.1.3 on Ubuntu
         if: runner.os == 'Linux'
         shell: bash

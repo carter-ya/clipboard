@@ -52,6 +52,13 @@ matching source, resource, test, manifest, input fixture, installer or workflow
 change in the same commit still selects the normal checks. Manual scopes,
 runtime assertions and integration selection are unchanged.
 
+Windows Core 6.1.3 and UI 6.3.3 also enable the pinned setup action's downloaded
+installer cache, keyed by version/build and explicit `amd64` architecture. The
+upstream action otherwise defaults this cache off. This caches `installer.exe`,
+not an installed system directory; installation and unconditional version
+checks still run. The first cache fill and subsequent speedup require hosted
+measurement, so this does not claim an observed duration reduction.
+
 Windows PRs also run `smoke-windows.ps1 -KeyboardOnly` using the same Debug
 executable. At the user's request this mode sends actual OS keyboard input on
 the isolated Actions desktop. A dedicated native WinForms editor supplies the
