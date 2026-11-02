@@ -1071,7 +1071,15 @@
             "Windows clipboard-derived bitmap EXIF orientation remains independently unverified",
             "ICC/color-profile fidelity, client hardware and existing CP13 gates remain open"
           ],
-          "artifact_audit": "Both Windows/Linux reports from41456251202 contain113 unique passing checks, including absent/all8 orientation values, main/hover exact pixel permutations, geometry and unchanged originals."
+          "artifact_audit": "Both Windows/Linux reports from41456251202 contain113 unique passing checks, including absent/all8 orientation values, main/hover exact pixel permutations, geometry and unchanged originals.",
+          "windows_bitmap_followup": {
+            "branch": "codex/windows-image-orientation-parity",
+            "base": "main6ceedf3",
+            "status": "native_reproduction_pending",
+            "evidence": "Windows image_dib converts the raw WIC frame directly to a flat bitmap without querying EXIF orientation. The GTK/Mac preview transform has been fixed separately. Do not yet claim a native Windows defect until the independent test executes.",
+            "regression": "240 actual C-adapter assertions retain the original24 and add absent/all8 JPEG/TIFF orientation values in ordinary/sensitive modes. Independent GDI+ validates metadata; TIFF has6 colors with independent coordinate permutations; JPEG geometry uses unchanged uniform reference. Original encoded bytes, no duplicate roundtrip and sensitivity stay hard assertions.",
+            "scope": "Reference-only Windows Actions images mode, no Swift/app/model build. ICC profiles remain separately unverified."
+          }
         },
         "latest_main_integration": {
           "head": "562ce12176545aef923bbf342ed0b0995e7291da",

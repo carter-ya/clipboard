@@ -696,3 +696,12 @@ with `uninspectableRichText`, rather than treating an unexamined suffix as safe.
 No HTML engine, scripts, embedded objects, files or provider validation are used.
 This recognizes defined patterns and supported text escaping; it does not claim
 universal credential detection or full browser/Office rich-text semantics.
+
+The Windows standard-bitmap follow-up extends the actual C-adapter reference
+probe to240 assertions: absent/all8 JPEG/TIFF EXIF orientations, ordinary and
+sensitive modes, independent GDI+ metadata validation, exact TIFF six-color
+coordinate permutations, JPEG geometry, original encoded native bytes, no
+derived duplicate on readback and sensitivity. It retains the original24
+assertions. The reference-only `images` Actions mode needs no Swift SDK, app
+build or models. Native execution is pending; source inspection alone does
+not establish the result. ICC/color profiles remain a separate gate.
