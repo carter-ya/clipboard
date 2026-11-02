@@ -117,7 +117,13 @@ pixels, and both native dropped-file names and bytes. The probe checks unchanged
 clipboard revisions and termination of every owned job process plus profile
 removal. Scripts never inject paste events or use the browser clipboard API.
 `browser-input.json` names this reference-only scope: product capture/copy
-integration is a separate gate. Native execution of this extension is pending.
+integration is a separate gate. Native Windows run
+[41417401975](https://github.com/carter-ya/clipboard/actions/runs/41417401975)
+passes all eleven checks, including an actual teardown-failure cleanup regression
+and independent exact UTF-8 CF_HTML header/body readback before browser input.
+The original complete HTML text/default-bold assertions pass unchanged after
+the reference writer supplies explicit UTF-8 bytes instead of a managed string.
+This reference pass does not establish product or installed-app format acceptance.
 
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
