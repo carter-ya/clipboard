@@ -740,3 +740,20 @@ name. It includes no history, clipboard body or model file. The ordering and
 allowlist have a permanent policy regression, so future input diagnosis need
 not wait for a lengthy optimized/package build. Existing runs keep their
 original immutable workflow; this improves subsequent runs only.
+
+The first read-only observation run41479407954 passes78 Debug and78 installed
+Release input checks plus12 keyboard-package checks; all reports are audited.
+Both receipts already show native Chinese mode after profile selection and
+never submit a mode shortcut. They do not reproduce or establish the specific
+cause of the earlier main failure.
+
+A separate deterministic test of the actual mode-selection statements exposes
+a driver hazard: one initial closed/pending sample immediately sends Shift,
+even if the provider subsequently settles to native Chinese without a key.
+The hardened preparation requires three matching owned-target layout/open/
+conversion samples before choosing that single mode action, then stable native
+Chinese state before submitting the unchanged Latin/candidate checks. It uses
+the existing40-second per-stage observer; this adds a readiness stage, not a
+new application timer or input retry. Ten pure-state cases cover initialization,
+legitimate mode selection, post-key transients and unavailable/oscillating
+provider refusal. Fresh native confirmation remains required.

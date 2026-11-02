@@ -171,11 +171,12 @@ function Invoke-WindowsChineseImeAcceptance($KeyboardPeer) {
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x5b, 0x20))
   Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and $KeyboardPeer.TargetInputLanguage($nativeWindowHandle) -eq 0x0804 } 'ime_actual_os_shortcut_selects_chinese_profile' | Out-Null
   Save-WindowsImeTargetState 'after_profile_switch' $KeyboardPeer
-  if (!$KeyboardPeer.TargetChineseMode($nativeWindowHandle)) {
+  $nativeProfile = Wait-WindowsImeProfileStable $KeyboardPeer 'ime_native_profile_settled'
+  if (!$nativeProfile.Open -or ($nativeProfile.Conversion -band 1) -eq 0) {
     $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x10))
     $script:imeModeShortcutSent = $true
   }
-  Wait-For { $KeyboardPeer.TargetChineseMode($nativeWindowHandle) } 'ime_actual_chinese_conversion_mode' | Out-Null
+  Wait-WindowsImeProfileStable $KeyboardPeer 'ime_actual_chinese_conversion_mode' -RequireChinese | Out-Null
   Save-WindowsImeTargetState 'chinese_before_latin' $KeyboardPeer
 
   # Pinyin candidate generation is asynchronous even with ordered OS key events.
@@ -291,6 +292,26 @@ function Wait-WindowsPinyinCandidates([string]$Stage) {
     Save-WindowsImeTargetState ($Stage + '_failed') $script:imeDiagnosticPeer
     throw
   }
+}
+
+function Wait-WindowsImeProfileStable($KeyboardPeer, [string]$Stage, [switch]$RequireChinese) {
+  # A keyboard-layout change alone does not establish a settled conversion
+  # state. Never flip the mode based on one initial closed/pending observation.
+  # Reuse the normal bounded observer; no input is retried or synthesized here.
+  $observations = @{ signature = $null; consistent = 0 }
+  Wait-For {
+    $state = $KeyboardPeer.ReadTargetImeStatus($nativeWindowHandle)
+    if (!$state.QuerySucceeded -or !$state.WindowPresent -or $state.Language -ne 0x0804 -or
+        ($RequireChinese -and (!$state.Open -or ($state.Conversion -band 1) -eq 0))) {
+      $observations.signature = $null; $observations.consistent = 0
+      return $false
+    }
+    $signature = '{0}:{1}:{2}' -f $state.Layout, $state.Open, $state.Conversion
+    if ($signature -ceq $observations.signature) { $observations.consistent++ }
+    else { $observations.signature = $signature; $observations.consistent = 1 }
+    if ($observations.consistent -ge 3) { return $state }
+    return $false
+  } $Stage
 }
 
 function Save-WindowsImeTargetState([string]$Stage, $KeyboardPeer) {

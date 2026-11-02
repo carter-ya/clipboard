@@ -1134,17 +1134,23 @@
         },
         "windows_ime_reliability_followup": {
           "branch": "codex/windows-ime-state-diagnostics",
-          "status": "diagnosis_in_progress_not_fixed",
+          "status": "script_readiness_hardened_native_confirmation_pending",
           "failed_main_run": 41475202168,
           "head": "6ceedf366667ac90b80d3128a23be24b07682f64",
           "failure": "ime_complete_native_candidates_before_cancel",
           "observed": "Independent native IME7, browser17, RTF10, actual Notepad English/Chinese and ordinary keyboard input pass. GTK actual search contains literal nihao with no candidate UI; no pass claimed for actual GTK IME or installed scope.",
           "diagnostic": "Read-only owned-target HKL/language/default-IME open/conversion status, candidate-host and fixed synthetic query booleans before/after profile selection/mode shortcut/Latin input and on the existing failed candidate wait. Existing key batches, 40s action deadlines and exact candidate/commit assertions stay unchanged.",
-          "local_validation": "Actual keyboard fixture compiles CSharp5/net48; existing actual keyboard argument/caret checks pass without desktop input.",
-          "next": "Narrow application Actions mode with cached Debug/Release/installer keyboard only, no model fixtures or complete GUI suite.",
+          "local_validation": "10 actual-statement state cases cover initialization, legitimate English/closed mode, post-key transients, absent/unreadable/oscillating provider failure without actions; actual key/caret arguments unchanged. CSharp5/net48 compiles clean;21 CI/input policy tests and actionlint pass.",
+          "next": "Fresh narrow application validation of the hardened gate and early receipts, then explicit PR review/ordinary CI; consolidate full Windows model/UI/package confirmation after input passes.",
           "early_receipt": "After the Windows actual-input step, always upload only six explicitly listed content-free input/status/result files before any release restore/build. Scope requires Windows+actual IME validation, names include run_attempt, no history/body/model files. A fifth input-policy regression verifies the ordering and allowlist.",
           "diagnostic_run": 41479407954,
-          "diagnostic_observed": "Debug actual Pinyin/browser/RTF input passes with read-only observations; optimized/installed confirmation is live. This is diagnosis, not proof of a root-cause repair."
+          "diagnostic_observed": "All3 result reports pass and are audited. Both target-state receipts already show native Chinese conversion after profile selection, with no mode shortcut sent. This successful observation run does not reproduce or prove the exact cause of the earlier main failure.",
+          "diagnostic_head": "59deff50b4344f88f4b087cf1367b0a44c567b31",
+          "diagnostic_debug_checks": 78,
+          "diagnostic_installed_release_checks": 78,
+          "diagnostic_package_checks": 12,
+          "driver_regression": "The actual pre-Latin mode-selection statements emit an unnecessary Shift for an initial closed state that settles to native Chinese without input. A deterministic asynchronous-state test fails before the new gate.",
+          "driver_repair": "Require3 consecutive matching owned-target layout/open/conversion snapshots before choosing a mode action; if necessary send exactly one original Shift batch, then require stable native Chinese state before the unchanged Latin/candidate tests. Use existing40s per-stage observer bound, no input retry or production change."
         }
       }
     }
