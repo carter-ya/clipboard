@@ -4,7 +4,8 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or $env:OS -ne 'Windows_NT') { throw 'native
 Add-Type -Path (Join-Path $PSScriptRoot '../desktop-ui/windows-keyboard-fixture.cs') `
   -ReferencedAssemblies @('System.dll', 'System.Core.dll', 'System.Windows.Forms.dll', 'System.Drawing.dll')
 $report = [ordered]@{ passed = $false; stage = 'starting'; checks = @();
-  errorType = $null; imeOpen = $false; compositionLength = 0; candidateCount = 0;
+  errorType = $null; errorCode = $null; activationResult = $null;
+  imeOpen = $false; compositionLength = 0; candidateCount = 0;
   textLength = 0; limitations = @('Actual Windows input method in an owned native editor; GTK application integration is a separate gate.') }
 $peer = $null
 function Wait-Ime([scriptblock]$Predicate, [string]$Stage) {
@@ -20,6 +21,11 @@ try {
   $peer = [ClipboardKeyboardFixture]::new([uint32]$PID)
   $peer.Activate()
   Wait-Ime { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $peer.Handle } 'owned_ime_target_foreground'
+  $peer.TypeAscii($peer.Handle, 'a')
+  Wait-Ime { $peer.Text -ceq 'a' } 'native_ascii_input_before_switching_ime'
+  $peer.Chord($peer.Handle, [UInt16[]]@(0x11, 0x41))
+  $peer.Chord($peer.Handle, [UInt16[]]@(0x08))
+  Wait-Ime { $peer.Text.Length -eq 0 } 'native_editor_empty_before_ime'
   $report.stage = 'activate_native_chinese_profile'
   $peer.UseChineseIme()
   Wait-Ime { $peer.ImeOpen } 'native_chinese_ime_open'
@@ -52,11 +58,15 @@ try {
   $report.checks += 'ime_test_uses_no_clipboard_or_unicode_packets'
   $report.passed = $true
 } catch {
-  $report.errorType = $_.Exception.GetType().FullName
+  $failure = $_.Exception
+  while ($failure.InnerException) { $failure = $failure.InnerException }
+  $report.errorType = $failure.GetType().FullName
+  $report.errorCode = $failure.HResult
 } finally {
   if ($peer) {
     try {
       $report.imeOpen = $peer.ImeOpen
+      $report.activationResult = $peer.ImeActivationResult
       $report.compositionLength = $peer.CompositionLength
       $report.candidateCount = $peer.CandidateCount
       $report.textLength = $peer.Text.Length

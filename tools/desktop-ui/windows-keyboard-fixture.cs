@@ -40,6 +40,14 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   [DllImport("imm32.dll")] static extern bool ImmSetConversionStatus(IntPtr context, uint conversion, uint sentence);
   [DllImport("imm32.dll", CharSet = CharSet.Unicode)] static extern int ImmGetCompositionStringW(IntPtr context, uint kind, IntPtr data, uint size);
   [DllImport("imm32.dll", CharSet = CharSet.Unicode)] static extern uint ImmGetCandidateListW(IntPtr context, uint index, IntPtr data, uint size);
+  [DllImport("msctf.dll")] static extern int TF_CreateInputProcessorProfiles(out IntPtr profiles);
+  // First vtable entry from the official msctf.h ITfInputProcessorProfileMgr.
+  [ComImport, Guid("71c6e74c-0f28-11d8-a82a-00065b84435c"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface InputProcessorProfileManager {
+    [PreserveSig] int ActivateProfile(uint type, ushort language, ref Guid processor,
+                                    ref Guid profile, IntPtr layout, uint flags);
+  }
+  public int ImeActivationResult { get; private set; }
 
   sealed class PasteEditor : TextBox {
     public int PasteCount;
@@ -170,6 +178,20 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
         if (language.Culture.Name == "zh-CN") { chinese = language; break; }
       if (chinese == null) throw new InvalidOperationException("native_chinese_input_language_unavailable");
       InputLanguage.CurrentInputLanguage = chinese;
+      // A Chinese keyboard layout alone can still emit literal Latin keys.
+      // Activate Microsoft's documented Pinyin text-service profile on this
+      // owned STA thread, without changing other applications' input profiles.
+      IntPtr pointer;
+      ImeActivationResult = TF_CreateInputProcessorProfiles(out pointer);
+      if (ImeActivationResult < 0) throw new InvalidOperationException("native_pinyin_profiles_unavailable");
+      object profiles = Marshal.GetObjectForIUnknown(pointer);
+      try {
+        Guid processor = new Guid("81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E");
+        Guid profile = new Guid("FA550B04-5AD7-411F-A5AC-CA038EC515D7");
+        ImeActivationResult = ((InputProcessorProfileManager)profiles).ActivateProfile(
+          1, 0x0804, ref processor, ref profile, IntPtr.Zero, 1);
+        if (ImeActivationResult != 0) throw new InvalidOperationException("native_pinyin_profile_activation_failed");
+      } finally { Marshal.ReleaseComObject(profiles); Marshal.Release(pointer); }
       editor.ImeMode = ImeMode.On;
       editor.Focus();
       return true;
