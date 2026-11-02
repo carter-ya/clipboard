@@ -705,3 +705,12 @@ derived duplicate on readback and sensitivity. It retains the original24
 assertions. The reference-only `images` Actions mode needs no Swift SDK, app
 build or models. Native execution is pending; source inspection alone does
 not establish the result. ICC/color profiles remain a separate gate.
+
+Native Windows reference41476736015 reproduces38 orientation failures among245
+assertions; independent GDI metadata, original24 cases, encoded originals and
+cleanup pass. The repair reads WIC's optional `System.Photo.Orientation` and
+applies separate rotation/flip sources before producing the standard bitmap.
+Transpose/transverse ordering is explicit; original encoded payloads, optional
+fallback behavior and encoded/pixel bounds remain intact. Native confirmation
+is required before accepting the repair. The Windows Pinyin failure in main
+integration41475202168 remains a separate unresolved gate.

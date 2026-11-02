@@ -472,6 +472,25 @@ static HGLOBAL make_native_data(const cb_payload *payload) {
 // image/png to web paste handlers. Windows synthesizes CF_DIB from CF_DIBV5.
 // Premultiplied BGRA preserves transparency for native bitmap consumers as
 // well.
+static UINT image_orientation(IWICBitmapFrameDecode *frame) {
+  IWICMetadataQueryReader *reader = NULL;
+  UINT orientation = 1;
+  if (SUCCEEDED(IWICBitmapFrameDecode_GetMetadataQueryReader(frame, &reader))) {
+    PROPVARIANT value;
+    memset(&value, 0, sizeof(value));
+    if (SUCCEEDED(IWICMetadataQueryReader_GetMetadataByName(
+            reader, L"System.Photo.Orientation", &value))) {
+      if (value.vt == VT_UI2)
+        orientation = value.uiVal;
+      else if (value.vt == VT_UI4)
+        orientation = value.ulVal;
+    }
+    PropVariantClear(&value);
+    IWICMetadataQueryReader_Release(reader);
+  }
+  return orientation >= 1 && orientation <= 8 ? orientation : 1;
+}
+
 static HGLOBAL image_dib(const cb_payload *payload) {
   static const unsigned char signature[] = {137, 80, 78, 71, 13, 10, 26, 10};
   if (payload->length > 16 * 1024 * 1024)
@@ -490,7 +509,9 @@ static HGLOBAL image_dib(const cb_payload *payload) {
   IWICStream *stream = NULL;
   IWICBitmapDecoder *decoder = NULL;
   IWICBitmapFrameDecode *frame = NULL;
+  IWICBitmapFlipRotator *rotated = NULL, *flipped = NULL;
   IWICFormatConverter *converter = NULL;
+  IWICBitmapSource *source = NULL;
   HGLOBAL dib = NULL;
   BITMAPV5HEADER *header = NULL;
   UINT width = 0, height = 0, stride = 0, size = 0;
@@ -519,11 +540,52 @@ static HGLOBAL image_dib(const cb_payload *payload) {
   if (!width || !height || width > INT_MAX || height > INT_MAX ||
       (uint64_t)width * height > (64 * 1024 * 1024 - sizeof(*header)) / 4)
     goto done;
+  source = (IWICBitmapSource *)frame;
+  UINT orientation = (jpeg || tiff) ? image_orientation(frame) : 1;
+  if (orientation != 1) {
+    WICBitmapTransformOptions transform = WICBitmapTransformRotate0;
+    switch (orientation) {
+    case 2:
+      transform = WICBitmapTransformFlipHorizontal;
+      break;
+    case 3:
+      transform = WICBitmapTransformRotate180;
+      break;
+    case 4:
+      transform = WICBitmapTransformFlipVertical;
+      break;
+    case 5:
+    case 6:
+    case 7:
+      transform = WICBitmapTransformRotate90;
+      break;
+    case 8:
+      transform = WICBitmapTransformRotate270;
+      break;
+    }
+    IMAGE_WIC(IWICImagingFactory_CreateBitmapFlipRotator(factory, &rotated));
+    IMAGE_WIC(IWICBitmapFlipRotator_Initialize(rotated, source, transform));
+    source = (IWICBitmapSource *)rotated;
+    // Transpose/transverse require a flip AFTER clockwise rotation. Separate
+    // sources make that ordering explicit instead of relying on combined flags.
+    if (orientation == 5 || orientation == 7) {
+      IMAGE_WIC(IWICImagingFactory_CreateBitmapFlipRotator(factory, &flipped));
+      IMAGE_WIC(IWICBitmapFlipRotator_Initialize(
+          flipped, source,
+          orientation == 5 ? WICBitmapTransformFlipHorizontal
+                           : WICBitmapTransformFlipVertical));
+      source = (IWICBitmapSource *)flipped;
+    }
+    IMAGE_WIC(IWICBitmapSource_GetSize(source, &width, &height));
+    if (!width || !height || width > INT_MAX || height > INT_MAX ||
+        (uint64_t)width * height > (64 * 1024 * 1024 - sizeof(*header)) / 4)
+      goto done;
+  }
   stride = width * 4;
   size = stride * height;
   IMAGE_WIC(IWICImagingFactory_CreateFormatConverter(factory, &converter));
   IMAGE_WIC(IWICFormatConverter_Initialize(
-      converter, (IWICBitmapSource *)frame, &GUID_WICPixelFormat32bppPBGRA,
+      converter, source, &GUID_WICPixelFormat32bppPBGRA,
       WICBitmapDitherTypeNone, NULL, 0, WICBitmapPaletteTypeCustom));
   dib = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, sizeof(*header) + size);
   if (!dib || !(header = GlobalLock(dib)))
@@ -553,6 +615,10 @@ done:
   }
   if (converter)
     IWICFormatConverter_Release(converter);
+  if (flipped)
+    IWICBitmapFlipRotator_Release(flipped);
+  if (rotated)
+    IWICBitmapFlipRotator_Release(rotated);
   if (frame)
     IWICBitmapFrameDecode_Release(frame);
   if (decoder)
@@ -668,7 +734,8 @@ static int register_display(Display *display) {
   for (unsigned i = 0; i < 32; ++i)
     if (!atomic_load(&clipboard_displays[i])) {
       if (!clipboard_error_installed) {
-        atomic_store(&previous_clipboard_error, XSetErrorHandler(clipboard_error));
+        atomic_store(&previous_clipboard_error,
+                     XSetErrorHandler(clipboard_error));
         clipboard_error_installed = 1;
       }
       atomic_store(&clipboard_displays[i], display);

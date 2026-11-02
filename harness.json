@@ -1075,10 +1075,20 @@
           "windows_bitmap_followup": {
             "branch": "codex/windows-image-orientation-parity",
             "base": "main6ceedf3",
-            "status": "native_reproduction_pending",
-            "evidence": "Windows image_dib converts the raw WIC frame directly to a flat bitmap without querying EXIF orientation. The GTK/Mac preview transform has been fixed separately. Do not yet claim a native Windows defect until the independent test executes.",
+            "status": "defect_reproduced_fix_pending_native_confirmation",
+            "evidence": "All original24 adapter assertions, independent GDI metadata and cleanup pass. Rotation geometry and TIFF reflected/rotated pixel permutations fail38 assertions in the real Windows adapter.",
             "regression": "240 actual C-adapter assertions retain the original24 and add absent/all8 JPEG/TIFF orientation values in ordinary/sensitive modes. Independent GDI+ validates metadata; TIFF has6 colors with independent coordinate permutations; JPEG geometry uses unchanged uniform reference. Original encoded bytes, no duplicate roundtrip and sensitivity stay hard assertions.",
-            "scope": "Reference-only Windows Actions images mode, no Swift/app/model build. ICC profiles remain separately unverified."
+            "scope": "Reference-only Windows Actions images mode, no Swift/app/model build. ICC profiles remain separately unverified.",
+            "before_run": 41476736015,
+            "before_head": "0c8cd9fba1b81c7d387c722aac99ab777fca0e73",
+            "before_assertions": 245,
+            "before_failed": 38,
+            "repair": "Read optional System.Photo.Orientation from WIC frame metadata; apply explicit bounded flip/rotation sources before bitmap conversion, preserve original encoded bytes and release all COM transforms. Transpose/transverse use an explicit flip after clockwise rotation.",
+            "references": [
+              "https://learn.microsoft.com/en-us/windows/desktop/wic/-wic-native-image-format-metadata-queries",
+              "https://learn.microsoft.com/en-us/windows/win32/api/wincodec/nf-wincodec-iwicbitmapfliprotator-initialize",
+              "https://learn.microsoft.com/en-us/windows/win32/api/wincodec/ne-wincodec-wicbitmaptransformoptions"
+            ]
           }
         },
         "latest_main_integration": {
