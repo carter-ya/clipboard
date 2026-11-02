@@ -335,7 +335,10 @@ if ($KeyboardOnly) {
   Add-Type -Path (Join-Path $PSScriptRoot 'windows-keyboard-fixture.cs') `
     -ReferencedAssemblies @('System.dll', 'System.Core.dll', 'System.Windows.Forms.dll', 'System.Drawing.dll')
 }
-if ($ValidateOnly) { exit 0 }
+if ($ValidateOnly) {
+  if ($KeyboardOnly) { & (Join-Path $PSScriptRoot 'test-windows-keyboard-peer.ps1') }
+  exit 0
+}
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
 $Executable = [IO.Path]::GetFullPath($Executable)
@@ -2951,7 +2954,10 @@ try {
         Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'application-events.log')
     } catch { $_.Exception.Message | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'event-query.log') }
 
-    try { if ($nativeWindowHandle -ne [IntPtr]::Zero -and !$application.HasExited) { Save-Screenshot 'failure.png' } } catch { }
+    try {
+      if ($nativeWindowHandle -ne [IntPtr]::Zero -and !$application.HasExited -and
+          (!$KeyboardOnly -or [PreviewNative]::IsWindowVisible($nativeWindowHandle))) { Save-Screenshot 'failure.png' }
+    } catch { }
   }
 } finally {
   if ($application -and !$application.HasExited) {

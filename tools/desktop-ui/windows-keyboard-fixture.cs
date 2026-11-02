@@ -55,6 +55,9 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
         Environment.OSVersion.Platform != PlatformID.Win32NT)
       throw new InvalidOperationException("keyboard_fixture_requires_windows_actions");
     this.applicationProcess = applicationProcess;
+    // powershell.exe targets the legacy .NET Framework compatibility defaults.
+    // Opt this owned helper process into the documented multiline Ctrl+A fix.
+    AppContext.SetSwitch("Switch.System.Windows.Forms.DoNotSupportSelectAllShortcutInMultilineTextBox", false);
     thread = new Thread(delegate() {
       try {
         form = new Form { Text = "Clipboard owned synthetic paste target", Width = 500, Height = 180 };
@@ -83,6 +86,7 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   }
   public int PasteCount { get { return OnPeer<int>(delegate { return editor.PasteCount; }); } }
   public string Text { get { return OnPeer<string>(delegate { return editor.Text; }); } }
+  public int SelectionLength { get { return OnPeer<int>(delegate { return editor.SelectionLength; }); } }
 
   void CheckTarget(IntPtr expected) {
     if (disposed || expected == IntPtr.Zero || GetForegroundWindow() != expected)

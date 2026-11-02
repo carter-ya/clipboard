@@ -112,6 +112,7 @@ function Invoke-WindowsKeyboardAcceptance {
     Add-Check 'second_activation_still_requires_explicit_user_paste' ($keyboardPeer.PasteCount -eq 1 -and
       $keyboardPeer.Text -ceq 'Welcome to Clipboard Preview')
     $keyboardPeer.Chord($keyboardPeer.Handle, [UInt16[]]@(0x11, 0x41))
+    Wait-For { $keyboardPeer.SelectionLength -eq $keyboardPeer.Text.Length } 'keyboard_peer_selects_entire_previous_paste' | Out-Null
     $keyboardPeer.Chord($keyboardPeer.Handle, [UInt16[]]@(0x11, 0x56))
     Wait-For { $keyboardPeer.PasteCount -eq 2 -and $keyboardPeer.Text -ceq '中文笔记 · 设计评审与输入测试' } 'keyboard_unicode_ctrl_v_readback' | Out-Null
     Add-Check 'explicit_ctrl_v_preserves_complete_chinese_original' $true
@@ -124,7 +125,16 @@ function Invoke-WindowsKeyboardAcceptance {
     if (!$application.WaitForExit(10000)) { throw 'keyboard_quit_timeout' }
     Add-Check 'keyboard_profile_quits_cleanly' ($application.ExitCode -eq 0)
   } finally {
-    if ($keyboardPeer) { $keyboardPeer.Dispose() }
+    if ($keyboardPeer) {
+      try {
+        @{ pasteCount = $keyboardPeer.PasteCount; textLength = $keyboardPeer.Text.Length;
+           selectionLength = $keyboardPeer.SelectionLength;
+           matchesEnglishFixture = $keyboardPeer.Text -ceq 'Welcome to Clipboard Preview';
+           matchesChineseFixture = $keyboardPeer.Text -ceq '中文笔记 · 设计评审与输入测试' } |
+          ConvertTo-Json | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'keyboard-peer-state.json')
+      } catch { }
+      $keyboardPeer.Dispose()
+    }
   }
 }
 
