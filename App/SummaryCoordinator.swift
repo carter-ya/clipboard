@@ -17,6 +17,8 @@ final class SummaryCoordinator {
   private let textSummarizer: any TextSummarizer
   private let remoteFactory: @Sendable (Preferences) -> RemoteOpenAISummarizer?
   private var task: Task<Void, Never>?
+  private var revocationTask: Task<Void, Never>?
+  private var ownedAttempts: [UUID: Task<Void, Never>] = [:]
 
   /// Stream of per-clip progress transitions the UI subscribes to.
   /// Single-consumer (the panel VM) — a plain `AsyncStream` is
@@ -69,10 +71,30 @@ final class SummaryCoordinator {
     // finished by `stop()`, which runs at app teardown.
     task?.cancel()
     task = nil
+    revocationTask?.cancel()
+    for attempt in ownedAttempts.values { attempt.cancel() }
+    let revocations = store.events
+    let insertions = store.events
+    // This observer never waits for analysis, so it can revoke the child while
+    // the serialized insertion observer is awaiting that child's result.
+    revocationTask = Task { [weak self] in
+      for await event in revocations {
+        guard !Task.isCancelled, let self else { break }
+        switch event {
+        case .updated(let item) where item.sensitive:
+          self.ownedAttempts[item.id]?.cancel()
+        case .deleted(let id), .evicted(let id, _, _):
+          self.ownedAttempts[id]?.cancel()
+        case .cleared:
+          for attempt in self.ownedAttempts.values { attempt.cancel() }
+        default: break
+        }
+      }
+    }
     Log.ui.info("summary.coordinator.start")
     task = Task { [weak self] in
       guard let self else { return }
-      for await event in self.store.events {
+      for await event in insertions {
         if Task.isCancelled { break }
         if case .inserted(let item) = event {
           Log.ui.info(
@@ -87,6 +109,9 @@ final class SummaryCoordinator {
   func stop() {
     task?.cancel()
     task = nil
+    revocationTask?.cancel()
+    revocationTask = nil
+    for attempt in ownedAttempts.values { attempt.cancel() }
     progressContinuation.finish()
   }
 
@@ -141,9 +166,13 @@ final class SummaryCoordinator {
   /// attempt is still running is a silent no-op (the existing
   /// spinner persists).
   func retry(_ item: ClipItem) async {
+    await tracked(item) { await self.retryUntracked(item) }
+  }
+
+  private func retryUntracked(_ item: ClipItem) async {
     let prefs = prefsStore.current
     guard prefs.summariesEnabled, !item.sensitive else { return }
-    let remote = remoteFactory(prefs)
+    let remote = authorizedRemote(prefs, item: item)
     switch item.kind {
     case .image:
       guard prefs.allowImageSummaries else { return }
@@ -158,6 +187,40 @@ final class SummaryCoordinator {
   }
 
   private func handle(_ item: ClipItem) async {
+    await tracked(item) { await self.handleUntracked(item) }
+  }
+
+  private func tracked(_ item: ClipItem, operation: @escaping @MainActor () async -> Void) async {
+    guard ownedAttempts[item.id] == nil else { return }
+    let attempt = Task { @MainActor in
+      guard await self.canAnalyze(item) else { return }
+      await operation()
+    }
+    ownedAttempts[item.id] = attempt
+    await attempt.value
+    ownedAttempts.removeValue(forKey: item.id)
+  }
+
+  private func canAnalyze(_ item: ClipItem) async -> Bool {
+    guard !Task.isCancelled, let current = await store.item(id: item.id),
+      current.sha256 == item.sha256, !current.sensitive
+    else { return false }
+    return !Task.isCancelled
+  }
+
+  private func authorizedRemote(_ prefs: Preferences, item: ClipItem) -> RemoteOpenAISummarizer? {
+    let id = item.id
+    let digest = item.sha256
+    return remoteFactory(prefs)?.authorizing { [store] in
+      guard !Task.isCancelled, let current = await store.item(id: id),
+        current.sha256 == digest, !current.sensitive,
+        !current.payloads.contains(where: { $0.pasteboardType == SensitivityFilter.concealedType })
+      else { return false }
+      return !Task.isCancelled
+    }
+  }
+
+  private func handleUntracked(_ item: ClipItem) async {
     let prefs = prefsStore.current
     guard prefs.summariesEnabled, !item.sensitive, item.summary == nil else {
       Log.ui.info(
@@ -169,7 +232,7 @@ final class SummaryCoordinator {
     // Build the remote summarizer once per clip; passed into all three
     // kind-specific helpers so we don't re-read prefs / re-construct
     // the summarizer twice on the file path's gate + waterfall.
-    let remote = remoteFactory(prefs)
+    let remote = authorizedRemote(prefs, item: item)
 
     switch item.kind {
     case .image:
@@ -210,6 +273,7 @@ final class SummaryCoordinator {
     prefs: Preferences,
     remote: RemoteOpenAISummarizer?
   ) async {
+    guard await canAnalyze(item) else { return }
     guard
       let payload = item.payloads.first(where: {
         ClipKind.imagePayloadTypes.contains($0.pasteboardType)
@@ -246,6 +310,7 @@ final class SummaryCoordinator {
         "summary.remote.image.attempt id=\(item.id.uuidString, privacy: .public)"
       )
       if let summary = await remote.summarize(imageData: data), !summary.isEmpty {
+        guard await canAnalyze(item) else { return }
         Log.ui.info(
           "summary.image.remote id=\(item.id.uuidString, privacy: .public) len=\(summary.count)"
         )
@@ -254,6 +319,7 @@ final class SummaryCoordinator {
         return
       }
     }
+    guard await canAnalyze(item) else { return }
     guard let summary = await imageSummarizer.summarize(imageData: data),
       !summary.isEmpty
     else {
@@ -262,6 +328,7 @@ final class SummaryCoordinator {
       )
       return
     }
+    guard await canAnalyze(item) else { return }
     Log.ui.info(
       "summary.image.done id=\(item.id.uuidString, privacy: .public) len=\(summary.count)"
     )
@@ -274,6 +341,7 @@ final class SummaryCoordinator {
     prefs: Preferences,
     remote: RemoteOpenAISummarizer?
   ) async {
+    guard await canAnalyze(item) else { return }
     guard let text = extractPlainText(from: item) else {
       Log.ui.info(
         "summary.text.noPayload id=\(item.id.uuidString, privacy: .public)"
@@ -300,6 +368,7 @@ final class SummaryCoordinator {
         "summary.remote.text.attempt id=\(item.id.uuidString, privacy: .public)"
       )
       if let summary = await remote.summarize(text: text), !summary.isEmpty {
+        guard await canAnalyze(item) else { return }
         Log.ui.info(
           "summary.text.remote id=\(item.id.uuidString, privacy: .public) len=\(summary.count)"
         )
@@ -310,11 +379,13 @@ final class SummaryCoordinator {
       }
       // fall through on remote failure
     }
+    guard await canAnalyze(item) else { return }
     // Prefer Foundation Models when available — the LLM produces a
     // real sentence, while NaturalLanguage can only list entities.
     if #available(macOS 26.0, *), AICapability.isFoundationModelsAvailable {
       let fm = FoundationModelsSummarizer(responseLanguage: resolvedLanguage(prefs))
       if let summary = await fm.summarize(text: text), !summary.isEmpty {
+        guard await canAnalyze(item) else { return }
         Log.ui.info(
           "summary.text.fm id=\(item.id.uuidString, privacy: .public) len=\(summary.count)"
         )
@@ -324,6 +395,7 @@ final class SummaryCoordinator {
         return
       }
     }
+    guard await canAnalyze(item) else { return }
     // Fallback: baseline NaturalLanguage — available on macOS 13+.
     guard AICapability.isNaturalLanguageAvailable,
       let summary = await textSummarizer.summarize(text: text),
@@ -332,6 +404,7 @@ final class SummaryCoordinator {
       Log.ui.info("summary.text.empty id=\(item.id.uuidString, privacy: .public)")
       return
     }
+    guard await canAnalyze(item) else { return }
     Log.ui.info(
       "summary.text.nl id=\(item.id.uuidString, privacy: .public) len=\(summary.count)"
     )
@@ -344,6 +417,7 @@ final class SummaryCoordinator {
     prefs: Preferences,
     remote: RemoteOpenAISummarizer?
   ) async {
+    guard await canAnalyze(item) else { return }
     guard let url = extractFileURL(from: item) else {
       let types = item.payloads.map(\.pasteboardType).joined(separator: ",")
       Log.ui.info(
@@ -369,6 +443,7 @@ final class SummaryCoordinator {
         fileURL: url, maxBodyBytes: prefs.maxClipSizeBytes),
         !summary.isEmpty
       {
+        guard await canAnalyze(item) else { return }
         Log.ui.info(
           "summary.file.remote id=\(item.id.uuidString, privacy: .public) len=\(summary.count)"
         )
@@ -379,9 +454,11 @@ final class SummaryCoordinator {
       }
     }
 
+    guard await canAnalyze(item) else { return }
     if #available(macOS 26.0, *), AICapability.isFoundationModelsAvailable {
       let fm = FoundationModelsSummarizer(responseLanguage: resolvedLanguage(prefs))
       if let summary = await fm.summarizeFile(url: url), !summary.isEmpty {
+        guard await canAnalyze(item) else { return }
         Log.ui.info(
           "summary.file.fm id=\(item.id.uuidString, privacy: .public) len=\(summary.count)"
         )

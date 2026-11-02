@@ -48,17 +48,32 @@ public actor BlobStore {
   /// Decrement refcount; if zero, delete the file. Returns whether the
   /// file was deleted.
   public func release(sha256: String) -> Bool {
-    guard let count = refCounts[sha256], count > 0 else { return false }
+    releaseReference(sha256: sha256, retainOnFailure: false) == .deleted
+  }
+
+  /// A sensitive transition keeps ownership when physical deletion fails, so
+  /// retrying cannot decrement a different live record's reference.
+  func releaseSensitiveReference(sha256: String) -> Bool {
+    releaseReference(sha256: sha256, retainOnFailure: true) != .blocked
+  }
+
+  private enum ReleaseResult { case deleted, retained, missing, blocked }
+  private func releaseReference(sha256: String, retainOnFailure: Bool) -> ReleaseResult {
+    guard let count = refCounts[sha256], count > 0 else { return .missing }
     if count == 1 {
-      refCounts.removeValue(forKey: sha256)
       if let path = findExistingBlobPath(for: sha256) {
-        try? fileManager.removeItem(at: root.appendingPathComponent(path))
-        return true
+        do { try fileManager.removeItem(at: root.appendingPathComponent(path)) } catch {
+          if !retainOnFailure { refCounts.removeValue(forKey: sha256) }
+          return .blocked
+        }
+        refCounts.removeValue(forKey: sha256)
+        return .deleted
       }
-      return false
+      refCounts.removeValue(forKey: sha256)
+      return .missing
     }
     refCounts[sha256] = count - 1
-    return false
+    return .retained
   }
 
   /// Delete any file under `blobs/` whose sha256 component is not in the

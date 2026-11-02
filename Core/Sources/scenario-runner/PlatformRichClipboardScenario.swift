@@ -5,6 +5,13 @@ import Foundation
   import DesktopClipboard
 
   private func richFixtures(_ name: String) -> [RawPayload] {
+    if name == "credential-pattern" {
+      return [
+        .init(
+          pasteboardType: "public.utf8-plain-text",
+          data: Data(("sk-" + String(repeating: "Synthetic123", count: 40)).utf8))
+      ]
+    }
     if name == "local-summary" {
       let text =
         "This synthetic local summary stays on this device. "
@@ -136,7 +143,11 @@ import Foundation
       let clipboard = try SystemRichClipboard()
       for fixture in [
         "rich", "secret", "files", "bmp", "jpeg", "tiff", "large", "local-summary-success",
+        "credential-pattern",
       ] {
+        let credentialMonitor =
+          fixture == "credential-pattern"
+          ? RichClipboardMonitor(clipboard: clipboard, filter: SensitivityFilter()) : nil
         let peer = Process()
         let input = Pipe()
         let output = Pipe()
@@ -166,6 +177,17 @@ import Foundation
         check(
           "independent_\(fixture)_sensitivity", snapshot.sensitive == (fixture == "secret"),
           into: &checks)
+        if let credentialMonitor {
+          credentialMonitor.pulse()
+          var changes = credentialMonitor.changes.makeAsyncIterator()
+          let inferred = await changes.next()
+          credentialMonitor.stop()
+          check(
+            "native_rich_monitor_infers_unmarked_credential_text",
+            inferred?.isSensitive == true && inferred?.sensitivityReason == "credentialPattern"
+              && inferred?.payloads == expected && !snapshot.sensitive,
+            into: &checks)
+        }
         #if os(Linux)
           check(
             "independent_\(fixture)_source_owner_identity",

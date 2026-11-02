@@ -22,6 +22,17 @@ public actor JSONSnapshotClipStore: ClipStore {
   private let fileManager: FileManager
 
   private var items: [ClipItem] = []
+  private struct SensitiveTransition {
+    let original: ClipItem
+    var materialized = false
+    var committed = false
+    var draining = false
+    var blobReferences: [String]
+  }
+  private var sensitiveTransitions: [UUID: SensitiveTransition] = [:]
+  /// Remains true across write/materialization failures until a later flush or
+  /// ordinary snapshot successfully commits the sensitive removals.
+  public var hasPendingSensitivePersistence: Bool { !sensitiveTransitions.isEmpty }
   private var debounceTask: Task<Void, Never>?
   private var pendingFlushContinuations: [CheckedContinuation<Void, Never>] = []
   private let broadcaster = StoreEventBroadcaster()
@@ -56,7 +67,24 @@ public actor JSONSnapshotClipStore: ClipStore {
   public func insert(_ raw: RawClipItem) async {
     let sha = Hashing.sha256(of: raw.payloads)
 
-    if let existing = items.first(where: { $0.sha256 == sha }) {
+    if let index = items.firstIndex(where: { $0.sha256 == sha }) {
+      let existing = items[index]
+      if raw.isSensitive && !existing.sensitive {
+        // A new sensitive classification takes precedence over an older plain
+        // copy of the same content. Publish the memory-only state before any
+        // suspension, preserving identity/pinning and the original Copy bytes.
+        items[index].sensitive = true
+        items[index].sensitivityReason = raw.sensitivityReason
+        items[index].summary = nil
+        items[index].summarySource = nil
+        sensitiveTransitions[existing.id] = SensitiveTransition(
+          original: existing, blobReferences: existing.payloads.compactMap(\.blobSHA256))
+        broadcaster.yield(.updated(items[index]))
+      }
+      if sensitiveTransitions[existing.id] != nil {
+        scheduleWrite()
+        await writeSnapshotNow()
+      }
       await bump(existing: existing)
       return
     }
@@ -148,7 +176,7 @@ public actor JSONSnapshotClipStore: ClipStore {
   }
 
   public func updateSummary(id: UUID, summary: String, source: SummarySource) async {
-    guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
+    guard let idx = items.firstIndex(where: { $0.id == id }), !items[idx].sensitive else { return }
     items[idx].summary = summary
     items[idx].summarySource = source
     broadcaster.yield(.updated(items[idx]))
@@ -160,7 +188,7 @@ public actor JSONSnapshotClipStore: ClipStore {
     let removed = items.remove(at: idx)
     await releaseBlobs(for: removed)
     broadcaster.yield(.deleted(id))
-    if !removed.sensitive { scheduleWrite() }
+    if !removed.sensitive || sensitiveTransitions[id] != nil { scheduleWrite() }
   }
 
   public func bumpToTop(id: UUID) async {
@@ -342,6 +370,9 @@ public actor JSONSnapshotClipStore: ClipStore {
   }
 
   private func releaseBlobs(for item: ClipItem) async {
+    // A failed materialization can still expose the original blob references
+    // in the live sensitive record. Its transition owns those until commit.
+    guard sensitiveTransitions[item.id] == nil else { return }
     for payload in item.payloads {
       if let sha = payload.blobSHA256 {
         _ = await blobStore.release(sha256: sha)
@@ -360,7 +391,47 @@ public actor JSONSnapshotClipStore: ClipStore {
     }
   }
 
-  private func writeSnapshotNow() async {
+  /// Primary-content dedup does not imply identical representations. Resolve
+  /// the original record, never substitute the recapture's narrower payloads.
+  private func materializeSensitiveTransitions() -> Bool {
+    var complete = true
+    for (id, transition) in sensitiveTransitions where !transition.materialized {
+      guard let index = items.firstIndex(where: { $0.id == id }) else {
+        sensitiveTransitions[id]?.materialized = true
+        continue
+      }
+      do {
+        let payloads = try transition.original.payloads.map { payload in
+          let data: Data
+          if let inline = payload.inlineData {
+            data = inline
+          } else {
+            // Reuse owned-name, regular-file and digest checks. Do not impose
+            // an archive export limit on an existing Mac Copy representation.
+            data = try DesktopZIPHistoryArchive.exportedBytes(
+              payload, blobRoot: root.appendingPathComponent("blobs"), maxBytes: Int.max - 1)
+          }
+          return Payload(pasteboardType: payload.pasteboardType, inlineData: data)
+        }
+        items[index].payloads = payloads
+        sensitiveTransitions[id]?.materialized = true
+        broadcaster.yield(.updated(items[index]))
+      } catch {
+        complete = false
+        Log.store.error(
+          "store.sensitiveMaterializationPending id=\(id.uuidString, privacy: .public)")
+      }
+    }
+    return complete
+  }
+
+  @discardableResult
+  private func writeSnapshotNow() async -> Bool {
+    await drainCommittedSensitiveTransitions()
+    guard materializeSensitiveTransitions() else {
+      drainFlushContinuations()
+      return false
+    }
     let nonSensitive = items.filter { !$0.sensitive }
     let envelope = Envelope(version: 1, items: nonSensitive)
     let encoder = JSONEncoder()
@@ -376,8 +447,36 @@ public actor JSONSnapshotClipStore: ClipStore {
       Log.store.error(
         "store.writeFailed err=\(String(describing: error), privacy: .public)"
       )
+      drainFlushContinuations()
+      return false
     }
+    for id in Array(sensitiveTransitions.keys) { sensitiveTransitions[id]?.committed = true }
+    await drainCommittedSensitiveTransitions()
     drainFlushContinuations()
+    return !hasPendingSensitivePersistence
+  }
+
+  private func drainCommittedSensitiveTransitions() async {
+    let pending = sensitiveTransitions.filter { $0.value.committed && !$0.value.draining }.map(
+      \.key)
+    for id in pending {
+      // Another flush may acquire a later id while this loop awaits an earlier
+      // blob release. Recheck the lease instead of trusting the initial list.
+      guard let transition = sensitiveTransitions[id], transition.committed, !transition.draining
+      else { continue }
+      sensitiveTransitions[id]?.draining = true
+      while let digest = sensitiveTransitions[id]?.blobReferences.first {
+        guard await blobStore.releaseSensitiveReference(sha256: digest) else {
+          Log.store.error("store.sensitiveBlobCleanupPending id=\(id.uuidString, privacy: .public)")
+          break
+        }
+        sensitiveTransitions[id]?.blobReferences.removeFirst()
+      }
+      sensitiveTransitions[id]?.draining = false
+      if sensitiveTransitions[id]?.blobReferences.isEmpty == true {
+        sensitiveTransitions.removeValue(forKey: id)
+      }
+    }
   }
 
   private func drainFlushContinuations() {

@@ -13,6 +13,9 @@ public struct SensitivityFilter: ClipFilter {
     if item.payloads.contains(where: { $0.pasteboardType == Self.concealedType }) {
       return .markSensitive("concealedType")
     }
+    if SecretPatternDetector.containsSecret(in: item.payloads) {
+      return .markSensitive("credentialPattern")
+    }
     return .accept
   }
 }

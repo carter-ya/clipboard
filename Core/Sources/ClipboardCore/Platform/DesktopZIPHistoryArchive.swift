@@ -236,9 +236,11 @@ enum DesktopZIPHistoryArchive {
     }
   }
 
-  static func exportedBytes(_ payload: Payload, blobRoot: URL?) throws -> Data {
+  static func exportedBytes(
+    _ payload: Payload, blobRoot: URL?, maxBytes: Int = itemLimit
+  ) throws -> Data {
     if let inline = payload.inlineData {
-      guard payload.blobPath == nil, inline.count <= itemLimit else { throw Failure.tooLarge }
+      guard payload.blobPath == nil, inline.count <= maxBytes else { throw Failure.tooLarge }
       return inline
     }
     guard let name = payload.blobPath, validBlobName(name), let blobRoot else {
@@ -248,7 +250,7 @@ enum DesktopZIPHistoryArchive {
     guard try file.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true else {
       throw Failure.externalBlob
     }
-    let data = try DesktopHistoryArchive.boundedData(from: file, limit: itemLimit)
+    let data = try DesktopHistoryArchive.boundedData(from: file, limit: maxBytes)
     guard Hashing.sha256(of: data) == String(name.prefix(64)) else { throw Failure.invalidArchive }
     return data
   }

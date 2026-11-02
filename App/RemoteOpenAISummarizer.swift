@@ -51,6 +51,19 @@ struct RemoteOpenAISummarizer: TextSummarizer, ImageSummarizer, Sendable {
   let session: URLSession
   let fetcher: Fetcher
   let responseLanguageProvider: @Sendable () -> String?
+  private var authorizationCheck: @Sendable () async -> Bool = { true }
+
+  /// Bind an attempt to current store metadata, independent of cancellation
+  /// delivery. Copies keep the existing session, fetcher and endpoint policy.
+  func authorizing(_ check: @escaping @Sendable () async -> Bool) -> Self {
+    var copy = self
+    let previous = authorizationCheck
+    copy.authorizationCheck = {
+      guard await previous() else { return false }
+      return await check()
+    }
+    return copy
+  }
 
   /// Cap remote summaries the same way `FoundationModelsSummarizer`
   /// caps its output, so the preview pane stays consistent regardless
@@ -80,6 +93,7 @@ struct RemoteOpenAISummarizer: TextSummarizer, ImageSummarizer, Sendable {
   // MARK: - TextSummarizer
 
   nonisolated func summarize(text: String) async -> String? {
+    guard !Task.isCancelled, await authorizationCheck() else { return nil }
     let key = keyProvider()
     let lang = responseLanguageProvider()
     Log.ui.info(
@@ -107,6 +121,7 @@ struct RemoteOpenAISummarizer: TextSummarizer, ImageSummarizer, Sendable {
   // MARK: - ImageSummarizer
 
   nonisolated func summarize(imageData: Data) async -> String? {
+    guard !Task.isCancelled, await authorizationCheck() else { return nil }
     let key = keyProvider()
     let lang = responseLanguageProvider()
     guard
@@ -155,6 +170,7 @@ struct RemoteOpenAISummarizer: TextSummarizer, ImageSummarizer, Sendable {
     fileURL url: URL,
     maxBodyBytes: Int = 1 * 1024 * 1024
   ) async -> String? {
+    guard !Task.isCancelled, await authorizationCheck() else { return nil }
     let ext = url.pathExtension.lowercased()
     let body: String?
     if ext == "pdf" {
@@ -220,8 +236,12 @@ struct RemoteOpenAISummarizer: TextSummarizer, ImageSummarizer, Sendable {
     }
 
     do {
+      guard await authorizationCheck() else { return nil }
       try Task.checkCancellation()
       let (data, response) = try await fetcher(urlRequest, session)
+      try Task.checkCancellation()
+      guard await authorizationCheck() else { return nil }
+      try Task.checkCancellation()
       guard let http = response as? HTTPURLResponse else {
         Log.ui.info("summary.remote.http status=-1")
         return nil
