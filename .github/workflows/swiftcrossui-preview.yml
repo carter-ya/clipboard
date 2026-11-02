@@ -46,6 +46,11 @@ on:
         type: choice
         default: 'off'
         options: ['off', inspect, prepare, browser, richtext, images, application]
+      windows_input_runner:
+        description: Host only for manual native input reference jobs (does not select the application build platform)
+        type: choice
+        default: windows-2022
+        options: [windows-2022, windows-11-arm]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -61,7 +66,7 @@ permissions:
 jobs:
   input-environment:
     if: github.event_name == 'workflow_dispatch' && (inputs.windows_input_environment == 'inspect' || inputs.windows_input_environment == 'prepare' || inputs.windows_input_environment == 'browser' || inputs.windows_input_environment == 'richtext' || inputs.windows_input_environment == 'images')
-    runs-on: windows-2022
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.windows_input_runner == 'windows-11-arm' && 'windows-11-arm' || 'windows-2022' }}
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4

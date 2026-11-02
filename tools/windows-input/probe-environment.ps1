@@ -15,6 +15,8 @@ public static class ClipboardInputEnvironment {
 $report = [ordered]@{
   mode = $(if ($Prepare) { 'prepare' } else { 'inspect' });
   osBuild = [Environment]::OSVersion.Version.ToString();
+  osCaption = $null; osProductType = $null; osArchitecture = $null;
+  processArchitecture = $env:PROCESSOR_ARCHITECTURE;
   monitorCount = [ClipboardInputEnvironment]::GetSystemMetrics(80);
   primaryWidth = [ClipboardInputEnvironment]::GetSystemMetrics(0);
   primaryHeight = [ClipboardInputEnvironment]::GetSystemMetrics(1);
@@ -30,6 +32,10 @@ $report = [ordered]@{
 $report.inputServices = @()
 $report.ctfMonitorRequested = $false
 try {
+  $operatingSystem = Get-CimInstance -ClassName Win32_OperatingSystem -Property Caption, ProductType, OSArchitecture
+  $report.osCaption = [string]$operatingSystem.Caption
+  $report.osProductType = [int]$operatingSystem.ProductType
+  $report.osArchitecture = [string]$operatingSystem.OSArchitecture
   $capabilityName = 'Language.Basic~~~zh-CN~0.0.1.0'
   $capability = Get-WindowsCapability -Online -Name $capabilityName
   if (!$capability -or $capability.Name -cne $capabilityName) { throw 'chinese_basic_typing_capability_unavailable' }

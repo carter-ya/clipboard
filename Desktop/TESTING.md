@@ -105,6 +105,16 @@ checks. Mixed-monitor DPI and real suspend/resume remain unverified.
 Manual runs may select `windows_input_environment: inspect` for a content-free
 OS/display/input inventory, or `prepare` to request the official Chinese basic
 typing capability and user input profile on that disposable Windows VM.
+The native reference job may additionally select `windows_input_runner:
+windows-11-arm` for the hosted Windows 11 Arm client desktop, with the same
+eight-minute bound. Its default remains `windows-2022`; the application build
+matrix is independent of this reference-only choice. Inventory records OS
+caption/product type and OS/process architecture as well as build and display
+information. A client native-reference result does not establish GTK application
+or x64-client/physical-hardware acceptance. The original exact preedit, candidate
+selection and foreground assertions remain unchanged; native client execution
+is pending. Availability is documented in the
+[GitHub-hosted runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 Preparation also starts the available Windows text-input service and requests the
 system CTF monitor in that VM; service states are recorded without process scans.
 Both modes run only the eight-minute-bounded environment job, with no Swift build,

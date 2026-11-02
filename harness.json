@@ -1280,6 +1280,15 @@
           },
           "actual_Mac_App_probes": "Automatic and manual held attempts cancel without fallback; actual dispatch rechecks live sensitivity after held credential access. Fake HTTP/volatile private preferences, no real network/clipboard/GUI. Existing Mac application builds successfully.",
           "Windows_image_adapter_regression": "All245 unique native adapter assertions pass in the latest Core artifact too."
+        },
+        "windows_client_native_reference": {
+          "branch": "codex/windows-client-input-reference",
+          "status": "implemented_manual_reference_native_execution_pending",
+          "host": "windows-11-arm",
+          "reference": "https://docs.github.com/en/actions/reference/runners/github-hosted-runners",
+          "scope": "Explicit manual native reference jobs may select the hosted Windows11 Arm desktop with the existing8-minute bound. Default remains windows-2022; normal PR/push application matrix and all app/model/full validation scopes remain unchanged. The expression maps only the explicit manual windows-11-arm choice to that fixed label; other values fall back to Windows Server, never a supplied arbitrary/self-hosted label.",
+          "inventory": "Read OS caption, workstation/server product type, OS architecture and current process architecture in the private environment receipt, alongside build/input/display inventory. No clipboard, input, display change or restart in inventory.",
+          "acceptance": "Reuse the unchanged owned-target native editor/foreground guard, physical scan-code preedit/Escape/Space/number selection and language-switch tests. Exact existing expected text/assertions stay strict; the client provider must actually pass them. No GTK application, x64 client, physical hardware, mixed-display or suspend claim is made by a reference-only pass."
         }
       }
     }
