@@ -34,6 +34,8 @@
     focus() { target.focus(); return document.activeElement === target; },
     snapshot() {
       const image = target.querySelector('img');
+      const original = state.receipts[0] && state.receipts[0].html
+        ? new DOMParser().parseFromString(state.receipts[0].html, 'text/html') : null;
       let pixels = null;
       if (image && image.complete && image.naturalWidth > 0 && image.naturalWidth <= 16 && image.naturalHeight <= 16) {
         const canvas = document.createElement('canvas');
@@ -44,6 +46,7 @@
       return { owner: state.owner, receipts: state.receipts, error: state.error,
         focused: document.activeElement === target, text: target.innerText, content: target.textContent,
         bold: [...target.querySelectorAll('*')].filter(e => Number(getComputedStyle(e).fontWeight) >= 700).map(e => e.textContent),
+        sourceHtml: original ? { text: original.body.textContent, bold: [...original.querySelectorAll('b,strong')].map(e => e.textContent) } : null,
         image: image ? { width: image.naturalWidth, height: image.naturalHeight, pixels } : null };
     }
   });

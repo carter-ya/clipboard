@@ -166,6 +166,11 @@ function Get-WindowsBrowserDiagnostic($Context) {
     contentLength = ([string]$snapshot.content).Length
     expectedHtmlLength = $Context.native.HtmlText.Length
     contentMatchesHtml = $snapshot.content -ceq $Context.native.HtmlText
+    clipboardTextMatchesHtml = $receipt.text -ceq $Context.native.HtmlText
+    contentMatchesHtmlAfterNbsp = ([string]$snapshot.content).Replace([char]0xa0, [char]0x20) -ceq $Context.native.HtmlText
+    boldMatchesAfterNbsp = @($snapshot.bold | ForEach-Object { $_.Replace([char]0xa0, [char]0x20) }) -ccontains $Context.native.BoldText
+    sourceHtmlTextMatches = $snapshot.sourceHtml.text -ceq $Context.native.HtmlText
+    sourceHtmlBoldMatches = $snapshot.sourceHtml.bold -ccontains $Context.native.BoldText
     contentMatchesHtmlWithFinalLF = $snapshot.content -ceq ($Context.native.HtmlText + "`n")
     contentMatchesHtmlWithFinalCRLF = $snapshot.content -ceq ($Context.native.HtmlText + "`r`n")
     boldCount = @($snapshot.bold).Count
