@@ -18,6 +18,23 @@ public enum RichTextPreview {
     render(payloads, limit: min(16000, max(0, limit)), legacyCharacterLimit: true).text
   }
 
+  /// Privacy inspection must not inherit a display-only prefix budget. This
+  /// uses the same inert parser, with output bounded by the actual source.
+  /// Structural parser refusals stay visible to the caller for fail-closed
+  /// classification; no HTML engine, embedded object or file is ever opened.
+  static func sensitiveInspection(of payload: RawPayload) -> Result {
+    let limit = min(payload.data.count, Int.max / 2 - 1) + 1
+    if payload.pasteboardType == "public.html" {
+      return html(
+        payload.data, limit: limit, legacyCharacterLimit: false,
+        sourceLimit: payload.data.count, tagLimit: payload.data.count)
+    }
+    if payload.pasteboardType == "public.rtf" {
+      return rtf(payload.data, limit: limit, sourceLimit: payload.data.count)
+    }
+    return Result(text: "", isTruncated: false)
+  }
+
   private static func render(
     _ payloads: [RawPayload], limit: Int, legacyCharacterLimit: Bool = false
   ) -> Result {
@@ -36,8 +53,11 @@ public enum RichTextPreview {
     }
     return Result(text: "", isTruncated: false)
   }
-  private static func html(_ data: Data, limit: Int, legacyCharacterLimit: Bool) -> Result {
-    let input = Array(String(decoding: data.prefix(256 * 1024), as: UTF8.self))
+  private static func html(
+    _ data: Data, limit: Int, legacyCharacterLimit: Bool, sourceLimit: Int = 256 * 1024,
+    tagLimit: Int = 1024
+  ) -> Result {
+    let input = Array(String(decoding: data.prefix(sourceLimit), as: UTF8.self))
     var result = ""
     var index = 0
     var emitted = 0
@@ -50,7 +70,7 @@ public enum RichTextPreview {
       if character == "<" {
         let start = index + 1
         var end = start
-        while end < input.count && end - start < 1024 && input[end] != ">" { end += 1 }
+        while end < input.count && end - start < tagLimit && input[end] != ">" { end += 1 }
         guard end < input.count, input[end] == ">" else { break }
         let tag = String(input[start..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
           .lowercased()
@@ -85,7 +105,7 @@ public enum RichTextPreview {
             continue
           }
           let value =
-            entity.hasPrefix("#x")
+            entity.lowercased().hasPrefix("#x")
             ? UInt32(entity.dropFirst(2), radix: 16)
             : entity.hasPrefix("#") ? UInt32(entity.dropFirst()) : nil
           if let value, let scalar = UnicodeScalar(value) {
@@ -102,14 +122,14 @@ public enum RichTextPreview {
     }
     return Result(
       text: String(result.prefix(limit)).trimmingCharacters(in: .whitespacesAndNewlines),
-      isTruncated: index < input.count || data.count > 256 * 1024)
+      isTruncated: index < input.count || data.count > sourceLimit)
   }
   private struct RTFState {
     var hidden = false
     var unicodeSkip = 1
   }
-  private static func rtf(_ data: Data, limit: Int) -> Result {
-    let bytes = Array(data.prefix(256 * 1024))
+  private static func rtf(_ data: Data, limit: Int, sourceLimit: Int = 256 * 1024) -> Result {
+    let bytes = Array(data.prefix(sourceLimit))
     guard bytes.starts(with: Array("{\\rtf".utf8)) else {
       return Result(text: "", isTruncated: false)
     }
@@ -193,7 +213,7 @@ public enum RichTextPreview {
         emit(0x2022)
       }
     }
-    let unfinished = index < bytes.count || data.count > 256 * 1024
+    let unfinished = index < bytes.count || data.count > sourceLimit
     // A parser budget may end between a UTF-16 surrogate pair.
     if unfinished, let last = units.last, (0xD800...0xDBFF).contains(last) { units.removeLast() }
     let decoded = String(decoding: units, as: UTF16.self)

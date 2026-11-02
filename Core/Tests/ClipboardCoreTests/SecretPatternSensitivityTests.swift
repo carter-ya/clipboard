@@ -58,6 +58,58 @@ final class SecretPatternSensitivityTests: XCTestCase {
       .markSensitive("credentialPattern"))
   }
 
+  func testEscapedKeysBeyondBothRichDisplayAndSourceBudgetsAreMasked() {
+    let prefix = String(repeating: "ordinary note ", count: 24000)
+    for (type, text) in [
+      ("public.html", "<p>" + prefix + "sk&#45;" + String(key.dropFirst(3)) + "</p>"),
+      ("public.rtf", "{\\rtf1 " + prefix + "sk\\u45?" + String(key.dropFirst(3)) + "}"),
+    ] {
+      let payload = RawPayload(pasteboardType: type, data: Data(text.utf8))
+      XCTAssertTrue(RichTextPreview.preview(from: [payload]).isTruncated)
+      XCTAssertFalse(RichTextPreview.preview(from: [payload]).text.contains(key))
+      XCTAssertEqual(decision(text, type: type), .markSensitive("credentialPattern"))
+    }
+  }
+
+  func testLargeOrdinaryRichTextKeepsExistingDisplayBudgetWithoutBecomingSensitive() {
+    let prefix = String(repeating: "ordinary note ", count: 24000)
+    for (type, text) in [
+      ("public.html", "<p>" + prefix + "</p>"), ("public.rtf", "{\\rtf1 " + prefix + "}"),
+    ] {
+      XCTAssertEqual(decision(text, type: type), .accept)
+      let preview = RichTextPreview.preview(from: [
+        .init(pasteboardType: type, data: Data(text.utf8))
+      ])
+      XCTAssertTrue(preview.isTruncated)
+      XCTAssertLessThanOrEqual(preview.text.utf8.count, 64 * 1024)
+    }
+  }
+
+  func testIncompleteRichInspectionUsesConservativeSensitivePolicy() {
+    for (type, text) in [
+      (
+        "public.html",
+        "<span title='" + String(repeating: "x", count: 1200) + "sk&#45;"
+          + String(key.dropFirst(3))
+      ),
+      (
+        "public.rtf",
+        "{\\rtf1 " + String(repeating: "{", count: 110) + "sk\\u45?" + String(key.dropFirst(3))
+          + String(repeating: "}", count: 111)
+      ),
+    ] {
+      XCTAssertEqual(decision(text, type: type), .markSensitive("uninspectableRichText"))
+    }
+  }
+
+  func testLongValidHTMLTagsDoNotCauseUnnecessaryMaskingOrHideEscapedKeys() {
+    let tag = "<span title='" + String(repeating: "x", count: 1200) + "'>"
+    XCTAssertEqual(decision(tag + "ordinary note</span>", type: "public.html"), .accept)
+    XCTAssertEqual(
+      decision(tag + "sk&#X2D;" + String(key.dropFirst(3)) + "</span>", type: "public.html"),
+      .markSensitive("credentialPattern"))
+  }
+
   func testRichClipboardCaptureUsesMemoryOnlyStorageAndExcludesExports() async throws {
     let clipboard = FakeRichClipboard()
     let monitor = RichClipboardMonitor(clipboard: clipboard, filter: SensitivityFilter())

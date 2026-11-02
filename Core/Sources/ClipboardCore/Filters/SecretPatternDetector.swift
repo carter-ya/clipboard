@@ -22,28 +22,31 @@ enum SecretPatternDetector {
     #"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----"#,
   ].map { try! NSRegularExpression(pattern: $0) }
 
-  static func containsSecret(in payloads: [RawPayload]) -> Bool {
+  static func sensitivityReason(in payloads: [RawPayload]) -> String? {
     for payload in payloads {
       switch payload.pasteboardType {
       case "public.utf8-plain-text", "public.plain-text", "public.string", "public.text",
         "public.html", "public.rtf", "NSStringPboardType":
         // Scan the complete allowed text payload, not its short UI preview.
-        if matches(String(decoding: payload.data, as: UTF8.self)) { return true }
+        if matches(String(decoding: payload.data, as: UTF8.self)) { return "credentialPattern" }
       case "public.utf16-plain-text", "public.utf16-external-plain-text":
         for encoding in [String.Encoding.utf16, .utf16LittleEndian, .utf16BigEndian] {
           if let text = String(data: payload.data, encoding: encoding), matches(text) {
-            return true
+            return "credentialPattern"
           }
         }
       default: continue
       }
     }
-    // Also recognize visible rich text with entity/RTF escaping. The existing
-    // renderer has no network, objects or file access and retains its budgets.
+    // Inspect complete visible rich text with entity/RTF escaping. The UI
+    // retains its own small display budgets; structural refusal masks the
+    // record instead of asserting an unexamined suffix contains no secret.
     for payload in payloads where ["public.html", "public.rtf"].contains(payload.pasteboardType) {
-      if matches(RichTextPreview.preview(from: [payload]).text) { return true }
+      let inspected = RichTextPreview.sensitiveInspection(of: payload)
+      if matches(inspected.text) { return "credentialPattern" }
+      if inspected.isTruncated { return "uninspectableRichText" }
     }
-    return false
+    return nil
   }
 
   private static func matches(_ text: String) -> Bool {

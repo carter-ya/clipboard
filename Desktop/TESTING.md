@@ -685,3 +685,14 @@ with an explicit pending cleanup that can retry after the original is restored.
 Eight synthetic history-policy tests and the existing storage/import/analysis
 suites cover these boundaries. Escaped rich-text tails beyond display parser
 budgets remain tracked separately; no universal credential detector claim is made.
+
+Credential privacy inspection now scans complete inert HTML/RTF text independently
+of the64 KiB display and256 KiB display-source budgets. Escaped credentials beyond
+both budgets are covered; ordinary long documents keep their existing display
+truncation and remain ordinary. Valid long HTML attributes are scanned through
+without forcing masking. Structural parser refusal (such as excessive RTF group
+nesting or an unterminated tag) conservatively marks the whole record sensitive
+with `uninspectableRichText`, rather than treating an unexamined suffix as safe.
+No HTML engine, scripts, embedded objects, files or provider validation are used.
+This recognizes defined patterns and supported text escaping; it does not claim
+universal credential detection or full browser/Office rich-text semantics.
