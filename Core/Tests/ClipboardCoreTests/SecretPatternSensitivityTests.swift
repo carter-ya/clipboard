@@ -139,7 +139,8 @@ final class SecretPatternSensitivityTests: XCTestCase {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(
       "secret-recapture-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
-    let store = try await JSONSnapshotClipStore(root: root, inlineThresholdBytes: 1)
+    let store = try await JSONSnapshotClipStore(
+      root: root, inlineThresholdBytes: 1, sensitiveTextMasking: false)
     let bytes = Data(key.utf8)
     var raw = RawClipItem(
       payloads: [.init(pasteboardType: "public.utf8-plain-text", data: bytes)],

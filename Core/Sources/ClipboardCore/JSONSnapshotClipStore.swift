@@ -20,6 +20,7 @@ public actor JSONSnapshotClipStore: ClipStore {
   private let inlineThresholdBytes: Int
   private let debounceNanos: UInt64
   private let fileManager: FileManager
+  private var sensitiveTextMasking: Bool
 
   private var items: [ClipItem] = []
   private struct SensitiveTransition {
@@ -44,7 +45,8 @@ public actor JSONSnapshotClipStore: ClipStore {
     cap: Int = 100,
     inlineThresholdBytes: Int = 16 * 1024,
     debounceInterval: TimeInterval = 0.5,
-    fileManager: FileManager = .default
+    fileManager: FileManager = .default,
+    sensitiveTextMasking: Bool = true
   ) async throws {
     self.root = root
     self.historyURL = root.appendingPathComponent("history.json")
@@ -53,6 +55,7 @@ public actor JSONSnapshotClipStore: ClipStore {
     self.inlineThresholdBytes = inlineThresholdBytes
     self.debounceNanos = UInt64(debounceInterval * 1_000_000_000)
     self.fileManager = fileManager
+    self.sensitiveTextMasking = sensitiveTextMasking
     try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
     self.blobStore = try BlobStore(
       root: root.appendingPathComponent("blobs"),
@@ -65,6 +68,11 @@ public actor JSONSnapshotClipStore: ClipStore {
   // MARK: - ClipStore
 
   public func insert(_ raw: RawClipItem) async {
+    var raw = raw
+    if !raw.isSensitive, let reason = sensitivityReason(for: raw.payloads) {
+      raw.isSensitive = true
+      raw.sensitivityReason = reason
+    }
     let sha = Hashing.sha256(of: raw.payloads)
 
     if let index = items.firstIndex(where: { $0.sha256 == sha }) {
@@ -73,13 +81,7 @@ public actor JSONSnapshotClipStore: ClipStore {
         // A new sensitive classification takes precedence over an older plain
         // copy of the same content. Publish the memory-only state before any
         // suspension, preserving identity/pinning and the original Copy bytes.
-        items[index].sensitive = true
-        items[index].sensitivityReason = raw.sensitivityReason
-        items[index].summary = nil
-        items[index].summarySource = nil
-        sensitiveTransitions[existing.id] = SensitiveTransition(
-          original: existing, blobReferences: existing.payloads.compactMap(\.blobSHA256))
-        broadcaster.yield(.updated(items[index]))
+        markSensitive(at: index, reason: raw.sensitivityReason)
       }
       if sensitiveTransitions[existing.id] != nil {
         scheduleWrite()
@@ -107,17 +109,25 @@ public actor JSONSnapshotClipStore: ClipStore {
     )
 
     items.insert(item, at: 0)
+    // A preference change can run while blob persistence suspends. Publish
+    // only the current policy result, and retire any just-written references.
+    if !item.sensitive, let reason = sensitivityReason(for: raw.payloads) {
+      markSensitive(at: 0, reason: reason)
+      scheduleWrite()
+      await writeSnapshotNow()
+    }
     await enforceCapacity()
+    guard let published = items.first(where: { $0.id == item.id }) else { return }
     Log.store.info(
       """
       store.insert{id:\(item.id.uuidString, privacy: .public), \
       kind:\(item.kind.rawValue, privacy: .public), \
       size:\(item.sizeBytes, privacy: .public), \
-      sensitive:\(item.sensitive, privacy: .public)}
+      sensitive:\(published.sensitive, privacy: .public)}
       """
     )
-    broadcaster.yield(.inserted(item))
-    if !item.sensitive {
+    broadcaster.yield(.inserted(published))
+    if !published.sensitive {
       scheduleWrite()
     }
   }
@@ -219,54 +229,67 @@ public actor JSONSnapshotClipStore: ClipStore {
     var added = 0
     var skipped = 0
     var blobsMissing = 0
-    let existingHashes = Set(items.map(\.sha256))
+    var changed = false
 
-    outer: for incoming in envelopeItems {
+    for incoming in envelopeItems {
       if incoming.sensitive {
         skipped += 1
         continue
       }
-      if existingHashes.contains(incoming.sha256) {
+      // Validate/materialize the entire item before creating any owned blobs.
+      // Imported names, symlinks and digests use the same archive boundary.
+      let payloads: [RawPayload]
+      do {
+        var total = 0
+        payloads = try incoming.payloads.map { payload in
+          let data = try DesktopZIPHistoryArchive.exportedBytes(payload, blobRoot: blobsRoot)
+          guard data.count <= 16 * 1024 * 1024 - total else {
+            throw DesktopHistoryArchive.ArchiveError.tooLarge
+          }
+          total += data.count
+          return .init(pasteboardType: payload.pasteboardType, data: data)
+        }
+      } catch {
+        blobsMissing += 1
+        continue
+      }
+      let reason = sensitivityReason(for: payloads)
+      let digest = Hashing.sha256(of: payloads)
+      if let index = items.firstIndex(where: { $0.sha256 == digest }) {
+        if let reason, !items[index].sensitive {
+          markSensitive(at: index, reason: reason)
+          changed = true
+        }
         skipped += 1
         continue
       }
-
-      // Copy any referenced blobs into our own blob store.
-      for payload in incoming.payloads {
-        guard let blobPath = payload.blobPath, let sha = payload.blobSHA256 else {
-          continue
-        }
-        guard let blobsRoot else {
-          blobsMissing += 1
-          continue outer
-        }
-        let source = blobsRoot.appendingPathComponent(blobPath)
-        guard FileManager.default.fileExists(atPath: source.path),
-          let data = try? Data(contentsOf: source)
-        else {
-          blobsMissing += 1
-          continue outer
-        }
-        do {
-          _ = try await blobStore.store(
-            data: data,
-            sha256: sha,
-            ext: payload.pasteboardType.blobExtension
-          )
-        } catch {
-          blobsMissing += 1
-          continue outer
-        }
-      }
-
       var reindexed = incoming
       reindexed.id = UUID()
+      reindexed.sha256 = digest
+      reindexed.kind = ClipKind.infer(from: payloads)
+      reindexed.preview = PreviewBuilder.build(for: payloads)
+      reindexed.sizeBytes = payloads.reduce(0) { $0 + $1.data.count }
+      reindexed.sensitive = reason != nil
+      reindexed.sensitivityReason = reason
+      if reason != nil {
+        reindexed.summary = nil
+        reindexed.summarySource = nil
+      }
+      reindexed.payloads = await persistPayloads(
+        raw: RawClipItem(payloads: payloads), sensitive: reindexed.sensitive)
       items.insert(reindexed, at: 0)
-      broadcaster.yield(.inserted(reindexed))
+      if !reindexed.sensitive, let reason = sensitivityReason(for: payloads) {
+        markSensitive(at: 0, reason: reason)
+        changed = true
+      }
+      broadcaster.yield(.inserted(items[0]))
       added += 1
     }
     await enforceCapacity()
-    if added > 0 { scheduleWrite() }
+    if added > 0 || changed {
+      scheduleWrite()
+      if changed { await writeSnapshotNow() }
+    }
     return ImportResult(added: added, skipped: skipped, blobsMissing: blobsMissing)
   }
 
@@ -293,11 +316,68 @@ public actor JSONSnapshotClipStore: ClipStore {
       self.items = []
     }
     await blobStore.rebuildRefCounts(from: items)
+    if sensitiveTextMasking { await reclassifySensitiveText() }
     if let count = try? await blobStore.reconcile(), count > 0 {
       Log.store.info(
         "store.reconcile{orphansDeleted:\(count, privacy: .public)}"
       )
       broadcaster.yield(.reconciled(orphansDeleted: count))
+    }
+  }
+
+  /// Enabling the existing password preference also covers current/imported
+  /// key text. Disabling it never declassifies an already sensitive record.
+  @discardableResult
+  public func setSensitiveTextMasking(_ enabled: Bool) async -> Bool {
+    sensitiveTextMasking = enabled
+    if enabled { await reclassifySensitiveText() }
+    return !hasPendingSensitivePersistence
+  }
+
+  private func sensitivityReason(for payloads: [RawPayload]) -> String? {
+    guard sensitiveTextMasking else { return nil }
+    if payloads.contains(where: { $0.pasteboardType == SensitivityFilter.concealedType }) {
+      return "concealedType"
+    }
+    return SecretPatternDetector.containsSecret(in: payloads) ? "credentialPattern" : nil
+  }
+
+  private func markSensitive(at index: Int, reason: String?) {
+    let original = items[index]
+    guard !original.sensitive else { return }
+    items[index].sensitive = true
+    items[index].sensitivityReason = reason
+    items[index].summary = nil
+    items[index].summarySource = nil
+    sensitiveTransitions[original.id] = SensitiveTransition(
+      original: original, blobReferences: original.payloads.compactMap(\.blobSHA256))
+    broadcaster.yield(.updated(items[index]))
+  }
+
+  private func reclassifySensitiveText() async {
+    for index in items.indices where !items[index].sensitive {
+      do {
+        let inspected = try items[index].payloads.filter {
+          SecretPatternDetector.isInspectableText($0.pasteboardType)
+            || $0.pasteboardType == SensitivityFilter.concealedType
+        }.map { payload in
+          RawPayload(
+            pasteboardType: payload.pasteboardType,
+            data: try DesktopZIPHistoryArchive.exportedBytes(
+              payload, blobRoot: root.appendingPathComponent("blobs"), maxBytes: Int.max - 1))
+        }
+        if let reason = sensitivityReason(for: inspected) {
+          markSensitive(at: index, reason: reason)
+        }
+      } catch {
+        // An unreadable/untrusted text reference cannot establish that the
+        // visible preview is safe. Keep it masked and retain pending cleanup.
+        markSensitive(at: index, reason: "sensitivityUnavailable")
+      }
+    }
+    if hasPendingSensitivePersistence {
+      scheduleWrite()
+      await writeSnapshotNow()
     }
   }
 

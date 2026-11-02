@@ -690,13 +690,13 @@
           "id": "CP14_secret_pattern_masking",
           "scope": "Recognized key/credential text uses the existing password masking and memory-only policy on Mac/Windows/Linux",
           "status": "in_progress",
-          "implemented": "Shared capture filter locally recognizes defined credential prefixes/private-key headers and UTF-8/UTF-16/rich-text representations. Sensitive recapture upgrades a persisted ordinary duplicate without changing ID, pinning or original Copy bytes; it removes normal history/blob references, clears old summaries and rejects late analysis results. Native text and rich clipboard CI exercise an independent non-sensitive source, inferred classification, memory-only storage and explicit sensitive Copy. Review repairs retain every original representation on primary-hash dedup, commit snapshot removal before releasing blob references, and retain materialization/snapshot/cleanup failures for an explicit retry. Sensitive updates cancel owned desktop/Mac attempts; current metadata is checked again at the actual remote dispatch boundary and after responses.",
-          "validation": "Before-change synthetic capture/dedup regression fails15 assertions; late-summary regression independently fails before the store guard. All55 targeted Core recognition/password/source/store/archive/AI tests now pass, including10 secret tests. Strict changed-Swift lint passes. Native Windows/Linux text and rich clipboard scenarios and full hosted platform/UI checks pending. Initial head830cb4d passes all three hosted Core jobs in41460081182 and both ordinary UI jobs in41460081232, including native Windows/Linux inferred sensitive clipboard scenarios. Review fixes reproduce original-representation/snapshot failures before repair; six deterministic transition tests cover preserved originals, blocked atomic writes, missing originals, failed deletion, concurrent shared-reference drains and held-credential authorization. Actual Mac automatic/manual held-attempt tests fail the prior coordinator and pass the repair with fake HTTP/volatile preferences, as does the extracted actual Desktop store-event cancellation switch. Final Mac Debug application build succeeds; these review fixes still require new exact-head hosted CI/review. Hosted4bd5f78 Mac Core tests pass but the new App-source probe fails to locate ClipboardCore: native SwiftPM places modules in debug/Modules while local Xcode layout places them directly in Products/Debug. Reproduced with real compiled artifacts rearranged into the native Modules layout; adding both module search roots passes actual automatic/manual cancellation and held-key authorization in that layout. New hosted confirmation required.",
+          "implemented": "Shared capture filter locally recognizes defined credential prefixes/private-key headers and UTF-8/UTF-16/rich-text representations. Sensitive recapture upgrades a persisted ordinary duplicate without changing ID, pinning or original Copy bytes; it removes normal history/blob references, clears old summaries and rejects late analysis results. Native text and rich clipboard CI exercise an independent non-sensitive source, inferred classification, memory-only storage and explicit sensitive Copy. Review repairs retain every original representation on primary-hash dedup, commit snapshot removal before releasing blob references, and retain materialization/snapshot/cleanup failures for an explicit retry. Sensitive updates cancel owned desktop/Mac attempts; current metadata is checked again at the actual remote dispatch boundary and after responses. Follow-up configures the real Mac/Desktop stores from the password preference before exposing history. Startup/current-record enable, unfiltered inserts and validated imports recognize credential text; enabling masks existing originals and revokes analysis, while disabling never unmasks an already sensitive record. Import validates all owned blob paths/digests before creating any target blobs, and regenerates preview/hash/kind from actual content.",
+          "validation": "Before-change synthetic capture/dedup regression fails15 assertions; late-summary regression independently fails before the store guard. All55 targeted Core recognition/password/source/store/archive/AI tests now pass, including10 secret tests. Strict changed-Swift lint passes. Native Windows/Linux text and rich clipboard scenarios and full hosted platform/UI checks pending. Initial head830cb4d passes all three hosted Core jobs in41460081182 and both ordinary UI jobs in41460081232, including native Windows/Linux inferred sensitive clipboard scenarios. Review fixes reproduce original-representation/snapshot failures before repair; six deterministic transition tests cover preserved originals, blocked atomic writes, missing originals, failed deletion, concurrent shared-reference drains and held-credential authorization. Actual Mac automatic/manual held-attempt tests fail the prior coordinator and pass the repair with fake HTTP/volatile preferences, as does the extracted actual Desktop store-event cancellation switch. Final Mac Debug application build succeeds; these review fixes still require new exact-head hosted CI/review. Hosted4bd5f78 Mac Core tests pass but the new App-source probe fails to locate ClipboardCore: native SwiftPM places modules in debug/Modules while local Xcode layout places them directly in Products/Debug. Reproduced with real compiled artifacts rearranged into the native Modules layout; adding both module search roots passes actual automatic/manual cancellation and held-key authorization in that layout. New hosted confirmation required. Eight history-policy tests cover inline/blob startup, all original representations, source-preserving import, live enable/irreversible masking, disabled policy, raw insert, prevalidation without partial blobs, validated-content dedup and unreadable-history retry. Original startup/import tests fail12 assertions before repair.59 focused storage/recognition/archive/import tests and27 related import/analysis tests pass, actual Mac cancellation and Desktop save-order probes pass, Mac Debug application builds. Prior3d9c707 passes all five hosted OS jobs in41470630493/41470630210 and exact-head review is clean; the history-policy follow-up needs its own hosted checks.",
           "remaining": [
             "Exact-head Mac/Windows/Linux Core and Windows/Linux UI CI plus explicit clean review",
             "Native prefixed-key clipboard capture checks on Windows/Linux",
-            "Existing history/import classification and the bounded escaped-rich-text tail policy require follow-up before broad completion",
-            "Final integration/installation and existing CP13 physical gates remain open"
+            "Final integration/installation and existing CP13 physical gates remain open",
+            "Escaped-rich-text tails beyond display/parser budgets need a complete inspection policy before broad completion"
           ]
         }
       ],
@@ -924,11 +924,20 @@
           "merge_tree_matches_tested_head": true,
           "readiness_followup": {
             "branch": "codex/windows-notepad-process-readiness",
-            "status": "native_ci_pending",
+            "status": "verified_debug_on_owned_windows_runner",
             "reproduction": "The original actual process guard rejects an initial null MainModule while the retained process is alive. This is a reproduced readiness defect; the earlier main failure did not retain enough process metadata to prove its exact cause.",
             "repair": "Observe only the retained spawned process for at most10 seconds. Wait only for absent module metadata; a mismatched executable, exited process or query failure is terminal before any input. Never scan for or adopt another process/window.",
             "regression": "Eight no-desktop cases execute the actual gate, including pending-to-ready, case-insensitive exact identity, wrong/exited/unreadable refusal and bounded timeout. Both PowerShell runtimes run before expensive builds. A separate native preflight performs3 launches of owned empty Notepad documents and records initial module readiness with no input or clipboard access. Existing full keyboard/paste assertions are retained.",
-            "scope": "Existing actual-keyboard CI remains automatic for ordinary Windows PRs. Actual Pinyin/browser/RTF and installed Release acceptance remain at integration or the narrow manual application mode; no optional model download/build added."
+            "scope": "Existing actual-keyboard CI remains automatic for ordinary Windows PRs. Actual Pinyin/browser/RTF and installed Release acceptance remain at integration or the narrow manual application mode; no optional model download/build added.",
+            "pr": 64,
+            "head": "a4e0861fb843b007e67e3baa6cdea73f73183d3f",
+            "run": 41470747030,
+            "debug_keyboard_checks": 26,
+            "native_readiness_checks": 3,
+            "review": "clean_exact_head",
+            "initial_module_available_in_all_three_preflight_launches": true,
+            "installed_release": "pending_final_integration",
+            "proof_limit": "The original null-module defect is demonstrated deterministically; these three native launches all had metadata ready immediately and do not reproduce the exact earlier main failure."
           }
         },
         "windows_rich_format_followup": {
@@ -1061,7 +1070,8 @@
             "Full integration for the changed product preview",
             "Windows clipboard-derived bitmap EXIF orientation remains independently unverified",
             "ICC/color-profile fidelity, client hardware and existing CP13 gates remain open"
-          ]
+          ],
+          "artifact_audit": "Both Windows/Linux reports from41456251202 contain113 unique passing checks, including absent/all8 orientation values, main/hover exact pixel permutations, geometry and unchanged originals."
         },
         "latest_main_integration": {
           "head": "562ce12176545aef923bbf342ed0b0995e7291da",
@@ -1072,9 +1082,30 @@
           "ui": {
             "run": 41452803944,
             "windows": "failed_installed_keyboard_notepad_spawned_process_identity_mismatch",
-            "linux": "success_reports_pending_audit"
+            "linux": "success_audited_native181_installed211_models_and_installation"
           },
-          "meaning": "Failure is retained as a failed gate. PR61 narrowed installed input passes78 checks; do not infer the complete integration/installed-model suite passed. Linux full job completed successfully; detailed reports still require assertion audit. The Notepad readiness defect is reproduced separately; do not claim this proves the earlier identity failure was caused by null module metadata."
+          "meaning": "Failure is retained as a failed gate. PR61 narrowed installed input passes78 checks; do not infer the complete integration/installed-model suite passed. Linux full job completed successfully; detailed reports still require assertion audit. The Notepad readiness defect is reproduced separately; do not claim this proves the earlier identity failure was caused by null module metadata.",
+          "artifact_audit": {
+            "native_ui": {
+              "windows": 182,
+              "linux": 181
+            },
+            "installed_ui": {
+              "windows": 210,
+              "linux": 211
+            },
+            "CP9_CP10_named_assertions": "all_required_named_assertions_pass_on_both_native_and_installed_platforms",
+            "linux_installed": {
+              "installation": 15,
+              "model_settings": 8,
+              "text_models": 19,
+              "model_operations": 14,
+              "file_models": 19
+            },
+            "windows_installed_keyboard": "failed_notepad_identity_after22_checks; installed_model_runs_after_keyboard_not_executed",
+            "windows_debug_keyboard": 63,
+            "scope": "head562ce12; do not use as exact-head evidence for newer security/decoder changes"
+          }
         }
       }
     }

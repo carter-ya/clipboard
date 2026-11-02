@@ -81,6 +81,7 @@ actor HeldSettingsStore {
 
 @MainActor final class FixtureHistoryStore {
   func setCapacity(_ capacity: Int) async throws {}
+  func setSensitiveTextMasking(_ enabled: Bool) async -> Bool { true }
 }
 
 @MainActor final class ModelFixture {

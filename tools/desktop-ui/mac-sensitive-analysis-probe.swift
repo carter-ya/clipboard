@@ -87,7 +87,8 @@ private final class HeldKey: @unchecked Sendable {
   @MainActor static func main() async throws {
     let root = URL(fileURLWithPath: CommandLine.arguments[1])
     let manual = CommandLine.arguments.contains("--manual")
-    let store = try await JSONSnapshotClipStore(root: root, inlineThresholdBytes: 1)
+    let store = try await JSONSnapshotClipStore(
+      root: root, inlineThresholdBytes: 1, sensitiveTextMasking: false)
     let defaults = UserDefaults(suiteName: "clipboard-private-analysis-" + UUID().uuidString)!
     defaults.setVolatileDomain(
       [
