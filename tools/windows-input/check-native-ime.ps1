@@ -9,7 +9,7 @@ $report = [ordered]@{ passed = $false; stage = 'starting'; checks = @();
   conversionBeforeInput = $null; conversionAfterInput = $null;
   modeShortcutSent = $false;
   tsfCandidateResult = $null; tsfUiElementCount = 0;
-  tsfSinkResult = $null; candidateBeginCount = 0;
+  tsfSinkResult = $null; candidateBeginCount = 0; candidateEndCount = 0;
   imeOpen = $false; compositionLength = 0; candidateCount = 0;
   textLength = 0; limitations = @('Actual Windows input method in an owned native editor; GTK application integration is a separate gate.') }
 $peer = $null
@@ -93,6 +93,7 @@ try {
       $report.tsfUiElementCount = $peer.TsfUiElementCount
       $report.tsfSinkResult = $peer.TsfSinkResult
       $report.candidateBeginCount = $peer.CandidateBeginCount
+      $report.candidateEndCount = $peer.CandidateEndCount
       $report.textLength = $peer.Text.Length
     } catch { }
     try { $peer.Dispose() } catch { $report.passed = $false; $report.errorType = $_.Exception.GetType().FullName }

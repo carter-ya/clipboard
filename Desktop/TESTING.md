@@ -25,6 +25,10 @@ Full acceptance repeats this against the installed Release executable without
 development runtime/resource fallbacks. Existing accessibility and clipboard
 tests retain their complete assertions and run independently.
 
+Final integrated run [41379565901](https://github.com/carter-ya/clipboard/actions/runs/41379565901)
+passes all 18 keyboard checks in both Debug and the installed Windows Release.
+The merged `main` tree matches the tested head exactly.
+
 Unicode input packets are labelled as Unicode input, not an IME composition
 pass. `keyboard-capabilities.json` records installed legacy Chinese IME count
 and explicitly leaves candidate/composition, mixed-monitor DPI and real

@@ -78,9 +78,10 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   [ComVisible(true), ClassInterface(ClassInterfaceType.None)]
   public sealed class CandidateObserver : UiElementSink {
     public int Begins, Updates, Ends;
-    public int BeginUIElement(uint id, ref bool show) { Begins++; show = true; return 0; }
+    public readonly HashSet<uint> Active = new HashSet<uint>();
+    public int BeginUIElement(uint id, ref bool show) { Begins++; Active.Add(id); show = true; return 0; }
     public int UpdateUIElement(uint id) { Updates++; return 0; }
-    public int EndUIElement(uint id) { Ends++; return 0; }
+    public int EndUIElement(uint id) { Ends++; Active.Remove(id); return 0; }
   }
   // Include ITfUIElement's four inherited slots before candidate-list methods.
   [ComImport, Guid("ea1ea138-19df-11d7-a6d2-00065b84435c"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -104,6 +105,7 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   CandidateObserver candidateObserver;
   uint sinkCookie;
   public int CandidateBeginCount { get { return OnPeer<int>(delegate { return candidateObserver == null ? 0 : candidateObserver.Begins; }); } }
+  public int CandidateEndCount { get { return OnPeer<int>(delegate { return candidateObserver == null ? 0 : candidateObserver.Ends; }); } }
 
   sealed class PasteEditor : TextBox {
     public int PasteCount;
@@ -346,6 +348,31 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
         }
         var manager = threadObject as UiElementManager;
         if (manager == null) return empty;
+        // Microsoft documents GetUIElement with IDs delivered to the sink.
+        // Some providers notify a live element without enumerating it.
+        if (candidateObserver != null) {
+          if (candidateObserver.Active.Count > 32) throw new InvalidOperationException("native_tsf_active_element_bound");
+          foreach (uint id in candidateObserver.Active) {
+            IntPtr observedPointer;
+            TsfCandidateResult = manager.GetUIElement(id, out observedPointer);
+            if (TsfCandidateResult < 0 || observedPointer == IntPtr.Zero) continue;
+            object observedObject = null;
+            try {
+              observedObject = Marshal.GetObjectForIUnknown(observedPointer);
+              var candidate = observedObject as CandidateElement;
+              if (candidate == null) continue;
+              uint count;
+              TsfCandidateResult = candidate.GetCount(out count);
+              if (TsfCandidateResult < 0 || count == 0) continue;
+              if (count > 256) throw new InvalidOperationException("native_tsf_candidate_bound");
+              TsfUiElementCount++;
+              return action(candidate);
+            } finally {
+              if (observedObject != null) Marshal.ReleaseComObject(observedObject);
+              Marshal.Release(observedPointer);
+            }
+          }
+        }
         TsfCandidateResult = manager.EnumUIElements(out enumPointer);
         if (TsfCandidateResult < 0 || enumPointer == IntPtr.Zero) return empty;
         enumObject = Marshal.GetObjectForIUnknown(enumPointer);
