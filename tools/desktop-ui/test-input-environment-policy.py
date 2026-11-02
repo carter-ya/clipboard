@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Keep manual IME environment checks separate from the regular app jobs."""
 from pathlib import Path
+from fnmatch import fnmatchcase
 import unittest
 import yaml
 
@@ -8,6 +9,35 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class InputEnvironmentPolicyTests(unittest.TestCase):
+    def test_acceptance_notes_alone_do_not_build_but_mixed_code_changes_do(self):
+        data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
+        for event in ['push', 'pull_request']:
+            paths = data['on'][event]['paths']
+            self.assertLess(paths.index('Desktop/**'), paths.index('!Desktop/TESTING.md'))
+
+            def selected(files):
+                for path in files:
+                    included = False
+                    for pattern in paths:
+                        negative = pattern.startswith('!')
+                        if fnmatchcase(path, pattern[1:] if negative else pattern):
+                            included = not negative
+                    if included:
+                        return True
+                return False
+
+            self.assertFalse(selected(['Desktop/TESTING.md', 'harness.json']))
+            for changed in ['Desktop/Sources/ClipboardDesktop/DesktopUI.swift',
+                            'Desktop/Tests/FixtureTests.swift', 'Desktop/Package.swift',
+                            'Desktop/Sources/ClipboardDesktop/Resources/version.txt',
+                            'Core/Sources/ClipboardCore/Clip.swift',
+                            'tools/desktop-ui/windows-keyboard-acceptance.ps1',
+                            'tools/desktop-package/check-windows-install.ps1',
+                            '.github/workflows/swiftcrossui-preview.yml']:
+                with self.subTest(event=event, changed=changed):
+                    self.assertTrue(selected([changed]))
+                    self.assertTrue(selected(['Desktop/TESTING.md', changed]))
+
     def test_native_input_receipts_are_available_before_package_builds(self):
         data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
         steps = data['jobs']['preview']['steps']

@@ -4,6 +4,39 @@ Automated evidence is retained per CI run. A successful compile or readable
 accessibility tree does not establish that controls work. Platform releases
 remain blocked by the open interactive gates below.
 
+## Current evidence
+
+The latest full integration is [41475202168](https://github.com/carter-ya/clipboard/actions/runs/41475202168)
+at `6ceedf3`. Linux passes the complete native/installed suites; downloaded
+reports contain 181 native and 211 installed UI assertions, every named CP9/CP10
+assertion, 15 installation checks, installed real text models (19), model
+operations (14) and file/PDF models (19). Both private Wayland modes pass 40
+checks. Core run [41475202676](https://github.com/carter-ya/clipboard/actions/runs/41475202676)
+passes all three platforms. Windows fails the Debug actual-Pinyin candidate
+gate, so this is not a complete cross-platform pass. Its failure remains open
+until a fresh full Windows integration passes; a narrower keyboard run does not
+substitute for installed models or the full UI suite.
+
+PR62's actual GTK orientation matrix passes 113 assertions on each hosted OS.
+PR67 additionally fixes the independent Windows standard-bitmap EXIF transform:
+the same native matrix fails 38 of 245 assertions before the repair and passes
+all 245 in [41477837636](https://github.com/carter-ya/clipboard/actions/runs/41477837636).
+Its final reviewed head passes all three Core and both ordinary UI jobs in
+41478506428/41478506422; the main merge tree matches that head. PR67 changes
+only the Windows C branch. The actual preprocessed Linux C before/after is
+byte-identical (SHA256 `223973c767ca09e483b128ac70997489a7b23425e45a2aee7b5fe258317a78f5`),
+and the other Linux/Mac product sources are unchanged. This supports inheriting
+the scoped Linux result without claiming whole commit trees are identical.
+ICC/color-profile fidelity and physical-client gates remain unverified.
+
+Credential capture, existing/imported-history policy and complete rich-text
+privacy inspection are merged as PR63/65/66. Each final head has clean review,
+three-platform Core and both ordinary UI jobs passing; native independent text
+and rich-source sensitivity/Copy assertions are audited. Full Linux acceptance
+includes these changes. Final full Windows integration is still required.
+The implementation-history section below retains older evidence and statements
+of what was pending at those stages; `harness.json` records exact scopes.
+
 ## Automated gates
 
 CI has two scopes. Ordinary pull requests run the complete Core unit suite on
@@ -12,6 +45,12 @@ on Linux/Windows. The focused native desktop smoke opens the real history and
 model settings, checks consent, cancels the owned native chooser and quits cleanly
 without downloading optional model weights. This green PR scope is not full UI,
 real-model or installable-package acceptance.
+
+Only `Desktop/TESTING.md` is excluded from the Desktop UI push/PR path filter.
+An acceptance-note/harness-only commit therefore does not rebuild the app. A
+matching source, resource, test, manifest, input fixture, installer or workflow
+change in the same commit still selects the normal checks. Manual scopes,
+runtime assertions and integration selection are unchanged.
 
 Windows PRs also run `smoke-windows.ps1 -KeyboardOnly` using the same Debug
 executable. At the user's request this mode sends actual OS keyboard input on
