@@ -71,8 +71,10 @@ static int single_original(cb_session *session, const cb_payload *expected,
 }
 
 int main(int argc, char **argv) {
-  const char *actions = getenv("GITHUB_ACTIONS");
-  if (!actions || strcmp(actions, "true") || argc != 2)
+  char actions[8] = {0};
+  DWORD actions_length =
+      GetEnvironmentVariableA("GITHUB_ACTIONS", actions, sizeof(actions));
+  if (actions_length != 4 || strcmp(actions, "true") || argc != 2)
     return 2;
   cb_session *session = cb_open();
   REQUIRE(session, "native_session");
@@ -108,8 +110,9 @@ int main(int argc, char **argv) {
               !IsClipboardFormatAvailable(CF_DIB) &&
               single_original(session, &invalid, 0),
           "undecodable_png_keeps_original_without_bitmap");
-  FILE *input = fopen(argv[1], "rb");
-  REQUIRE(input, "owned_large_dimensions_fixture");
+  FILE *input = NULL;
+  REQUIRE(fopen_s(&input, argv[1], "rb") == 0 && input,
+          "owned_large_dimensions_fixture");
   unsigned char *large = malloc(1024 * 1024);
   REQUIRE(large, "bounded_large_fixture_buffer");
   size_t count = fread(large, 1, 1024 * 1024, input);
