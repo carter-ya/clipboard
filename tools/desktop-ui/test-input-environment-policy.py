@@ -9,6 +9,18 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class InputEnvironmentPolicyTests(unittest.TestCase):
+    def test_client_profile_only_never_changes_server_application_provisioning(self):
+        data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
+        steps = data['jobs']['input-environment']['steps']
+        prepare = next(step for step in steps if step.get('name') == 'Inspect or provision the isolated Windows input environment')
+        self.assertEqual(prepare['env']['CLIENT_PROFILE_ONLY'], "${{ inputs.windows_input_runner == 'windows-11-arm' }}")
+        self.assertIn("-ProfileOnly:($env:PREPARE_CHINESE_INPUT -eq 'true' -and $env:CLIENT_PROFILE_ONLY -eq 'true')", prepare['run'])
+        application = next(step for step in data['jobs']['preview']['steps'] if step.get('name') == 'Provision and verify the actual Windows Chinese input method')
+        self.assertNotIn('ProfileOnly', str(application))
+        for name in ['Verify private fixture interpreter and pipe encoding', 'Verify private fixture on Windows PowerShell 5.1']:
+            step = next(step for step in data['jobs']['preview']['steps'] if step.get('name') == name)
+            self.assertIn('test-environment-receipt.ps1', step['run'])
+
     def test_client_host_is_an_explicit_manual_native_reference_choice(self):
         data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
         choice = data['on']['workflow_dispatch']['inputs']['windows_input_runner']

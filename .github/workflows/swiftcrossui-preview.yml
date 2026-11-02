@@ -75,8 +75,9 @@ jobs:
         shell: powershell
         env:
           PREPARE_CHINESE_INPUT: ${{ inputs.windows_input_environment == 'prepare' }}
+          CLIENT_PROFILE_ONLY: ${{ inputs.windows_input_runner == 'windows-11-arm' }}
         run: |
-          & ./tools/windows-input/probe-environment.ps1 -Prepare:($env:PREPARE_CHINESE_INPUT -eq 'true') -Output input-environment.json
+          & ./tools/windows-input/probe-environment.ps1 -Prepare:($env:PREPARE_CHINESE_INPUT -eq 'true') -ProfileOnly:($env:PREPARE_CHINESE_INPUT -eq 'true' -and $env:CLIENT_PROFILE_ONLY -eq 'true') -Output input-environment.json
       - name: Exercise the actual Chinese input method in an owned native editor
         if: inputs.windows_input_environment == 'prepare'
         shell: powershell
@@ -170,6 +171,7 @@ jobs:
           ./tools/desktop-ui/test-private-keyboard-input-types.ps1
           ./tools/desktop-ui/test-windows-notepad-readiness.ps1
           ./tools/desktop-ui/test-windows-ime-mode-readiness.ps1
+          ./tools/windows-input/test-environment-receipt.ps1
           ./tools/desktop-ui/test-private-probe-exit.ps1
       - name: Verify private fixture on Windows PowerShell 5.1
         if: runner.os == 'Windows'
@@ -183,6 +185,7 @@ jobs:
           ./tools/desktop-ui/test-private-keyboard-input-types.ps1
           ./tools/desktop-ui/test-windows-notepad-readiness.ps1
           ./tools/desktop-ui/test-windows-ime-mode-readiness.ps1
+          ./tools/windows-input/test-environment-receipt.ps1
           ./tools/desktop-ui/test-private-probe-exit.ps1
       - name: Verify private AI fixture response cancellation
         run: python tools/desktop-ui/test-ai-probe-errors.py

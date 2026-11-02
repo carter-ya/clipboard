@@ -638,7 +638,8 @@
           "scope": "Distribution and platform acceptance",
           "status": "in_progress",
           "remaining": [
-            "Physical Windows/Linux client IME/focus, monitor DPI, real desktop permissions, common-application native-format paste beyond hosted classic Notepad plain text, suspend/resume and long-session gates in Desktop/TESTING.md",
+            "Physical Windows10/11 and Linux desktop IME/focus and actual desktop permissions; the hosted Windows11 Arm native reference remains separately scoped and unverified after its first provisioning timeout",
+            "Mixed-monitor DPI, application/format combinations beyond the verified hosted classic Notepad, Chrome text/HTML/PNG/JPEG/TIFF/files and RichEdit RTF receivers, real suspend/resume and long-session gates in Desktop/TESTING.md",
             "Interactive official release-page launch and manual update installation on real client desktops remain unverified."
           ],
           "update_discovery": {
@@ -647,23 +648,8 @@
             "validation": "All 251 Linux Core tests, 17 targeted Mac tests, strict Core/App/Desktop lint and Windows probe parsing/native helper definitions pass. Eight final focused update checks and all 145 complete native Linux UI/privacy checks pass, including 503/retry, packaged version, compatible manual release action, live cancellation, settings handoff, original editor identity and unsaved draft retention, clean quit and exactly four fixed credential/cookie-free metadata requests. Both 100% and 200% layout suites pass all eight checks. The previous render exposed a clipped version value; the final full-width native version row is inspected. A real negative packaging check rejects a mismatched --version before creating an output directory; the correct native package includes the version resource in its integrity manifest. Offline runtime-only acceptance passes all eight installation/upgrade/uninstall/integrity gates and all 175 complete installed native UI/lifecycle checks with no Swift SDK or network, including the actual bundled version resource, PDF worker and update controls. Hosted Windows remains required. Automated fixtures do not open a real browser or installer."
           },
           "final_automated_acceptance": {
-            "run": 41379565901,
-            "url": "https://github.com/carter-ya/clipboard/actions/runs/41379565901",
-            "tested_head": "e2e714e238416b2307d9dc68f8ca3b021410bdbd",
-            "windows_native_ui_checks": 182,
-            "windows_installed_ui_checks": 210,
-            "linux_native_ui_checks": 181,
-            "linux_installed_ui_checks": 211,
-            "actual_models_and_model_operations": "passed_on_windows_and_linux_native_and_installed",
-            "scope": "Implemented feature acceptance through PR48; later PR49/50 add test-only input support. This is not physical/client acceptance or a claim that the later commit tree equals the earlier tested tree.",
-            "unchanged_component_trees": {
-              "Core": "8e43a5d286e6360b810326197ea6d3f6a1856e38",
-              "App": "06dcfc8a016e61dbc8661f54761621d93be90712",
-              "tools/desktop-pdf": "bf322cc8cd9febb7cb70d4f4ba26be3d94814c0b",
-              "tools/desktop-image": "acf6d660bc1d4880f63b6a423f6d81cf9aca84a7",
-              "tools/desktop-language": "9815d746f73d274ec451a5b4328136a0aa0765bd",
-              "tools/desktop-text": "9a42de01c707de34bb84cf30037945b2acf142a4"
-            }
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.latest_feature_evidence",
+            "status": "complete_automated_components_physical_and_client_gates_open"
           },
           "windows_keyboard_acceptance": {
             "pr": 50,
@@ -689,13 +675,10 @@
         {
           "id": "CP14_secret_pattern_masking",
           "scope": "Recognized key/credential text uses the existing password masking and memory-only policy on Mac/Windows/Linux",
-          "status": "in_progress",
+          "status": "verified",
           "implemented": "Shared capture filter locally recognizes defined credential prefixes/private-key headers and UTF-8/UTF-16/rich-text representations. Sensitive recapture upgrades a persisted ordinary duplicate without changing ID, pinning or original Copy bytes; it removes normal history/blob references, clears old summaries and rejects late analysis results. Native text and rich clipboard CI exercise an independent non-sensitive source, inferred classification, memory-only storage and explicit sensitive Copy. Review repairs retain every original representation on primary-hash dedup, commit snapshot removal before releasing blob references, and retain materialization/snapshot/cleanup failures for an explicit retry. Sensitive updates cancel owned desktop/Mac attempts; current metadata is checked again at the actual remote dispatch boundary and after responses. Follow-up configures the real Mac/Desktop stores from the password preference before exposing history. Startup/current-record enable, unfiltered inserts and validated imports recognize credential text; enabling masks existing originals and revokes analysis, while disabling never unmasks an already sensitive record. Import validates all owned blob paths/digests before creating any target blobs, and regenerates preview/hash/kind from actual content. Full privacy inspection of escaped HTML/RTF now uses the actual source/output bound rather than display-prefix budgets. UI display budgets remain unchanged; valid long HTML tags are scanned without unnecessary masking. A structural parser refusal conservatively marks the item uninspectableRichText, keeping its original Copy and sensitive memory-only/analysis gates.",
-          "validation": "The original capture/dedup regression fails15 assertions and late-summary protection fails independently before repair. Six transition cases cover original representations, blocked writes, missing originals, failed deletion, concurrent shared-reference drains and held authorization. Actual Mac automatic/manual and dispatch-time probes fail the previous implementation and pass the repair using fake HTTP and volatile preferences; the actual Desktop cancellation/save-order probes pass. Eight history-policy tests reproduce12 startup/import failures before repair, then59 focused and27 related tests pass. Four escaped-rich-tail/structural-refusal assertions fail before full inspection; the repaired layer passes86 affected Core tests plus21 actual preview/clipboard tests. Final PR63/65/66 heads have clean explicit Codex review and all three Core plus both ordinary UI jobs passing (reviewed_merged_layers). Independent native text/rich unmarked credential inference and sensitive explicit Copy reports are downloaded and audited. Full Linux41475202168 passes every named native/installed CP9/CP10 assertion and actual model/installer suite. Full Windows at the same head fails the actual GTK IME candidate gate before complete UI/installed/model acceptance; final full Windows remains explicit.",
-          "remaining": [
-            "Final full Windows native/installed/model integration after PR68 input readiness; full Linux41475202168 is audited",
-            "Physical/client CP13 gates remain open; no universal credential or complete browser/Office parser claim"
-          ],
+          "validation": "The original capture/dedup regression fails15 assertions and late-summary protection fails independently before repair. Six transition cases cover original representations, blocked writes, missing originals, failed deletion, concurrent shared-reference drains and held authorization. Actual Mac automatic/manual and dispatch-time probes fail the previous implementation and pass the repair using fake HTTP and volatile preferences; the actual Desktop cancellation/save-order probes pass. Eight history-policy tests reproduce12 startup/import failures before repair, then59 focused and27 related tests pass. Four escaped-rich-tail/structural-refusal assertions fail before full inspection; the repaired layer passes86 affected Core tests plus21 actual preview/clipboard tests. Final PR63/65/66 heads have clean explicit Codex review and all three Core plus both ordinary UI jobs passing (reviewed_merged_layers). Independent native text/rich unmarked credential inference and sensitive explicit Copy reports are downloaded and audited. Full Linux41475202168 passes every named native/installed CP9/CP10 assertion and actual model/installer suite. Full Windows at the same head fails the actual GTK IME candidate gate before complete UI/installed/model acceptance; final full Windows remains explicit. Fresh full Windows41491062151 passes17 audited report sets, including182/210 native/installed UI,78/78 actual input,23/23 real text models,16/16 model operations,21/21 file/PDF models and17 install/upgrade/uninstall checks. This closes the prior full Windows automated gap.",
+          "remaining": [],
           "reviewed_merged_layers": [
             {
               "pr": 63,
@@ -715,7 +698,12 @@
               "core_run": 41473486984,
               "ui_run": 41473486835
             }
-          ]
+          ],
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.latest_feature_evidence",
+            "credential_details": "cross_platform_delivery.functional_parity.current_acceptance.latest_credential_core_acceptance",
+            "meaning": "Recognized credential policy, original-preserving sensitive transition, history/import and full rich inspection are reviewed/merged; current three-platform Core/native credential and full Windows/Linux UI/model/installation gates pass. No universal credential/parser or physical/client claim."
+          }
         }
       ],
       "current_acceptance": {
@@ -764,8 +752,7 @@
         ],
         "status_meaning": "Component verified records below close implemented/automated feature gates only. The overall platform delivery and CP13 remain in_progress.",
         "component_audit": {
-          "run": 41433432627,
-          "core_platform_run": 41433432465,
+          "core_platform_run": 41489198405,
           "components": [
             "CP9",
             "CP9_history_selection",
@@ -781,7 +768,7 @@
             "CP10",
             "CP9_rich_preview"
           ],
-          "method": "Every named component assertion is present and true in each applicable Windows/Linux native and installed report from main integration 41433432627; the overall delivery and CP13 remain in_progress.",
+          "method": "Every named component assertion is present and true in each platform native/installed report at its explicitly recorded head. Windows has fresh full main48b872a evidence; Linux full6ceedf3 is inherited only for unchanged source components, including a byte-identical actual preprocessed Linux C adapter after the Windows-only EXIF fix. Overall CP13 stays in_progress.",
           "reports": {
             "windows": [
               "ui-artifacts/results.json",
@@ -921,6 +908,15 @@
                 "invalid_size_does_not_replace_disabled_preference"
               ]
             }
+          },
+          "previous_run": 41433432627,
+          "platform_runs": {
+            "windows": 41491062151,
+            "linux": 41475202168
+          },
+          "tested_heads": {
+            "windows": "48b872aea3fd6ce24a90469a3e912787b67469b1",
+            "linux": "6ceedf366667ac90b80d3128a23be24b07682f64"
           }
         },
         "windows_common_application_followup": {
@@ -954,7 +950,7 @@
             "native_readiness_checks": 3,
             "review": "clean_exact_head",
             "initial_module_available_in_all_three_preflight_launches": true,
-            "installed_release": "verified78_input_plus12_keyboard_package_in41479407954; hardened_PR68_and_full_Windows_integration_pending",
+            "installed_release": "verified78_input_and17_full_package_checks_in41491062151",
             "proof_limit": "The original null-module defect is demonstrated deterministically; these three native launches all had metadata ready immediately and do not reproduce the exact earlier main failure."
           }
         },
@@ -1047,18 +1043,28 @@
           }
         },
         "windows_full_followup": {
-          "run": 41433432627,
-          "tested_head": "7885862a271a36f2119aa12dd52a91ecfdd3f043",
+          "run": 41491062151,
+          "job": 125433862451,
+          "tested_head": "48b872aea3fd6ce24a90469a3e912787b67469b1",
+          "url": "https://github.com/carter-ya/clipboard/actions/runs/41491062151",
+          "status": "complete_full_windows_job_and17_required_reports_audited",
           "native_ui_checks": 182,
           "installed_ui_checks": 210,
-          "installation_checks": 17,
-          "debug_keyboard_checks": 52,
-          "installed_keyboard_checks": 52,
+          "debug_keyboard_checks": 78,
+          "installed_keyboard_checks": 78,
+          "native_model_settings_checks": 9,
+          "installed_model_settings_checks": 9,
           "local_text_checks_per_configuration": 23,
           "model_operations_checks_per_configuration": 16,
           "file_pdf_checks_per_configuration": 21,
-          "status": "full_windows_job_passed_and_report_assertions_audited",
-          "physical_client": "not_verified"
+          "installation_checks": 17,
+          "native_ime_checks": 7,
+          "browser_reference_checks": 17,
+          "rtf_reference_checks": 10,
+          "cp9_cp10_named_components_reaudited": 13,
+          "physical_client": "not_verified",
+          "assertion_method": "Every required named assertion from the previous complete UI/model/package reference and current component contract is present and true. Repeated secondary-launch observations are not counted as distinct coverage. Artifact ZIP digest is verified.",
+          "later_changes": "PR70 changes only acceptance notes; PR71 changes manual native-reference host selection/environment diagnostics, not Core/App/Desktop or worker sources. No claim of entire-tree equality with the old reference."
         },
         "windows_valid_image_followup": {
           "status": "verified_debug_and_installed_on_owned_hosted_runner",
@@ -1078,7 +1084,7 @@
           "product_merge": "d23f8081056bb0113ed7587662a4ffd84b7d0721"
         },
         "gtk_image_orientation_followup": {
-          "status": "verified_hosted_windows_linux_decoder_and_full_linux_ui",
+          "status": "verified_hosted_decoder_matrices_and_full_native_installed_Windows_Linux_UI",
           "mac_reference": "App/ClipPreviewView.swift preDecode ImageIO thumbnail with transform",
           "reproduction": "Same orientation6 JPEG/TIFF: Mac2x3, unchanged actual GTK decoder3x2; full regression38/113 failing",
           "local_after": "113/113 actual GTK decoder assertions pass in isolated offline Linux arm64 container",
@@ -1088,14 +1094,13 @@
             "Original input bytes and existing encoded bounds retained"
           ],
           "remaining": [
-            "Final full Windows native/installed integration after the input-readiness follow-up",
             "ICC/color-profile fidelity, physical clients and existing CP13 gates remain open"
           ],
           "artifact_audit": "Both Windows/Linux reports from41456251202 contain113 unique passing checks, including absent/all8 orientation values, main/hover exact pixel permutations, geometry and unchanged originals.",
           "windows_bitmap_followup": {
             "branch": "codex/windows-image-orientation-parity",
             "base": "main6ceedf3",
-            "status": "reviewed_merged_native_matrix_and_ordinary_platform_ui_verified",
+            "status": "reviewed_merged_native245_matrix_and_full_installed_Windows_integration_verified",
             "evidence": "All original24 adapter assertions, independent GDI metadata and cleanup pass. Rotation geometry and TIFF reflected/rotated pixel permutations fail38 assertions in the real Windows adapter.",
             "regression": "240 actual C-adapter assertions retain the original24 and add absent/all8 JPEG/TIFF orientation values in ordinary/sensitive modes. Independent GDI+ validates metadata; TIFF has6 colors with independent coordinate permutations; JPEG geometry uses unchanged uniform reference. Original encoded bytes, no duplicate roundtrip and sensitivity stay hard assertions.",
             "scope": "Reference-only Windows Actions images mode, no Swift/app/model build. ICC profiles remain separately unverified.",
@@ -1115,7 +1120,7 @@
             "after_failed": 0,
             "artifact_audit": "245 unique passing assertions downloaded and checked; all absent/orientations1..8 in ordinary/sensitive modes",
             "linux_unchanged": "Preprocessed actual Linux C adapter is byte-identical before/after, SHA256223973c767ca09e483b128ac70997489a7b23425e45a2aee7b5fe258317a78f5; both GNU C syntax checks pass with the same baseline warning policy.",
-            "remaining": "Final full installed Windows integration; ICC profile fidelity and physical/client gates remain separate.",
+            "remaining": "ICC profile fidelity and physical/client gates remain separate.",
             "pr": 67,
             "head": "c303f5b75d38ff8f3faaf1d362863b8448d16976",
             "merge_commit": "402e804defaed098599d279cbdbb0032c999a897",
@@ -1141,14 +1146,13 @@
         },
         "windows_ime_reliability_followup": {
           "branch": "codex/windows-ime-state-diagnostics",
-          "status": "hardened_Debug_verified_installed_and_full_suites_pending",
+          "status": "verified_hardened_Debug_and_installed_full_Windows",
           "failed_main_run": 41475202168,
           "head": "7adf1fea962838561f16f4f16f35a6acbeb534dc",
           "failure": "ime_complete_native_candidates_before_cancel",
           "observed": "Independent native IME7, browser17, RTF10, actual Notepad English/Chinese and ordinary keyboard input pass. GTK actual search contains literal nihao with no candidate UI; no pass claimed for actual GTK IME or installed scope.",
           "diagnostic": "Read-only owned-target HKL/language/default-IME open/conversion status, candidate-host and fixed synthetic query booleans before/after profile selection/mode shortcut/Latin input and on the existing failed candidate wait. Existing key batches, 40s action deadlines and exact candidate/commit assertions stay unchanged.",
           "local_validation": "10 actual-statement state cases cover initialization, legitimate English/closed mode, post-key transients, absent/unreadable/oscillating provider failure without actions; actual key/caret arguments unchanged. CSharp5/net48 compiles clean;21 CI/input policy tests and actionlint pass.",
-          "next": "The same one full Windows-only run continues through complete native UI, real models and installation. These scopes remain pending; do not substitute the early Debug result or the old narrow package run.",
           "early_receipt": "After the Windows actual-input step, always upload only six explicitly listed content-free input/status/result files before any release restore/build. Scope requires Windows+actual IME validation, names include run_attempt, no history/body/model files. A fifth input-policy regression verifies the ordering and allowlist.",
           "diagnostic_run": 41479407954,
           "diagnostic_observed": "All3 result reports pass and are audited. Both target-state receipts already show native Chinese conversion after profile selection, with no mode shortcut sent. This successful observation run does not reproduce or prove the exact cause of the earlier main failure.",
@@ -1170,10 +1174,13 @@
           "debug_keyboard_checks": 78,
           "native_ime_checks": 7,
           "early_artifact_audit": "All78 unique passing strict keyboard/IME/browser/RTF assertion names are retained, all7 independent native IME checks pass, and the archive contains exactly the six content-free allowed files. Four owned-target samples show the Chinese native mode settled before Latin input, with no mode shortcut needed in this run.",
-          "historical_failure_limit": "This successful hardened run does not reproduce or establish the exact cause of failed main41475202168. A separate deterministic driver-state regression reproduces the readiness hazard."
+          "historical_failure_limit": "This successful hardened run does not reproduce or establish the exact cause of failed main41475202168. A separate deterministic driver-state regression reproduces the readiness hazard.",
+          "installed_keyboard_checks": 78,
+          "full_ui_and_real_models_and_installation": "all_passed_and17_reports_audited_in41491062151",
+          "remaining_external_gates": "Physical/client gates remain separately recorded in CP13; successful runs do not prove the exact cause of historical failure41475202168."
         },
         "documentation_ci_policy": {
-          "status": "reviewed_merged_ordinary_checks_pass_docs_only_runtime_selection_pending",
+          "status": "reviewed_merged_no_Core_or_Desktop_build_selected_for_actual_note_only_PR70_and_main_merge",
           "scope": "Exclude only Desktop/TESTING.md from push/PR Desktop UI path selection. Harness-only and acceptance-note-only commits have no product change. Any matching product/test/resource/workflow path in the same commit still selects the normal job.",
           "regression": "Ordered negative-path policy checks both events, documentation-only changes and mixed notes plus Desktop source/tests/resources/manifest, Core, native input fixture, installer and workflow changes. All existing runtime/full-validation conditions remain unchanged.",
           "pr": 69,
@@ -1182,7 +1189,8 @@
           "core_run": 41489198405,
           "ui_run": 41489198269,
           "review": "clean_exact_head",
-          "local_policy_tests": 23
+          "local_policy_tests": 23,
+          "actual_scope": "PR70 uses a regular merge without skip-ci marker: no Core/Desktop/source-archive workflows selected. Existing GitHub Pages website build completes separately."
         },
         "previous_latest_main_integration": {
           "head": "562ce12176545aef923bbf342ed0b0995e7291da",
@@ -1235,7 +1243,7 @@
           "physical_client": "not_verified"
         },
         "windows_toolchain_cache": {
-          "status": "reviewed_merged_installer_cache_fill_verified_in_UI_PR_scope",
+          "status": "main_scoped_installer_cache_fill_verified",
           "action": "compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7",
           "evidence": "The pinned upstream action defaults cache=false; existing Core/UI calls omit it, so every fresh VM downloads installer.exe. Its built-in Windows cache key includes architecture, release version and build; only the downloaded installer is cached, not an installed system directory.",
           "change": "Enable cache=true with explicit amd64 for pinned Windows Core6.1.3 and UI6.3.3. Retain installation, unconditional exact-version checks, compiled dependency caches and runtime tests. A subsequent hit and speed improvement are not yet measured.",
@@ -1244,18 +1252,23 @@
           "head": "fd29fb2c2276a09bbc3c06d1fd4b49a567904b8a",
           "ui_run": 41489198269,
           "observed_key": "swift-toolchain-windows-amd64-swift-6.3.3-release-6.3.3-RELEASE",
-          "observed_PR_cache": "Initial miss and successful save recorded; default-branch fill and a subsequent cache hit still need separate evidence.",
+          "observed_PR_cache": "Initial PR69 fill and subsequent main fill are verified. The obsolete merged-PR duplicate is removed after main verification.",
           "bottleneck_run": 41486628199,
           "bottleneck_download_seconds_approx": 897,
           "bottleneck_install_seconds_approx": 48,
-          "measurement_limit": "The cancelled run demonstrates a slow Swift download, not slow application compilation or every historical CI delay. Faster download on a later miss does not prove cache speedup."
-        },
-        "active_windows_full_integration": {
-          "run": 41491062151,
-          "head": "48b872aea3fd6ce24a90469a3e912787b67469b1",
-          "scope": "Windows-only full native/installed UI, actual input, real models and installation",
-          "status": "Debug_actual_input78_and_nativeIME7_pass_full_acceptance_in_progress",
-          "proof_limit": "Early input evidence is not complete installed/model acceptance. Existing full Linux evidence remains separately scoped; this does not claim the entire Linux and Windows commit trees are identical."
+          "measurement_limit": "The cancelled run demonstrates a slow Swift download, not slow application compilation or every historical CI delay. Faster download on a later miss does not prove cache speedup.",
+          "main_cache_id": 9892391755,
+          "main_cache_bytes": 1759135540,
+          "obsolete_PR_cache_removed": {
+            "id": 9891741970,
+            "freed_bytes": 1759135539,
+            "scope": "Merged PR69 only; same-key main cache revalidated and preserved."
+          },
+          "release_build_timing": {
+            "this_full_run_seconds": 221,
+            "earlier_full_reference_seconds": 1416,
+            "meaning": "Observed phase durations on different hosted runs, not a controlled performance benchmark."
+          }
         },
         "latest_credential_core_acceptance": {
           "run": 41489198405,
@@ -1283,12 +1296,50 @@
         },
         "windows_client_native_reference": {
           "branch": "codex/windows-client-input-reference",
-          "status": "implemented_manual_reference_native_execution_pending",
+          "status": "profile_only_probe_and_durable_receipt_implemented_native_confirmation_pending",
           "host": "windows-11-arm",
           "reference": "https://docs.github.com/en/actions/reference/runners/github-hosted-runners",
           "scope": "Explicit manual native reference jobs may select the hosted Windows11 Arm desktop with the existing8-minute bound. Default remains windows-2022; normal PR/push application matrix and all app/model/full validation scopes remain unchanged. The expression maps only the explicit manual windows-11-arm choice to that fixed label; other values fall back to Windows Server, never a supplied arbitrary/self-hosted label.",
           "inventory": "Read OS caption, workstation/server product type, OS architecture and current process architecture in the private environment receipt, alongside build/input/display inventory. No clipboard, input, display change or restart in inventory.",
-          "acceptance": "Reuse the unchanged owned-target native editor/foreground guard, physical scan-code preedit/Escape/Space/number selection and language-switch tests. Exact existing expected text/assertions stay strict; the client provider must actually pass them. No GTK application, x64 client, physical hardware, mixed-display or suspend claim is made by a reference-only pass."
+          "acceptance": "Reuse the unchanged owned-target native editor/foreground guard, physical scan-code preedit/Escape/Space/number selection and language-switch tests. Exact existing expected text/assertions stay strict; the client provider must actually pass them. No GTK application, x64 client, physical hardware, mixed-display or suspend claim is made by a reference-only pass.",
+          "first_run": 41496748731,
+          "first_head": "fa7f70a54353944bae8ebdae4d5103e045864e31",
+          "first_result": "Provisioning step times out before native input; finally-only reporting leaves no receipt and artifact upload reports no files. No client IME pass is claimed.",
+          "repair": "Persist content-free OS/preparation phase before potentially blocking capability operations. Explicit Windows11 client reference prepares only the user input profile, reports language capabilities as not queried and leaves provisioningComplete false. Server application preparation retains strict installed-capability readiness. Only the unchanged separate native IME receipt can prove actual preedit/selection.",
+          "regression": "Five pure actual-statement/provider cases: hard-killed query/install retain the prior receipt; explicit client profile configures without capability calls; server or non-prepare profile-only requests refuse without mutation. Before repair the killed-query case loses its report. Both PowerShell runtimes execute the regression before builds."
+        },
+        "previous_windows_full_followup": {
+          "run": 41433432627,
+          "tested_head": "7885862a271a36f2119aa12dd52a91ecfdd3f043",
+          "native_ui_checks": 182,
+          "installed_ui_checks": 210,
+          "installation_checks": 17,
+          "debug_keyboard_checks": 52,
+          "installed_keyboard_checks": 52,
+          "local_text_checks_per_configuration": 23,
+          "model_operations_checks_per_configuration": 16,
+          "file_pdf_checks_per_configuration": 21,
+          "status": "full_windows_job_passed_and_report_assertions_audited",
+          "physical_client": "not_verified"
+        },
+        "latest_feature_evidence": {
+          "status": "all_implemented_automated_components_verified_physical_gates_open",
+          "windows": {
+            "run": 41491062151,
+            "head": "48b872aea3fd6ce24a90469a3e912787b67469b1",
+            "reference": "windows_full_followup"
+          },
+          "linux": {
+            "run": 41475202168,
+            "head": "6ceedf366667ac90b80d3128a23be24b07682f64",
+            "reference": "linux_full_followup"
+          },
+          "core": {
+            "run": 41489198405,
+            "reviewed_head": "fd29fb2c2276a09bbc3c06d1fd4b49a567904b8a",
+            "main_tree_equal_at_merge": "48b872aea3fd6ce24a90469a3e912787b67469b1"
+          },
+          "scope": "Audited platform-specific complete reports and explicitly proven unchanged source components; not identical entire commit trees, physical/client acceptance, ICC fidelity or release approval."
         }
       }
     }

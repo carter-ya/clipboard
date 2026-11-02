@@ -1,4 +1,4 @@
-param([switch]$Prepare, [Parameter(Mandatory=$true)][string]$Output)
+param([switch]$Prepare, [switch]$ProfileOnly, [Parameter(Mandatory=$true)][string]$Output)
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:OS -ne 'Windows_NT') {
   throw 'input_environment_requires_owned_windows_actions_runner'
@@ -13,7 +13,8 @@ public static class ClipboardInputEnvironment {
 }
 '@
 $report = [ordered]@{
-  mode = $(if ($Prepare) { 'prepare' } else { 'inspect' });
+  mode = $(if ($ProfileOnly) { 'prepare_profile_only' } elseif ($Prepare) { 'prepare' } else { 'inspect' });
+  stage = 'starting';
   osBuild = [Environment]::OSVersion.Version.ToString();
   osCaption = $null; osProductType = $null; osArchitecture = $null;
   processArchitecture = $env:PROCESSOR_ARCHITECTURE;
@@ -24,6 +25,7 @@ $report = [ordered]@{
   remoteSession = [ClipboardInputEnvironment]::GetSystemMetrics(0x1000) -ne 0;
   basicTypingStateBefore = 'unknown'; basicTypingStateAfter = 'unknown'; restartNeeded = $false;
   chineseInputProfileCount = 0; inputLanguages = @(); provisioningComplete = $false;
+  profileConfigurationComplete = $false;
   imeCompositionPassed = $false; candidateSelectionPassed = $false;
   notes = @('Environment inventory/provisioning is not an IME composition or candidate test.',
     'This inventory/provisioning step does not send keys, access clipboard, sleep, change displays or restart.');
@@ -31,24 +33,40 @@ $report = [ordered]@{
 }
 $report.inputServices = @()
 $report.ctfMonitorRequested = $false
+function Write-EnvironmentReceipt([string]$Stage) {
+  $report.stage = $Stage
+  $report | ConvertTo-Json -Depth 4 | Out-File -Encoding UTF8 -LiteralPath $Output
+}
 try {
+  Write-EnvironmentReceipt 'read_operating_system'
   $operatingSystem = Get-CimInstance -ClassName Win32_OperatingSystem -Property Caption, ProductType, OSArchitecture
   $report.osCaption = [string]$operatingSystem.Caption
   $report.osProductType = [int]$operatingSystem.ProductType
   $report.osArchitecture = [string]$operatingSystem.OSArchitecture
-  $capabilityName = 'Language.Basic~~~zh-CN~0.0.1.0'
-  $capability = Get-WindowsCapability -Online -Name $capabilityName
-  if (!$capability -or $capability.Name -cne $capabilityName) { throw 'chinese_basic_typing_capability_unavailable' }
-  $report.basicTypingStateBefore = [string]$capability.State
-  if ($Prepare -and $capability.State -ne 'Installed') {
-    # This modifies only this disposable Actions VM. Never restart the runner.
-    # Server Chinese dictionaries require the basic typing FOD:
-    # https://learn.microsoft.com/en-us/troubleshoot/windows-server/setup-upgrade-and-drivers/chinese-ime-dictionaries-not-ready
-    $installation = Add-WindowsCapability -Online -Name $capabilityName
-    $report.restartNeeded = [bool]$installation.RestartNeeded
+  if ($ProfileOnly) {
+    if (!$Prepare -or $report.osProductType -ne 1) { throw 'profile_only_requires_explicit_client_preparation' }
+    $report.basicTypingStateBefore = 'not_queried_client_profile_only'
+    $report.basicTypingStateAfter = 'not_queried_client_profile_only'
+    $report.notes += 'Client profile-only preparation does not query or install language capabilities. Only the separate native IME receipt can prove candidate behavior.'
+  } else {
+    $capabilityName = 'Language.Basic~~~zh-CN~0.0.1.0'
+    Write-EnvironmentReceipt 'query_chinese_typing_capability'
+    $capability = Get-WindowsCapability -Online -Name $capabilityName
+    if (!$capability -or $capability.Name -cne $capabilityName) { throw 'chinese_basic_typing_capability_unavailable' }
+    $report.basicTypingStateBefore = [string]$capability.State
+    if ($Prepare -and $capability.State -ne 'Installed') {
+      # This modifies only this disposable Actions VM. Never restart the runner.
+      # Server Chinese dictionaries require the basic typing FOD:
+      # https://learn.microsoft.com/en-us/troubleshoot/windows-server/setup-upgrade-and-drivers/chinese-ime-dictionaries-not-ready
+      Write-EnvironmentReceipt 'install_chinese_typing_capability'
+      $installation = Add-WindowsCapability -Online -Name $capabilityName
+      $report.restartNeeded = [bool]$installation.RestartNeeded
+    }
+    Write-EnvironmentReceipt 'verify_chinese_typing_capability'
+    $report.basicTypingStateAfter = [string](Get-WindowsCapability -Online -Name $capabilityName).State
   }
-  $report.basicTypingStateAfter = [string](Get-WindowsCapability -Online -Name $capabilityName).State
-  if ($Prepare -and $report.basicTypingStateAfter -eq 'Installed' -and !$report.restartNeeded) {
+  if ($Prepare -and ($ProfileOnly -or ($report.basicTypingStateAfter -eq 'Installed' -and !$report.restartNeeded))) {
+    Write-EnvironmentReceipt 'configure_chinese_input_profile'
     $languages = Get-WinUserLanguageList
     if (!($languages | Where-Object { $_.LanguageTag -eq 'zh-CN' })) {
       $languages.Add('zh-CN')
@@ -61,11 +79,14 @@ try {
         if ($service.Status -ne 'Running') { Start-Service -Name $name }
       }
     }
-    $brokerPath = Join-Path ([Environment]::GetFolderPath('System')) 'ctfmon.exe'
-    if (Test-Path -LiteralPath $brokerPath -PathType Leaf) {
-      $broker = Start-Process -FilePath $brokerPath -PassThru
-      $report.ctfMonitorRequested = $true
-      $broker.Dispose()
+    $systemDirectory = [Environment]::GetFolderPath('System')
+    if ($systemDirectory) {
+      $brokerPath = Join-Path $systemDirectory 'ctfmon.exe'
+      if (Test-Path -LiteralPath $brokerPath -PathType Leaf) {
+        $broker = Start-Process -FilePath $brokerPath -PassThru
+        $report.ctfMonitorRequested = $true
+        $broker.Dispose()
+      }
     }
   }
   $languages = @(Get-WinUserLanguageList)
@@ -79,12 +100,15 @@ try {
     ForEach-Object { @{ name = $_.Name; state = [string]$_.Status; startup = [string]$_.StartType } })
   $report.provisioningComplete = $report.basicTypingStateAfter -eq 'Installed' -and
     !$report.restartNeeded -and $report.chineseInputProfileCount -gt 0
+  $report.profileConfigurationComplete = $report.chineseInputProfileCount -gt 0
 } catch {
   $report.errorType = $_.Exception.GetType().FullName
   $report.errorCode = $_.Exception.HResult
 } finally {
-  $report | ConvertTo-Json -Depth 4 | Out-File -Encoding UTF8 -LiteralPath $Output
+  $ready = if ($ProfileOnly) { $report.profileConfigurationComplete } else { $report.provisioningComplete }
+  $stage = if ($report.errorType) { 'failed' } elseif ($Prepare -and !$ready) { 'not_ready' } elseif ($ProfileOnly) { 'profile_only_complete' } else { 'complete' }
+  Write-EnvironmentReceipt $stage
 }
-if ($report.errorType -or ($Prepare -and !$report.provisioningComplete)) {
+if ($report.errorType -or ($Prepare -and !$ready)) {
   throw 'windows_input_environment_not_ready_see_content_free_report'
 }
