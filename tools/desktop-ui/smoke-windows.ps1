@@ -862,6 +862,7 @@ try {
   $primaryHistoryRoot = $historyRoot
   if ($LocalTextOnly -or $LocalFileModelsOnly -or $ModelOperationsOnly) { Initialize-LocalTextFixture }
   $launchArguments = @('--smoke-root', ('"' + $historyRoot + '"'))
+  if ($ChineseIme) { $launchArguments += '--smoke-ime-state' }
   if ($LocalTextOnly) { $launchArguments += '--smoke-local-text' }
   if ($ModelOperationsOnly) { $launchArguments += '--smoke-model-transfers' }
   if ($Baseline) { $launchArguments += '--ui-baseline' }

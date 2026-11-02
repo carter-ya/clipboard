@@ -117,7 +117,10 @@ struct HistoryView: View {
   func history(compact: Bool, compactFilters: Bool, imageHeight: Double) -> some View {
     VStack(alignment: .leading, spacing: 14) {
       TextField(model.t("Search history"), text: $model.query)
-        .inspect { model.attachSearch($0) }
+        .inspect {
+          model.attachSearch($0)
+          DesktopImeStateFixture.attach($0)
+        }
         .onSubmit {
           Task { @MainActor in
             guard let id = model.selectedID else { return }

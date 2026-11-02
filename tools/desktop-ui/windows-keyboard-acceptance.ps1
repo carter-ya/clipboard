@@ -190,7 +190,9 @@ function Invoke-WindowsChineseImeAcceptance($KeyboardPeer) {
   Invoke-WindowsKeyboardButton 'Back to history' $KeyboardPeer
   Wait-For { (Get-EditorWithValue '你号') -and (Get-Editor).Current.HasKeyboardFocus } 'ime_settings_returns_query_and_focus' | Out-Null
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x11, 0x41))
+  $imeSelection = Wait-WindowsNativeImeSelection '你号' 'ime_native_selection_after_settings'
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x27))
+  Wait-WindowsNativeImeCaret '你号' $imeSelection.sequence $imeSelection.current.entry 'ime_native_caret_after_settings'
   $KeyboardPeer.TypeLatinKeys($nativeWindowHandle, 'nihao')
   Wait-WindowsPinyinCandidates 'ime_complete_native_candidates_after_settings'
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x20))
@@ -205,7 +207,9 @@ function Invoke-WindowsChineseImeAcceptance($KeyboardPeer) {
   Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and
     (Get-EditorWithValue '你号你好') -and (Get-Editor).Current.HasKeyboardFocus } 'ime_hotkey_restores_query_and_focus' | Out-Null
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x11, 0x41))
+  $imeSelection = Wait-WindowsNativeImeSelection '你号你好' 'ime_native_selection_after_hotkey'
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x27))
+  Wait-WindowsNativeImeCaret '你号你好' $imeSelection.sequence $imeSelection.current.entry 'ime_native_caret_after_hotkey'
   $KeyboardPeer.TypeLatinKeys($nativeWindowHandle, 'nihao')
   Wait-WindowsPinyinCandidates 'ime_complete_native_candidates_after_hotkey'
   $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x20))
@@ -219,6 +223,28 @@ function Invoke-WindowsChineseImeAcceptance($KeyboardPeer) {
   $KeyboardPeer.TypeAscii($nativeWindowHandle, 'a')
   Wait-For { Get-EditorWithValue '你号你好你好a' } 'ime_english_input_after_chinese' | Out-Null
   Add-Check 'actual_english_input_resumes_after_pinyin' $true
+}
+
+function Wait-WindowsNativeImeSelection([string]$Query, [string]$Stage) {
+  Wait-For {
+    $receipt = Read-SharedJson (Join-Path $historyRoot 'ime-state.json')
+    if ($receipt.current.entry -gt 0 -and $receipt.current.focused -and $receipt.current.mapped -and
+        $receipt.current.selected -and $receipt.current.start -eq 0 -and $receipt.current.end -eq $Query.Length -and
+        $receipt.current.characters -eq $Query.Length -and (Get-EditorWithValue $Query)) { return $receipt }
+    return $false
+  } $Stage
+}
+
+function Wait-WindowsNativeImeCaret([string]$Query, [int]$BeforeSequence, [int]$EntryID, [string]$Stage) {
+  Wait-For {
+    $receipt = Read-SharedJson (Join-Path $historyRoot 'ime-state.json')
+    $lastEvent = $receipt.events[-1]
+    $receipt.sequence -gt $BeforeSequence -and $receipt.current.entry -eq $EntryID -and
+      $lastEvent.entry -eq $EntryID -and $lastEvent.event -in @('cursor', 'selection') -and
+      $receipt.current.focused -and $receipt.current.mapped -and !$receipt.current.selected -and
+      $receipt.current.characters -eq $Query.Length -and $receipt.current.cursor -eq $Query.Length -and
+      (Get-EditorWithValue $Query)
+  } $Stage | Out-Null
 }
 
 function Get-WindowsPinyinHost {

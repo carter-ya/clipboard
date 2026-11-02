@@ -237,6 +237,8 @@ jobs:
           }
       - name: Verify content validation follows queued saves
         run: python tools/desktop-ui/test-content-validation-order.py
+      - name: Verify native input state is restricted to the owned Windows fixture
+        run: python tools/desktop-ui/test-ime-state-guard.py
       - name: Build Desktop UI
         shell: pwsh
         run: |

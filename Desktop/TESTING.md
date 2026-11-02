@@ -76,6 +76,13 @@ only real language/mode shortcuts and Latin key events change input.
 Post-focus append checks establish the insertion point with actual Ctrl+A/Right,
 validated independently in the owned native Pinyin editor. Native candidate
 buttons must contain the complete expected pair before selection keys.
+The private Windows Actions profile also enables a read-only native GTK state
+receipt. Ctrl+A must establish the actual full selection; Right must then
+produce a fresh collapsed end position on that same mapped, focused editor
+before the script begins another composition. The receipt contains only
+lengths, numeric widget identities, selection/cursor offsets and booleans.
+It never sets text, selection or focus, and normal profiles/platforms cannot
+enable it. The authorization function is exercised in 96 compiled cases.
 
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
