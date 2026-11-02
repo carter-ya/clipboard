@@ -16,11 +16,11 @@ function Invoke-WindowsBrowserAcceptance($AppKeys) {
     $browser = New-WindowsOwnedBrowser
     $sourceHashes = @{}
     foreach ($path in $browser.native.Files) { $sourceHashes[$path] = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
-    foreach ($format in @('text', 'html', 'image', 'files')) {
+    foreach ($format in @('text', 'html', 'image', 'files', 'jpeg', 'tiff')) {
       $fixture = switch ($format) {
         'text' { @{ query = 'fixture'; preview = $browser.native.PlainText; kind = 'text' } }
         'html' { @{ query = 'rich'; preview = $browser.native.HtmlText; kind = 'text' } }
-        'image' { @{ query = '<image>'; preview = '<image>'; kind = 'image' } }
+        { $_ -in @('image', 'jpeg', 'tiff') } { @{ query = '<image>'; preview = '<image>'; kind = 'image' } }
         'files' { @{ query = 'alpha'; preview = [IO.Path]::GetFileName($browser.native.Files[0]); kind = 'file' } }
       }
       $stage = 'capture_' + $format
@@ -35,6 +35,10 @@ function Invoke-WindowsBrowserAcceptance($AppKeys) {
       if ($format -eq 'html') {
         Wait-BrowserCondition { $browser.native.HtmlFixtureMatches() } 'browser_app_source_has_exact_native_utf8_html' | Out-Null
         Add-Check 'browser_app_independent_writer_has_exact_native_utf8_html' $true
+      }
+      if ($format -in @('jpeg', 'tiff')) {
+        Wait-BrowserCondition { $browser.native.EncodedImageMatches($format) } ('browser_app_source_has_exact_native_' + $format) | Out-Null
+        Add-Check ('browser_app_independent_writer_has_exact_native_' + $format) $true
       }
       $browserRecord = Wait-For {
         $matches = @(Get-LocalTextRecords | Where-Object {
@@ -62,6 +66,10 @@ function Invoke-WindowsBrowserAcceptance($AppKeys) {
       Wait-For { ![PreviewNative]::IsWindowVisible($nativeWindowHandle) -and
         [PreviewNative]::GetClipboardSequenceNumber() -ne $copyRevision -and
         (Get-LocalTextRecords)[0].id -ieq $browserRecord.id } ('browser_app_enter_copies_and_promotes_' + $format) | Out-Null
+      if ($format -in @('jpeg', 'tiff')) {
+        Wait-BrowserCondition { $browser.native.EncodedImageMatches($format) } ('browser_app_copied_exact_native_' + $format) | Out-Null
+        Add-Check ('browser_app_copied_original_native_' + $format + '_bytes_unchanged') $true
+      }
       $empty = Get-WindowsBrowserSnapshot $browser
       Add-Check ('browser_app_copy_never_automatically_pastes_' + $format) (
         @($empty.receipts).Count -eq 0 -and $empty.content -ceq '' -and !$empty.image)
@@ -79,6 +87,16 @@ function Invoke-WindowsBrowserAcceptance($AppKeys) {
       $browser.keys.Chord($browser.window, [UInt16[]]@(0x11, 0x12, 0x56))
       Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and
         (Get-Editor).Current.HasKeyboardFocus -and (Get-EditorWithValue $fixture.query) } ('browser_app_returns_after_paste_' + $format) | Out-Null
+      if ($format -in @('image', 'jpeg', 'tiff')) {
+        # Every image has the public <image> preview. Remove only this known
+        # synthetic record through the visible control so the next format must
+        # become the sole matching record and cannot reuse an earlier image.
+        $stage = 'remove_owned_image_' + $format
+        Wait-For { (Find-Named '1 items') -and (Get-LocalTextRecord $browserRecord.id) } ('browser_app_owned_image_selected_' + $format) | Out-Null
+        Invoke-Button 'Delete'
+        Wait-For { (Find-Named '0 items') -and !(Get-LocalTextRecord $browserRecord.id) } ('browser_app_owned_image_removed_' + $format) | Out-Null
+        Add-Check ('browser_app_removes_only_completed_owned_image_' + $format) $true
+      }
     }
     $sourcesUnchanged = $true
     foreach ($path in $browser.native.Files) {

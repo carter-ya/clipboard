@@ -381,8 +381,18 @@ the original native JPEG/TIFF bytes still present. The receipt distinguishes
 retained native originals from Chrome's converted PNG; it does not claim that
 Chrome exposes the original encoded file. Existing PNG checks still require
 exact original encoded PNG bytes and transparency. This reference extension is
-pending native execution; actual product JPEG/TIFF capture/copy/paste, orientation
-and color-profile fidelity remain separate, unverified gates.
+proven in native run 41453519072 at c13e5cd, with all 17 assertions passing.
+
+The application browser mode also requires JPEG/TIFF through actual native
+capture, a new persisted history ID, pause, hidden-window hotkey restoration,
+Enter copy/promotion and explicit trusted Ctrl+V. Exact encoded source and copied
+native bytes are checked separately from converted browser raster pixels. The
+receiver must stay empty until explicit paste and its paste must not change the
+clipboard revision. Every completed synthetic image record is removed through
+the real Delete control, with exact ID removal and zero matching image rows,
+so subsequent formats cannot pass by reusing a prior image. Existing PNG byte
+and transparency requirements remain. This application extension is pending
+Debug/installed execution; orientation and color-profile fidelity remain open.
 
 ## Implementation history
 

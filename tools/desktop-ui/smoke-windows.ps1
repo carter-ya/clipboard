@@ -2999,7 +2999,7 @@ try {
       $(if ($ChineseIme) { 'Actual Pinyin cancel/commit/selection and focus handoffs in GTK; native preedit is verified separately in the owned editor.' }
         else { 'Chinese Unicode input does not verify an IME candidate/composition session.' }),
       $(if ($RtfPaste) { 'Actual product-to-RichEdit RTF paste is required; Office and physical client acceptance remain unverified.' } else { 'Product-to-RichEdit RTF paste is not verified in this scope.' }),
-      $(if ($BrowserPaste) { 'Actual product-to-Chrome text/HTML/PNG/files paste is required; other applications, physical client input, mixed-monitor DPI and real suspend/resume remain unverified.' }
+      $(if ($BrowserPaste) { 'Actual product-to-Chrome text/HTML/PNG/JPEG/TIFF/files paste is required; JPEG/TIFF native encoded bytes and browser-converted raster pixels are verified separately. Other applications, physical client input, mixed-monitor DPI and real suspend/resume remain unverified.' }
         else { 'Mixed-monitor DPI, real suspend/resume, rich-format paste and applications other than the tested recipients remain unverified.' }))
   } else {
     @('Native accessibility value/invoke operations and an owned CI-only mouse activation fixture; no keyboard injection in this mode.',
