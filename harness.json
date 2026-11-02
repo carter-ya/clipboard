@@ -1075,7 +1075,7 @@
           "windows_bitmap_followup": {
             "branch": "codex/windows-image-orientation-parity",
             "base": "main6ceedf3",
-            "status": "defect_reproduced_fix_pending_native_confirmation",
+            "status": "native_adapter_verified_review_and_product_CI_pending",
             "evidence": "All original24 adapter assertions, independent GDI metadata and cleanup pass. Rotation geometry and TIFF reflected/rotated pixel permutations fail38 assertions in the real Windows adapter.",
             "regression": "240 actual C-adapter assertions retain the original24 and add absent/all8 JPEG/TIFF orientation values in ordinary/sensitive modes. Independent GDI+ validates metadata; TIFF has6 colors with independent coordinate permutations; JPEG geometry uses unchanged uniform reference. Original encoded bytes, no duplicate roundtrip and sensitivity stay hard assertions.",
             "scope": "Reference-only Windows Actions images mode, no Swift/app/model build. ICC profiles remain separately unverified.",
@@ -1088,7 +1088,14 @@
               "https://learn.microsoft.com/en-us/windows/desktop/wic/-wic-native-image-format-metadata-queries",
               "https://learn.microsoft.com/en-us/windows/win32/api/wincodec/nf-wincodec-iwicbitmapfliprotator-initialize",
               "https://learn.microsoft.com/en-us/windows/win32/api/wincodec/ne-wincodec-wicbitmaptransformoptions"
-            ]
+            ],
+            "after_run": 41477837636,
+            "after_head": "5898859637931ecc31afa176370ec347b3f75e0c",
+            "after_assertions": 245,
+            "after_failed": 0,
+            "artifact_audit": "245 unique passing assertions downloaded and checked; all absent/orientations1..8 in ordinary/sensitive modes",
+            "linux_unchanged": "Preprocessed actual Linux C adapter is byte-identical before/after, SHA256223973c767ca09e483b128ac70997489a7b23425e45a2aee7b5fe258317a78f5; both GNU C syntax checks pass with the same baseline warning policy.",
+            "remaining": "Exact-head review and ordinary Mac/Windows/Linux CI; final installed Windows/browser confirmation. ICC profile fidelity stays separate."
           }
         },
         "latest_main_integration": {

@@ -714,3 +714,11 @@ Transpose/transverse ordering is explicit; original encoded payloads, optional
 fallback behavior and encoded/pixel bounds remain intact. Native confirmation
 is required before accepting the repair. The Windows Pinyin failure in main
 integration41475202168 remains a separate unresolved gate.
+
+The repaired actual Windows adapter now passes all245 unique native assertions
+in41477837636 at5898859; the downloaded report is audited. Every orientation
+value retains original encoded bytes and sensitivity, and TIFF geometry/pixel
+permutations match the independent reference. The preprocessed Linux adapter
+is byte-identical before/after, and both Linux GNU C syntax checks pass. This
+closes the native bitmap-transform defect; ordinary platform/UI review and
+installed product/browser confirmation remain required. No ICC claim is made.
