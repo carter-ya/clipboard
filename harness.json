@@ -1,7 +1,7 @@
 {
   "$schema_version": "1.0",
   "document_purpose": "Clipboard 项目的唯一权威文档。任何代理或开发者在提议改动前都必须先读这份文件。若代码与本文档不一致，必须在同一次提交中一并更新本文档——不得让两者静默分叉。",
-  "last_updated": "2026-11-01",
+  "last_updated": "2026-11-02",
   "project": {
     "name": "Clipboard",
     "one_liner": "macOS 的 Alfred 风格剪贴板历史——常驻菜单栏，支持全局快捷键、快速搜索；选中条目会写回系统剪贴板（由用户手动 Cmd+V 粘贴）。",
@@ -150,7 +150,15 @@
           "Windows run 41158346907 successfully builds the optimized GUI binary, complete DLL closure and Inno installer. Installation fixture stops before installation because Get-ItemPropertyValue treats an expected absent startup value as a terminating provider error; nullable registry-key reads repair all three absence checks. CI now saves successful optimized builds before installation checks so future fixture retries retain compiled dependencies. Native installed acceptance remains required.",
           "Installed Windows run 41161210730 passes per-user installation and running-app upgrade/uninstall guards. The first repeated Hide targets a retired header node (672): whole-header compact/wide branches replace live action widgets after zero-size hidden geometry. A stable header container now preserves the actions subtree; native widget identity through resize and installed repeated-lifecycle checks remain hard gates.",
           "The header repair passes eight native layout/control checks at both 100% and 200% scaling in isolated Linux arm64 displays. The old binary fails the same preserved-header-object check, confirming the regression catches widget replacement; the installed Windows twenty-cycle probe remains enabled."
-        ]
+        ],
+        "final_automated_acceptance": {
+          "run": 41379565901,
+          "windows_package_checks": 17,
+          "windows_installed_ui_checks": 210,
+          "linux_installation_checks": 15,
+          "linux_installed_ui_checks": 211,
+          "scope": "Native installed runtime, integrity, upgrade/uninstall and bounded lifecycle only; physical/client and extended-session gates keep CP8 in_progress."
+        }
       }
     ],
     "completion_rule": "A created PR or passing build is not functional completion. Each layer retains implementation and verification evidence. The human authorized merging review-clean stack PRs after relevant checks pass; recheck the exact head and unresolved discussions before every merge. Keep unverified physical/runtime gates open. No public release is implied.",
@@ -195,135 +203,235 @@
           "id": "CP9",
           "branch": "codex/cross-platform-history-parity",
           "scope": "Immediate history promotion after successful native Copy",
-          "status": "in_progress",
+          "status": "verified",
           "implemented": "A successful native copy immediately bumps the item to the top and flushes/refreshes even with capture paused; failures do not promote. Windows and Linux native UI fixtures now copy an older filtered item and require new persisted ordering plus independent clipboard readback.",
-          "remaining": [
-            "Final native Windows acceptance of selection/reset and activation follow-ups",
-            "Physical keyboard/IME/hotkey focus and mixed-DPI acceptance in Desktop/TESTING.md"
-          ],
-          "validation": "Optimized Linux arm64 app builds; all 34 native UI checks passed, including the older-item copy promotion regression, native text/image/file readback, OCR, language/theme, settings and hide/reopen. Windows script syntax passes; real Windows runtime and final platform CI are pending."
+          "remaining": [],
+          "validation": "Optimized Linux arm64 app builds; all 34 native UI checks passed, including the older-item copy promotion regression, native text/image/file readback, OCR, language/theme, settings and hide/reopen. Windows script syntax passes; real Windows runtime and final platform CI are pending.",
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.component_audit.checks.CP9"
+          },
+          "external_gates": [
+            "Physical/client input and desktop permissions, mixed-monitor DPI, common-application format fidelity, real suspend/long sessions and interactive upgrade remain tracked in CP13 and Desktop/TESTING.md."
+          ]
         },
         {
           "id": "CP9_history_selection",
           "branch": "codex/cross-platform-history-selection",
           "scope": "Fresh history presentation, filter selection and neighboring deletion",
-          "status": "in_progress",
+          "status": "verified",
           "implemented": "History presentation clears the transient kind and selects the first matching row while preserving query, tab and source filters. Changing tabs clears the kind; changing kinds selects the first visible row. Repeating an already active filter does not disturb selection. Deleting the selected row prefers the next visible neighbor, then the previous when deleting the last row. Sensitive preview revocation still follows selection.",
           "validation": "A new isolated native Linux profile reproduces the stale reopened selection on the previous build via independent original-content Copy readback. The fixed optimized build passes all nine focused checks, covering reopen, kind/tab reset, middle/last deletion, real fresh clipboard ownership and clean quit. Windows script syntax/native helper compilation pass. All 128 complete native Linux UI/privacy checks now pass, including inherited file, analysis, archive and sensitive-preview gates. Hosted Windows/installed checks remain pending. Exact Windows 4eac8ab CI 41233371958 reaches selection_query_one_item while the private screenshot correctly shows Selection E and one item. PowerShell dynamic scoping resolves the predicate caller's $Name to the wait helper's diagnostic $Name instead. Rename only the wait diagnostic parameter, retaining every predicate and deadline. A regression extracts the actual wait/selection functions and invokes them with private controls: the prior helper fails immediately, and the correction passes both query selections without sleeping. Hosted native confirmation remains required.",
-          "remaining": [
-            "Physical keyboard/IME acceptance remains open; native row activation is tracked in CP9_history_activation."
+          "remaining": [],
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.component_audit.checks.CP9_history_selection"
+          },
+          "external_gates": [
+            "Physical/client input and desktop permissions, mixed-monitor DPI, common-application format fidelity, real suspend/long sessions and interactive upgrade remain tracked in CP13 and Desktop/TESTING.md."
           ]
         },
         {
           "id": "CP9_history_activation",
           "branch": "codex/cross-platform-history-activation",
           "scope": "Native history row activation copies the original and dismisses its successful presentation",
-          "status": "in_progress",
+          "status": "verified",
           "implemented": "GTK row-activated handles actual single-click and native keyboard activation while leaving row selection intact. The current rendered order is captured after native List updates so a delayed row index cannot copy a differently ordered item. Search-entry activation shares the same path. Success uses the actual copy outcome, promotes/flushes through the existing store, and hides only when the existing shell can reopen the window. Failure retains the window and error. Core presentation epochs and duplicate suppression prevent a late copy closing a newer page/session; hide, history/preferences handoff and shutdown invalidate dismissal. No application keyboard or paste synthesis is introduced. History input and item actions are temporarily disabled during the owned activation copy, while Hide/Settings remain reachable; completion additionally checks the selected item and query/tab/kind/source context before dismissal.",
           "validation": "All 253 Linux Core tests, two focused Mac activation-state tests, strict Core/App/Desktop lint and the existing Mac application Debug build pass. The previous binary fails the actual mouse-click/clipboard-ownership regression. The frozen optimized candidate passes all 14 focused and all 159 complete native Linux UI/privacy checks. A real native selection query proves another row is selected before clicking an older item; full independent clipboard readback, immediate persisted promotion, retained query and a second activation after row reordering all pass. Filter-driven selection neither copies nor hides. A private unsupported-payload item exercises real copy failure while retaining the visible error/window and original timestamp; its actual render is inspected. Both 100%/200% layout suites pass all eight checks. Offline runtime-only installation passes eight installation/upgrade/uninstall/integrity gates and all 189 complete installed UI/lifecycle checks without a Swift SDK or network. Windows probe syntax/native mouse helper definitions pass; exact-head hosted Windows remains required. No physical keyboard/IME/focus acceptance is claimed. Exact Windows 63ad67f passes all preceding controls but fails activation_native_preview_selection in 41228936342. The fixture waited only for an unchanged one-item count when replacing Welcome with Release, then immediately changed the query again. Require the actual Release row and native selected state before the second query, retaining the final two-row native selection proof and all clipboard/order/hide assertions. This is a fixture-order repair pending native confirmation. Exact 094f1ec Codex review identifies the same unchanged-count race in the Linux fixture. Move the existing native Selection-interface proof before the second query too; retain both pre-query and final two-row selected-state checks and all pointer/native-copy/hide/promotion assertions. No product behavior or timeout is changed. The tightened fixture passes all 14 actual native activation checks both against the optimized SDK build and the final packaged executable in a separate runtime-only, offline container. The stronger pre-query selected-row proof passes without changing any deadline or production code. Native Windows 6d83eec/ca13139 CI passes the first actual click, complete original readback, promotion and hide, but the second presentation fails to produce a new clipboard revision. Strengthen pointer readiness: require stable current row bounds, actual UI Automation point-hit identity and a separate OS single-click interval before SendInput. Retain all original copy/hide/promotion assertions and deadlines, and record only bounded geometry/identity booleans for the synthetic profile. This is acceptance/diagnostic work; a product fix or native Windows pass is not yet claimed.",
-          "remaining": [
-            "Physical keyboard/IME/focus delivery remains an interactive gate; native key bindings are wired but no keyboard input is synthesized in tests."
+          "remaining": [],
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.component_audit.checks.CP9_history_activation"
+          },
+          "external_gates": [
+            "Physical/client input and desktop permissions, mixed-monitor DPI, common-application format fidelity, real suspend/long sessions and interactive upgrade remain tracked in CP13 and Desktop/TESTING.md."
           ]
         },
         {
           "id": "CP9_history_metadata",
           "branch": "codex/cross-platform-history-metadata",
           "scope": "Readable history metadata, bounded image-result rows and decoded file names",
-          "status": "in_progress",
+          "status": "verified",
           "implemented": "Display-only batches provide localized capture dates, bounded readable native source labels and image analysis snippets without mutating original records. One off-main formatter per batch and refresh epochs reject cancelled/stale results. Preview shows recorded byte size and capture time. File previews show decoded individual names plus total reference count, at most 128 entries and 64 KiB; truncated lists explain that Copy retains all original references. Parsing copied URLs never opens or stats referenced files. File counts and names share existing preview generation/reveal revocation. Seven-language messages ship in the shared catalog.",
           "validation": "All 259 Linux Core tests and six focused macOS metadata tests pass. The previous optimized package fails the image-row result assertion; the new candidate passes all seven focused native checks, including readable source/time/size, Unicode file names/count, nonexistent target files, complete independent URI-list Copy and unchanged preview/source/payload records. Actual image/file renders inspected; file names render as individual rows so the second line is visible. Both 100% and 200% layout suites pass all eight checks. Windows probe parser and native CF_HDROP readback helper compile; complete final native/installed Linux and exact-head hosted Windows remain pending. The corrected complete native optimized Linux suite passes all 166 checks. Final frozen source includes the reviewed synchronous permission-revocation repair and again passes all 259 Core tests and optimized build, including six real PDF decoder checks. The final frozen binary again passes all 166 complete native Linux UI/privacy checks. Offline runtime-only validation now passes all eight installation/upgrade/uninstall/integrity gates and all 196 installed native UI/lifecycle checks, without a Swift SDK or network. The final product source tree exactly matches the frozen tested build. Exact-head f665b0b Codex review completes without findings; hosted Windows remains pending.",
-          "remaining": [
-            "Exact-head Windows native/installed confirmation and physical desktop acceptance remain required."
+          "remaining": [],
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.component_audit.checks.CP9_history_metadata"
+          },
+          "external_gates": [
+            "Physical/client input and desktop permissions, mixed-monitor DPI, common-application format fidelity, real suspend/long sessions and interactive upgrade remain tracked in CP13 and Desktop/TESTING.md."
           ]
         },
         {
           "id": "CP9_text_preview",
           "branch": "codex/cross-platform-text-preview",
           "scope": "Bounded plain-text previews with visible truncation and full-content Copy",
-          "status": "in_progress",
+          "status": "verified",
           "implemented": "Plain UTF-8 text uses the Mac 64 KiB display budget instead of silently truncating at 8000 characters. Truncation ends on a Unicode scalar boundary and shows an English/Chinese notice; native Copy resolves the original complete payload. Rich-only HTML/RTF parser limits and sensitive reveal remain separate work.",
-          "validation": "Linux arm64: optimized app build, all 170 Core tests including UTF-8 boundary cases, and all 36 native UI checks passed. The native fixture captures long Chinese/emoji text, verifies the visible truncation notice, then independently reads back every original byte after Copy. Windows script syntax passes; native Windows CI remains pending."
+          "validation": "Linux arm64: optimized app build, all 170 Core tests including UTF-8 boundary cases, and all 36 native UI checks passed. The native fixture captures long Chinese/emoji text, verifies the visible truncation notice, then independently reads back every original byte after Copy. Windows script syntax passes; native Windows CI remains pending.",
+          "remaining": [],
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.component_audit.checks.CP9_text_preview"
+          },
+          "external_gates": [
+            "Physical/client input and desktop permissions, mixed-monitor DPI, common-application format fidelity, real suspend/long sessions and interactive upgrade remain tracked in CP13 and Desktop/TESTING.md."
+          ]
         },
         {
           "id": "CP9_sensitive_preview",
           "branch": "codex/cross-platform-sensitive-preview",
           "scope": "Explicit in-memory reveal of sensitive text and images for one presentation",
-          "status": "in_progress",
+          "status": "verified",
           "implemented": "Sensitive previews stay masked until the user selects Reveal for this session. Selection changes, settings handoff, native GTK unmap and shutdown revoke the reveal. Generation checks reject late asynchronous results, and their load cache is invalidated too. Sensitive decoding has no blob root and uses memory-only image loading; the sensitive flag and AI/OCR gates remain intact. Synthetic text/image injection requires both --smoke-root and --smoke-sensitive. Sensitive-phase probes suppress content diagnostics and screenshots.",
-          "validation": "Linux arm64: optimized app, all 51 native UI checks, and all 8 layout checks at each of scale 1/2 pass. Windows diagnostic run 41173176463 reproduces a changed Text-filter accessibility identity across one hide/reopen; outer bounds remain 988x669 and sensitive content stays masked. A candidate fix takes responsive breakpoints from the mapped GTK allocation and retains that width while hidden; transient GeometryReader measurement proposals no longer choose those branches. GeometryReader still owns frame constraints. Exact-head Windows validation is pending; no Windows fix is accepted yet. Head 7bd0600 now passes both native UI jobs including optimized packaging and installed-runtime verification in run 41174829125; exact-head Codex review is clean."
+          "validation": "Linux arm64: optimized app, all 51 native UI checks, and all 8 layout checks at each of scale 1/2 pass. Windows diagnostic run 41173176463 reproduces a changed Text-filter accessibility identity across one hide/reopen; outer bounds remain 988x669 and sensitive content stays masked. A candidate fix takes responsive breakpoints from the mapped GTK allocation and retains that width while hidden; transient GeometryReader measurement proposals no longer choose those branches. GeometryReader still owns frame constraints. Exact-head Windows validation is pending; no Windows fix is accepted yet. Head 7bd0600 now passes both native UI jobs including optimized packaging and installed-runtime verification in run 41174829125; exact-head Codex review is clean.",
+          "remaining": [],
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.component_audit.checks.CP9_sensitive_preview"
+          },
+          "external_gates": [
+            "Physical/client input and desktop permissions, mixed-monitor DPI, common-application format fidelity, real suspend/long sessions and interactive upgrade remain tracked in CP13 and Desktop/TESTING.md."
+          ]
         },
         {
           "id": "CP9_history_counts",
           "branch": "codex/cross-platform-history-counts",
           "scope": "Query-wide tab counts, tab-scoped type counts and the legacy mixed filter",
-          "status": "in_progress",
+          "status": "verified",
           "implemented": "One portable projection computes All/Pinned totals from the query/source-matched snapshot, type counts within the active All/Pinned tab, and the final kind-filtered rows while preserving order. Desktop buttons retain their names, show fixed-width count badges, and expose the legacy Mixed kind. Type controls use a two-row layout below 1100 logical pixels.",
-          "validation": "Linux arm64: 174 Core tests and 54 native UI checks pass, including a persisted legacy mixed fixture, pinning it, empty pinned-kind results and query-scoped counts. Both display scale 1 and 2 pass all 8 compact/wide layout checks; the rendered count layout was inspected. Strict Swift formatting and Windows fixture syntax pass. Native Windows execution and the upstream PR12 hide/restore issue remain pending. The merged 0b7234d source passes all 56 native Linux checks, including both per-hide identity checks. Head 3f8e6b7 passes all three Core jobs in 41174928565 and both native UI/installation jobs in 41174928581; exact-head Codex review is clean."
+          "validation": "Linux arm64: 174 Core tests and 54 native UI checks pass, including a persisted legacy mixed fixture, pinning it, empty pinned-kind results and query-scoped counts. Both display scale 1 and 2 pass all 8 compact/wide layout checks; the rendered count layout was inspected. Strict Swift formatting and Windows fixture syntax pass. Native Windows execution and the upstream PR12 hide/restore issue remain pending. The merged 0b7234d source passes all 56 native Linux checks, including both per-hide identity checks. Head 3f8e6b7 passes all three Core jobs in 41174928565 and both native UI/installation jobs in 41174928581; exact-head Codex review is clean.",
+          "remaining": [],
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.component_audit.checks.CP9_history_counts"
+          },
+          "external_gates": [
+            "Physical/client input and desktop permissions, mixed-monitor DPI, common-application format fidelity, real suspend/long sessions and interactive upgrade remain tracked in CP13 and Desktop/TESTING.md."
+          ]
         },
         {
           "id": "CP9_rich_preview",
           "branch": "codex/cross-platform-rich-preview",
           "scope": "Visible truncation and 64 KiB plain rendering for rich-only payloads",
-          "status": "in_progress",
+          "status": "verified",
           "implemented": "HTML/RTF display previews expose truncation metadata, use the 64 KiB UTF-8 display budget, and report parser source/output-budget exhaustion. Rendering remains plain text without remote resources or embedded objects. Legacy row/analysis character limits and original Copy payloads stay intact. HTML parser output accounting is incremental.",
-          "validation": "Linux arm64: all 179 Core tests, all 61 native UI checks and all 8 layout checks at each of scale 1/2 pass. The prior Linux x86 head timed out on long RTF; a native Pango benchmark measured 3.816 seconds at width 300 and exceeded 45 seconds at width 1 for 65536 ASCII characters. The final native label bypasses zero-width full shaping, caches at most eight current-text width measurements, preserves multi-line ellipsizing and invalidates metrics on font/context/scale changes. The pinned GtkWidgetRepresentable patch forwards current values to the surviving widget/coordinator. Native checkpoints require the exact complete display text and independent original-format Copy readback without extending the deadline. Exact-head Windows confirmation remains pending. Head 903bd03 passes all three Core jobs and the complete Windows UI/installer job. Linux development UI and Wayland checks pass; runtime-only installation run 41177482226 then reaches successful complete RTF Copy at 299 seconds and is stopped by the old 300-second suite-wide budget before remaining profile/sensitive checks. The expanded installer suite now has a 600-second total budget, preserving all per-action deadlines and assertions. Confirming installed-runtime validation is pending. Local Linux arm64 runtime-only confirmation now passes all 102 UI/lifecycle checks plus 8 install/upgrade/uninstall/integrity checks using the newer seven-language child build 40dba9a and an optimized independent peer. No Swift SDK or network is available, and all per-action deadlines remain unchanged. Exact-head x86 CI is still required. Linux head 7d6a28b passes the complete native/Wayland/optimized/runtime-only installation job. Windows dependency-resolution retry builds successfully but fails native UI; child b89aed9 artifacts confirm a successful Copy action followed by history.json.tmp move failure. Snapshot writes now use Foundation atomic replacement directly, and live Windows fixture reads permit delete sharing. A deterministic occupied-legacy-temp-path regression fails before the change and passes after it; all 183 Core tests pass on the newer localization child. Exact-head Windows confirmation remains required."
+          "validation": "Linux arm64: all 179 Core tests, all 61 native UI checks and all 8 layout checks at each of scale 1/2 pass. The prior Linux x86 head timed out on long RTF; a native Pango benchmark measured 3.816 seconds at width 300 and exceeded 45 seconds at width 1 for 65536 ASCII characters. The final native label bypasses zero-width full shaping, caches at most eight current-text width measurements, preserves multi-line ellipsizing and invalidates metrics on font/context/scale changes. The pinned GtkWidgetRepresentable patch forwards current values to the surviving widget/coordinator. Native checkpoints require the exact complete display text and independent original-format Copy readback without extending the deadline. Exact-head Windows confirmation remains pending. Head 903bd03 passes all three Core jobs and the complete Windows UI/installer job. Linux development UI and Wayland checks pass; runtime-only installation run 41177482226 then reaches successful complete RTF Copy at 299 seconds and is stopped by the old 300-second suite-wide budget before remaining profile/sensitive checks. The expanded installer suite now has a 600-second total budget, preserving all per-action deadlines and assertions. Confirming installed-runtime validation is pending. Local Linux arm64 runtime-only confirmation now passes all 102 UI/lifecycle checks plus 8 install/upgrade/uninstall/integrity checks using the newer seven-language child build 40dba9a and an optimized independent peer. No Swift SDK or network is available, and all per-action deadlines remain unchanged. Exact-head x86 CI is still required. Linux head 7d6a28b passes the complete native/Wayland/optimized/runtime-only installation job. Windows dependency-resolution retry builds successfully but fails native UI; child b89aed9 artifacts confirm a successful Copy action followed by history.json.tmp move failure. Snapshot writes now use Foundation atomic replacement directly, and live Windows fixture reads permit delete sharing. A deterministic occupied-legacy-temp-path regression fails before the change and passes after it; all 183 Core tests pass on the newer localization child. Exact-head Windows confirmation remains required.",
+          "remaining": [],
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.component_audit.checks.CP9_rich_preview"
+          },
+          "external_gates": [
+            "Physical/client input and desktop permissions, mixed-monitor DPI, common-application format fidelity, real suspend/long sessions and interactive upgrade remain tracked in CP13 and Desktop/TESTING.md."
+          ]
         },
         {
           "id": "CP9_image_peek",
           "branch": "codex/cross-platform-image-peek",
           "scope": "Bounded native hover image preview with selection/privacy cleanup",
-          "status": "in_progress",
+          "status": "verified",
           "implemented": "The selected image accepts native pointer hover and supplies a GTK custom tooltip from an in-memory image prepared off the UI actor, at most 600 logical pixels per edge. The main picture respects the layout proposal. Native GTK owns tooltip lifetime; surviving picture updates requery current content and release old texture data. Hidden/masked sensitive images have no anchor; no preview files or application timers are introduced. Original Copy payloads remain unchanged. The image anchor no longer has a fixed minimum height: a stable mapped native window-height budget bounds its maximum to 64–240 logical pixels, reserving search/filter/action/status rows. Hidden/measurement proposals retain the last mapped height. Source text stays on one line with the complete ID in native help.",
-          "validation": "All 208 Core tests passed for the hover implementation. The mapped-height candidate builds optimized Linux arm64 and passes all 91 full native UI/privacy checks plus all eight layout checks at each scale 1/2; the readable main image and 600-pixel hover render were inspected. Native Windows 8f3e16e showed an offscreen anchor; the candidate adds strict anchor visibility assertions before pointer movement. PowerShell syntax/native helper compilation pass. Exact-head Windows/native/installed confirmation remains pending; low-height/physical focus/IME/mixed-DPI audit stays open."
+          "validation": "All 208 Core tests passed for the hover implementation. The mapped-height candidate builds optimized Linux arm64 and passes all 91 full native UI/privacy checks plus all eight layout checks at each scale 1/2; the readable main image and 600-pixel hover render were inspected. Native Windows 8f3e16e showed an offscreen anchor; the candidate adds strict anchor visibility assertions before pointer movement. PowerShell syntax/native helper compilation pass. Exact-head Windows/native/installed confirmation remains pending; low-height/physical focus/IME/mixed-DPI audit stays open.",
+          "remaining": [],
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.component_audit.checks.CP9_image_peek"
+          },
+          "external_gates": [
+            "Physical/client input and desktop permissions, mixed-monitor DPI, common-application format fidelity, real suspend/long sessions and interactive upgrade remain tracked in CP13 and Desktop/TESTING.md."
+          ]
         },
         {
           "id": "CP10_localization",
           "branch": "codex/cross-platform-localization",
           "scope": "Seven desktop UI languages, system locale matching and native tray/menu localization",
-          "status": "in_progress",
+          "status": "verified",
           "implemented": "One portable locale resolver handles explicit Chinese script before region, supported-language preference order and English fallback. All seven bundled message catalogs cover the same UI/privacy/capability strings and numeric placeholders. Native Windows/Linux menus use stable seven-language indices, including a distinct traditional Chinese table. Language switches retain native editor identity/drafts and serialize settings without enabling remote AI or saving an endpoint draft. Only application-owned preview messages are localized; clipboard text and file paths stay literal.",
-          "validation": "Linux arm64: all 182 Core tests, 27 private DBus tray/menu checks and 72 native UI checks pass. Every additional language is switched through actual GTK controls with translated privacy notes, preserved endpoint-editor identity/draft, unchanged AI opt-out and an unsaved endpoint draft. German and traditional Chinese renders were inspected. Windows probe syntax passes. All 8 compact/wide layout checks pass at each of scale 1/2; exact-head Windows and installed-runtime confirmation remain pending. A private Linux arm64 install with no Swift SDK or network passes 102 native UI/lifecycle checks and 8 installation/upgrade/uninstall/integrity checks, including the seven-language resource bundle and original single-action deadlines. The expanded full installation suite uses the inherited 600-second total budget. Exact-head x86 Linux/Windows CI remains pending."
+          "validation": "Linux arm64: all 182 Core tests, 27 private DBus tray/menu checks and 72 native UI checks pass. Every additional language is switched through actual GTK controls with translated privacy notes, preserved endpoint-editor identity/draft, unchanged AI opt-out and an unsaved endpoint draft. German and traditional Chinese renders were inspected. Windows probe syntax passes. All 8 compact/wide layout checks pass at each of scale 1/2; exact-head Windows and installed-runtime confirmation remain pending. A private Linux arm64 install with no Swift SDK or network passes 102 native UI/lifecycle checks and 8 installation/upgrade/uninstall/integrity checks, including the seven-language resource bundle and original single-action deadlines. The expanded full installation suite uses the inherited 600-second total budget. Exact-head x86 Linux/Windows CI remains pending.",
+          "remaining": [],
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.component_audit.checks.CP10_localization"
+          },
+          "external_gates": [
+            "Physical/client input and desktop permissions, mixed-monitor DPI, common-application format fidelity, real suspend/long sessions and interactive upgrade remain tracked in CP13 and Desktop/TESTING.md."
+          ]
         },
         {
           "id": "CP10_startup_state",
           "branch": "codex/cross-platform-startup-state",
           "scope": "Refresh owned startup registration on native settings restoration and activation without rebuilding drafts",
-          "status": "in_progress",
+          "status": "verified",
           "implemented": "A main-actor state coordinator separates passive reads from explicit registration changes, rejects stale reads and duplicate writes, and ignores late shutdown completions. Native GTK map/activation signals refresh visible settings without polling. Private native fixtures use distinct identities and a nonexistent executable. OS policy overrides and ownership semantics remain separate follow-up work.",
-          "validation": "Exact head cc0a29a passes all three Core/application jobs in 41192495379 and both complete native UI/optimized/installed jobs in 41192495401; exact-head review is clean. The private Windows pointer fixture strictly verifies actual foreground transitions, passive registration refresh and preserved editor drafts. Physical focus/IME and actual OS startup approval remain separate gates."
+          "validation": "Exact head cc0a29a passes all three Core/application jobs in 41192495379 and both complete native UI/optimized/installed jobs in 41192495401; exact-head review is clean. The private Windows pointer fixture strictly verifies actual foreground transitions, passive registration refresh and preserved editor drafts. Physical focus/IME and actual OS startup approval remain separate gates.",
+          "remaining": [],
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.component_audit.checks.CP10_startup_state"
+          },
+          "external_gates": [
+            "Physical/client input and desktop permissions, mixed-monitor DPI, common-application format fidelity, real suspend/long sessions and interactive upgrade remain tracked in CP13 and Desktop/TESTING.md."
+          ]
         },
         {
           "id": "CP10_startup_ownership",
           "branch": "codex/cross-platform-startup-ownership",
           "scope": "Refuse conflicting per-user startup entries and expose OS policy limitations",
-          "status": "in_progress",
+          "status": "verified",
           "implemented": "Windows compares existing command/type before write or removal. Linux reads a bounded regular desktop entry, preserves other commands/symlinks/malformed entries, tolerates presentation changes and respects Hidden, GNOME disable, session lists and TryExec. Conflict and system policy guidance is localized in seven languages. Registration presence does not establish Windows Startup apps approval or Linux system-wide policy.",
-          "validation": "The native conflict regression fails before the fix (replacement, removal and foreign-entry preservation) and passes afterward. Linux arm64 passes 188 Core tests, 25 isolated native service checks and nine focused native startup UI checks; the earlier full UI run passes all 79 checks. Final conflict wording passes all nine focused native checks and all seven-language catalog tests. Real Windows and installed execution remain pending."
+          "validation": "The native conflict regression fails before the fix (replacement, removal and foreign-entry preservation) and passes afterward. Linux arm64 passes 188 Core tests, 25 isolated native service checks and nine focused native startup UI checks; the earlier full UI run passes all 79 checks. Final conflict wording passes all nine focused native checks and all seven-language catalog tests. Real Windows and installed execution remain pending.",
+          "remaining": [],
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.component_audit.checks.CP10_startup_ownership"
+          },
+          "external_gates": [
+            "Physical/client input and desktop permissions, mixed-monitor DPI, common-application format fidelity, real suspend/long sessions and interactive upgrade remain tracked in CP13 and Desktop/TESTING.md."
+          ]
         },
         {
           "id": "CP10",
           "scope": "Preferences and localization",
-          "status": "in_progress",
-          "remaining": [
-            "Final native Windows acceptance of the implemented fractional/large size policy",
-            "Physical OS startup approval/conflict guidance on real desktop sessions"
-          ],
+          "status": "verified",
+          "remaining": [],
           "source_filter_validation": {
             "branch": "codex/cross-platform-source-filter-case",
             "implemented": "Windows source filters compare custom rule spelling and observed IDs without case, preserving public rule spelling and Mac/Linux comparisons. The native Swift adapter already lowercases observed IDs; default lowercase rules were unaffected. Custom mixed-case rules now mark captured items sensitive and prevent persistence.",
-            "validation": "The custom-rule regression fails before the fix and all 205 Core tests pass afterward in isolated Linux arm64. Initial Windows source verification fails because the generic synthetic writer has a null HWND owner. A scenario-only native fixture now owns a message-only HWND and message loop, announces readiness with binary pipe output, and checks default/custom filtering plus memory-only storage. Exact-head Windows confirmation is pending."
+            "validation": "The custom-rule regression fails before the fix and all 205 Core tests pass afterward in isolated Linux arm64. Initial Windows source verification fails because the generic synthetic writer has a null HWND owner. A scenario-only native fixture now owns a message-only HWND and message loop, announces readiness with binary pipe output, and checks default/custom filtering plus memory-only storage. Exact-head Windows confirmation is pending.",
+            "final_automated_acceptance": {
+              "run": 41378794849,
+              "step": "Verify Windows source-filter privacy with an independent process",
+              "conclusion": "success",
+              "core_tree_matches_feature_reference": true
+            }
           },
           "size_filter_validation": {
             "branch": "codex/cross-platform-size-filter-disable",
             "implemented": "Zero disables the user item-size filter, including referenced file sizes, and round-trips in desktop settings. Native transfer buffers remain capped at 16 MiB and the limit is disclosed in all seven UI languages. Negative settings fail without replacing the saved zero value. Positive limits keep their previous behavior.",
-            "validation": "The regression fails before the fix; all 208 Core tests pass in isolated Linux arm64. Optimized Linux native UI passes all 88 checks, including zero save and invalid negative-value rejection. macOS passes 19 related settings/rich-clipboard/localization tests. Windows syntax/native helper definitions pass; exact-head Windows and installed-runtime execution remain pending."
+            "validation": "The regression fails before the fix; all 208 Core tests pass in isolated Linux arm64. Optimized Linux native UI passes all 88 checks, including zero save and invalid negative-value rejection. macOS passes 19 related settings/rich-clipboard/localization tests. Windows syntax/native helper definitions pass; exact-head Windows and installed-runtime execution remain pending.",
+            "final_automated_acceptance": {
+              "run": 41379565901,
+              "windows_and_linux_native_and_installed": "passed",
+              "checks": [
+                "native_fractional_size_threshold_roundtrips",
+                "native_size_policy_can_exceed_transfer_buffer_limit",
+                "native_settings_can_disable_size_filtering",
+                "invalid_size_does_not_replace_disabled_preference"
+              ]
+            }
           },
           "fractional_size_policy": {
             "branch": "codex/cross-platform-size-policy",
             "implemented": "A bounded exact decimal MiB parser and formatter preserve fractional saved thresholds, reject malformed/overflow and positive sub-byte inputs rather than disabling the filter, and accept nonnegative integer byte policies above 16 MiB. Referenced-file metadata uses the actual user threshold while native transfer buffers keep their independent 16 MiB cap. The UI and seven-language guidance support decimal thresholds and disclose the transfer limit.",
-            "validation": "The native Linux regression fails on the previous build at fractional_size_saved. A private 20 MiB file-reference regression also fails with the original 16 MiB policy clamp, then passes after separating policy from transport. All 241 Linux Core tests and 23 targeted Mac conversion/settings/monitor/localization tests pass, including exact byte/MiB roundtrips through Int.max, overflow/sub-byte refusal and 16-MiB-plus-one transfer refusal. Three focused native Linux checks pass for 0.5/32.5 MiB persistence and clean quit. Complete native and hosted Windows confirmation remain pending. All 133 final full native Linux UI/privacy checks pass, including fractional/large preference persistence, preserved editor identity, zero disablement and invalid negative refusal. Windows probe syntax/native definitions pass. The inherited Windows native archive-dialog stack overflow remains under investigation."
+            "validation": "The native Linux regression fails on the previous build at fractional_size_saved. A private 20 MiB file-reference regression also fails with the original 16 MiB policy clamp, then passes after separating policy from transport. All 241 Linux Core tests and 23 targeted Mac conversion/settings/monitor/localization tests pass, including exact byte/MiB roundtrips through Int.max, overflow/sub-byte refusal and 16-MiB-plus-one transfer refusal. Three focused native Linux checks pass for 0.5/32.5 MiB persistence and clean quit. Complete native and hosted Windows confirmation remain pending. All 133 final full native Linux UI/privacy checks pass, including fractional/large preference persistence, preserved editor identity, zero disablement and invalid negative refusal. Windows probe syntax/native definitions pass. The inherited Windows native archive-dialog stack overflow remains under investigation.",
+            "final_automated_acceptance": {
+              "run": 41379565901,
+              "windows_and_linux_native_and_installed": "passed",
+              "checks": [
+                "native_fractional_size_threshold_roundtrips",
+                "native_size_policy_can_exceed_transfer_buffer_limit",
+                "native_settings_can_disable_size_filtering",
+                "invalid_size_does_not_replace_disabled_preference"
+              ]
+            }
           },
-          "filter_choice_audit": "Compared App/HistoryPanelView.swift, HistoryPanelViewModel.swift and KindChipBar against desktop history and portable DesktopHistoryProjection: All/Pinned and all five ClipKind values plus All types have equivalent query/tab/type count scopes. Desktop additionally exposes an explicit source-ID filter; the Mac reference has no installed-app picker to port. Native mixed/pinned/query checks remain permanent."
+          "filter_choice_audit": "Compared App/HistoryPanelView.swift, HistoryPanelViewModel.swift and KindChipBar against desktop history and portable DesktopHistoryProjection: All/Pinned and all five ClipKind values plus All types have equivalent query/tab/type count scopes. Desktop additionally exposes an explicit source-ID filter; the Mac reference has no installed-app picker to port. Native mixed/pinned/query checks remain permanent.",
+          "final_automated_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.component_audit.checks.CP10"
+          },
+          "external_gates": [
+            "Physical/client input and desktop permissions, mixed-monitor DPI, common-application format fidelity, real suspend/long sessions and interactive upgrade remain tracked in CP13 and Desktop/TESTING.md."
+          ]
         },
         {
           "id": "CP11",
@@ -530,7 +638,7 @@
           "scope": "Distribution and platform acceptance",
           "status": "in_progress",
           "remaining": [
-            "Physical Windows/Linux client IME/focus, monitor DPI, real desktop permissions, common-application paste, suspend/resume and long-session gates in Desktop/TESTING.md",
+            "Physical Windows/Linux client IME/focus, monitor DPI, real desktop permissions, common-application native-format paste beyond hosted classic Notepad plain text, suspend/resume and long-session gates in Desktop/TESTING.md",
             "Interactive official release-page launch and manual update installation on real client desktops remain unverified."
           ],
           "update_discovery": {
@@ -573,6 +681,9 @@
             "installed_release_keyboard_checks": 25,
             "package_runtime_upgrade_uninstall_checks": 12,
             "merge_tree_matches_tested_head": true
+          },
+          "windows_notepad_acceptance": {
+            "reference": "cross_platform_delivery.functional_parity.current_acceptance.windows_common_application_followup"
           }
         }
       ],
@@ -616,10 +727,188 @@
         },
         "open_external_gates": [
           "Physical Windows 10/11 and Linux desktop IME/focus behavior and actual desktop permissions",
-          "Mixed-monitor DPI, common-application paste, real suspend/resume and long-session checks in Desktop/TESTING.md",
+          "Mixed-monitor DPI, common-application/format combinations beyond hosted Windows classic Notepad plain text, real suspend/resume and long-session checks in Desktop/TESTING.md",
           "Interactive official release-page launch and manual update installation on real client desktops remain unverified."
         ],
-        "status_meaning": "Component verified records below close implemented/automated feature gates only. The overall platform delivery and CP13 remain in_progress."
+        "status_meaning": "Component verified records below close implemented/automated feature gates only. The overall platform delivery and CP13 remain in_progress.",
+        "component_audit": {
+          "run": 41379565901,
+          "core_platform_run": 41378794849,
+          "components": [
+            "CP9",
+            "CP9_history_selection",
+            "CP9_history_activation",
+            "CP9_history_metadata",
+            "CP9_text_preview",
+            "CP9_sensitive_preview",
+            "CP9_history_counts",
+            "CP9_image_peek",
+            "CP10_localization",
+            "CP10_startup_state",
+            "CP10_startup_ownership",
+            "CP10",
+            "CP9_rich_preview"
+          ],
+          "method": "Each named assertion exists and passed in all four retained Windows/Linux native/installed reports; six implementation component trees match the feature reference. Component verified closes automated scope only; CP8, CP13 and overall delivery remain in_progress.",
+          "reports": {
+            "windows": [
+              "ui-artifacts/results.json",
+              "ui-artifacts/package/ui/results.json"
+            ],
+            "linux": [
+              "ui-artifacts/results.json",
+              "ui-artifacts/package/installation/ui/results.json"
+            ]
+          },
+          "checks": {
+            "CP9": {
+              "windows_and_linux_native_and_installed": [
+                "copy_promotes_older_item_with_capture_paused"
+              ]
+            },
+            "CP9_history_selection": {
+              "windows_and_linux_native_and_installed": [
+                "history_reopen_selects_first_matching_item",
+                "history_reopen_clears_kind_without_losing_library",
+                "tab_change_clears_kind_and_selects_first_row",
+                "kind_change_selects_first_visible_row",
+                "deleting_middle_row_selects_next_visible_neighbor",
+                "deleting_last_row_selects_previous_visible_neighbor"
+              ]
+            },
+            "CP9_history_activation": {
+              "windows_and_linux_native_and_installed": [
+                "filter_selection_does_not_copy_or_hide_history",
+                "native_selection_previews_without_activating",
+                "native_row_activation_copies_original_0",
+                "native_row_activation_hides_after_success_0",
+                "native_row_activation_promotes_original_0",
+                "native_row_activation_copies_original_1",
+                "native_row_activation_hides_after_success_1",
+                "native_row_activation_promotes_original_1",
+                "failed_native_row_copy_keeps_window_visible",
+                "failed_native_row_copy_does_not_promote_or_rewrite_original"
+              ]
+            },
+            "CP9_history_metadata": {
+              "windows_and_linux_native_and_installed": [
+                "image_row_displays_its_analysis_result",
+                "preview_source_uses_readable_executable_name",
+                "preview_reports_capture_time_and_recorded_bytes",
+                "file_preview_shows_decoded_names_and_reference_count",
+                "metadata_presentation_does_not_rewrite_original_records"
+              ]
+            },
+            "CP9_text_preview": {
+              "windows_and_linux_native_and_installed": [
+                "long_text_preview_reports_truncation",
+                "truncated_preview_copy_keeps_full_unicode_payload"
+              ]
+            },
+            "CP9_sensitive_preview": {
+              "windows_and_linux_native_and_installed": [
+                "sensitive_image_starts_masked",
+                "explicit_sensitive_reveal_decodes_native_image",
+                "revealed_sensitive_image_still_disables_ocr",
+                "revealed_sensitive_image_still_disables_local_image_analysis",
+                "hide_reopen_revokes_sensitive_reveal",
+                "settings_handoff_revokes_sensitive_reveal",
+                "rapid_reveal_hide_does_not_restore_sensitive_preview",
+                "sensitive_text_starts_masked",
+                "explicit_sensitive_reveal_displays_text",
+                "selection_change_revokes_sensitive_reveal",
+                "sensitive_reveal_keeps_history_memory_only"
+              ]
+            },
+            "CP9_history_counts": {
+              "windows_and_linux_native_and_installed": [
+                "query_wide_tab_and_type_counts_are_visible",
+                "kind_counts_follow_pinned_tab_without_collapsing_library_total",
+                "all_tab_resets_kind_without_collapsing_counts",
+                "tab_and_type_counts_follow_the_active_query"
+              ]
+            },
+            "CP9_rich_preview": {
+              "windows_native_and_installed": [
+                "rich_public.html_reports_truncation",
+                "rich_public.html_copy_preserves_complete_payload",
+                "rich_public.rtf_reports_truncation",
+                "rich_public.rtf_copy_preserves_complete_payload"
+              ],
+              "linux_native_and_installed": [
+                "rich_html_reports_truncation",
+                "rich_html_copy_preserves_complete_payload",
+                "rich_rtf_reports_truncation",
+                "rich_rtf_copy_preserves_complete_payload"
+              ]
+            },
+            "CP9_image_peek": {
+              "windows_and_linux_native_and_installed": [
+                "image_hover_opens_a_bounded_native_preview",
+                "large_image_hover_enlarges_within_600_logical_pixels",
+                "selection_change_closes_image_peek"
+              ]
+            },
+            "CP10_localization": {
+              "windows_and_linux_native_and_installed": [
+                "language_switch_updates_native_controls",
+                "language_change_preserves_history_focus",
+                "language_switches_keep_remote_AI_disabled_and_endpoint_draft_unsaved",
+                "language_zh-Hant_updates_controls_and_privacy_notes",
+                "language_zh-Hant_preserves_editor_draft",
+                "language_ja_updates_controls_and_privacy_notes",
+                "language_ja_preserves_editor_draft",
+                "language_ko_updates_controls_and_privacy_notes",
+                "language_ko_preserves_editor_draft",
+                "language_de_updates_controls_and_privacy_notes",
+                "language_de_preserves_editor_draft",
+                "language_es_updates_controls_and_privacy_notes",
+                "language_es_preserves_editor_draft"
+              ]
+            },
+            "CP10_startup_state": {
+              "windows_and_linux_native_and_installed": [
+                "settings_restore_reconciles_external_startup_disable",
+                "startup_restore_preserves_native_editor_draft",
+                "settings_reactivation_reads_external_startup_state_without_writing",
+                "explicit_startup_disable_removes_the_owned_registration",
+                "startup_reconciliation_does_not_save_content_drafts"
+              ]
+            },
+            "CP10_startup_ownership": {
+              "windows_and_linux_native_and_installed": [
+                "startup_conflict_preserves_other_installation_entry",
+                "startup_conflict_preserves_native_editor_draft"
+              ]
+            },
+            "CP10": {
+              "windows_and_linux_native_and_installed": [
+                "native_fractional_size_threshold_roundtrips",
+                "native_size_policy_can_exceed_transfer_buffer_limit",
+                "native_settings_can_disable_size_filtering",
+                "invalid_size_does_not_replace_disabled_preference"
+              ]
+            }
+          }
+        },
+        "windows_common_application_followup": {
+          "pr": 52,
+          "head": "e3da243b5450564e4dcd8e9e5a8496c08a1fc939",
+          "merge_commit": "ec73daf89819c5bc1ef1e2985d7ebcb94df7f663",
+          "run": 41406435639,
+          "ordinary_platform_run": 41406405362,
+          "review": "clean_exact_head",
+          "status": "verified_on_owned_hosted_runner",
+          "native_ime_checks": 7,
+          "ordinary_keyboard_checks": 26,
+          "debug_keyboard_checks": 33,
+          "installed_release_keyboard_checks": 33,
+          "notepad_checks_per_configuration": 8,
+          "package_runtime_upgrade_uninstall_checks": 12,
+          "behavior": "Owned classic Notepad foreground, registered app hotkey, Enter copies full English/Chinese original without automatic paste, explicit Ctrl+V, exact native editor and saved-file text, normal Alt+F4 close.",
+          "scope": "Pinned Windows Server classic Notepad plain text only; no Windows client, other common applications, rich-format/image/file paste, physical input, mixed-monitor or suspend claim.",
+          "merge_tree_matches_tested_head": true
+        }
       }
     }
   },
