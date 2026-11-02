@@ -13,6 +13,23 @@ model settings, checks consent, cancels the owned native chooser and quits clean
 without downloading optional model weights. This green PR scope is not full UI,
 real-model or installable-package acceptance.
 
+Windows PRs also run `smoke-windows.ps1 -KeyboardOnly` using the same Debug
+executable. At the user's request this mode sends actual OS keyboard input on
+the isolated Actions desktop. A dedicated native WinForms editor supplies the
+other foreground window and receives explicit Ctrl+V. Each submission verifies
+the expected owned foreground HWND and rejects held modifiers; it never retries
+an input mutation. The checks cover the registered Ctrl+Alt+V shortcut, search
+focus and editing, Tab/Shift+Tab, Space-activated settings, Enter activation,
+Alt+F4/reopen, full English/Chinese text paste and absence of automatic paste.
+Full acceptance repeats this against the installed Release executable without
+development runtime/resource fallbacks. Existing accessibility and clipboard
+tests retain their complete assertions and run independently.
+
+Unicode input packets are labelled as Unicode input, not an IME composition
+pass. `keyboard-capabilities.json` records installed legacy Chinese IME count
+and explicitly leaves candidate/composition, mixed-monitor DPI and real
+suspend/resume unverified. The interactive gates below continue to track them.
+
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
 installation. They first run the Debug checks and save their dependency cache,
@@ -70,8 +87,10 @@ SwiftPM; cached binaries never replace the current-source build or test steps.
 | Dependency sources | Verified GTK source/dependency archives, exact recipes, pinned revisions and checksums uploaded separately |
 
 All tests use synthetic/private profiles. They never read a local user's desktop
-clipboard, synthesize keyboard events, paste into another application or log
-content. A CI runner's isolated clipboard is used only for synthetic fixtures.
+clipboard or log content. A CI runner's isolated clipboard is used only for
+synthetic fixtures. The explicitly authorized Windows KeyboardOnly mode sends
+keys and pastes only between the owned app and native test recipient; other
+probes do not synthesize keyboard events or paste into another application.
 
 ## Current language and tokenizer checks
 
