@@ -34,10 +34,16 @@ Manual runs may select `windows_input_environment: inspect` for a content-free
 OS/display/input inventory, or `prepare` to request the official Chinese basic
 typing capability and user input profile on that disposable Windows VM. These
 modes run only the eight-minute-bounded environment job, with no Swift build,
-model transfer, keyboard input, clipboard access, sleep or restart. The default
+model transfer, clipboard access, sleep or restart. Preparation then exercises
+the actual Windows input method in an owned native editor: Latin key events
+must produce composition and candidates, Escape must cancel without committing,
+Space must commit the observed first Chinese candidate and a number key must
+commit the observed distinct second candidate. No Unicode input packets supply
+these results. `ime-receipt.json` records only fixed stages/counts. GTK app
+composition integration remains a separate gate. The default
 is `off`; PR/main acceptance keeps its normal platforms and scope. The retained
 `input-environment.json` separates provisioned resources from actual IME
-composition/candidate evidence, which this environment-only job cannot supply.
+composition/candidate evidence in that separate native receipt.
 
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and

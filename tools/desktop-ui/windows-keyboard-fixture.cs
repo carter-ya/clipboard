@@ -32,6 +32,14 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   [DllImport("user32.dll")] static extern IntPtr GetKeyboardLayout(uint thread);
   [DllImport("user32.dll")] static extern int GetKeyboardLayoutList(int count, [Out] IntPtr[] layouts);
   [DllImport("imm32.dll")] static extern bool ImmIsIME(IntPtr layout);
+  [DllImport("imm32.dll")] static extern IntPtr ImmGetContext(IntPtr window);
+  [DllImport("imm32.dll")] static extern bool ImmReleaseContext(IntPtr window, IntPtr context);
+  [DllImport("imm32.dll")] static extern bool ImmSetOpenStatus(IntPtr context, bool open);
+  [DllImport("imm32.dll")] static extern bool ImmGetOpenStatus(IntPtr context);
+  [DllImport("imm32.dll")] static extern bool ImmGetConversionStatus(IntPtr context, out uint conversion, out uint sentence);
+  [DllImport("imm32.dll")] static extern bool ImmSetConversionStatus(IntPtr context, uint conversion, uint sentence);
+  [DllImport("imm32.dll", CharSet = CharSet.Unicode)] static extern int ImmGetCompositionStringW(IntPtr context, uint kind, IntPtr data, uint size);
+  [DllImport("imm32.dll", CharSet = CharSet.Unicode)] static extern uint ImmGetCandidateListW(IntPtr context, uint index, IntPtr data, uint size);
 
   sealed class PasteEditor : TextBox {
     public int PasteCount;
@@ -136,6 +144,9 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
     uint threadId = GetWindowThreadProcessId(target, out ignored);
     if (((long)GetKeyboardLayout(threadId) & 0xffff) != 0x0409)
       throw new InvalidOperationException("ascii_fixture_requires_english_us_layout");
+    TypeLatinKeys(target, text);
+  }
+  public void TypeLatinKeys(IntPtr target, string text) {
     var inputs = new List<Input>();
     foreach (char character in text) {
       if (character < 'a' || character > 'z') throw new InvalidOperationException("ascii_fixture_only_lowercase_letters");
@@ -143,6 +154,74 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
       inputs.Add(Key(key, false)); inputs.Add(Key(key, true));
     }
     Send(target, inputs.ToArray());
+  }
+  T WithIme<T>(Func<IntPtr, T> action) {
+    return OnPeer<T>(delegate {
+      IntPtr context = ImmGetContext(editor.Handle);
+      if (context == IntPtr.Zero) throw new InvalidOperationException("native_ime_context_unavailable");
+      try { return action(context); }
+      finally { ImmReleaseContext(editor.Handle, context); }
+    });
+  }
+  public void UseChineseIme() {
+    OnPeer<bool>(delegate {
+      InputLanguage chinese = null;
+      foreach (InputLanguage language in InputLanguage.InstalledInputLanguages)
+        if (language.Culture.Name == "zh-CN") { chinese = language; break; }
+      if (chinese == null) throw new InvalidOperationException("native_chinese_input_language_unavailable");
+      InputLanguage.CurrentInputLanguage = chinese;
+      editor.ImeMode = ImeMode.On;
+      editor.Focus();
+      return true;
+    });
+    WithIme<bool>(delegate(IntPtr context) {
+      uint conversion, sentence;
+      if (!ImmGetConversionStatus(context, out conversion, out sentence) ||
+          !ImmSetConversionStatus(context, (conversion | 1u) & ~8u, sentence) ||
+          !ImmSetOpenStatus(context, true)) throw new InvalidOperationException("native_chinese_ime_cannot_open");
+      return true;
+    });
+  }
+  public bool ImeOpen { get { return WithIme<bool>(delegate(IntPtr context) { return ImmGetOpenStatus(context); }); } }
+  public int CompositionLength {
+    get { return WithIme<int>(delegate(IntPtr context) {
+      int bytes = ImmGetCompositionStringW(context, 8, IntPtr.Zero, 0);
+      if (bytes < -1 || bytes > 65536) throw new InvalidOperationException("native_ime_composition_bound");
+      return bytes < 0 ? 0 : bytes / 2;
+    }); }
+  }
+  T WithCandidates<T>(Func<IntPtr, uint, T> action, T empty) {
+    return WithIme<T>(delegate(IntPtr context) {
+      uint size = ImmGetCandidateListW(context, 0, IntPtr.Zero, 0);
+      if (size == 0) return empty;
+      if (size < 24 || size > 65536) throw new InvalidOperationException("native_ime_candidate_bound");
+      IntPtr data = Marshal.AllocHGlobal((int)size);
+      try {
+        uint read = ImmGetCandidateListW(context, 0, data, size);
+        if (read == 0 || read > size) return empty;
+        uint actual = (uint)Marshal.ReadInt32(data, 0);
+        uint count = (uint)Marshal.ReadInt32(data, 8);
+        if (actual < 24 || actual > size || count > 256 || 24 + count * 4 > actual)
+          throw new InvalidOperationException("native_ime_candidate_header");
+        return action(data, actual);
+      } finally { Marshal.FreeHGlobal(data); }
+    });
+  }
+  public int CandidateCount {
+    get { return WithCandidates<int>(delegate(IntPtr data, uint size) { return Marshal.ReadInt32(data, 8); }, 0); }
+  }
+  public string CandidateAt(int index) {
+    return WithCandidates<string>(delegate(IntPtr data, uint size) {
+      int count = Marshal.ReadInt32(data, 8);
+      if (index < 0 || index >= count) throw new InvalidOperationException("native_ime_candidate_index");
+      uint offset = (uint)Marshal.ReadInt32(data, 24 + index * 4);
+      if (offset < 24 + count * 4 || offset >= size || offset % 2 != 0)
+        throw new InvalidOperationException("native_ime_candidate_offset");
+      int length = 0;
+      while (offset + (uint)(length + 1) * 2 <= size && Marshal.ReadInt16(data, (int)offset + length * 2) != 0) length++;
+      if (offset + (uint)(length + 1) * 2 > size) throw new InvalidOperationException("native_ime_candidate_termination");
+      return Marshal.PtrToStringUni(IntPtr.Add(data, (int)offset), length);
+    }, null);
   }
   public void TypeUnicode(IntPtr target, string text) {
     var inputs = new List<Input>();

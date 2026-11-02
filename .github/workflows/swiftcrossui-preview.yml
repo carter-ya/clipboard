@@ -68,11 +68,18 @@ jobs:
           PREPARE_CHINESE_INPUT: ${{ inputs.windows_input_environment == 'prepare' }}
         run: |
           & ./tools/windows-input/probe-environment.ps1 -Prepare:($env:PREPARE_CHINESE_INPUT -eq 'true') -Output input-environment.json
+      - name: Exercise the actual Chinese input method in an owned native editor
+        if: inputs.windows_input_environment == 'prepare'
+        shell: powershell
+        run: |
+          & ./tools/windows-input/check-native-ime.ps1 -Output ime-receipt.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: windows-input-environment
-          path: input-environment.json
+          path: |
+            input-environment.json
+            ime-receipt.json
           if-no-files-found: error
   preview:
     if: github.event_name != 'workflow_dispatch' || inputs.windows_input_environment == '' || inputs.windows_input_environment == 'off'

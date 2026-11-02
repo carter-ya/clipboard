@@ -1,0 +1,68 @@
+param([Parameter(Mandatory=$true)][string]$Output)
+$ErrorActionPreference = 'Stop'
+if ($env:GITHUB_ACTIONS -ne 'true' -or $env:OS -ne 'Windows_NT') { throw 'native_ime_requires_owned_windows_actions_runner' }
+Add-Type -Path (Join-Path $PSScriptRoot '../desktop-ui/windows-keyboard-fixture.cs') `
+  -ReferencedAssemblies @('System.dll', 'System.Core.dll', 'System.Windows.Forms.dll', 'System.Drawing.dll')
+$report = [ordered]@{ passed = $false; stage = 'starting'; checks = @();
+  errorType = $null; imeOpen = $false; compositionLength = 0; candidateCount = 0;
+  textLength = 0; limitations = @('Actual Windows input method in an owned native editor; GTK application integration is a separate gate.') }
+$peer = $null
+function Wait-Ime([scriptblock]$Predicate, [string]$Stage) {
+  $script:report.stage = $Stage
+  $deadline = [DateTime]::UtcNow.AddSeconds(15)
+  while ([DateTime]::UtcNow -lt $deadline) {
+    if (& $Predicate) { return }
+    Start-Sleep -Milliseconds 100
+  }
+  throw $Stage
+}
+try {
+  $peer = [ClipboardKeyboardFixture]::new([uint32]$PID)
+  $peer.Activate()
+  Wait-Ime { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $peer.Handle } 'owned_ime_target_foreground'
+  $report.stage = 'activate_native_chinese_profile'
+  $peer.UseChineseIme()
+  Wait-Ime { $peer.ImeOpen } 'native_chinese_ime_open'
+  $peer.TypeLatinKeys($peer.Handle, 'nihao')
+  Wait-Ime { $peer.CompositionLength -gt 0 -and $peer.CandidateCount -ge 2 } 'actual_pinyin_composition_and_candidates'
+  $report.checks += 'actual_pinyin_composition_and_candidates'
+  $peer.Chord($peer.Handle, [UInt16[]]@(0x1b))
+  Wait-Ime { $peer.CompositionLength -eq 0 -and $peer.Text.Length -eq 0 } 'escape_cancels_uncommitted_composition'
+  $report.checks += 'escape_cancels_uncommitted_composition'
+  $peer.TypeLatinKeys($peer.Handle, 'nihao')
+  Wait-Ime { $peer.CompositionLength -gt 0 -and $peer.CandidateCount -ge 2 } 'pinyin_restarts_after_cancel'
+  $first = $peer.CandidateAt(0)
+  $expected = [string][char]0x4f60 + [char]0x597d
+  if ($first -cne $expected) { throw 'fresh_pinyin_first_candidate_must_match_fixture' }
+  $peer.Chord($peer.Handle, [UInt16[]]@(0x20))
+  Wait-Ime { $peer.CompositionLength -eq 0 -and $peer.Text -ceq $expected } 'space_commits_actual_chinese_candidate'
+  $report.checks += 'space_commits_actual_chinese_candidate'
+  $peer.Chord($peer.Handle, [UInt16[]]@(0x11, 0x41))
+  Wait-Ime { $peer.SelectionLength -eq $peer.Text.Length } 'ime_select_existing_query'
+  $peer.Chord($peer.Handle, [UInt16[]]@(0x08))
+  Wait-Ime { $peer.Text.Length -eq 0 } 'ime_clear_owned_editor'
+  $peer.TypeLatinKeys($peer.Handle, 'nihao')
+  Wait-Ime { $peer.CompositionLength -gt 0 -and $peer.CandidateCount -ge 2 } 'pinyin_second_candidate_available'
+  $second = $peer.CandidateAt(1)
+  if (!$second -or $second -ceq $first) { throw 'distinct_second_candidate_required' }
+  $peer.Chord($peer.Handle, [UInt16[]]@(0x32))
+  Wait-Ime { $peer.CompositionLength -eq 0 -and $peer.Text -ceq $second } 'number_selects_second_native_candidate'
+  $report.checks += 'number_selects_second_native_candidate'
+  if ($peer.PasteCount -ne 0) { throw 'ime_test_must_never_paste' }
+  $report.checks += 'ime_test_uses_no_clipboard_or_unicode_packets'
+  $report.passed = $true
+} catch {
+  $report.errorType = $_.Exception.GetType().FullName
+} finally {
+  if ($peer) {
+    try {
+      $report.imeOpen = $peer.ImeOpen
+      $report.compositionLength = $peer.CompositionLength
+      $report.candidateCount = $peer.CandidateCount
+      $report.textLength = $peer.Text.Length
+    } catch { }
+    try { $peer.Dispose() } catch { $report.passed = $false; $report.errorType = $_.Exception.GetType().FullName }
+  }
+  $report | ConvertTo-Json -Depth 4 | Out-File -Encoding UTF8 -LiteralPath $Output
+}
+if (!$report.passed) { throw 'native_chinese_ime_not_verified_see_content_free_report' }

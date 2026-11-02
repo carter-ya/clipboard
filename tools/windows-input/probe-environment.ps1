@@ -24,7 +24,7 @@ $report = [ordered]@{
   chineseInputProfileCount = 0; inputLanguages = @(); provisioningComplete = $false;
   imeCompositionPassed = $false; candidateSelectionPassed = $false;
   notes = @('Environment inventory/provisioning is not an IME composition or candidate test.',
-    'No keys, clipboard access, sleep, display changes or restart occur in this task.');
+    'This inventory/provisioning step does not send keys, access clipboard, sleep, change displays or restart.');
   errorType = $null; errorCode = $null
 }
 try {
