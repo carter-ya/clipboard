@@ -25,6 +25,21 @@ foreach ($chord in $chords) { Invoke-Expression $chord.Extent.Text }
 if ($script:checkedKeyboardBatches -ne $chords.Count) { throw 'keyboard_argument_check_incomplete' }
 Write-Host ('Actual keyboard input batches resolve correctly: ' + $script:checkedKeyboardBatches)
 
+# Check the actual common-application input arguments in both PowerShell
+# runtimes as well, without launching a process or touching a desktop.
+$notepadAst = [Management.Automation.Language.Parser]::ParseFile(
+  (Join-Path $PSScriptRoot 'windows-notepad-acceptance.ps1'), [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw 'notepad_acceptance_syntax_failed' }
+$notepadChords = @($notepadAst.FindAll({ param($node)
+  $node -is [Management.Automation.Language.InvokeMemberExpressionAst] -and
+    $node.Member.Value -ceq 'Chord' -and $node.Expression.Extent.Text -ieq '$notepadKeys'
+}, $true))
+if ($notepadChords.Count -ne 3) { throw 'notepad_actual_input_batches_missing' }
+$notepadWindow = [IntPtr]1
+$notepadKeys = $keyboardPeer
+foreach ($chord in $notepadChords) { Invoke-Expression $chord.Extent.Text }
+Write-Host 'Actual Notepad Ctrl+V, Ctrl+S and Alt+F4 batches resolve correctly'
+
 # GtkEntry selects its text on refocus. Execute the real post-refocus input
 # statements against that selection state, rather than assuming a trailing caret.
 $definitions = @($ast.FindAll({ param($node)

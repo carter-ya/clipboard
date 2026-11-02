@@ -88,6 +88,9 @@ function Invoke-WindowsKeyboardAcceptance {
     $keyboardPeer.Chord($keyboardPeer.Handle, [UInt16[]]@(0x11, 0x56))
     Wait-For { $keyboardPeer.PasteCount -eq 1 -and $keyboardPeer.Text -ceq 'Welcome to Clipboard Preview' } 'keyboard_explicit_ctrl_v_native_readback' | Out-Null
     Add-Check 'explicit_ctrl_v_pastes_full_original_into_independent_native_editor' $true
+    Invoke-WindowsNotepadPasteAcceptance 'Welcome to Clipboard Preview' 'english'
+    $keyboardPeer.Activate()
+    Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $keyboardPeer.Handle } 'keyboard_peer_after_english_notepad' | Out-Null
 
     $keyboardPeer.Chord($keyboardPeer.Handle, [UInt16[]]@(0x11, 0x12, 0x56))
     Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and
@@ -125,6 +128,9 @@ function Invoke-WindowsKeyboardAcceptance {
     $keyboardPeer.Chord($keyboardPeer.Handle, [UInt16[]]@(0x11, 0x56))
     Wait-For { $keyboardPeer.PasteCount -eq 2 -and $keyboardPeer.Text -ceq '中文笔记 · 设计评审与输入测试' } 'keyboard_unicode_ctrl_v_readback' | Out-Null
     Add-Check 'explicit_ctrl_v_preserves_complete_chinese_original' $true
+    Invoke-WindowsNotepadPasteAcceptance '中文笔记 · 设计评审与输入测试' 'chinese'
+    $keyboardPeer.Activate()
+    Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $keyboardPeer.Handle } 'keyboard_peer_after_chinese_notepad' | Out-Null
 
     $keyboardPeer.Chord($keyboardPeer.Handle, [UInt16[]]@(0x11, 0x12, 0x56))
     Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and (Get-Editor).Current.HasKeyboardFocus } 'keyboard_final_reopen' | Out-Null
