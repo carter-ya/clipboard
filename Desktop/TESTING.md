@@ -56,6 +56,9 @@ query as failed input. GTK app composition integration remains a separate gate. 
 is `off`; PR/main acceptance keeps its normal platforms and scope. The retained
 `input-environment.json` separates provisioned resources from actual IME
 composition/candidate evidence in that separate native receipt.
+Native Windows Actions [41386908227](https://github.com/carter-ya/clipboard/actions/runs/41386908227)
+passes all five actual IME checks. This proves the provisioned native editor,
+not yet the GTK application search field or physical client hardware.
 
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
