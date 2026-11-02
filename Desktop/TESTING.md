@@ -27,12 +27,13 @@ tests retain their complete assertions and run independently.
 
 Final integrated run [41379565901](https://github.com/carter-ya/clipboard/actions/runs/41379565901)
 passes all 18 keyboard checks in both Debug and the installed Windows Release.
-The merged `main` tree matches the tested head exactly.
+The PR48 merge tree matched that tested head exactly. Later input-fixture and
+acceptance-record layers retain separately scoped evidence in `harness.json`.
 
 Unicode input packets are labelled as Unicode input, not an IME composition
 pass. `keyboard-capabilities.json` records installed legacy Chinese IME count
-and explicitly leaves candidate/composition, mixed-monitor DPI and real
-suspend/resume unverified. The interactive gates below continue to track them.
+and distinguishes the optional actual Pinyin checks from the Unicode packet
+checks. Mixed-monitor DPI and real suspend/resume remain unverified.
 
 Manual runs may select `windows_input_environment: inspect` for a content-free
 OS/display/input inventory, or `prepare` to request the official Chinese basic
@@ -56,9 +57,10 @@ query as failed input. GTK app composition integration remains a separate gate. 
 is `off`; PR/main acceptance keeps its normal platforms and scope. The retained
 `input-environment.json` separates provisioned resources from actual IME
 composition/candidate evidence in that separate native receipt.
-Native Windows Actions [41386908227](https://github.com/carter-ya/clipboard/actions/runs/41386908227)
-passes all five actual IME checks. This proves the provisioned native editor,
-not yet the GTK application search field or physical client hardware.
+Native Windows Actions [41399764373](https://github.com/carter-ya/clipboard/actions/runs/41399764373)
+passes seven independent native IME checks, including selection/caret handoff
+and OS input-language switching. This proves the provisioned native editor;
+the GTK application is checked separately below and physical hardware remains open.
 
 The follow-up `application` mode with `platform: windows` and
 `full_validation: false` provisions/preflights Pinyin, reuses the Debug build
@@ -70,8 +72,10 @@ and optional model downloads. Installation/runtime integrity and upgrade/
 uninstall checks remain active and the report names `keyboard_package`.
 Full integration retains all native GUI/model suites and installed checks.
 Ordinary PRs retain the existing keyboard checks without provisioning language
-resources. Native execution of this GTK follow-up is pending; adding the
-script does not establish a pass. IME mode queries are read-only and bounded;
+resources. Run 41399764373 passes all 25 keyboard/IME checks in both Debug and
+the freshly installed Release, plus twelve keyboard-package/runtime/upgrade/
+uninstall checks. PR50's merge tree matches its tested head exactly.
+IME mode queries are read-only and bounded;
 only real language/mode shortcuts and Latin key events change input.
 Post-focus append checks establish the insertion point with actual Ctrl+A/Right,
 validated independently in the owned native Pinyin editor. Native candidate
@@ -83,6 +87,18 @@ before the script begins another composition. The receipt contains only
 lengths, numeric widget identities, selection/cursor offsets and booleans.
 It never sets text, selection or focus, and normal profiles/platforms cannot
 enable it. The authorization function is exercised in 96 compiled cases.
+
+The keyboard profile also starts classic Notepad from the pinned Windows Server
+runner for each English/Chinese original. From that foreground empty document
+it invokes the actual app shortcut and copies with Enter, requires the document
+to stay empty until explicit paste, sends real Ctrl+V and Ctrl+S, checks the complete text
+both in the native editor and saved file, checks clipboard revision continuity,
+then closes the saved document with Alt+F4. Observation is bounded and restricted
+to that exact spawned system executable/PID and its classic editor HWND. Failure
+cleanup stops only the owned process. This adds eight checks with no model
+downloads or additional builds. Native execution of this Notepad extension is
+pending; existing run 41399764373 does not prove these new checks. Notepad plain
+text acceptance does not establish browser/Office, rich-format or file paste.
 
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
@@ -143,7 +159,8 @@ SwiftPM; cached binaries never replace the current-source build or test steps.
 All tests use synthetic/private profiles. They never read a local user's desktop
 clipboard or log content. A CI runner's isolated clipboard is used only for
 synthetic fixtures. The explicitly authorized Windows KeyboardOnly mode sends
-keys and pastes only between the owned app and native test recipient; other
+keys and pastes only between the owned app, native test recipient and explicitly
+spawned Notepad documents; other
 probes do not synthesize keyboard events or paste into another application.
 
 ## Current language and tokenizer checks

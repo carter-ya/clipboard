@@ -336,6 +336,7 @@ if ($KeyboardOnly) {
   if ($env:GITHUB_ACTIONS -ne 'true' -or $env:OS -ne 'Windows_NT') { throw 'keyboard_fixture_requires_windows_actions' }
   Add-Type -Path (Join-Path $PSScriptRoot 'windows-keyboard-fixture.cs') `
     -ReferencedAssemblies @('System.dll', 'System.Core.dll', 'System.Windows.Forms.dll', 'System.Drawing.dll')
+  Add-Type -Path (Join-Path $PSScriptRoot 'windows-notepad-fixture.cs')
 }
 if ($ValidateOnly) {
   if ($KeyboardOnly) { & (Join-Path $PSScriptRoot 'test-windows-keyboard-peer.ps1') }
@@ -896,6 +897,7 @@ try {
     Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'initial_history' | Out-Null
     Add-Check 'native_window_and_history_visible' $true
     if ($KeyboardOnly) {
+      . (Join-Path $PSScriptRoot 'windows-notepad-acceptance.ps1')
       . (Join-Path $PSScriptRoot 'windows-keyboard-acceptance.ps1')
       Invoke-WindowsKeyboardAcceptance
       return
@@ -2980,10 +2982,10 @@ try {
   }
   $passed = $checks.Count -gt 0 -and @($checks | Where-Object { !$_.passed }).Count -eq 0
   $limitations = if ($KeyboardOnly) {
-    @('Owned Windows Actions keyboard events and explicit paste into a native test editor; not physical keyboard hardware.',
+    @('Owned Windows Actions keyboard events and explicit text paste into a native test editor and spawned classic Notepad; not physical keyboard hardware.',
       $(if ($ChineseIme) { 'Actual Pinyin cancel/commit/selection and focus handoffs in GTK; native preedit is verified separately in the owned editor.' }
         else { 'Chinese Unicode input does not verify an IME candidate/composition session.' }),
-      'Mixed-monitor DPI, real suspend/resume and paste into other applications remain unverified.')
+      'Mixed-monitor DPI, real suspend/resume, rich-format paste and applications other than the tested recipients remain unverified.')
   } else {
     @('Native accessibility value/invoke operations and an owned CI-only mouse activation fixture; no keyboard injection in this mode.',
       'Chinese IME and real hotkey focus transfer are not exercised by this mode.')
