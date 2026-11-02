@@ -27,16 +27,38 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   [DllImport("user32.dll", SetLastError = true)] static extern uint SendInput(uint count, Input[] inputs, int size);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr window);
+  [StructLayout(LayoutKind.Sequential)] struct WindowRect { public int left, top, right, bottom; }
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window, out WindowRect rectangle);
   [DllImport("user32.dll")] static extern short GetAsyncKeyState(int key);
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
   [DllImport("user32.dll")] static extern IntPtr GetKeyboardLayout(uint thread);
+  [DllImport("user32.dll")] static extern uint MapVirtualKey(uint code, uint mapType);
   [DllImport("user32.dll")] static extern int GetKeyboardLayoutList(int count, [Out] IntPtr[] layouts);
   [DllImport("imm32.dll")] static extern bool ImmIsIME(IntPtr layout);
+  [DllImport("imm32.dll")] static extern IntPtr ImmGetContext(IntPtr window);
+  [DllImport("imm32.dll")] static extern bool ImmReleaseContext(IntPtr window, IntPtr context);
+  [DllImport("imm32.dll")] static extern bool ImmGetOpenStatus(IntPtr context);
+  [DllImport("imm32.dll")] static extern bool ImmGetConversionStatus(IntPtr context, out uint conversion, out uint sentence);
+  [DllImport("imm32.dll", CharSet = CharSet.Unicode)] static extern int ImmGetCompositionStringW(IntPtr context, uint kind, IntPtr data, uint size);
+  [DllImport("msctf.dll")] static extern int TF_CreateInputProcessorProfiles(out IntPtr profiles);
+  // First vtable entry from the official msctf.h ITfInputProcessorProfileMgr.
+  [ComImport, Guid("71c6e74c-0f28-11d8-a82a-00065b84435c"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface InputProcessorProfileManager {
+    [PreserveSig] int ActivateProfile(uint type, ushort language, ref Guid processor,
+                                    ref Guid profile, IntPtr layout, uint flags);
+  }
+  public int ImeActivationResult { get; private set; }
 
   sealed class PasteEditor : TextBox {
     public int PasteCount;
+    public int KeyMessages, ScannedKeyMessages, ImeMessages;
     protected override void WndProc(ref Message message) {
       if (message.Msg == 0x0302) PasteCount++; // WM_PASTE from the actual Ctrl+V.
+      if (message.Msg == 0x0100 || message.Msg == 0x0104) {
+        KeyMessages++;
+        if (((long)message.LParam & 0x00ff0000) != 0) ScannedKeyMessages++;
+      }
+      if (message.Msg >= 0x010d && message.Msg <= 0x010f) ImeMessages++;
       base.WndProc(ref message);
     }
   }
@@ -87,6 +109,28 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
   public int PasteCount { get { return OnPeer<int>(delegate { return editor.PasteCount; }); } }
   public string Text { get { return OnPeer<string>(delegate { return editor.Text; }); } }
   public int SelectionLength { get { return OnPeer<int>(delegate { return editor.SelectionLength; }); } }
+  public int KeyMessageCount { get { return OnPeer<int>(delegate { return editor.KeyMessages; }); } }
+  public int ScannedKeyMessageCount { get { return OnPeer<int>(delegate { return editor.ScannedKeyMessages; }); } }
+  public int ImeMessageCount { get { return OnPeer<int>(delegate { return editor.ImeMessages; }); } }
+  public long InputLayout { get { return OnPeer<long>(delegate { uint owner; return (long)GetKeyboardLayout(GetWindowThreadProcessId(editor.Handle, out owner)); }); } }
+  public byte[] CaptureOwnedForegroundWindow() {
+    return OnPeer<byte[]>(delegate {
+      uint owner;
+      GetWindowThreadProcessId(handle, out owner);
+      WindowRect rectangle;
+      if (GetForegroundWindow() != handle || owner != (uint)System.Diagnostics.Process.GetCurrentProcess().Id ||
+          !GetWindowRect(handle, out rectangle)) throw new InvalidOperationException("ime_capture_requires_owned_foreground");
+      int width = rectangle.right - rectangle.left, height = rectangle.bottom - rectangle.top;
+      if (width <= 0 || height <= 0 || width > 2048 || height > 2048) throw new InvalidOperationException("ime_capture_bound");
+      using (var bitmap = new System.Drawing.Bitmap(width, height))
+      using (var graphics = System.Drawing.Graphics.FromImage(bitmap))
+      using (var output = new System.IO.MemoryStream()) {
+        graphics.CopyFromScreen(rectangle.left, rectangle.top, 0, 0, bitmap.Size);
+        bitmap.Save(output, System.Drawing.Imaging.ImageFormat.Png);
+        return output.ToArray();
+      }
+    });
+  }
 
   void CheckTarget(IntPtr expected) {
     if (disposed || expected == IntPtr.Zero || GetForegroundWindow() != expected)
@@ -136,13 +180,86 @@ public sealed class ClipboardKeyboardFixture : IDisposable {
     uint threadId = GetWindowThreadProcessId(target, out ignored);
     if (((long)GetKeyboardLayout(threadId) & 0xffff) != 0x0409)
       throw new InvalidOperationException("ascii_fixture_requires_english_us_layout");
+    TypeLatinKeys(target, text);
+  }
+  public void TypeLatinKeys(IntPtr target, string text) {
     var inputs = new List<Input>();
     foreach (char character in text) {
       if (character < 'a' || character > 'z') throw new InvalidOperationException("ascii_fixture_only_lowercase_letters");
       ushort key = (ushort)(character - 'a' + 'A');
-      inputs.Add(Key(key, false)); inputs.Add(Key(key, true));
+      uint scan = MapVirtualKey(key, 0);
+      if (scan == 0 || scan > 0xff) throw new InvalidOperationException("latin_key_scan_unavailable");
+      Input down = new Input { type = 1, data = new InputData {
+        keyboard = new KeyboardInput { scan = (ushort)scan, flags = 8 } } };
+      Input up = down; up.data.keyboard.flags |= 2;
+      inputs.Add(down); inputs.Add(up);
     }
     Send(target, inputs.ToArray());
+  }
+  T WithIme<T>(Func<IntPtr, T> action) {
+    return OnPeer<T>(delegate {
+      IntPtr context = ImmGetContext(editor.Handle);
+      if (context == IntPtr.Zero) throw new InvalidOperationException("native_ime_context_unavailable");
+      try { return action(context); }
+      finally { ImmReleaseContext(editor.Handle, context); }
+    });
+  }
+  public void UseChineseIme() {
+    OnPeer<bool>(delegate {
+      InputLanguage chinese = null;
+      foreach (InputLanguage language in InputLanguage.InstalledInputLanguages)
+        if (language.Culture.Name == "zh-CN") { chinese = language; break; }
+      if (chinese == null) throw new InvalidOperationException("native_chinese_input_language_unavailable");
+      InputLanguage.CurrentInputLanguage = chinese;
+      // A Chinese keyboard layout alone can still emit literal Latin keys.
+      // Activate Microsoft's documented Pinyin text-service profile on this
+      // owned STA thread, without changing other applications' input profiles.
+      IntPtr pointer;
+      ImeActivationResult = TF_CreateInputProcessorProfiles(out pointer);
+      if (ImeActivationResult < 0) throw new InvalidOperationException("native_pinyin_profiles_unavailable");
+      object profiles = Marshal.GetObjectForIUnknown(pointer);
+      try {
+        Guid processor = new Guid("81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E");
+        Guid profile = new Guid("FA550B04-5AD7-411F-A5AC-CA038EC515D7");
+        ImeActivationResult = ((InputProcessorProfileManager)profiles).ActivateProfile(
+          1, 0x0804, ref processor, ref profile, IntPtr.Zero, 1);
+        if (ImeActivationResult != 0) throw new InvalidOperationException("native_pinyin_profile_activation_failed");
+      } finally { Marshal.ReleaseComObject(profiles); Marshal.Release(pointer); }
+      // Leave conversion policy to the actual activated text service. The
+      // fixture uses the provider's normal mode shortcut rather than letting the
+      // legacy Forms focus handler rewrite the provider's conversion state.
+      editor.ImeMode = ImeMode.NoControl;
+      editor.Focus();
+      return true;
+    });
+  }
+  public bool ImeOpen { get { return WithIme<bool>(delegate(IntPtr context) { return ImmGetOpenStatus(context); }); } }
+  public uint ImeConversionMode { get { return WithIme<uint>(delegate(IntPtr context) {
+    uint conversion, sentence;
+    if (!ImmGetConversionStatus(context, out conversion, out sentence)) throw new InvalidOperationException("native_ime_conversion_unavailable");
+    return conversion;
+  }); } }
+  public int CompositionLength {
+    get { return WithIme<int>(delegate(IntPtr context) {
+      int bytes = ImmGetCompositionStringW(context, 8, IntPtr.Zero, 0);
+      if (bytes < -1 || bytes > 65536) throw new InvalidOperationException("native_ime_composition_bound");
+      return bytes < 0 ? 0 : bytes / 2;
+    }); }
+  }
+  // Read the real preedit, not the committed TextBox value. Pinyin may add
+  // syllable separators; all five Latin letters must have reached the IME.
+  public bool CompositionIsNihao {
+    get { return WithIme<bool>(delegate(IntPtr context) {
+      int bytes = ImmGetCompositionStringW(context, 8, IntPtr.Zero, 0);
+      if (bytes <= 0) return false;
+      if (bytes > 65536 || bytes % 2 != 0) throw new InvalidOperationException("native_ime_composition_bound");
+      IntPtr data = Marshal.AllocHGlobal(bytes);
+      try {
+        int read = ImmGetCompositionStringW(context, 8, data, (uint)bytes);
+        if (read < 0 || read > bytes || read % 2 != 0) throw new InvalidOperationException("native_ime_composition_read");
+        return Marshal.PtrToStringUni(data, read / 2).Replace("'", "") == "nihao";
+      } finally { Marshal.FreeHGlobal(data); }
+    }); }
   }
   public void TypeUnicode(IntPtr target, string text) {
     var inputs = new List<Input>();

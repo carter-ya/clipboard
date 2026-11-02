@@ -25,10 +25,40 @@ Full acceptance repeats this against the installed Release executable without
 development runtime/resource fallbacks. Existing accessibility and clipboard
 tests retain their complete assertions and run independently.
 
+Final integrated run [41379565901](https://github.com/carter-ya/clipboard/actions/runs/41379565901)
+passes all 18 keyboard checks in both Debug and the installed Windows Release.
+The merged `main` tree matches the tested head exactly.
+
 Unicode input packets are labelled as Unicode input, not an IME composition
 pass. `keyboard-capabilities.json` records installed legacy Chinese IME count
 and explicitly leaves candidate/composition, mixed-monitor DPI and real
 suspend/resume unverified. The interactive gates below continue to track them.
+
+Manual runs may select `windows_input_environment: inspect` for a content-free
+OS/display/input inventory, or `prepare` to request the official Chinese basic
+typing capability and user input profile on that disposable Windows VM.
+Preparation also starts the available Windows text-input service and requests the
+system CTF monitor in that VM; service states are recorded without process scans.
+Both modes run only the eight-minute-bounded environment job, with no Swift build,
+model transfer, clipboard access, sleep or restart. Preparation then exercises
+the actual Windows input method in an owned native editor: Latin key events
+must produce the complete native `nihao` preedit without committed text,
+Escape must cancel without committing, Space must commit the fixed first
+Chinese result and a number key must commit the fixed distinct second result.
+These exact results use the fresh pinned Windows Server/Pinyin dictionary;
+a changed dictionary fails the fixture rather than accepting arbitrary text. No Unicode input packets supply
+these results. `ime-receipt.json` records only fixed stages/counts. A failed
+native probe may capture only its owned foreground synthetic editor for visual
+diagnosis before cleanup. The provider ends its TSF UI-element handles while
+its candidate window remains visible, so assertions use actual preedit and
+exact committed output from Space/2 instead of treating an empty candidate-list
+query as failed input. GTK app composition integration remains a separate gate. The default
+is `off`; PR/main acceptance keeps its normal platforms and scope. The retained
+`input-environment.json` separates provisioned resources from actual IME
+composition/candidate evidence in that separate native receipt.
+Native Windows Actions [41386908227](https://github.com/carter-ya/clipboard/actions/runs/41386908227)
+passes all five actual IME checks. This proves the provisioned native editor,
+not yet the GTK application search field or physical client hardware.
 
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
