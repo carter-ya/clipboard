@@ -16,7 +16,9 @@ try {
   foreach ($kind in @('jpeg', 'tiff')) {
     $checks.Add(@{ name = ('independent_gdi_' + $kind + '_fixture_decodes'); passed = $true })
   }
-  $compiler = (Get-Command clang -CommandType Application -ErrorAction Stop).Source
+  $selectedCompiler = Get-Command clang -CommandType Application -ErrorAction SilentlyContinue
+  $compiler = if ($selectedCompiler) { $selectedCompiler.Source } else { Join-Path $env:ProgramFiles 'LLVM/bin/clang.exe' }
+  if (!(Test-Path -LiteralPath $compiler -PathType Leaf)) { throw 'valid_image_native_compiler_missing' }
   $native = Join-Path $root 'check-valid-images.exe'
   $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
   & $compiler '-std=c11' '-O2' '-Wall' '-Wextra' '-Werror' '-I' (Join-Path $repository 'Core/Sources/CDesktopClipboard/include') (Join-Path $PSScriptRoot 'check-windows-valid-images.c') (Join-Path $repository 'Core/Sources/CDesktopClipboard/desktop_clipboard.c') '-luser32' '-lshell32' '-lole32' '-lwindowscodecs' '-luuid' '-o' $native
