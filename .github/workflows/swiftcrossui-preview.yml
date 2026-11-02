@@ -285,6 +285,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify search submit survives backend updates
         run: python tools/desktop-ui/test-search-submit.py
+      - name: Verify actual GTK image and hover orientation
+        run: python tools/desktop-ui/test-image-orientation.py --output ui-artifacts/image-orientation.json
       - name: Verify Windows executable stack reservation
         if: runner.os == 'Windows'
         shell: pwsh
