@@ -105,6 +105,20 @@ PR run 41406405362 also passes (Windows keyboard 26). PR52's merge tree matches
 its reviewed/tested head. This Notepad plain-text acceptance does not establish
 Windows client hardware, browser/Office, rich-format or file paste.
 
+Manual `windows_input_environment: browser` runs only the eight-minute native
+browser reference job. It uses stock Chrome with a fresh private profile and a
+local synthetic page, without a toolchain, app build or model transfer. The
+browser starts suspended and enters a non-breakaway kill-on-close job before
+resuming. Its private debugging endpoint must report the exact spawned process
+and private page; every actual Ctrl+V checks the owned foreground HWND. The page
+observes trusted paste events while preserving normal browser paste. Assertions
+require complete Unicode text/newlines, HTML bold rendering, exact PNG render
+pixels, and both native dropped-file names and bytes. The probe checks unchanged
+clipboard revisions and termination of every owned job process plus profile
+removal. Scripts never inject paste events or use the browser clipboard API.
+`browser-input.json` names this reference-only scope: product capture/copy
+integration is a separate gate. Native execution of this extension is pending.
+
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
 installation. They first run the Debug checks and save their dependency cache,
