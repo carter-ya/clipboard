@@ -7,6 +7,7 @@ $completed = $false
 $checks = [Collections.Generic.List[object]]::new()
 $errorType = $null
 $failure = $null
+$diagnostic = $null
 try {
   $context = New-WindowsOwnedBrowser
   foreach ($kind in @('text', 'html', 'image', 'files')) {
@@ -24,6 +25,9 @@ try {
 } catch {
   $errorType = $_.Exception.GetType().FullName
   $failure = $_.Exception.Message.Substring(0, [Math]::Min(1024, $_.Exception.Message.Length))
+  if ($context) {
+    try { $diagnostic = Get-WindowsBrowserDiagnostic $context } catch { $diagnostic = @{ unavailable = $true } }
+  }
 }
 finally {
   try { Close-WindowsOwnedBrowser $context }
@@ -36,7 +40,7 @@ finally {
   $passed = $completed -and $cleanup -and @($checks | Where-Object { !$_.passed }).Count -eq 0
   $Output = [IO.Path]::GetFullPath($Output)
   [IO.Directory]::CreateDirectory((Split-Path $Output)) | Out-Null
-  @{ passed = [bool]$passed; checks = @($checks.ToArray()); errorType = $errorType; failure = $failure; stage = $kind;
+  @{ passed = [bool]$passed; checks = @($checks.ToArray()); errorType = $errorType; failure = $failure; stage = $kind; diagnostic = $diagnostic;
      scope = 'Owned Windows Actions Chrome native input reference only; product capture/copy is a separate gate.' } |
     ConvertTo-Json -Depth 8 | Out-File -Encoding UTF8 $Output
   if (!$passed) { exit 1 }

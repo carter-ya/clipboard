@@ -150,3 +150,31 @@ function Assert-WindowsBrowserPaste($Context, [string]$Kind) {
   }
   return @{ kind = $Kind; trusted = $true; types = @($receipt.types); files = @($receipt.files).Count; originalPreserved = $true }
 }
+
+function Get-WindowsBrowserDiagnostic($Context) {
+  # Fixed-fixture comparisons and lengths only; do not retain paste contents.
+  $snapshot = Get-WindowsBrowserSnapshot $Context
+  $receipt = @($snapshot.receipts) | Select-Object -First 1
+  return @{
+    ownerMatches = $snapshot.owner -ceq $Context.native.Owner
+    receiptCount = @($snapshot.receipts).Count
+    trusted = [bool]$receipt.trusted
+    types = @($receipt.types)
+    htmlLength = ([string]$receipt.html).Length
+    htmlHasBoldTag = [string]$receipt.html -match '<b(?:\s|>)'
+    htmlContainsExpectedPlain = ([string]$receipt.html).Contains($Context.native.HtmlText)
+    contentLength = ([string]$snapshot.content).Length
+    expectedHtmlLength = $Context.native.HtmlText.Length
+    contentMatchesHtml = $snapshot.content -ceq $Context.native.HtmlText
+    contentMatchesHtmlWithFinalLF = $snapshot.content -ceq ($Context.native.HtmlText + "`n")
+    contentMatchesHtmlWithFinalCRLF = $snapshot.content -ceq ($Context.native.HtmlText + "`r`n")
+    boldCount = @($snapshot.bold).Count
+    boldLengths = @($snapshot.bold | ForEach-Object { $_.Length })
+    boldMatches = $snapshot.bold -ccontains $Context.native.BoldText
+    boldMatchesWithFinalLF = $snapshot.bold -ccontains ($Context.native.BoldText + "`n")
+    imageWidth = $snapshot.image.width
+    imageHeight = $snapshot.image.height
+    pixelsMatch = $snapshot.image.pixels -ceq $Context.native.PixelData
+    files = @($receipt.files).Count
+  }
+}
