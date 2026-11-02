@@ -1,7 +1,7 @@
 {
   "$schema_version": "1.0",
   "document_purpose": "Clipboard 项目的唯一权威文档。任何代理或开发者在提议改动前都必须先读这份文件。若代码与本文档不一致，必须在同一次提交中一并更新本文档——不得让两者静默分叉。",
-  "last_updated": "2026-11-02",
+  "last_updated": "2026-11-03",
   "project": {
     "name": "Clipboard",
     "one_liner": "macOS 的 Alfred 风格剪贴板历史——常驻菜单栏，支持全局快捷键、快速搜索；选中条目会写回系统剪贴板（由用户手动 Cmd+V 粘贴）。",
@@ -691,12 +691,30 @@
           "scope": "Recognized key/credential text uses the existing password masking and memory-only policy on Mac/Windows/Linux",
           "status": "in_progress",
           "implemented": "Shared capture filter locally recognizes defined credential prefixes/private-key headers and UTF-8/UTF-16/rich-text representations. Sensitive recapture upgrades a persisted ordinary duplicate without changing ID, pinning or original Copy bytes; it removes normal history/blob references, clears old summaries and rejects late analysis results. Native text and rich clipboard CI exercise an independent non-sensitive source, inferred classification, memory-only storage and explicit sensitive Copy. Review repairs retain every original representation on primary-hash dedup, commit snapshot removal before releasing blob references, and retain materialization/snapshot/cleanup failures for an explicit retry. Sensitive updates cancel owned desktop/Mac attempts; current metadata is checked again at the actual remote dispatch boundary and after responses. Follow-up configures the real Mac/Desktop stores from the password preference before exposing history. Startup/current-record enable, unfiltered inserts and validated imports recognize credential text; enabling masks existing originals and revokes analysis, while disabling never unmasks an already sensitive record. Import validates all owned blob paths/digests before creating any target blobs, and regenerates preview/hash/kind from actual content. Full privacy inspection of escaped HTML/RTF now uses the actual source/output bound rather than display-prefix budgets. UI display budgets remain unchanged; valid long HTML tags are scanned without unnecessary masking. A structural parser refusal conservatively marks the item uninspectableRichText, keeping its original Copy and sensitive memory-only/analysis gates.",
-          "validation": "Before-change synthetic capture/dedup regression fails15 assertions; late-summary regression independently fails before the store guard. All55 targeted Core recognition/password/source/store/archive/AI tests now pass, including10 secret tests. Strict changed-Swift lint passes. Native Windows/Linux text and rich clipboard scenarios and full hosted platform/UI checks pending. Initial head830cb4d passes all three hosted Core jobs in41460081182 and both ordinary UI jobs in41460081232, including native Windows/Linux inferred sensitive clipboard scenarios. Review fixes reproduce original-representation/snapshot failures before repair; six deterministic transition tests cover preserved originals, blocked atomic writes, missing originals, failed deletion, concurrent shared-reference drains and held-credential authorization. Actual Mac automatic/manual held-attempt tests fail the prior coordinator and pass the repair with fake HTTP/volatile preferences, as does the extracted actual Desktop store-event cancellation switch. Final Mac Debug application build succeeds; these review fixes still require new exact-head hosted CI/review. Hosted4bd5f78 Mac Core tests pass but the new App-source probe fails to locate ClipboardCore: native SwiftPM places modules in debug/Modules while local Xcode layout places them directly in Products/Debug. Reproduced with real compiled artifacts rearranged into the native Modules layout; adding both module search roots passes actual automatic/manual cancellation and held-key authorization in that layout. New hosted confirmation required. Eight history-policy tests cover inline/blob startup, all original representations, source-preserving import, live enable/irreversible masking, disabled policy, raw insert, prevalidation without partial blobs, validated-content dedup and unreadable-history retry. Original startup/import tests fail12 assertions before repair.59 focused storage/recognition/archive/import tests and27 related import/analysis tests pass, actual Mac cancellation and Desktop save-order probes pass, Mac Debug application builds. Prior3d9c707 passes all five hosted OS jobs in41470630493/41470630210 and exact-head review is clean; the history-policy follow-up needs its own hosted checks. Long escaped HTML/RTF-tail and structural-refusal regressions fail4 assertions before repair. The repaired full inspection passes those cases, large ordinary rich text retains normal classification/display truncation, and valid long tags/uppercase numeric hex escapes are covered. The history-policy parent74d62bb exact-head Codex review is clean; its hosted checks and this final inspection layer still require confirmation. Final local inspection layer passes86 affected Core tests, actual Mac automatic/manual/held-key probes, actual Desktop event-revocation and content-save-order probes; Swift lint, actionlint and20 policy tests pass. Actual rich preview/clipboard regression classes are separately checked.",
+          "validation": "The original capture/dedup regression fails15 assertions and late-summary protection fails independently before repair. Six transition cases cover original representations, blocked writes, missing originals, failed deletion, concurrent shared-reference drains and held authorization. Actual Mac automatic/manual and dispatch-time probes fail the previous implementation and pass the repair using fake HTTP and volatile preferences; the actual Desktop cancellation/save-order probes pass. Eight history-policy tests reproduce12 startup/import failures before repair, then59 focused and27 related tests pass. Four escaped-rich-tail/structural-refusal assertions fail before full inspection; the repaired layer passes86 affected Core tests plus21 actual preview/clipboard tests. Final PR63/65/66 heads have clean explicit Codex review and all three Core plus both ordinary UI jobs passing (reviewed_merged_layers). Independent native text/rich unmarked credential inference and sensitive explicit Copy reports are downloaded and audited. Full Linux41475202168 passes every named native/installed CP9/CP10 assertion and actual model/installer suite. Full Windows at the same head fails the actual GTK IME candidate gate before complete UI/installed/model acceptance; final full Windows remains explicit.",
           "remaining": [
-            "Exact-head Mac/Windows/Linux Core and Windows/Linux UI CI plus explicit clean review",
-            "Native prefixed-key clipboard capture checks on Windows/Linux",
-            "Final integration/installation and existing CP13 physical gates remain open",
-            "Final full inspection layer exact-head hosted tests/review and consolidated installed integration still required; no claim to recognize every possible credential format or all browser rich-text semantics"
+            "Final full Windows native/installed/model integration after PR68 input readiness; full Linux41475202168 is audited",
+            "Physical/client CP13 gates remain open; no universal credential or complete browser/Office parser claim"
+          ],
+          "reviewed_merged_layers": [
+            {
+              "pr": 63,
+              "head": "3d9c7071f1beef54c1cef32223e862fe278b396f",
+              "core_run": 41470630493,
+              "ui_run": 41470630210
+            },
+            {
+              "pr": 65,
+              "head": "74d62bb03980159deaca5b584e343c2043b36aa1",
+              "core_run": 41472729443,
+              "ui_run": 41472730005
+            },
+            {
+              "pr": 66,
+              "head": "1d34c9fcab0f0b06c92567da9377647cd70354b6",
+              "core_run": 41473486984,
+              "ui_run": 41473486835
+            }
           ]
         }
       ],
@@ -936,7 +954,7 @@
             "native_readiness_checks": 3,
             "review": "clean_exact_head",
             "initial_module_available_in_all_three_preflight_launches": true,
-            "installed_release": "pending_final_integration",
+            "installed_release": "verified78_input_plus12_keyboard_package_in41479407954; hardened_PR68_and_full_Windows_integration_pending",
             "proof_limit": "The original null-module defect is demonstrated deterministically; these three native launches all had metadata ready immediately and do not reproduce the exact earlier main failure."
           }
         },
@@ -980,8 +998,8 @@
           "review_at_runtime_head": "clean_exact_head_5b95142; proof-only documentation changes require their own fresh review"
         },
         "main_core_followup": {
-          "run": 41433432465,
-          "tested_head": "7885862a271a36f2119aa12dd52a91ecfdd3f043",
+          "run": 41475202676,
+          "tested_head": "6ceedf366667ac90b80d3128a23be24b07682f64",
           "platforms": [
             "Windows",
             "Linux",
@@ -990,20 +1008,24 @@
           "status": "full_platform_workflow_passed"
         },
         "linux_full_followup": {
-          "run": 41433432627,
-          "tested_head": "7885862a271a36f2119aa12dd52a91ecfdd3f043",
+          "run": 41475202168,
+          "job": 125378813466,
+          "tested_head": "6ceedf366667ac90b80d3128a23be24b07682f64",
           "native_ui_checks": 181,
           "installed_ui_checks": 211,
           "installation_checks": 15,
+          "installed_model_settings_checks": 8,
           "installed_local_text_checks": 19,
           "installed_model_operations_checks": 14,
           "installed_file_pdf_checks": 19,
-          "wayland_checks_per_compositor_mode": 36,
+          "native_model_settings_checks": 8,
+          "wayland_checks_per_compositor_mode": 40,
           "scale_checks_per_mode": 8,
           "system_language_checks": 10,
           "status": "full_linux_job_passed_and_report_assertions_audited",
           "cp9_cp10_components_reaudited": 13,
-          "physical_client": "not_verified"
+          "physical_client": "not_verified",
+          "later_scope": "PR67 changes Windows-only C orientation handling. The actual Linux preprocessed C before/after is byte-identical (SHA256223973c767ca09e483b128ac70997489a7b23425e45a2aee7b5fe258317a78f5); other Linux/Mac product source components are unchanged. PR68 changes only Windows test readiness/diagnostics and workflow receipt ordering. Inherit this scoped Linux evidence without claiming entire commit trees are equal."
         },
         "previous_feature_reference": {
           "run": 41379565901,
@@ -1039,7 +1061,7 @@
           "physical_client": "not_verified"
         },
         "windows_valid_image_followup": {
-          "status": "native_adapter_and_independent_browser_verified_product_flow_pending",
+          "status": "verified_debug_and_installed_on_owned_hosted_runner",
           "adapter_pr": 59,
           "adapter_head": "1d2ac7b1dac1dd05af9ca4b29b0f82b9b1965a49",
           "adapter_run": 41451204402,
@@ -1052,11 +1074,11 @@
           "product_head": "be3c791817e4826192916eef1d8854da8fe91575",
           "product_runtime": 41454151911,
           "product_runtime_status": "verified_Debug78_installed78_browser17_RTF10_IME7_package12",
-          "meaning": "Exact native JPEG/TIFF bytes and independent browser-converted raster pixels are distinct assertions; product Debug/installed runtime still required.",
+          "meaning": "Product Debug and installed Release each pass78 strict input checks in41454151911, including native JPEG/TIFF originals and independent browser-converted raster pixels. EXIF orientation is proven separately by the actual GTK decoder and Windows C-adapter matrices; ICC profiles remain unverified.",
           "product_merge": "d23f8081056bb0113ed7587662a4ffd84b7d0721"
         },
         "gtk_image_orientation_followup": {
-          "status": "fixed_and_locally_reproduced_hosted_windows_linux_pending",
+          "status": "verified_hosted_windows_linux_decoder_and_full_linux_ui",
           "mac_reference": "App/ClipPreviewView.swift preDecode ImageIO thumbnail with transform",
           "reproduction": "Same orientation6 JPEG/TIFF: Mac2x3, unchanged actual GTK decoder3x2; full regression38/113 failing",
           "local_after": "113/113 actual GTK decoder assertions pass in isolated offline Linux arm64 container",
@@ -1066,16 +1088,14 @@
             "Original input bytes and existing encoded bounds retained"
           ],
           "remaining": [
-            "Exact-head Windows/Linux hosted regression and UI",
-            "Full integration for the changed product preview",
-            "Windows clipboard-derived bitmap EXIF orientation remains independently unverified",
-            "ICC/color-profile fidelity, client hardware and existing CP13 gates remain open"
+            "Final full Windows native/installed integration after the input-readiness follow-up",
+            "ICC/color-profile fidelity, physical clients and existing CP13 gates remain open"
           ],
           "artifact_audit": "Both Windows/Linux reports from41456251202 contain113 unique passing checks, including absent/all8 orientation values, main/hover exact pixel permutations, geometry and unchanged originals.",
           "windows_bitmap_followup": {
             "branch": "codex/windows-image-orientation-parity",
             "base": "main6ceedf3",
-            "status": "native_adapter_verified_review_and_product_CI_pending",
+            "status": "reviewed_merged_native_matrix_and_ordinary_platform_ui_verified",
             "evidence": "All original24 adapter assertions, independent GDI metadata and cleanup pass. Rotation geometry and TIFF reflected/rotated pixel permutations fail38 assertions in the real Windows adapter.",
             "regression": "240 actual C-adapter assertions retain the original24 and add absent/all8 JPEG/TIFF orientation values in ordinary/sensitive modes. Independent GDI+ validates metadata; TIFF has6 colors with independent coordinate permutations; JPEG geometry uses unchanged uniform reference. Original encoded bytes, no duplicate roundtrip and sensitivity stay hard assertions.",
             "scope": "Reference-only Windows Actions images mode, no Swift/app/model build. ICC profiles remain separately unverified.",
@@ -1095,10 +1115,56 @@
             "after_failed": 0,
             "artifact_audit": "245 unique passing assertions downloaded and checked; all absent/orientations1..8 in ordinary/sensitive modes",
             "linux_unchanged": "Preprocessed actual Linux C adapter is byte-identical before/after, SHA256223973c767ca09e483b128ac70997489a7b23425e45a2aee7b5fe258317a78f5; both GNU C syntax checks pass with the same baseline warning policy.",
-            "remaining": "Exact-head review and ordinary Mac/Windows/Linux CI; final installed Windows/browser confirmation. ICC profile fidelity stays separate."
-          }
+            "remaining": "Final full installed Windows integration; ICC profile fidelity and physical/client gates remain separate.",
+            "pr": 67,
+            "head": "c303f5b75d38ff8f3faaf1d362863b8448d16976",
+            "merge_commit": "402e804defaed098599d279cbdbb0032c999a897",
+            "core_run": 41478506428,
+            "ui_run": 41478506422,
+            "review": "clean_exact_head",
+            "merge_tree_matches_tested_head": true
+          },
+          "merge_commit": "b0ae2ff3eb38cf1672d81ef2577351e63c2f82a2"
         },
         "latest_main_integration": {
+          "head": "6ceedf366667ac90b80d3128a23be24b07682f64",
+          "core": {
+            "run": 41475202676,
+            "status": "success_all3platforms"
+          },
+          "ui": {
+            "run": 41475202168,
+            "linux": "success_full_native_installed_models_installation_and_named_assertions_audited",
+            "windows": "failed_debug_ime_complete_native_candidates_before_cancel"
+          },
+          "meaning": "Retain the Windows failure as failed. Read-only narrow follow-up41479407954 passes78 Debug/78 installed input and12 keyboard-package checks, but is not full Windows/model acceptance. PR68 hardens a separately reproduced driver readiness hazard; its native confirmation and final full Windows integration are still pending."
+        },
+        "windows_ime_reliability_followup": {
+          "branch": "codex/windows-ime-state-diagnostics",
+          "status": "script_readiness_hardened_native_confirmation_pending",
+          "failed_main_run": 41475202168,
+          "head": "6ceedf366667ac90b80d3128a23be24b07682f64",
+          "failure": "ime_complete_native_candidates_before_cancel",
+          "observed": "Independent native IME7, browser17, RTF10, actual Notepad English/Chinese and ordinary keyboard input pass. GTK actual search contains literal nihao with no candidate UI; no pass claimed for actual GTK IME or installed scope.",
+          "diagnostic": "Read-only owned-target HKL/language/default-IME open/conversion status, candidate-host and fixed synthetic query booleans before/after profile selection/mode shortcut/Latin input and on the existing failed candidate wait. Existing key batches, 40s action deadlines and exact candidate/commit assertions stay unchanged.",
+          "local_validation": "10 actual-statement state cases cover initialization, legitimate English/closed mode, post-key transients, absent/unreadable/oscillating provider failure without actions; actual key/caret arguments unchanged. CSharp5/net48 compiles clean;21 CI/input policy tests and actionlint pass.",
+          "next": "Fresh narrow application validation of the hardened gate and early receipts, then explicit PR review/ordinary CI; consolidate full Windows model/UI/package confirmation after input passes.",
+          "early_receipt": "After the Windows actual-input step, always upload only six explicitly listed content-free input/status/result files before any release restore/build. Scope requires Windows+actual IME validation, names include run_attempt, no history/body/model files. A fifth input-policy regression verifies the ordering and allowlist.",
+          "diagnostic_run": 41479407954,
+          "diagnostic_observed": "All3 result reports pass and are audited. Both target-state receipts already show native Chinese conversion after profile selection, with no mode shortcut sent. This successful observation run does not reproduce or prove the exact cause of the earlier main failure.",
+          "diagnostic_head": "59deff50b4344f88f4b087cf1367b0a44c567b31",
+          "diagnostic_debug_checks": 78,
+          "diagnostic_installed_release_checks": 78,
+          "diagnostic_package_checks": 12,
+          "driver_regression": "The actual pre-Latin mode-selection statements emit an unnecessary Shift for an initial closed state that settles to native Chinese without input. A deterministic asynchronous-state test fails before the new gate.",
+          "driver_repair": "Require3 consecutive matching owned-target layout/open/conversion snapshots before choosing a mode action; if necessary send exactly one original Shift batch, then require stable native Chinese state before the unchanged Latin/candidate tests. Use existing40s per-stage observer bound, no input retry or production change."
+        },
+        "documentation_ci_policy": {
+          "status": "local_policy_checks_pass_hosted_review_pending",
+          "scope": "Exclude only Desktop/TESTING.md from push/PR Desktop UI path selection. Harness-only and acceptance-note-only commits have no product change. Any matching product/test/resource/workflow path in the same commit still selects the normal job.",
+          "regression": "Ordered negative-path policy checks both events, documentation-only changes and mixed notes plus Desktop source/tests/resources/manifest, Core, native input fixture, installer and workflow changes. All existing runtime/full-validation conditions remain unchanged."
+        },
+        "previous_latest_main_integration": {
           "head": "562ce12176545aef923bbf342ed0b0995e7291da",
           "core": {
             "run": 41452804149,
@@ -1132,25 +1198,28 @@
             "scope": "head562ce12; do not use as exact-head evidence for newer security/decoder changes"
           }
         },
-        "windows_ime_reliability_followup": {
-          "branch": "codex/windows-ime-state-diagnostics",
-          "status": "script_readiness_hardened_native_confirmation_pending",
-          "failed_main_run": 41475202168,
-          "head": "6ceedf366667ac90b80d3128a23be24b07682f64",
-          "failure": "ime_complete_native_candidates_before_cancel",
-          "observed": "Independent native IME7, browser17, RTF10, actual Notepad English/Chinese and ordinary keyboard input pass. GTK actual search contains literal nihao with no candidate UI; no pass claimed for actual GTK IME or installed scope.",
-          "diagnostic": "Read-only owned-target HKL/language/default-IME open/conversion status, candidate-host and fixed synthetic query booleans before/after profile selection/mode shortcut/Latin input and on the existing failed candidate wait. Existing key batches, 40s action deadlines and exact candidate/commit assertions stay unchanged.",
-          "local_validation": "10 actual-statement state cases cover initialization, legitimate English/closed mode, post-key transients, absent/unreadable/oscillating provider failure without actions; actual key/caret arguments unchanged. CSharp5/net48 compiles clean;21 CI/input policy tests and actionlint pass.",
-          "next": "Fresh narrow application validation of the hardened gate and early receipts, then explicit PR review/ordinary CI; consolidate full Windows model/UI/package confirmation after input passes.",
-          "early_receipt": "After the Windows actual-input step, always upload only six explicitly listed content-free input/status/result files before any release restore/build. Scope requires Windows+actual IME validation, names include run_attempt, no history/body/model files. A fifth input-policy regression verifies the ordering and allowlist.",
-          "diagnostic_run": 41479407954,
-          "diagnostic_observed": "All3 result reports pass and are audited. Both target-state receipts already show native Chinese conversion after profile selection, with no mode shortcut sent. This successful observation run does not reproduce or prove the exact cause of the earlier main failure.",
-          "diagnostic_head": "59deff50b4344f88f4b087cf1367b0a44c567b31",
-          "diagnostic_debug_checks": 78,
-          "diagnostic_installed_release_checks": 78,
-          "diagnostic_package_checks": 12,
-          "driver_regression": "The actual pre-Latin mode-selection statements emit an unnecessary Shift for an initial closed state that settles to native Chinese without input. A deterministic asynchronous-state test fails before the new gate.",
-          "driver_repair": "Require3 consecutive matching owned-target layout/open/conversion snapshots before choosing a mode action; if necessary send exactly one original Shift batch, then require stable native Chinese state before the unchanged Latin/candidate tests. Use existing40s per-stage observer bound, no input retry or production change."
+        "previous_linux_full_followup": {
+          "run": 41433432627,
+          "tested_head": "7885862a271a36f2119aa12dd52a91ecfdd3f043",
+          "native_ui_checks": 181,
+          "installed_ui_checks": 211,
+          "installation_checks": 15,
+          "installed_local_text_checks": 19,
+          "installed_model_operations_checks": 14,
+          "installed_file_pdf_checks": 19,
+          "wayland_checks_per_compositor_mode": 36,
+          "scale_checks_per_mode": 8,
+          "system_language_checks": 10,
+          "status": "full_linux_job_passed_and_report_assertions_audited",
+          "cp9_cp10_components_reaudited": 13,
+          "physical_client": "not_verified"
+        },
+        "windows_toolchain_cache": {
+          "status": "local_policy_checks_pass_hosted_review_pending",
+          "action": "compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7",
+          "evidence": "The pinned upstream action defaults cache=false; existing Core/UI calls omit it, so every fresh VM downloads installer.exe. Its built-in Windows cache key includes architecture, release version and build; only the downloaded installer is cached, not an installed system directory.",
+          "change": "Enable cache=true with explicit amd64 for pinned Windows Core6.1.3 and UI6.3.3. Retain all installation and unconditional exact-version validation, compiled dependency caches and runtime tests. First fill and actual speed improvement are not yet measured.",
+          "reference": "https://github.com/compnerd/gha-setup-swift/blob/775d3f4111c5be58a0f62f2efdd353bb8fac15c7/action.yml"
         }
       }
     }

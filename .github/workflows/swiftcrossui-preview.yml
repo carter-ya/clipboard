@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - Desktop/**
+      - '!Desktop/TESTING.md'
       - Core/**
       - tools/desktop-ui/**
       - tools/desktop-package/**
@@ -18,6 +19,7 @@ on:
   pull_request:
     paths:
       - Desktop/**
+      - '!Desktop/TESTING.md'
       - Core/**
       - tools/desktop-ui/**
       - tools/desktop-package/**
@@ -197,6 +199,8 @@ jobs:
         with:
           swift-version: swift-6.3.3-release
           swift-build: 6.3.3-RELEASE
+          build_arch: amd64
+          cache: 'true'
       - name: Install Swift 6.3.3 on Ubuntu
         if: runner.os == 'Linux'
         shell: bash

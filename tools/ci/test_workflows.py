@@ -22,6 +22,23 @@ def evaluate(expression, event, full_input, system):
 
 
 class WorkflowPolicyTests(unittest.TestCase):
+    def test_windows_toolchain_download_cache_keeps_pinned_versions_and_validation(self):
+        for filename, version in [('swift-portability.yml', '6.1.3'), ('swiftcrossui-preview.yml', '6.3.3')]:
+            jobs = workflow(filename)['jobs']
+            steps = jobs['core' if 'core' in jobs else 'preview']['steps']
+            install = next(step for step in steps if step.get('name') == f'Install Swift {version} on Windows')
+            self.assertEqual(install['if'], "runner.os == 'Windows'")
+            self.assertEqual(install['uses'], 'compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7')
+            self.assertEqual(install['with'], {
+                'swift-version': f'swift-{version}-release', 'swift-build': f'{version}-RELEASE',
+                'build_arch': 'amd64', 'cache': 'true',
+            })
+            verify = next(step for step in steps if step.get('name') == ('Verify selected toolchain' if 'core' in jobs else 'Verify toolchain'))
+            self.assertNotIn('if', verify)
+            self.assertIn('swift --version', verify['run'])
+            self.assertIn(version.replace('.', r'\.'), verify['run'])
+            self.assertLess(steps.index(install), steps.index(verify))
+
     def test_windows_keyboard_acceptance_uses_existing_debug_build_on_pr_and_integration(self):
         steps = workflow('swiftcrossui-preview.yml')['jobs']['preview']['steps']
         keyboard = next(step for step in steps if step.get('name') == 'Exercise native Windows keyboard focus and explicit paste')
