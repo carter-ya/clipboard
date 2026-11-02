@@ -118,6 +118,12 @@ struct HistoryView: View {
     VStack(alignment: .leading, spacing: 14) {
       TextField(model.t("Search history"), text: $model.query)
         .inspect { model.attachSearch($0) }
+        .onSubmit {
+          Task { @MainActor in
+            guard let id = model.selectedID else { return }
+            await model.activateHistoryItem(id: id)
+          }
+        }
         .onChange(of: model.query) { Task { @MainActor in await model.refresh() } }
       HStack(spacing: 10) {
         HStack(spacing: 4) {

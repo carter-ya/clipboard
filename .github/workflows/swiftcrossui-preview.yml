@@ -201,6 +201,8 @@ jobs:
         run: |
           & python tools/desktop-ui/build-desktop.py --jobs 2 2>&1 | Tee-Object -FilePath ui-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify search submit survives backend updates
+        run: python tools/desktop-ui/test-search-submit.py
       - name: Verify Windows executable stack reservation
         if: runner.os == 'Windows'
         shell: pwsh

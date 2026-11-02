@@ -33,6 +33,10 @@ class WorkflowPolicyTests(unittest.TestCase):
             self.assertFalse(evaluate(keyboard['if'], event, True, 'Linux'))
         save = next(step for step in steps if step.get('name') == 'Save compiled debug dependencies before native UI validation')
         self.assertLess(steps.index(save), steps.index(keyboard))
+        submit = next(step for step in steps if step.get('name') == 'Verify search submit survives backend updates')
+        self.assertNotIn('if', submit)
+        self.assertIn('test-search-submit.py', submit['run'])
+        self.assertLess(steps.index(submit), steps.index(keyboard))
         installer = (ROOT / 'tools/desktop-package/check-windows-install.ps1').read_text(encoding='utf-8-sig')
         self.assertIn('-KeyboardOnly -OutputDirectory', installer)
 
