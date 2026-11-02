@@ -13,12 +13,16 @@ try {
   $context = New-WindowsOwnedBrowser
   & (Join-Path $PSScriptRoot 'test-windows-browser-cleanup.ps1')
   $checks.Add(@{ name = 'owned_browser_teardown_failure_still_removes_private_profile'; passed = $true })
-  foreach ($kind in @('text', 'html', 'image', 'files')) {
+  foreach ($kind in @('text', 'html', 'image', 'files', 'jpeg', 'tiff')) {
     Focus-WindowsOwnedBrowser $context -Reset
     $context.native.WriteFixture($kind)
     if ($kind -eq 'html') {
       Wait-BrowserCondition { $context.native.HtmlFixtureMatches() } 'native_html_reference_requires_exact_utf8_bytes' | Out-Null
       $checks.Add(@{ name = 'native_html_reference_has_exact_utf8_header_and_body'; passed = $true })
+    }
+    if ($kind -in @('jpeg', 'tiff')) {
+      Wait-BrowserCondition { $context.native.EncodedImageMatches($kind) } ('native_' + $kind + '_reference_requires_exact_encoded_bytes') | Out-Null
+      $checks.Add(@{ name = ('native_' + $kind + '_reference_has_exact_encoded_bytes'); passed = $true })
     }
     $revision = $context.native.ClipboardRevision
     $context.keys.Chord($context.window, [UInt16[]]@(0x11, 0x56))

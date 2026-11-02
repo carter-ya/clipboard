@@ -123,7 +123,7 @@ function Assert-WindowsBrowserPaste($Context, [string]$Kind) {
     $state = Get-WindowsBrowserSnapshot $Context
     if ($state.error) { throw 'owned_browser_paste_scope' }
     if (@($state.receipts).Count -eq 1 -and $state.receipts[0].ready) {
-      if ($Kind -ne 'image' -or ($state.image -and $state.image.pixels)) { $state }
+      if ($Kind -notin @('image', 'jpeg', 'tiff') -or ($state.image -and $state.image.pixels)) { $state }
     }
   } ('browser_trusted_paste_ready_' + $Kind)
   $receipt = $snapshot.receipts[0]
@@ -147,6 +147,17 @@ function Assert-WindowsBrowserPaste($Context, [string]$Kind) {
           $snapshot.image.height -ne 2 -or $snapshot.image.pixels -cne $native.PixelData) {
         throw 'browser_png_original_or_default_render_pixels_mismatch'
       }
+    }
+    { $_ -in @('jpeg', 'tiff') } {
+      if (@($receipt.files).Count -ne 1 -or $receipt.files[0].type -cne 'image/png' -or
+          [string]::IsNullOrEmpty($receipt.files[0].data) -or $snapshot.image.width -ne 3 -or
+          $snapshot.image.height -ne 2 -or $snapshot.image.pixels -cne $native.PixelData -or
+          !$native.EncodedImageMatches($Kind)) {
+        throw 'browser_encoded_image_native_bytes_or_converted_pixels_mismatch'
+      }
+      return @{ kind = $Kind; trusted = $true; types = @($receipt.types); files = 1;
+        nativeEncodedOriginalPreserved = $true; browserDecodedPixelsPreserved = $true;
+        browserImageEncoding = 'image/png'; browserOriginalEncodedFile = 'not_exposed_by_native_bitmap_conversion' }
     }
     'files' {
       if ($receipt.types -notcontains 'Files' -or @($receipt.files).Count -ne 2) { throw 'browser_file_list_mismatch' }
