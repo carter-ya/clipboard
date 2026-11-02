@@ -696,3 +696,29 @@ with `uninspectableRichText`, rather than treating an unexamined suffix as safe.
 No HTML engine, scripts, embedded objects, files or provider validation are used.
 This recognizes defined patterns and supported text escaping; it does not claim
 universal credential detection or full browser/Office rich-text semantics.
+
+The Windows standard-bitmap follow-up extends the actual C-adapter reference
+probe to240 assertions: absent/all8 JPEG/TIFF EXIF orientations, ordinary and
+sensitive modes, independent GDI+ metadata validation, exact TIFF six-color
+coordinate permutations, JPEG geometry, original encoded native bytes, no
+derived duplicate on readback and sensitivity. It retains the original24
+assertions. The reference-only `images` Actions mode needs no Swift SDK, app
+build or models. Native execution is pending; source inspection alone does
+not establish the result. ICC/color profiles remain a separate gate.
+
+Native Windows reference41476736015 reproduces38 orientation failures among245
+assertions; independent GDI metadata, original24 cases, encoded originals and
+cleanup pass. The repair reads WIC's optional `System.Photo.Orientation` and
+applies separate rotation/flip sources before producing the standard bitmap.
+Transpose/transverse ordering is explicit; original encoded payloads, optional
+fallback behavior and encoded/pixel bounds remain intact. Native confirmation
+is required before accepting the repair. The Windows Pinyin failure in main
+integration41475202168 remains a separate unresolved gate.
+
+The repaired actual Windows adapter now passes all245 unique native assertions
+in41477837636 at5898859; the downloaded report is audited. Every orientation
+value retains original encoded bytes and sensitivity, and TIFF geometry/pixel
+permutations match the independent reference. The preprocessed Linux adapter
+is byte-identical before/after, and both Linux GNU C syntax checks pass. This
+closes the native bitmap-transform defect; ordinary platform/UI review and
+installed product/browser confirmation remain required. No ICC claim is made.

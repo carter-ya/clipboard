@@ -17,6 +17,7 @@ try {
   [ClipboardValidImageFixtures]::Write($root)
   foreach ($kind in @('jpeg', 'tiff')) {
     $checks.Add(@{ name = ('independent_gdi_' + $kind + '_fixture_decodes'); passed = $true })
+    $checks.Add(@{ name = ('independent_gdi_' + $kind + '_orientation_metadata'); passed = $true })
   }
   $stage = 'compiler_location'
   $compilerPaths = @((Join-Path $env:ProgramFiles 'LLVM/bin/clang.exe'))
@@ -35,10 +36,10 @@ try {
   $lines = & $native $root
   $nativeExit = $LASTEXITCODE
   foreach ($line in $lines) {
-    if ($line -notmatch '^(PASS|FAIL) ([a-z_]+)$') { throw 'valid_image_native_receipt_invalid' }
+    if ($line -notmatch '^(PASS|FAIL) ([a-z0-9_]+)$') { throw 'valid_image_native_receipt_invalid' }
     $checks.Add(@{ name = $Matches[2]; passed = $Matches[1] -ceq 'PASS' })
   }
-  if (@($lines).Count -ne 24) { throw 'valid_image_native_receipt_incomplete' }
+  if (@($lines).Count -ne 240) { throw 'valid_image_native_receipt_incomplete' }
 } catch { $failure = $_.Exception; $failureLine = $_.InvocationInfo.ScriptLineNumber }
 finally {
   try { [IO.Directory]::Delete($root, $true) } catch { $cleanupFailure = $_.Exception }
@@ -49,7 +50,7 @@ finally {
   @{ passed = [bool]$passed; checks = @($checks.ToArray()); nativeExit = $nativeExit; stage = $stage; failureLine = $failureLine;
     failureType = if ($failure) { $failure.GetType().FullName } else { $null };
     cleanupFailureType = if ($cleanupFailure) { $cleanupFailure.GetType().FullName } else { $null };
-    scope = 'Valid JPEG/TIFF through the real product C adapter, independent GDI+ pixel reference and native standard bitmap availability; real app/browser paste and image metadata are separate gates.' } |
+    scope = 'Actual product C adapter, independent GDI+ pixels/metadata, absent/all8 JPEG/TIFF orientations in ordinary/sensitive modes, original native bytes/roundtrip and standard bitmap geometry/pixel permutations. Real app/browser paste and ICC profiles remain separate gates.' } |
     ConvertTo-Json -Depth 6 | Out-File -Encoding UTF8 $Output
 }
 if (!$passed) { exit 1 }
