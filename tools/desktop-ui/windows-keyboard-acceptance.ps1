@@ -53,6 +53,7 @@ function Invoke-WindowsKeyboardAcceptance {
     Wait-For { Find-Named 'Preferences' } 'keyboard_settings_open' | Out-Null
     Invoke-WindowsKeyboardButton 'Back to history' $keyboardPeer
     Wait-For { (Get-EditorWithValue '中文') -and (Get-Editor).Current.HasKeyboardFocus } 'keyboard_settings_returns_search_focus' | Out-Null
+    $keyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x23)) # End collapses GTK's select-on-focus selection.
     $keyboardPeer.TypeAscii($nativeWindowHandle, 'a')
     Wait-For { (Get-EditorWithValue '中文a') -and (Find-Named '0 items') } 'keyboard_input_after_settings' | Out-Null
     Add-Check 'keyboard_input_continues_after_settings_without_refocusing_search' $true
@@ -95,6 +96,7 @@ function Invoke-WindowsKeyboardAcceptance {
     $keyboardPeer.Chord($keyboardPeer.Handle, [UInt16[]]@(0x11, 0x12, 0x56))
     Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and
       (Get-EditorWithValue '中文') -and (Get-Editor).Current.HasKeyboardFocus } 'keyboard_alt_f4_hotkey_restores_focus' | Out-Null
+    $keyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x23))
     $keyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x08))
     Wait-For { (Get-EditorWithValue '中') -and (Find-Named '1 items') } 'keyboard_edit_after_close_reopen' | Out-Null
     Add-Check 'real_key_input_survives_close_and_global_hotkey_reopen' $true
