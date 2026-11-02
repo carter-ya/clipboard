@@ -180,6 +180,12 @@ jobs:
             --output "$RUNNER_TEMP/swift.tar.gz"
           tar -xzf "$RUNNER_TEMP/swift.tar.gz" --strip-components=1 -C "$swift_dir"
           echo "$swift_dir/usr/bin" >> "$GITHUB_PATH"
+      - name: Verify original PNG and native bitmap interoperability
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & python tools/desktop-ui/check-windows-png.py 2>&1 | Tee-Object -FilePath platform-png.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Validate native Windows probe definitions
         if: runner.os == 'Windows'
         shell: pwsh
@@ -502,6 +508,7 @@ jobs:
           name: swiftcrossui-${{ matrix.os }}
           path: |
             ui-build.log
+            platform-png.log
             release-build.log
             ui-artifacts
           if-no-files-found: ignore

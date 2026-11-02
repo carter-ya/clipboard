@@ -136,8 +136,16 @@ and hide. Chrome must remain empty until actual Ctrl+V, then satisfy the unchang
 native reference text, HTML bold, PNG pixels and file-name/byte assertions.
 Original file hashes must remain unchanged. The owned browser job/profile must
 be removed on success or failure, and content-free diagnostics remain bounded.
-This extension is pending native validation. Manual application input and full
-integration add it after the existing keyboard/IME/Notepad checks in Debug and
+The first product run exposed a real image-format interoperability defect: the
+PNG rendered correctly but Chrome exposed no image File to paste handlers. The
+Windows adapter now retains the original PNG first and adds a separately bounded
+64 MiB premultiplied-alpha CF_DIBV5 representation, from which Windows synthesizes
+CF_DIB. Undecodable or larger images retain their original PNG. A cheap native C
+regression checks exact original bytes, top-down pixels/transparency, COM apartment
+balance, malformed/large image fallback and the maximum sensitive bundle. The
+product/browser extension and the bitmap fix are pending native validation.
+Manual application input and full integration add it after the existing
+keyboard/IME/Notepad checks in Debug and
 the installed Release; ordinary PRs keep their one-Debug-build scope and do not
 start Chrome. A cheap browser reference gate runs before those integration builds,
 and keyboard-package mode still refuses optional model fixtures/downloads.

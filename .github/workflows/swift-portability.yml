@@ -15,6 +15,7 @@ on:
       - tools/desktop-ui/check-services.py
       - tools/desktop-ui/check-linux-*
       - tools/desktop-ui/check-x11-*.c
+      - tools/desktop-ui/check-windows-png.*
       - tools/ci/**
       - .github/actions/swift-build-cache/**
       - .github/workflows/swift-portability.yml
@@ -31,6 +32,7 @@ on:
       - tools/desktop-ui/check-services.py
       - tools/desktop-ui/check-linux-*
       - tools/desktop-ui/check-x11-*.c
+      - tools/desktop-ui/check-windows-png.*
       - tools/ci/**
       - .github/actions/swift-build-cache/**
       - .github/workflows/swift-portability.yml
@@ -97,6 +99,12 @@ jobs:
           if (($SwiftVersionOutput -join "`n") -notmatch 'Swift version 6\.1\.3(?:\s|$)') {
             throw "Expected Swift 6.1.3; the selected toolchain does not match."
           }
+      - name: Verify original PNG and native bitmap interoperability
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & python tools/desktop-ui/check-windows-png.py 2>&1 | Tee-Object -FilePath platform-png.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install verified static zlib SDK on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -294,6 +302,7 @@ jobs:
             scenario.log
             platform-clipboard.log
             platform-rich.log
+            platform-png.log
             platform-source-filter.log
             platform-services.log
             local-language-adapter.log
