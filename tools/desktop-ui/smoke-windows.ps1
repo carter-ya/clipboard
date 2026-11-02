@@ -627,9 +627,14 @@ function Set-LocalTextRelease([string]$Engine, [bool]$Released) {
   if ($Released) { [IO.File]::WriteAllText($releasePath, '', [Text.UTF8Encoding]::new($false)) }
   elseif (Test-Path -LiteralPath $releasePath) { Remove-Item -LiteralPath $releasePath }
 }
-function Set-LocalTextSearch([string]$Query) {
+function Set-LocalTextSearch([string]$Query, [string]$ExpectedPreview) {
   Set-Search $Query
-  Wait-For { (Find-Named '1 items') -and (Get-EditorWithValue $Query) } 'local_text_query_restored' | Out-Null
+  # Consecutive queries can both have one result. The native edit value and
+  # unchanged count acknowledge SetValue before the selected preview refreshes.
+  Wait-For {
+    (Find-Named '1 items') -and (Get-EditorWithValue $Query) -and
+      (!$ExpectedPreview -or (Find-Named $ExpectedPreview))
+  } 'local_text_query_restored' | Out-Null
 }
 function Set-LocalTextSettings([string[]]$Labels, [string]$Query) {
   $mapping = @{
@@ -1042,9 +1047,10 @@ try {
       Invoke-Button 'Summarize locally'
       Wait-For { (Test-LocalTextCounter 'generative' 1) -and (Find-Named 'Generating a local summary…') } 'local_generation_owned_progress' | Out-Null
       Add-Check 'local_generation_shows_its_actual_engine' $true
-      Set-LocalTextSearch 'Other synthetic item'
+      Set-LocalTextSearch 'Other synthetic item' $textFixtureBodies[2]
       Add-Check 'local_generation_progress_belongs_only_to_its_item' ($null -eq (Find-Named 'Generating a local summary…'))
-      Set-LocalTextSearch 'NASA engineers'
+      Set-LocalTextSearch 'NASA engineers' $originalTextRecord.preview
+      Wait-For { (Test-LocalTextCounter 'generative' 1) -and (Find-Named 'Generating a local summary…') } 'local_generation_owned_progress_restored' | Out-Null
       Set-LocalTextRelease 'generative' $true
       Wait-For { (Test-LocalTextCounter 'generative' 1 $true) -and (Find-Named 'Retry local analysis') } 'local_generation_failure_retry' | Out-Null
       Add-Check 'failed_generation_preserves_local_retry_without_unconsented_fallback' ($null -eq (Get-LocalTextRecord $textFixtureIDs[0]).summary)
