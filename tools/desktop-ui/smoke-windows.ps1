@@ -9,6 +9,7 @@
       [switch]$KeyboardOnly,
       [switch]$ChineseIme,
       [switch]$BrowserPaste,
+      [switch]$RtfPaste,
       [switch]$LocalTextOnly,
       [switch]$LocalFileModelsOnly,
       [switch]$ModelOperationsOnly,
@@ -19,6 +20,8 @@
 $ErrorActionPreference = 'Stop'
 if ($ChineseIme -and !$KeyboardOnly) { throw 'chinese_ime_requires_keyboard_only_profile' }
 if ($BrowserPaste -and !$KeyboardOnly) { throw 'browser_paste_requires_keyboard_only_profile' }
+if ($RtfPaste -and !$KeyboardOnly) { throw 'rtf_paste_requires_keyboard_only_profile' }
+if ($RtfPaste -and ($env:GITHUB_ACTIONS -ne 'true' -or $env:OS -ne 'Windows_NT')) { throw 'rtf_paste_requires_owned_windows_actions' }
 if (@($ModelSettingsOnly, $KeyboardOnly, $LocalTextOnly, $ModelOperationsOnly, $LocalFileModelsOnly | Where-Object { $_ }).Count -gt 1) {
   throw 'private_model_modes_are_mutually_exclusive'
 }
@@ -902,6 +905,10 @@ try {
       if ($BrowserPaste) {
         . (Join-Path $PSScriptRoot 'windows-browser-functions.ps1')
         . (Join-Path $PSScriptRoot 'windows-browser-acceptance.ps1')
+      }
+      if ($RtfPaste) {
+        . (Join-Path $PSScriptRoot 'windows-richtext-functions.ps1')
+        . (Join-Path $PSScriptRoot 'windows-richtext-acceptance.ps1')
       }
       . (Join-Path $PSScriptRoot 'windows-notepad-acceptance.ps1')
       . (Join-Path $PSScriptRoot 'windows-keyboard-acceptance.ps1')
@@ -2991,6 +2998,7 @@ try {
     @('Owned Windows Actions keyboard events and explicit text paste into a native test editor and spawned classic Notepad; not physical keyboard hardware.',
       $(if ($ChineseIme) { 'Actual Pinyin cancel/commit/selection and focus handoffs in GTK; native preedit is verified separately in the owned editor.' }
         else { 'Chinese Unicode input does not verify an IME candidate/composition session.' }),
+      $(if ($RtfPaste) { 'Actual product-to-RichEdit RTF paste is required; Office and physical client acceptance remain unverified.' } else { 'Product-to-RichEdit RTF paste is not verified in this scope.' }),
       $(if ($BrowserPaste) { 'Actual product-to-Chrome text/HTML/PNG/files paste is required; other applications, physical client input, mixed-monitor DPI and real suspend/resume remain unverified.' }
         else { 'Mixed-monitor DPI, real suspend/resume, rich-format paste and applications other than the tested recipients remain unverified.' }))
   } else {

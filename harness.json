@@ -690,18 +690,19 @@
       "current_acceptance": {
         "status": "in_progress",
         "feature_reference": {
-          "run": 41379565901,
-          "url": "https://github.com/carter-ya/clipboard/actions/runs/41379565901",
-          "tested_head": "e2e714e238416b2307d9dc68f8ca3b021410bdbd",
+          "run": 41433432627,
+          "url": "https://github.com/carter-ya/clipboard/actions/runs/41433432627",
+          "tested_head": "7885862a271a36f2119aa12dd52a91ecfdd3f043",
           "windows_native_ui_checks": 182,
           "windows_installed_ui_checks": 210,
           "linux_native_ui_checks": 181,
           "linux_installed_ui_checks": 211,
           "actual_models_and_model_operations": "passed_on_windows_and_linux_native_and_installed",
-          "scope": "Implemented feature acceptance through PR48; later PR49/50 add test-only input support. This is not physical/client acceptance or a claim that the later commit tree equals the earlier tested tree.",
-          "unchanged_component_trees": {
-            "Core": "8e43a5d286e6360b810326197ea6d3f6a1856e38",
+          "scope": "Complete main feature integration through PR55. All four full native/installed UI reports and all named CP9/CP10 assertions audited. Later tests-only PR56-58 are separately proven at their runtime head; physical/client gates remain open.",
+          "tested_component_trees": {
+            "Core": "b6641fe8ffd04df644ae914bf9df5ee2b9af2572",
             "App": "06dcfc8a016e61dbc8661f54761621d93be90712",
+            "Desktop/Sources": "91983059c7845fb4095544e889b30fdcdb062aa7",
             "tools/desktop-pdf": "bf322cc8cd9febb7cb70d4f4ba26be3d94814c0b",
             "tools/desktop-image": "acf6d660bc1d4880f63b6a423f6d81cf9aca84a7",
             "tools/desktop-language": "9815d746f73d274ec451a5b4328136a0aa0765bd",
@@ -727,13 +728,13 @@
         },
         "open_external_gates": [
           "Physical Windows 10/11 and Linux desktop IME/focus behavior and actual desktop permissions",
-          "Mixed-monitor DPI, common-application/format combinations beyond hosted Windows classic Notepad plain text, real suspend/resume and long-session checks in Desktop/TESTING.md",
+          "Mixed-monitor DPI, application/format combinations beyond the verified hosted Notepad, Chrome text/HTML/PNG/files and owned RichEdit RTF receivers, real suspend/resume and long-session checks in Desktop/TESTING.md",
           "Interactive official release-page launch and manual update installation on real client desktops remain unverified."
         ],
         "status_meaning": "Component verified records below close implemented/automated feature gates only. The overall platform delivery and CP13 remain in_progress.",
         "component_audit": {
-          "run": 41379565901,
-          "core_platform_run": 41378794849,
+          "run": 41433432627,
+          "core_platform_run": 41433432465,
           "components": [
             "CP9",
             "CP9_history_selection",
@@ -749,7 +750,7 @@
             "CP10",
             "CP9_rich_preview"
           ],
-          "method": "Each named assertion exists and passed in all four retained Windows/Linux native/installed reports; six implementation component trees match the feature reference. Component verified closes automated scope only; CP8, CP13 and overall delivery remain in_progress.",
+          "method": "Every named component assertion is present and true in each applicable Windows/Linux native and installed report from main integration 41433432627; the overall delivery and CP13 remain in_progress.",
           "reports": {
             "windows": [
               "ui-artifacts/results.json",
@@ -908,6 +909,104 @@
           "behavior": "Owned classic Notepad foreground, registered app hotkey, Enter copies full English/Chinese original without automatic paste, explicit Ctrl+V, exact native editor and saved-file text, normal Alt+F4 close.",
           "scope": "Pinned Windows Server classic Notepad plain text only; no Windows client, other common applications, rich-format/image/file paste, physical input, mixed-monitor or suspend claim.",
           "merge_tree_matches_tested_head": true
+        },
+        "windows_rich_format_followup": {
+          "stack": [
+            56,
+            57,
+            58
+          ],
+          "status": "verified_native_and_installed_on_owned_hosted_runner",
+          "tested_head": "5b95142ffaf74621f0487e768b9cbd76e0b4523d",
+          "run": 41440536848,
+          "url": "https://github.com/carter-ya/clipboard/actions/runs/41440536848",
+          "native_browser_reference_checks": 11,
+          "native_rtf_reference_checks": 10,
+          "debug_keyboard_checks": 63,
+          "installed_release_keyboard_checks": 63,
+          "package_runtime_upgrade_uninstall_checks": 12,
+          "browser_formats": [
+            "text",
+            "HTML bold",
+            "PNG exact encoded file bytes and fully/half-transparent RGBA pixels",
+            "two files with exact names and contents"
+          ],
+          "rtf_behavior": "Independent native source captured as a fresh uniquely selected record; actual shortcut/Enter copies exact original RTF bytes without automatic paste; actual RichEdit Ctrl+V preserves Chinese/emoji/newline, bold crimson 12pt and distinct italic. Real selection and Alt+F4, unchanged clipboard revision, retained app query/record and owned-thread cleanup are required.",
+          "native_dispatch_regression": {
+            "before_run": 41438011509,
+            "before_head": "d781debe80c8813acf0c1d301481a903f5a00b6d",
+            "before": "actual delayed UI callback reproduces premature event disposal; cleanup passes",
+            "after_run": 41438520654,
+            "after_head": "c7aa20b7cb80e0c423d393ec27550b362319f742",
+            "after": "same real callback regression and all ten native RTF checks pass"
+          },
+          "scopes": [
+            "Windows Server owned classic Notepad and private Chrome plus native RichEdit only",
+            "Actual product capture, registered shortcut, Enter copy and separate physical-scan-code Ctrl+V in Debug and installed Release",
+            "Native reference and product RTF use the same strict receiver assertions"
+          ],
+          "product_sources_match_main": "7885862a271a36f2119aa12dd52a91ecfdd3f043",
+          "physical_clients_office_other_formats_dpi_suspend": "not_verified",
+          "review_at_runtime_head": "clean_exact_head_5b95142; proof-only documentation changes require their own fresh review"
+        },
+        "main_core_followup": {
+          "run": 41433432465,
+          "tested_head": "7885862a271a36f2119aa12dd52a91ecfdd3f043",
+          "platforms": [
+            "Windows",
+            "Linux",
+            "macOS"
+          ],
+          "status": "full_platform_workflow_passed"
+        },
+        "linux_full_followup": {
+          "run": 41433432627,
+          "tested_head": "7885862a271a36f2119aa12dd52a91ecfdd3f043",
+          "native_ui_checks": 181,
+          "installed_ui_checks": 211,
+          "installation_checks": 15,
+          "installed_local_text_checks": 19,
+          "installed_model_operations_checks": 14,
+          "installed_file_pdf_checks": 19,
+          "wayland_checks_per_compositor_mode": 36,
+          "scale_checks_per_mode": 8,
+          "system_language_checks": 10,
+          "status": "full_linux_job_passed_and_report_assertions_audited",
+          "cp9_cp10_components_reaudited": 13,
+          "physical_client": "not_verified"
+        },
+        "previous_feature_reference": {
+          "run": 41379565901,
+          "url": "https://github.com/carter-ya/clipboard/actions/runs/41379565901",
+          "tested_head": "e2e714e238416b2307d9dc68f8ca3b021410bdbd",
+          "windows_native_ui_checks": 182,
+          "windows_installed_ui_checks": 210,
+          "linux_native_ui_checks": 181,
+          "linux_installed_ui_checks": 211,
+          "actual_models_and_model_operations": "passed_on_windows_and_linux_native_and_installed",
+          "scope": "Implemented feature acceptance through PR48; later PR49/50 add test-only input support. This is not physical/client acceptance or a claim that the later commit tree equals the earlier tested tree.",
+          "unchanged_component_trees": {
+            "Core": "8e43a5d286e6360b810326197ea6d3f6a1856e38",
+            "App": "06dcfc8a016e61dbc8661f54761621d93be90712",
+            "tools/desktop-pdf": "bf322cc8cd9febb7cb70d4f4ba26be3d94814c0b",
+            "tools/desktop-image": "acf6d660bc1d4880f63b6a423f6d81cf9aca84a7",
+            "tools/desktop-language": "9815d746f73d274ec451a5b4328136a0aa0765bd",
+            "tools/desktop-text": "9a42de01c707de34bb84cf30037945b2acf142a4"
+          }
+        },
+        "windows_full_followup": {
+          "run": 41433432627,
+          "tested_head": "7885862a271a36f2119aa12dd52a91ecfdd3f043",
+          "native_ui_checks": 182,
+          "installed_ui_checks": 210,
+          "installation_checks": 17,
+          "debug_keyboard_checks": 52,
+          "installed_keyboard_checks": 52,
+          "local_text_checks_per_configuration": 23,
+          "model_operations_checks_per_configuration": 16,
+          "file_pdf_checks_per_configuration": 21,
+          "status": "full_windows_job_passed_and_report_assertions_audited",
+          "physical_client": "not_verified"
         }
       }
     }

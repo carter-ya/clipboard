@@ -38,6 +38,7 @@ class InputEnvironmentPolicyTests(unittest.TestCase):
         steps = data['jobs']['preview']['steps']
         provision = next(step for step in steps if step.get('name') == 'Provision and verify the actual Windows Chinese input method')
         browser = next(step for step in steps if step.get('name') == 'Verify native browser formats before application builds')
+        rtf = next(step for step in steps if step.get('name') == 'Verify native RTF formats before application builds')
         keyboard = next(step for step in steps if step.get('name') == 'Exercise native Windows keyboard focus and explicit paste')
         for event in ['push', 'pull_request', 'workflow_dispatch']:
             for full in [False, True]:
@@ -57,11 +58,16 @@ class InputEnvironmentPolicyTests(unittest.TestCase):
         self.assertIn("$env:CHINESE_IME_VALIDATION -eq 'true'", keyboard['run'])
         self.assertIn("'-ChineseIme'", keyboard['run'])
         self.assertIn("'-BrowserPaste'", keyboard['run'])
+        self.assertIn("'-RtfPaste'", keyboard['run'])
+        self.assertEqual(rtf['if'], browser['if'])
+        self.assertIn('check-windows-richtext.ps1', rtf['run'])
+        self.assertLess(steps.index(rtf), next(index for index, step in enumerate(steps) if step.get('name') == 'Install Swift 6.3.3 on Windows'))
         self.assertLess(steps.index(browser), next(index for index, step in enumerate(steps) if step.get('name') == 'Install Swift 6.3.3 on Windows'))
         self.assertIn('check-windows-browser.ps1', browser['run'])
         for step in steps:
             if 'check-windows-install.ps1' in step.get('run', ''):
                 self.assertIn('-BrowserPaste', step['run'])
+                self.assertIn('-RtfPaste', step['run'])
         self.assertIn('-ChineseIme', next(step for step in steps if 'check-windows-install.ps1' in step.get('run', ''))['run'])
 
     def test_probe_never_runs_a_desktop_build_or_changes_normal_event_scope(self):
