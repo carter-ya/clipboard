@@ -16,6 +16,10 @@ try {
   foreach ($kind in @('text', 'html', 'image', 'files')) {
     Focus-WindowsOwnedBrowser $context -Reset
     $context.native.WriteFixture($kind)
+    if ($kind -eq 'html') {
+      Wait-BrowserCondition { $context.native.HtmlFixtureMatches() } 'native_html_reference_requires_exact_utf8_bytes' | Out-Null
+      $checks.Add(@{ name = 'native_html_reference_has_exact_utf8_header_and_body'; passed = $true })
+    }
     $revision = $context.native.ClipboardRevision
     $context.keys.Chord($context.window, [UInt16[]]@(0x11, 0x56))
     $receipt = Assert-WindowsBrowserPaste $context $kind

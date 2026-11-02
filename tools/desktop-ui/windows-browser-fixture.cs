@@ -47,6 +47,13 @@ public sealed class ClipboardBrowserFixture : IDisposable {
   [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
   [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr window);
   [DllImport("user32.dll")] static extern uint GetClipboardSequenceNumber();
+  [DllImport("user32.dll")] static extern bool OpenClipboard(IntPtr owner);
+  [DllImport("user32.dll")] static extern bool CloseClipboard();
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern uint RegisterClipboardFormat(string format);
+  [DllImport("user32.dll")] static extern IntPtr GetClipboardData(uint format);
+  [DllImport("kernel32.dll")] static extern UIntPtr GlobalSize(IntPtr handle);
+  [DllImport("kernel32.dll")] static extern IntPtr GlobalLock(IntPtr handle);
+  [DllImport("kernel32.dll")] static extern bool GlobalUnlock(IntPtr handle);
 
   IntPtr job, process;
   ClientWebSocket socket;
@@ -182,6 +189,35 @@ public sealed class ClipboardBrowserFixture : IDisposable {
     if (window == IntPtr.Zero || owner != ProcessId || window != Window()) throw new InvalidOperationException("browser_window_not_owned");
     SetForegroundWindow(window);
   }
+  string HtmlData() {
+    string prefix = "<html><body><!--StartFragment-->";
+    string fragment = "<p>Browser <b>" + BoldText + "</b></p>";
+    string suffix = "<!--EndFragment--></body></html>";
+    string format = "Version:1.0\r\nStartHTML:{0:D10}\r\nEndHTML:{1:D10}\r\nStartFragment:{2:D10}\r\nEndFragment:{3:D10}\r\n";
+    int start = Encoding.UTF8.GetByteCount(String.Format(format, 0, 0, 0, 0));
+    int fragmentStart = start + Encoding.UTF8.GetByteCount(prefix);
+    int fragmentEnd = fragmentStart + Encoding.UTF8.GetByteCount(fragment);
+    string header = String.Format(format, start, fragmentEnd + Encoding.UTF8.GetByteCount(suffix), fragmentStart, fragmentEnd);
+    return header + prefix + fragment + suffix;
+  }
+  public bool HtmlFixtureMatches() {
+    Running();
+    if (!OpenClipboard(IntPtr.Zero)) return false;
+    try {
+      IntPtr data = GetClipboardData(RegisterClipboardFormat("HTML Format"));
+      ulong size = data == IntPtr.Zero ? 0 : GlobalSize(data).ToUInt64();
+      if (size == 0 || size > 16384) return false;
+      IntPtr pointer = GlobalLock(data);
+      if (pointer == IntPtr.Zero) return false;
+      try {
+        byte[] bytes = new byte[(int)size]; Marshal.Copy(pointer, bytes, 0, bytes.Length);
+        // Only native HGLOBAL NUL padding is ignored; header/body bytes and all
+        // Unicode remain exact. This bypasses the managed HTML string decoder.
+        return new UTF8Encoding(false, true).GetString(bytes).TrimEnd('\0') == HtmlData();
+      } catch (DecoderFallbackException) { return false; }
+      finally { GlobalUnlock(data); }
+    } finally { CloseClipboard(); }
+  }
   public void WriteFixture(string kind) {
     Running(); Exception failure = null;
     var writer = new Thread(delegate() {
@@ -189,16 +225,13 @@ public sealed class ClipboardBrowserFixture : IDisposable {
         var data = new DataObject();
         if (kind == "text") data.SetData(DataFormats.UnicodeText, false, PlainText);
         else if (kind == "html") {
-          string prefix = "<html><body><!--StartFragment-->";
-          string fragment = "<p>Browser <b>" + BoldText + "</b></p>";
-          string suffix = "<!--EndFragment--></body></html>";
-          string format = "Version:1.0\r\nStartHTML:{0:D10}\r\nEndHTML:{1:D10}\r\nStartFragment:{2:D10}\r\nEndFragment:{3:D10}\r\n";
-          int start = Encoding.UTF8.GetByteCount(String.Format(format, 0, 0, 0, 0));
-          int fragmentStart = start + Encoding.UTF8.GetByteCount(prefix);
-          int fragmentEnd = fragmentStart + Encoding.UTF8.GetByteCount(fragment);
-          string header = String.Format(format, start, fragmentEnd + Encoding.UTF8.GetByteCount(suffix), fragmentStart, fragmentEnd);
-          data.SetData(DataFormats.Html, false, header + prefix + fragment + suffix);
-          data.SetData(DataFormats.UnicodeText, false, HtmlText);
+          // Bypass the legacy WinForms string marshaller. CF_HTML requires
+          // explicit UTF-8 bytes, as opposed to the Unicode plain-text format.
+          using (var html = new MemoryStream(Encoding.UTF8.GetBytes(HtmlData() + "\0"))) {
+            data.SetData(DataFormats.Html, false, html);
+            data.SetData(DataFormats.UnicodeText, false, HtmlText);
+            Clipboard.SetDataObject(data, true, 0, 0); return;
+          }
         } else if (kind == "files") {
           var paths = new StringCollection(); paths.AddRange(Files); data.SetFileDropList(paths);
         } else if (kind == "image") {
