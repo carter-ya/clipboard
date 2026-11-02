@@ -64,6 +64,14 @@ try {
   $peer.Chord($peer.Handle, [UInt16[]]@(0x32))
   Wait-Ime { $peer.CompositionLength -eq 0 -and $peer.Text -ceq $second } 'number_selects_second_native_candidate'
   $report.checks += 'number_selects_second_native_candidate'
+  if (!$peer.TargetChineseMode($peer.Handle)) { throw 'native_ime_window_status_must_match_real_conversion_mode' }
+  $peer.Chord($peer.Handle, [UInt16[]]@(0x5b, 0x20))
+  Wait-Ime { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $peer.Handle -and
+    $peer.TargetInputLanguage($peer.Handle) -eq 0x0409 } 'native_win_space_returns_to_english'
+  $peer.Chord($peer.Handle, [UInt16[]]@(0x5b, 0x20))
+  Wait-Ime { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $peer.Handle -and
+    $peer.TargetInputLanguage($peer.Handle) -eq 0x0804 } 'native_win_space_selects_chinese'
+  $report.checks += 'native_input_status_and_real_language_shortcut'
   if ($peer.PasteCount -ne 0) { throw 'ime_test_must_never_paste' }
   $report.checks += 'ime_test_uses_no_clipboard_or_unicode_packets'
   $report.passed = $true

@@ -8,13 +8,36 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class InputEnvironmentPolicyTests(unittest.TestCase):
+    def test_application_ime_requires_explicit_manual_request_or_full_integration(self):
+        data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
+        expression = data['env']['CHINESE_IME_VALIDATION'].removeprefix('${{').removesuffix('}}').strip()
+        steps = data['jobs']['preview']['steps']
+        provision = next(step for step in steps if step.get('name') == 'Provision and verify the actual Windows Chinese input method')
+        keyboard = next(step for step in steps if step.get('name') == 'Exercise native Windows keyboard focus and explicit paste')
+        for event in ['push', 'pull_request', 'workflow_dispatch']:
+            for full in [False, True]:
+                for mode in ['', 'off', 'inspect', 'prepare', 'application']:
+                    selected = expression.replace('github.event_name', repr(event)).replace('inputs.full_validation', repr(full)).replace('inputs.windows_input_environment', repr(mode))
+                    enabled = eval(selected.replace('&&', ' and ').replace('||', ' or '), {'__builtins__': {}})
+                    expected = event == 'push' or (event == 'workflow_dispatch' and (full or mode == 'application'))
+                    self.assertEqual(bool(enabled), expected)
+                    for system in ['Linux', 'Windows']:
+                        condition = provision['if'].replace('runner.os', repr(system)).replace('env.CHINESE_IME_VALIDATION', repr(str(enabled).lower()))
+                        actual = eval(condition.replace('&&', ' and '), {'__builtins__': {}})
+                        self.assertEqual(bool(actual), system == 'Windows' and expected)
+        self.assertLess(steps.index(provision), steps.index(keyboard))
+        self.assertIn('check-native-ime.ps1', provision['run'])
+        self.assertIn("$env:CHINESE_IME_VALIDATION -eq 'true'", keyboard['run'])
+        self.assertIn("'-ChineseIme'", keyboard['run'])
+        self.assertIn('-ChineseIme', next(step for step in steps if 'check-windows-install.ps1' in step.get('run', ''))['run'])
+
     def test_probe_never_runs_a_desktop_build_or_changes_normal_event_scope(self):
         data = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text(), Loader=yaml.BaseLoader)
         self.assertEqual(data['on']['workflow_dispatch']['inputs']['windows_input_environment']['default'], 'off')
         preview = data['jobs']['preview']
         probe = data['jobs']['input-environment']
         for event in ['push', 'pull_request', 'workflow_dispatch']:
-            for choice in ['', 'off', 'inspect', 'prepare']:
+            for choice in ['', 'off', 'inspect', 'prepare', 'application']:
                 expected_probe = event == 'workflow_dispatch' and choice in ['inspect', 'prepare']
                 for job, expected in [(probe, expected_probe), (preview, not expected_probe)]:
                     expression = job['if'].replace('github.event_name', repr(event)).replace('inputs.windows_input_environment', repr(choice))

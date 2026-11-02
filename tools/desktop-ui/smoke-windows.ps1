@@ -7,6 +7,7 @@
       [switch]$ValidateOnly,
       [switch]$ModelSettingsOnly,
       [switch]$KeyboardOnly,
+      [switch]$ChineseIme,
       [switch]$LocalTextOnly,
       [switch]$LocalFileModelsOnly,
       [switch]$ModelOperationsOnly,
@@ -15,6 +16,7 @@
       [string]$ModelDefinitions,
       [int]$LifecycleCycles = 0)
 $ErrorActionPreference = 'Stop'
+if ($ChineseIme -and !$KeyboardOnly) { throw 'chinese_ime_requires_keyboard_only_profile' }
 if (@($ModelSettingsOnly, $KeyboardOnly, $LocalTextOnly, $ModelOperationsOnly, $LocalFileModelsOnly | Where-Object { $_ }).Count -gt 1) {
   throw 'private_model_modes_are_mutually_exclusive'
 }
@@ -2978,7 +2980,8 @@ try {
   $passed = $checks.Count -gt 0 -and @($checks | Where-Object { !$_.passed }).Count -eq 0
   $limitations = if ($KeyboardOnly) {
     @('Owned Windows Actions keyboard events and explicit paste into a native test editor; not physical keyboard hardware.',
-      'Chinese Unicode input does not verify an IME candidate/composition session.',
+      $(if ($ChineseIme) { 'Actual Pinyin cancel/commit/selection and focus handoffs in GTK; native preedit is verified separately in the owned editor.' }
+        else { 'Chinese Unicode input does not verify an IME candidate/composition session.' }),
       'Mixed-monitor DPI, real suspend/resume and paste into other applications remain unverified.')
   } else {
     @('Native accessibility value/invoke operations and an owned CI-only mouse activation fixture; no keyboard injection in this mode.',

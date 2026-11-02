@@ -5,6 +5,7 @@
       [Parameter(Mandatory=$true)][string]$OCRFixture,
       [string]$SummaryModel,
       [string]$EntityModel,
+      [switch]$ChineseIme,
       [string]$ModelDefinitions)
 $ErrorActionPreference = 'Stop'
 if (($SummaryModel -or $EntityModel -or $ModelDefinitions) -and !($SummaryModel -and $EntityModel -and $ModelDefinitions)) {
@@ -134,8 +135,10 @@ try {
     & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
       -ModelSettingsOnly -OutputDirectory (Join-Path $Output 'model-settings')
     Check 'installed_model_settings_pass_native_consent_and_cancel_controls' ($LASTEXITCODE -eq 0)
+    $ImeArguments = @()
+    if ($ChineseIme) { $ImeArguments += '-ChineseIme' }
     & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `
-      -KeyboardOnly -OutputDirectory (Join-Path $Output 'keyboard')
+      -KeyboardOnly -OutputDirectory (Join-Path $Output 'keyboard') @ImeArguments
     Check 'installed_keyboard_hotkey_focus_editing_and_explicit_paste' ($LASTEXITCODE -eq 0)
     if ($SummaryModel) {
       & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File $Probe -Executable $Executable `

@@ -60,6 +60,16 @@ Native Windows Actions [41386908227](https://github.com/carter-ya/clipboard/acti
 passes all five actual IME checks. This proves the provisioned native editor,
 not yet the GTK application search field or physical client hardware.
 
+The follow-up `application` mode with `platform: windows` and
+`full_validation: false` provisions/preflights Pinyin, reuses the Debug build
+and adds actual Win+Space language selection, Escape/Space/number-key candidate
+behavior in GTK, and continued Chinese input after settings and hotkey reopen.
+The full integration scope also requests these checks in the installed package.
+Ordinary PRs retain the existing keyboard checks without provisioning language
+resources. Native execution of this GTK follow-up is pending; adding the
+script does not establish a pass. IME mode queries are read-only and bounded;
+only real language/mode shortcuts and Latin key events change input.
+
 Pushes to `main` and manual runs with `full_validation: true` retain the complete
 acceptance below, including real CPU models, Wayland, Release UI controls and
 installation. They first run the Debug checks and save their dependency cache,

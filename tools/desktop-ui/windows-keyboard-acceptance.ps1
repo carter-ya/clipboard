@@ -10,7 +10,8 @@ function Invoke-WindowsKeyboardAcceptance {
     $keyboardPeer = [ClipboardKeyboardFixture]::new([uint32]$application.Id)
     @{ input = 'SendInput'; recipient = 'owned native WinForms editor';
        installedChineseLegacyImeCount = $keyboardPeer.InstalledChineseImeCount();
-       chineseComposition = 'not_verified'; mixedMonitorDpi = 'not_verified'; suspendResume = 'not_verified' } |
+       chineseComposition = $(if ($ChineseIme) { 'required_see_actual_ime_checks' } else { 'not_verified' });
+       mixedMonitorDpi = 'not_verified'; suspendResume = 'not_verified' } |
       ConvertTo-Json | Out-File -Encoding UTF8 (Join-Path $OutputDirectory 'keyboard-capabilities.json')
 
     # Set up the hidden app once. Reopening and search focus below must come
@@ -119,6 +120,7 @@ function Invoke-WindowsKeyboardAcceptance {
 
     $keyboardPeer.Chord($keyboardPeer.Handle, [UInt16[]]@(0x11, 0x12, 0x56))
     Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and (Get-Editor).Current.HasKeyboardFocus } 'keyboard_final_reopen' | Out-Null
+    if ($ChineseIme) { Invoke-WindowsChineseImeAcceptance $keyboardPeer }
     Invoke-WindowsKeyboardButton 'Settings' $keyboardPeer
     Wait-For { Find-Named 'Preferences' } 'keyboard_quit_settings' | Out-Null
     Invoke-WindowsKeyboardButton 'Quit Clipboard' $keyboardPeer
@@ -136,6 +138,69 @@ function Invoke-WindowsKeyboardAcceptance {
       $keyboardPeer.Dispose()
     }
   }
+}
+
+function Invoke-WindowsChineseImeAcceptance($KeyboardPeer) {
+  # Provisioning/native IME preflight must already have passed in this VM.
+  # Change the input language using the actual OS shortcut on the owned app.
+  if ($KeyboardPeer.TargetInputLanguage($nativeWindowHandle) -ne 0x0409) { throw 'ime_fixture_requires_initial_english_input' }
+  $imeRevision = [PreviewNative]::GetClipboardSequenceNumber()
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x11, 0x41))
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x08))
+  Wait-For { Get-EditorWithValue '' } 'ime_empty_search_before_language_switch' | Out-Null
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x5b, 0x20))
+  Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and $KeyboardPeer.TargetInputLanguage($nativeWindowHandle) -eq 0x0804 } 'ime_actual_os_shortcut_selects_chinese_profile' | Out-Null
+  if (!$KeyboardPeer.TargetChineseMode($nativeWindowHandle)) {
+    $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x10))
+  }
+  Wait-For { $KeyboardPeer.TargetChineseMode($nativeWindowHandle) } 'ime_actual_chinese_conversion_mode' | Out-Null
+
+  # All input remains ordered in the OS input stream. The second composition
+  # must commit exactly once, so a cancelled first preedit cannot leak through.
+  $KeyboardPeer.TypeLatinKeys($nativeWindowHandle, 'nihao')
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x1b))
+  $KeyboardPeer.TypeLatinKeys($nativeWindowHandle, 'nihao')
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x20))
+  Wait-For { Get-EditorWithValue '你好' } 'ime_escape_cancels_then_space_commits_in_actual_search' | Out-Null
+  Add-Check 'actual_pinyin_cancel_and_first_candidate_reach_gtk_search' ([PreviewNative]::IsWindowVisible($nativeWindowHandle))
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x11, 0x41))
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x08))
+  Wait-For { Get-EditorWithValue '' } 'ime_clear_first_committed_search' | Out-Null
+  $KeyboardPeer.TypeLatinKeys($nativeWindowHandle, 'nihao')
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x32))
+  Wait-For { Get-EditorWithValue '你号' } 'ime_number_selects_second_candidate_in_actual_search' | Out-Null
+  Add-Check 'actual_pinyin_number_selects_distinct_second_candidate_in_gtk' $true
+
+  Invoke-WindowsKeyboardButton 'Settings' $KeyboardPeer
+  Wait-For { Find-Named 'Preferences' } 'ime_settings_open' | Out-Null
+  Invoke-WindowsKeyboardButton 'Back to history' $KeyboardPeer
+  Wait-For { (Get-EditorWithValue '你号') -and (Get-Editor).Current.HasKeyboardFocus } 'ime_settings_returns_query_and_focus' | Out-Null
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x23))
+  $KeyboardPeer.TypeLatinKeys($nativeWindowHandle, 'nihao')
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x20))
+  Wait-For { Get-EditorWithValue '你号你好' } 'ime_input_continues_after_settings' | Out-Null
+  Add-Check 'actual_pinyin_survives_settings_focus_handoff' $true
+
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x12, 0x73))
+  Wait-For { ![PreviewNative]::IsWindowVisible($nativeWindowHandle) } 'ime_alt_f4_hides' | Out-Null
+  $KeyboardPeer.Activate()
+  Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $KeyboardPeer.Handle } 'ime_owned_peer_foreground' | Out-Null
+  $KeyboardPeer.Chord($KeyboardPeer.Handle, [UInt16[]]@(0x11, 0x12, 0x56))
+  Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and
+    (Get-EditorWithValue '你号你好') -and (Get-Editor).Current.HasKeyboardFocus } 'ime_hotkey_restores_query_and_focus' | Out-Null
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x23))
+  $KeyboardPeer.TypeLatinKeys($nativeWindowHandle, 'nihao')
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x20))
+  Wait-For { Get-EditorWithValue '你号你好你好' } 'ime_input_continues_after_hotkey_reopen' | Out-Null
+  Add-Check 'actual_pinyin_survives_close_and_hotkey_reopen' $true
+  Add-Check 'actual_ime_editing_never_copies_or_pastes' ([PreviewNative]::GetClipboardSequenceNumber() -eq $imeRevision -and $KeyboardPeer.PasteCount -eq 2)
+
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x5b, 0x20))
+  Wait-For { [ClipboardKeyboardFixture]::GetForegroundWindow() -eq $nativeWindowHandle -and $KeyboardPeer.TargetInputLanguage($nativeWindowHandle) -eq 0x0409 } 'ime_os_shortcut_returns_to_english' | Out-Null
+  $KeyboardPeer.Chord($nativeWindowHandle, [UInt16[]]@(0x23))
+  $KeyboardPeer.TypeAscii($nativeWindowHandle, 'a')
+  Wait-For { Get-EditorWithValue '你号你好你好a' } 'ime_english_input_after_chinese' | Out-Null
+  Add-Check 'actual_english_input_resumes_after_pinyin' $true
 }
 
 function Invoke-WindowsKeyboardButton([string]$Label, $KeyboardPeer) {
