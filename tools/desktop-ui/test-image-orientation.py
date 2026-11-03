@@ -70,6 +70,15 @@ func pixels(_ image: OpaquePointer) -> [[UInt8]] {
     return [bytes[offset],bytes[offset+1],bytes[offset+2]]
   }}
 }
+func isOpaque(_ image: OpaquePointer) -> Bool {
+  if gdk_pixbuf_get_has_alpha(image) == 0 { return true }
+  guard let bytes = gdk_pixbuf_get_pixels(image) else { return false }
+  let width = Int(gdk_pixbuf_get_width(image)), height = Int(gdk_pixbuf_get_height(image))
+  let stride = Int(gdk_pixbuf_get_rowstride(image)), channels = Int(gdk_pixbuf_get_n_channels(image))
+  return (0..<height).allSatisfy { row in
+    (0..<width).allSatisfy { column in bytes[row * stride + column * channels + 3] == 255 }
+  }
+}
 let maps = [[0,1,2,3,4,5], [2,1,0,5,4,3], [5,4,3,2,1,0], [3,4,5,0,1,2],
             [0,3,1,4,2,5], [3,0,4,1,5,2], [5,2,4,1,3,0], [2,5,1,4,0,3]]
 let root = URL(fileURLWithPath: CommandLine.arguments[1])
@@ -108,7 +117,7 @@ check("truncated_jpeg_rejected", DesktopPreviewImage.decode(Data([255,216,255]))
 check("encoded_input_limit_preserved", DesktopPreviewImage.decode(Data(repeating:0,count:16*1024*1024+1)) == nil)
 for name in ["bmp24", "bmp32", "bmpV5", "bmpTopDown"] {
   let input = try Data(contentsOf: root.appendingPathComponent(name + ".bmp"))
-  let fields = ["decodes", "geometry", "pixels", "peek_geometry", "peek_pixels", "original_bytes_unchanged"]
+  let fields = ["decodes", "geometry", "pixels", "peek_geometry", "peek_pixels", "original_bytes_unchanged", "opaque_pixels_visible"]
   guard let decoded = DesktopPreviewImage.decode(input) else {
     for field in fields { check(name + "_" + field, false) }
     continue
@@ -120,8 +129,9 @@ for name in ["bmp24", "bmp32", "bmpV5", "bmpTopDown"] {
   check(name + "_peek_geometry", gdk_pixbuf_get_width(decoded.peekPixbuf) == 3 && gdk_pixbuf_get_height(decoded.peekPixbuf) == 2)
   check(name + "_peek_pixels", pixels(decoded.peekPixbuf) == expected)
   check(name + "_original_bytes_unchanged", input == (try Data(contentsOf: root.appendingPathComponent(name + ".bmp"))))
+  check(name + "_opaque_pixels_visible", isOpaque(decoded.pixbuf) && isOpaque(decoded.peekPixbuf))
 }
-let passed = checks.count == 137 && checks.allSatisfy { $0["passed"] as? Bool == true }
+let passed = checks.count == 141 && checks.allSatisfy { $0["passed"] as? Bool == true }
 let report: [String:Any] = ["passed":passed,"checks":checks,"scope":"Actual GTK preview decode and hover raster: Windows BMP24/BMP32/BMPV5/top-down, absent/all8 JPEG/TIFF EXIF orientations, original data and encoded bounds; no UI/clipboard/ICC claim"]
 let output = try JSONSerialization.data(withJSONObject:report,options:[.sortedKeys])
 print(String(data:output,encoding:.utf8)!)
@@ -167,7 +177,7 @@ def main():
             args.output.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
         failed = [check['name'] for check in report['checks'] if check['passed'] is not True]
         print(json.dumps({'passed':report['passed'],'checks':len(report['checks']),'failed':failed}))
-        if report['passed'] is not True or len(report['checks']) != 137 or failed: raise SystemExit(1)
+        if report['passed'] is not True or len(report['checks']) != 141 or failed: raise SystemExit(1)
 
 
 if __name__ == '__main__': main()

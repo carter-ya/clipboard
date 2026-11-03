@@ -6,6 +6,34 @@ remain blocked by the open interactive gates below.
 
 ## Current evidence
 
+### Windows bitmap previews and navigation follow-up
+
+PR78 reproduces the installed `c401d7c` preview defect on Parallels Windows11
+ARM64 with private synthetic history: PNG renders, but BMP24/BMP32/BMPV5 records
+have no image control. The fixed gvsbuild runtime disabled BMP loaders. The
+same-version native BMP module preserves the existing PNG/JPEG/TIFF library
+and SVG loader registry and has a separate cache from GTK/AccessKit. Native Windows
+packaging now requires its verified receipt. Manual Windows builders must run
+`tools/desktop-ui/install-windows-image-loaders.ps1` after configuring GTK.
+
+The pinned GTK backend also repeatedly invalidated display-wide styles while
+measuring line limits with a shared label and alternating row fonts. The repair
+uses each current widget's Pango context, replaces styles atomically, skips
+unchanged button CSS and reuses unchanged image textures. A native comparison
+preserves all576 text geometries while eliminating432 shared-label stylesheet
+reloads. In one offline Linux100-record comparison, completed baseline tab
+transitions take568–2283ms and the baseline later times out on a native action;
+the final repair completes all transitions in446–587ms. These measurements
+include accessibility observation, not physical frame timing.
+
+Offline Linux checks pass the release build,141 actual image/hover assertions,
+576 text geometries, native search submit and146 existing UI assertions
+(138 distinct names). The latter run uses private Xvfb without a separate native
+clipboard peer or optional-model acceptance. It covers themes/languages,
+preserved editors, navigation, archive dialogs and sensitive preview revocation.
+Windows package/client confirmation is tracked separately in `harness.json`;
+these results do not close physical IME, mixed-DPI, suspend or full release gates.
+
 The current Windows-only full integration is
 [41491062151](https://github.com/carter-ya/clipboard/actions/runs/41491062151)
 at `48b872a`, and it is complete. The downloaded ZIP digest and 17 required

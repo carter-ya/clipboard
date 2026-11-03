@@ -170,9 +170,13 @@ else:
     if marker.get('accessibility') != 'accesskit' or marker.get('gtk') != '4.22.4':
         raise RuntimeError('Verified GTK/AccessKit runtime is required')
     image_marker = json.loads((gtk / 'clipboard-image-runtime.json').read_text(encoding='utf-8-sig'))
-    if (image_marker.get('gdkPixbuf') != '2.44.7' or image_marker.get('nativeWindowsLoaders') is not True or
+    if (image_marker.get('gdkPixbuf') != '2.44.7' or image_marker.get('nativeWindowsFormats') != ['bmp'] or
             image_marker.get('sha256') != '172f80e3626ec31520a970400f1a3694e04718f6c2cd2885f75250fb5a6995a4'):
         raise RuntimeError('Verified Windows bitmap decoders are required')
+    for path, key in [('bin/gdk_pixbuf-2.0-0.dll', 'basePixbufSHA256'),
+                      ('lib/gdk-pixbuf-2.0/2.10.0/loaders/pixbufloader-gdip-bmp.dll', 'moduleSHA256')]:
+        if hashlib.sha256((gtk / path).read_bytes()).hexdigest() != image_marker.get(key):
+            raise RuntimeError('Windows image runtime no longer matches its verified receipt')
     # Preserve the upstream bin/lib/share layout so GTK/GdkPixbuf relocation and
     # its relative loader cache keep working from an arbitrary install folder.
     for directory in ['gdk-pixbuf-2.0', 'gio/modules', 'gtk-4.0']:

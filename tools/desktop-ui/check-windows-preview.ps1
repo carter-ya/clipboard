@@ -78,6 +78,9 @@ try {
     if ($item.Count -ne 1) { throw 'preview_image_fixture_missing' }
     $value.SetValue('Fixture ' + $kind)
     $null = Await-Name '1 items'
+    # Two bitmap variants can have the same byte length. Wait for the exact
+    # filtered row too, so the preceding picture cannot satisfy this check.
+    $null = Await-Name ('Fixture ' + $kind)
     $null = Await-Name ('Image ' + [char]0x00b7 + ' ' + $item[0].sizeBytes + ' bytes')
     $picture = $previewWindow.FindFirst([Windows.Automation.TreeScope]::Descendants, $imageCondition)
     Check ($kind + '_native_preview_present') ($null -ne $picture)
