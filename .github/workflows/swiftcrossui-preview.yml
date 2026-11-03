@@ -305,6 +305,8 @@ jobs:
         run: |
           & python tools/desktop-ui/build-desktop.py --jobs 2 2>&1 | Tee-Object -FilePath ui-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify production logger with the UI toolchain and no console
+        run: python tools/ci/check-portable-logging.py --output ui-artifacts/portable-logging
       - name: Verify search submit survives backend updates
         run: python tools/desktop-ui/test-search-submit.py
       - name: Verify actual GTK image and hover orientation

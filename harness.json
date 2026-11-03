@@ -22,7 +22,7 @@
     "dependency": "apple/swift-crypto 3.12.3, pinned for reproducibility; Crypto target enabled only for Linux/Windows. CryptoKit remains on macOS.",
     "platform_boundary": "Apple clipboard, hotkey, Keychain and image encoder implementations/tests are guarded with os(macOS). PasteboardWriting is declared in a Foundation-only file. WorkspaceProvider and its stub remain portable.",
     "preview_limit": "Non-macOS preserves original RTF/HTML payloads but does not decode them for previews; a plain-text sidecar still supplies a preview.",
-    "logging": "macOS retains OSLog; non-Apple validation uses a stderr logger with private-by-default interpolation. No clipboard body is logged.",
+    "logging": "macOS retains OSLog. The non-Apple stderr logger redacts interpolation by default and uses the throwing Foundation write API with best-effort error handling: absent, invalid or unwritable diagnostics must never terminate capture. Native Windows regression compiles this exact source as a GUI-subsystem executable and checks missing/invalid/read-only stderr plus live redacted output with both Core and UI toolchains. No clipboard body is logged.",
     "validation": {
       "macOS_core": "153 tests; 1 existing Keychain skip; zero failures",
       "macOS_app": "Full Debug application build passed; no GUI runtime result is claimed",
@@ -1388,6 +1388,15 @@
           }
         }
       }
+    },
+    "windows_capture_crash_followup": {
+      "status": "fix_pending_native_validation",
+      "reported_environment": "Parallels Windows 11 ARM64, x64 preview executable, build 48b872a",
+      "confirmed_evidence": "Six Application Error events share swiftCore.dll offset 0x168b6 and exception 0xc000001d; shipped DLL disassembly identifies the Swift assertion-failure UD2. Two new synthetic profiles in the interactive guest session reproduce unredirected process exit 0xc000001d versus redirected process surviving the bounded observation. No real clipboard/history was read or modified.",
+      "cause": "JSONSnapshotClipStore.insert logs each new text/image item; legacy FileHandle.write performs try! and terminates when a GUI launch has no writable stderr. Existing native UI fixtures always redirected stderr.",
+      "change": "Use best-effort throwing write(contentsOf:). Compile the production logger directly in a GUI-subsystem probe and require completion without stderr, with invalid stderr and a read-only handle, plus redaction with a real writable sink.",
+      "limitation": "The fixed native Windows probe and updated packaged application still require validation; existing server CI passes do not prove this client regression fixed.",
+      "validation_progress": "Linux regression passes; the old logger fails the same check. First native Windows compile succeeds, but Python rejects a negative integer for the INVALID_HANDLE_VALUE test before launching that case. Pass the pointer-width unsigned sentinel instead. A 20-second redirected guest control persists three synthetic text records and logs all five synthetic text/image inserts without capture enabled. Native fixed-probe and packaged-client gates remain open."
     }
   },
   "desktop_ui": {

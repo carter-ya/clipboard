@@ -109,6 +109,8 @@ jobs:
           if (($SwiftVersionOutput -join "`n") -notmatch 'Swift version 6\.1\.3(?:\s|$)') {
             throw "Expected Swift 6.1.3; the selected toolchain does not match."
           }
+      - name: Verify logging without a writable console
+        run: python tools/ci/check-portable-logging.py --output portable-logging
       - name: Verify original PNG and native bitmap interoperability
         if: runner.os == 'Windows'
         shell: pwsh
@@ -313,6 +315,8 @@ jobs:
           path: |
             toolchain.log
             core-tests.log
+            portable-logging/results.json
+            portable-logging/logging-probe.exe
             scenario.log
             platform-clipboard.log
             platform-rich.log
