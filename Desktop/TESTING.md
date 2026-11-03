@@ -31,8 +31,32 @@ Offline Linux checks pass the release build,141 actual image/hover assertions,
 (138 distinct names). The latter run uses private Xvfb without a separate native
 clipboard peer or optional-model acceptance. It covers themes/languages,
 preserved editors, navigation, archive dialogs and sensitive preview revocation.
-Windows package/client confirmation is tracked separately in `harness.json`;
-these results do not close physical IME, mixed-DPI, suspend or full release gates.
+Final `f2f9156` passes Core CI41604258903 and Windows/Linux UI CI41604259132.
+Candidate41604293017 (artifact13218106753) passes141 decoder assertions,
+576 text geometries,4 logger checks,13 preview/navigation checks and12
+installed-launch/tray/uninstall checks. Its artifact and complete package
+manifest are audited. The base GdkPixbuf DLL is byte-identical to the previous
+installed package and the SVG registry is preserved; only the BMP module is added.
+
+The same Parallels Windows11 ARM64 client runs the final x64 executable with100
+synthetic public records. All13 preview/navigation checks pass; owned-window
+screenshots confirm PNG/BMP24/BMP32/BMPV5zero pixels. Three tab rounds using
+cached native controls yield these medians (milliseconds):
+
+| Action | Previous c401d7c | Final f2f9156 |
+| --- | ---: | ---: |
+| Image | 5547.8 | 738.4 |
+| Text | 2562.9 | 1146.6 |
+| Pinned | 4199.3 | 872.5 |
+| All | 1249.9 | 1219.8 |
+
+Settings is a single sample,698.9→623.7ms. These timings include accessibility
+publication and do not measure physical frames. All/Text still take about a
+second, and the compact preview pane remains cramped; this is an improvement,
+not complete interaction-performance acceptance. The private profile disables
+recording and shortcuts. Live Photos-to-app clipboard, physical IME, mixed-DPI,
+suspend and full release acceptance remain separate. Exact artifact, installer
+and executable hashes are recorded in `harness.json`.
 
 The current Windows-only full integration is
 [41491062151](https://github.com/carter-ya/clipboard/actions/runs/41491062151)
