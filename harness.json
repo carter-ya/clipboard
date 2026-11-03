@@ -1536,7 +1536,7 @@
       }
     },
     "windows_preview_responsiveness_followup": {
-      "status": "implemented_native_windows_verification_pending",
+      "status": "bmp_preview_verified_navigation_improved_residual_latency",
       "report": "Windows Photos copies create image history entries without previews; tabs and settings feel slow.",
       "reproduction": {
         "platform": "Parallels Windows 11 ARM64, x64 installed candidate c401d7c",
@@ -1547,8 +1547,46 @@
       "cause": "Fixed gvsbuild 2026.8.0 GdkPixbuf 2.44.7 enables all built-in enabled loaders but omits BMP. SwiftCrossUI GTK repeatedly clears then restores unchanged styles during layout, invalidating display-wide style providers.",
       "change": "Separately cached same-version native BMP module preserves the original GdkPixbuf DLL (including PNG/JPEG/TIFF decoders), dynamic SVG registry and existing GTK/AccessKit cache. Pinned GTK backend patch replaces styles atomically so equal styles skip provider reloads; removed properties still clear correctly. No additional UI polling or input synthesis. Native image widgets retain their textures across layout probes and replace them when the decoded image changes; the coordinator holds only a weak identity reference. Line-limit measurement reuses the current widget Pango context instead of restyling a shared hidden label for alternating row fonts. View-label buttons skip unchanged CSS loads. Packaging requires and includes the verified image decoder receipt. The preliminary all-format native overlay was narrowed before delivery because GDI+ modules allocate full images before the loader size callback; existing JPEG/TIFF decode paths must not be replaced.",
       "regression": "Actual production decoder checks Windows BMP24/BMP32/BMPV5/top-down pixels, main/hover geometry, all JPEG/TIFF orientations and original bytes (141, including opaque BMP alpha). Private ordinary and installed Windows GUI probes check PNG/BMP previews with 100 synthetic records and record 13 navigation timings. Recording and shortcuts remain disabled. Native GTK metrics compare 576 combinations of text, font, width/height and line limits with the original pinned sizing method, requiring unchanged geometry and zero shared-label style reloads.",
-      "validation": "Offline Linux release build, 141 decoder checks, 576 identical native text geometries with zero shared style reloads, and actual search submit checks pass. On the same private Linux desktop, final line-metric fix reduces 100-record tab transitions to 446–587ms versus baseline completed transitions 568–2283ms (baseline later native-action timeout). These include accessibility timing overhead. The committed Windows UI probe fails the previous installed version at BMP24 preview, while PNG passes. Windows native and same-client after verification remain pending. Final offline Linux existing UI regression passes146 assertions (138 distinct names), including themes, language/editor preservation and sensitive preview revocation; no separate clipboard peer or optional-model acceptance. Preliminary Windows candidate925ed79 passes137 decoder assertions but is not the final runtime: BMP-only module, alpha/filtered-row checks and client verification remain pending.",
-      "fullPlatformAcceptance": false
+      "validation": "Offline Linux release build, 141 actual decoder checks, 576 unchanged text geometries with zero shared-label style reloads, search-submit regression and 146 existing UI assertions pass. Final f2f9156 Core CI 41604258903 and Windows/Linux UI CI 41604259132 pass. Windows candidate 41604293017 passes 141 decoder, 576 text-metric, 4 logger, 13 preview/navigation and 12 installed-launch/tray/uninstall assertions. The downloaded artifact, package manifests and executable are verified. On the same Windows 11 ARM64 client, the final x64 package passes all 13 private preview/navigation checks, and owned-window screenshots show PNG/BMP24/BMP32/BMPV5zero pixels. Tests use synthetic public history with recording/shortcuts disabled; no real clipboard/history or keyboard injection.",
+      "fullPlatformAcceptance": false,
+      "verified_revision": "f2f9156526999ab8851d6d74b782af2cac847b52",
+      "review": "https://github.com/carter-ya/clipboard/pull/78#issuecomment-6599064897",
+      "candidate": {
+        "run": 41604293017,
+        "artifact": 13218106753,
+        "archiveSHA256": "76fe0ad244bd3666d8ce39fa20f86d5090df763f00a11b8e80f8f9c0f753d061",
+        "installerSHA256": "debe35f678c19cfe7871568f44044d4f1c69456dbcc91833b31c021513c2f065",
+        "executableSHA256": "4cf5b0988b50f29142b40df8a0ea3c52a9a0dc8932a2d79ffc7094521ecd7dc1",
+        "base_pixbuf_sha256": "ba07454f5ac8560c025683005140f13c4453c6d37119168439d29b5a849f0524"
+      },
+      "client_timing": {
+        "scope": "Same Windows 11 ARM64 Parallels client, x64 binaries; 100 synthetic public records; three tab rounds with cached native control observation. Includes accessibility publication, not physical frame timing. Settings is one sample.",
+        "beforeSHA256": "8375820bb15802aab0c1440e6ce005513bc20c1aef595cb212db6f2051f249ca",
+        "afterSHA256": "4cf5b0988b50f29142b40df8a0ea3c52a9a0dc8932a2d79ffc7094521ecd7dc1",
+        "comparison": {
+          "Image": {
+            "beforeMedianMs": 5547.8,
+            "afterMedianMs": 738.4
+          },
+          "Text": {
+            "beforeMedianMs": 2562.9,
+            "afterMedianMs": 1146.6
+          },
+          "Pinned": {
+            "beforeMedianMs": 4199.3,
+            "afterMedianMs": 872.5
+          },
+          "All": {
+            "beforeMedianMs": 1249.9,
+            "afterMedianMs": 1219.8
+          },
+          "Settings": {
+            "beforeMedianMs": 698.9,
+            "afterMedianMs": 623.7
+          }
+        }
+      },
+      "remaining": "The 100-record All transition remains about 1.22 seconds and Text about 1.15 seconds in native accessibility observation. This is a measured improvement, not an instant-switching claim. The compact preview pane remains cramped. Physical frame timing, Photos-to-app live clipboard confirmation, IME, mixed DPI and suspend are outside this private synthetic follow-up."
     }
   },
   "desktop_ui": {
