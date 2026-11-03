@@ -1440,7 +1440,10 @@
         },
         "gates": "Existing full native/model/browser/IME/upgrade acceptance remains unchanged and candidate metadata explicitly sets fullPlatformAcceptance=false. Candidate upload requires successful installed regression; failed runs retain diagnostics only.",
         "reason": "Full main Windows passed logging 4/4, native UI 182/182, keyboard 78/78 but an automatic-model wait failed. One fresh identical-tree Windows run 41579296477 failed browser preflight before compiling the application. Avoid further blind whole-suite retries; deliver a clearly scoped test candidate for local verification.",
-        "product_source": "Same ClipboardCore/Desktop application sources as reviewed PR73/main b6937a6; only test/package workflow additions."
+        "product_source": "Same ClipboardCore/Desktop application sources as reviewed PR73/main b6937a6; only test/package workflow additions.",
+        "concurrency": "Preserve the existing full/PR concurrency key and append -capture-candidate only for explicit manual candidates. New candidate attempts cancel only candidates on the same ref, never ongoing complete acceptance.",
+        "native_run": 41581073574,
+        "initial_head": "c7bc0a7bf5271cbb15cf5ef09c625d4c43702485"
       }
     }
   },

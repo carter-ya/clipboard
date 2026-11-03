@@ -1,5 +1,6 @@
 """Keep the focused candidate distinct from complete desktop acceptance."""
 from pathlib import Path
+import re
 import unittest
 import yaml
 
@@ -8,6 +9,24 @@ DATA = yaml.load((ROOT / '.github/workflows/swiftcrossui-preview.yml').read_text
 
 
 class CandidatePolicyTests(unittest.TestCase):
+    def test_candidate_never_cancels_complete_acceptance_for_the_same_ref(self):
+        def group(event, candidate, number=None):
+            def render(match):
+                expression = match[1]
+                values = {'github.workflow': 'Desktop UI', 'github.event_name': event,
+                          'github.event.pull_request.number': number, 'github.ref': 'refs/heads/main',
+                          'inputs.windows_capture_candidate': candidate}
+                for key, value in values.items():
+                    expression = expression.replace(key, repr(value))
+                return str(eval(expression.replace('&&', ' and ').replace('||', ' or '), {'__builtins__': {}}))
+            return re.sub(r'\$\{\{(.*?)\}\}', render, DATA['concurrency']['group'])
+        full = group('push', False)
+        self.assertEqual(full, 'Desktop UI-refs/heads/main')
+        self.assertEqual(group('workflow_dispatch', False), full)
+        self.assertEqual(group('workflow_dispatch', True), full + '-capture-candidate')
+        self.assertEqual(group('pull_request', False, 74), 'Desktop UI-74')
+        self.assertEqual(DATA['concurrency']['cancel-in-progress'], 'true')
+
     def test_candidate_requires_explicit_manual_scope(self):
         choice = DATA['on']['workflow_dispatch']['inputs']['windows_capture_candidate']
         self.assertEqual(choice, {'description': choice['description'], 'type': 'boolean', 'default': 'false'})
