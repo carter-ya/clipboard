@@ -1395,7 +1395,8 @@
       "confirmed_evidence": "Six Application Error events share swiftCore.dll offset 0x168b6 and exception 0xc000001d; shipped DLL disassembly identifies the Swift assertion-failure UD2. Two new synthetic profiles in the interactive guest session reproduce unredirected process exit 0xc000001d versus redirected process surviving the bounded observation. No real clipboard/history was read or modified.",
       "cause": "JSONSnapshotClipStore.insert logs each new text/image item; legacy FileHandle.write performs try! and terminates when a GUI launch has no writable stderr. Existing native UI fixtures always redirected stderr.",
       "change": "Use best-effort throwing write(contentsOf:). Compile the production logger directly in a GUI-subsystem probe and require completion without stderr, with invalid stderr and a read-only handle, plus redaction with a real writable sink.",
-      "limitation": "The fixed native Windows probe and updated packaged application still require validation; existing server CI passes do not prove this client regression fixed."
+      "limitation": "The fixed native Windows probe and updated packaged application still require validation; existing server CI passes do not prove this client regression fixed.",
+      "validation_progress": "Linux regression passes; the old logger fails the same check. First native Windows compile succeeds, but Python rejects a negative integer for the INVALID_HANDLE_VALUE test before launching that case. Pass the pointer-width unsigned sentinel instead. A 20-second redirected guest control persists three synthetic text records and logs all five synthetic text/image inserts without capture enabled. Native fixed-probe and packaged-client gates remain open."
     }
   },
   "desktop_ui": {

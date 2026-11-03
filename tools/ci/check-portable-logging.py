@@ -12,6 +12,7 @@ import tempfile
 
 def run_windows(executable, receipt, mode, sink):
     import _winapi
+    import ctypes
     import msvcrt
 
     startup = subprocess.STARTUPINFO()
@@ -19,7 +20,7 @@ def run_windows(executable, receipt, mode, sink):
     startup.hStdInput = startup.hStdOutput = 0
     descriptor = None
     if mode in ('absent', 'invalid'):
-        startup.hStdError = 0 if mode == 'absent' else -1
+        startup.hStdError = 0 if mode == 'absent' else ctypes.c_void_p(-1).value
     else:
         descriptor = os.open(sink, os.O_RDONLY if mode == 'unwritable' else os.O_WRONLY)
         handle = msvcrt.get_osfhandle(descriptor)
@@ -31,7 +32,7 @@ def run_windows(executable, receipt, mode, sink):
         process, thread, _, _ = _winapi.CreateProcess(
             str(executable), subprocess.list2cmdline([str(executable), str(receipt)]),
             None, None, descriptor is not None,
-            subprocess.CREATE_NO_WINDOW | 0x04000000,  # No system crash dialog.
+            subprocess.CREATE_NO_WINDOW,
             None, str(executable.parent), startup)
         if _winapi.WaitForSingleObject(process, 10000) == 258:
             _winapi.TerminateProcess(process, 94)
