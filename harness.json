@@ -1489,7 +1489,7 @@
       }
     },
     "windows_tray_activation_followup": {
-      "status": "fix_implemented_native_ci_pending",
+      "status": "fixed_and_verified_on_client",
       "report": "Direct single/double click on the Windows tray icon shows history then immediately hides it.",
       "reproduction": {
         "platform": "Parallels Windows 11 ARM64, x64 candidate c7bc0a7",
@@ -1499,8 +1499,41 @@
       "cause": "Windows tray callbacks emit toggleHistory, so a subsequent activation reverses the preceding show. Global hotkey toggling is intentional; tray activation should show idempotently.",
       "change": "Emit showHistory for mouse release, NIN_SELECT and NIN_KEYSELECT; keep global hotkey toggle semantics. No delay, debounce, focus retry or new UI polling.",
       "regression": "Compile the actual Win32 dispatcher into an invisible private-window native test in PR and candidate CI. Installed candidate invokes its owned native Hide control once, delivers each activation callback once to its PID-validated shell window, then observes visible state without mutation retries. Full model/browser/IME/physical acceptance stays separate.",
-      "validation": "Pre-fix installed executable reproduced tray_repeat_activation_hides_window while process remained alive. Post-fix native CI and candidate/client verification pending.",
-      "fullPlatformAcceptance": false
+      "validation": "Exact fix head passes clean review, Core Windows/Linux/macOS, PR Windows/Linux UI and the optimized installed candidate. All 11 installed checks and four logger checks pass. The same optimized executable passes all three tray checks on Parallels Windows 11 ARM64. This is owned callback/visibility evidence, not physical mouse/keyboard focus or complete platform acceptance.",
+      "fullPlatformAcceptance": false,
+      "fix_pr": 76,
+      "fix_head": "c401d7c3aa096c28206f178dcaca320c6393aff5",
+      "merged_main": "15c664f98da691c327a6d86730c4e8e2a137ed14",
+      "review_receipt": 6597212270,
+      "core_run": 41591214380,
+      "pr_ui_run": 41591214351,
+      "candidate": {
+        "run": 41591259622,
+        "job": 125768289068,
+        "artifact": 13210099579,
+        "installed_checks": 11,
+        "logger_checks": 4,
+        "archive_sha256": "04df1196651d6dc509576164f41ea7d9280094e27d778affcc85d51b7dcd3bed",
+        "installer_sha256": "f72de8124e32a699f87f3435a5a80fd5d08e18fbcb406da3be1879e252f20a58",
+        "executable_sha256": "8375820bb15802aab0c1440e6ce005513bc20c1aef595cb212db6f2051f249ca",
+        "download_filename": "ClipboardDesktop-0.1.0-preview.1-windows-x64-tray-fix-c401d7c-setup.exe",
+        "fullPlatformAcceptance": false
+      },
+      "client": {
+        "platform": "Parallels Windows 11 ARM64; x64 candidate under emulation",
+        "tray_checks": 3,
+        "passed": true,
+        "private_profiles": true,
+        "recording_enabled": false,
+        "shortcuts_enabled": false,
+        "real_clipboard_access": false,
+        "normal_history_access": false,
+        "keyboard_input": false,
+        "cleanup_verified": true,
+        "installed_application_unchanged": true,
+        "vm_initial_and_final_state": "running",
+        "clipboard_sharing_initial_and_final": "on"
+      }
     }
   },
   "desktop_ui": {

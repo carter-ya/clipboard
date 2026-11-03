@@ -393,3 +393,21 @@ Verified candidate hashes:
 - Optimized executable: `86803ebfc4ac6f34f3237b29f885218450f2b31ccaf6dba40a28a01a54ddb9ae`
 
 The local download name is `ClipboardDesktop-0.1.0-preview.1-windows-x64-capture-fix-c7bc0a7-setup.exe`, distinguishing it from the earlier same-version preview. Complete Windows platform acceptance remains open; the reported capture crash and this scoped candidate are verified.
+
+### Windows tray activation follow-up (2026-11-03)
+
+Direct single/double clicking the tray icon was reported to show history and immediately hide it. The old `c7bc0a7` executable reproduces this in an owned child on Parallels Windows 11 ARM64: after invoking the actual GTK Hide control once, `WM_LBUTTONUP` shows history and a subsequent `NIN_SELECT` hides it while the process remains alive. This is a toggle-policy defect, separate from the earlier logging crash. Tray activation now emits idempotent `showHistory`; the global shortcut retains `toggleHistory`. No delay, debounce, focus retry or production UI polling is added.
+
+[PR #76](https://github.com/carter-ya/clipboard/pull/76) head `c401d7c3aa096c28206f178dcaca320c6393aff5` passes exact-head review (receipt 6597212270; no findings/threads), [Core Windows/Linux/macOS](https://github.com/carter-ya/clipboard/actions/runs/41591214380) and [PR Windows/Linux UI](https://github.com/carter-ya/clipboard/actions/runs/41591214351). It merges as `15c664f98da691c327a6d86730c4e8e2a137ed14`. The native fixture compiles the actual Win32 dispatcher, checks repeated release/selection/keyboard-activation callbacks, ignores hover and retains shortcut toggling. The initial standalone test compile failed on an existing MSVC CRT deprecation under `-Werror`; its compiler flags now acknowledge that CRT policy. This was a test-driver failure before execution, and superseded active CI was stopped.
+
+[Candidate run 41591259622](https://github.com/carter-ya/clipboard/actions/runs/41591259622), job 125768289068, passes all 11 installed checks and four logger checks. Installed tray checks invoke Hide once through the owned native control, then deliver each activation callback once to a PID-validated shell HWND and observe visibility without mutation retries. The same verified optimized executable passes all three tray checks on the user's Parallels guest. Recording and shortcut registration are disabled in new private profiles; no real clipboard/history or keyboard input is accessed. Private profiles, unpacked package and generated shared helper files are removed. The guest stays running with clipboard sharing on, matching its initial state; its existing application installation is unchanged.
+
+Verified artifact 13210099579 (`windows-capture-fix-candidate-x64`):
+
+| File | SHA256 |
+| --- | --- |
+| Actions ZIP | `04df1196651d6dc509576164f41ea7d9280094e27d778affcc85d51b7dcd3bed` |
+| Installer | `f72de8124e32a699f87f3435a5a80fd5d08e18fbcb406da3be1879e252f20a58` |
+| Optimized executable | `8375820bb15802aab0c1440e6ce005513bc20c1aef595cb212db6f2051f249ca` |
+
+The new Downloads filename is `ClipboardDesktop-0.1.0-preview.1-windows-x64-tray-fix-c401d7c-setup.exe`; the older candidate is preserved. This closes the reported tray hiding defect. Candidate metadata remains `fullPlatformAcceptance=false`: full model/browser/IME/upgrade and physical focus/DPI/suspend acceptance remain separate.
