@@ -32,6 +32,10 @@ on:
       - .github/workflows/swiftcrossui-preview.yml
   workflow_dispatch:
     inputs:
+      windows_capture_candidate:
+        description: Build a Windows candidate with installed no-console capture regression only; full platform acceptance stays separate
+        type: boolean
+        default: false
       full_validation:
         description: Run complete native UI, real-model and installation acceptance
         type: boolean
@@ -53,7 +57,7 @@ on:
         options: [windows-2022, windows-11-arm]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'workflow_dispatch' && inputs.windows_capture_candidate && '-capture-candidate' || '' }}
   cancel-in-progress: true
 
 env:
@@ -65,7 +69,7 @@ permissions:
 
 jobs:
   input-environment:
-    if: github.event_name == 'workflow_dispatch' && (inputs.windows_input_environment == 'inspect' || inputs.windows_input_environment == 'prepare' || inputs.windows_input_environment == 'browser' || inputs.windows_input_environment == 'richtext' || inputs.windows_input_environment == 'images')
+    if: github.event_name == 'workflow_dispatch' && !inputs.windows_capture_candidate && (inputs.windows_input_environment == 'inspect' || inputs.windows_input_environment == 'prepare' || inputs.windows_input_environment == 'browser' || inputs.windows_input_environment == 'richtext' || inputs.windows_input_environment == 'images')
     runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.windows_input_runner == 'windows-11-arm' && 'windows-11-arm' || 'windows-2022' }}
     timeout-minutes: 8
     steps:
@@ -115,7 +119,7 @@ jobs:
             valid-images.json
           if-no-files-found: error
   preview:
-    if: github.event_name != 'workflow_dispatch' || inputs.windows_input_environment == '' || inputs.windows_input_environment == 'off' || inputs.windows_input_environment == 'application'
+    if: (github.event_name != 'workflow_dispatch' || !inputs.windows_capture_candidate) && (github.event_name != 'workflow_dispatch' || inputs.windows_input_environment == '' || inputs.windows_input_environment == 'off' || inputs.windows_input_environment == 'application')
     name: UI / ${{ matrix.os }} / ${{ matrix.backend }}
     strategy:
       fail-fast: false
@@ -149,6 +153,7 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check PyYAML==6.0.3
           python -m unittest discover -s tools/ci -p 'test_*.py' -v
+          python tools/desktop-package/test-capture-candidate-policy.py
           python tools/desktop-ui/test-input-environment-policy.py
       - name: Verify native browser formats before application builds
         if: runner.os == 'Windows' && env.CHINESE_IME_VALIDATION == 'true'
@@ -571,4 +576,126 @@ jobs:
             platform-png.log
             release-build.log
             ui-artifacts
+          if-no-files-found: ignore
+
+  capture-candidate:
+    if: github.event_name == 'workflow_dispatch' && inputs.windows_capture_candidate
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      SCUI_DEFAULT_BACKEND: GtkBackend
+      GDK_BACKEND: win32
+      GSK_RENDERER: cairo
+      GTK_A11Y: accesskit
+    steps:
+      - name: Require explicit candidate scope
+        shell: pwsh
+        run: |
+          if ('${{ inputs.full_validation }}' -ne 'false' -or '${{ inputs.platform }}' -ne 'windows' -or '${{ inputs.windows_input_environment }}' -ne 'off') {
+            throw 'Candidate mode requires full_validation=false, platform=windows and windows_input_environment=off'
+          }
+      - uses: actions/checkout@v4
+      - name: Install fixed compiler for the candidate
+        uses: compnerd/gha-setup-swift@775d3f4111c5be58a0f62f2efdd353bb8fac15c7
+        with:
+          swift-version: swift-6.3.3-release
+          swift-build: 6.3.3-RELEASE
+          build_arch: amd64
+          cache: 'true'
+      - name: Verify selected candidate compiler
+        shell: pwsh
+        run: |
+          $Version = & swift --version
+          if ($LASTEXITCODE -ne 0 -or ($Version -join "`n") -notmatch 'Swift version 6\.3\.3(?:\s|$)') { throw 'Unexpected candidate compiler' }
+      - name: Restore the same verified GTK runtime
+        id: gtk-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:/gtk-build/gtk/x64/release
+          key: desktop-gtk4.22.4-accesskit0.18-${{ hashFiles('tools/desktop-ui/install-windows-gtk.ps1', 'tools/desktop-ui/apply-gtk-source-patch.py', 'tools/desktop-ui/gtk-4.22.4-accesskit-actions.patch') }}
+      - name: Build missing verified GTK runtime
+        if: steps.gtk-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./tools/desktop-ui/install-windows-gtk.ps1
+      - name: Configure native build dependencies
+        shell: pwsh
+        run: |
+          ./tools/desktop-ui/install-windows-zlib.ps1 -Prefix (Join-Path $env:RUNNER_TEMP 'clipboard-zlib-sdk')
+          ./tools/desktop-ui/install-windows-gtk.ps1 -ConfigureOnly
+          python tools/desktop-ui/normalize-windows-pkgconfig.py --prefix C:/gtk-build/gtk/x64/release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save missing verified GTK runtime
+        if: steps.gtk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:/gtk-build/gtk/x64/release
+          key: ${{ steps.gtk-cache.outputs.cache-primary-key }}
+      - name: Restore compiled release dependencies
+        id: candidate-release
+        uses: ./.github/actions/swift-build-cache
+        with:
+          package: Desktop
+          configuration: release
+      - name: Restore only tracked dependency links
+        if: steps.candidate-release.outputs.cache-matched-key != ''
+        shell: pwsh
+        run: |
+          Get-ChildItem Desktop/.build/checkouts -Directory | ForEach-Object {
+            $Checkout = $_.FullName
+            $Entries = & git -C $Checkout ls-files --stage
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            foreach ($Entry in $Entries) {
+              if ($Entry -match '^120000 [0-9a-f]+ 0\t(.+)$') {
+                & git -C $Checkout -c core.symlinks=true checkout-index --force -- $Matches[1]
+                if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              }
+            }
+          }
+      - name: Verify no-console logger regression
+        run: python tools/ci/check-portable-logging.py --output candidate-checks/logging
+      - name: Build one optimized candidate configuration
+        shell: pwsh
+        run: |
+          & python tools/desktop-ui/build-desktop.py --configuration release --jobs 2 2>&1 | Tee-Object -FilePath candidate-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save successfully compiled candidate dependencies
+        if: steps.candidate-release.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: Desktop/.build
+          key: ${{ steps.candidate-release.outputs.key }}
+      - name: Build and verify the installed capture fix candidate
+        shell: pwsh
+        run: |
+          $Directory = (& swift build --package-path Desktop --configuration release --show-bin-path).Trim()
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/desktop-ui/check-windows-stack.py --executable (Join-Path $Directory 'ClipboardDesktop.exe') --output candidate-checks/stack.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./tools/desktop-package/build-windows-installer.ps1 -Binary (Join-Path $Directory 'ClipboardDesktop.exe') -Output dist
+          $Installer = (Get-ChildItem dist/*-setup.exe | Select-Object -First 1).FullName
+          & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-package/check-windows-capture-launch.ps1 -Installer $Installer -Output candidate-checks
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          @{ commit = '${{ github.sha }}'; fullPlatformAcceptance = $false; kind = 'capture-fix-candidate';
+             scope = 'Installed no-console synthetic text/PNG capture-store regression only; full UI/model/browser/IME/upgrade acceptance remains separate.' } |
+            ConvertTo-Json | Set-Content -Encoding utf8 dist/CANDIDATE.json
+      - name: Upload the checked capture fix candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-capture-fix-candidate-x64
+          path: |
+            dist/*-setup.exe
+            dist/*.zip
+            dist/SHA256SUMS
+            dist/CANDIDATE.json
+            candidate-checks/*.json
+            candidate-checks/logging/results.json
+          if-no-files-found: error
+      - name: Retain candidate diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-capture-fix-diagnostics
+          path: |
+            candidate-build.log
+            candidate-checks
           if-no-files-found: ignore

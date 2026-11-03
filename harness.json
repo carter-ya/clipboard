@@ -1390,13 +1390,61 @@
       }
     },
     "windows_capture_crash_followup": {
-      "status": "fix_pending_native_validation",
+      "status": "native_regression_verified_package_pending",
       "reported_environment": "Parallels Windows 11 ARM64, x64 preview executable, build 48b872a",
       "confirmed_evidence": "Six Application Error events share swiftCore.dll offset 0x168b6 and exception 0xc000001d; shipped DLL disassembly identifies the Swift assertion-failure UD2. Two new synthetic profiles in the interactive guest session reproduce unredirected process exit 0xc000001d versus redirected process surviving the bounded observation. No real clipboard/history was read or modified.",
       "cause": "JSONSnapshotClipStore.insert logs each new text/image item; legacy FileHandle.write performs try! and terminates when a GUI launch has no writable stderr. Existing native UI fixtures always redirected stderr.",
       "change": "Use best-effort throwing write(contentsOf:). Compile the production logger directly in a GUI-subsystem probe and require completion without stderr, with invalid stderr and a read-only handle, plus redaction with a real writable sink.",
-      "limitation": "The fixed native Windows probe and updated packaged application still require validation; existing server CI passes do not prove this client regression fixed.",
-      "validation_progress": "Linux regression passes; the old logger fails the same check. First native Windows compile succeeds, but Python rejects a negative integer for the INVALID_HANDLE_VALUE test before launching that case. Pass the pointer-width unsigned sentinel instead. A 20-second redirected guest control persists three synthetic text records and logs all five synthetic text/image inserts without capture enabled. Native fixed-probe and packaged-client gates remain open."
+      "limitation": "The updated optimized package still requires Parallels client verification. A standalone debug probe cannot execute against the optimized package alone because swiftSwiftOnoneSupport.dll is absent; its loader exit is excluded from acceptance. Physical input/IME/DPI gates remain open.",
+      "validation_progress": "The first Windows regression compile succeeded; Python initially rejected a negative INVALID_HANDLE_VALUE integer. The unsigned pointer-width value fixes that test driver and all four native cases now pass. A 20-second redirected guest control persists three synthetic text records and logs all five synthetic text/image inserts without recording enabled. Main package run 41575886212 is in progress.",
+      "fix_pr": 73,
+      "fix_head": "6241206518a951fee6e1ba036a35448293018eee",
+      "merged_main": "b6937a65dfc33eb67550d81bb1084bd68ffbefd8",
+      "review": {
+        "receipt": 6594988585,
+        "state": "clean on exact fix head; earlier unsigned-handle finding fixed and resolved"
+      },
+      "native_ci": {
+        "core_run": 41574492674,
+        "core_platforms": "Windows/Linux/macOS success",
+        "windows_tests": 354,
+        "windows_skips": 2,
+        "windows_failures": 0,
+        "ui_run": 41574492695,
+        "ui_platforms": "Windows/Linux success",
+        "windows_logging": "4/4 exit zero with completion receipts and private redaction, both Core 6.1.3 and UI 6.3.3 toolchains",
+        "windows_pr_ui_scope": {
+          "model_consent_checks": 9,
+          "owned_keyboard_checks": 26,
+          "logging_checks": 4,
+          "note": "Reduced PR suite; full optimized/native/model/installed acceptance belongs to main run 41575886212."
+        }
+      },
+      "main_full_attempt": {
+        "run": 41575886212,
+        "windows_full_ui": 182,
+        "windows_keyboard": 78,
+        "logging": 4,
+        "failure": "second_automatic_local_generation_started in actual-model fixture; app remained running, not a capture crash",
+        "package": "not built after this gate failure",
+        "next": "One fresh Windows-only complete verification; source/workflow trees 6241206 and merged b6937a6 both f96ac5c8a9345d510e2331ae30ca70fd2116d029. Preserve ongoing Linux validation. No product changes or assertion relaxation without reproduction evidence."
+      },
+      "candidate_delivery": {
+        "status": "implemented_pending_native_run",
+        "scope": "Explicit manual Windows-only release build and per-user private installer regression. Null inherited standard handles, five built-in text/PNG inserts, three public persistent records, sensitive memory-only behavior, owned-process cleanup and uninstall. No clipboard/input mutation or optional weight download.",
+        "inputs": {
+          "windows_capture_candidate": true,
+          "platform": "windows",
+          "full_validation": false,
+          "windows_input_environment": "off"
+        },
+        "gates": "Existing full native/model/browser/IME/upgrade acceptance remains unchanged and candidate metadata explicitly sets fullPlatformAcceptance=false. Candidate upload requires successful installed regression; failed runs retain diagnostics only.",
+        "reason": "Full main Windows passed logging 4/4, native UI 182/182, keyboard 78/78 but an automatic-model wait failed. One fresh identical-tree Windows run 41579296477 failed browser preflight before compiling the application. Avoid further blind whole-suite retries; deliver a clearly scoped test candidate for local verification.",
+        "product_source": "Same ClipboardCore/Desktop application sources as reviewed PR73/main b6937a6; only test/package workflow additions.",
+        "concurrency": "Preserve the existing full/PR concurrency key and append -capture-candidate only for explicit manual candidates. New candidate attempts cancel only candidates on the same ref, never ongoing complete acceptance.",
+        "native_run": 41581073574,
+        "initial_head": "c7bc0a7bf5271cbb15cf5ef09c625d4c43702485"
+      }
     }
   },
   "desktop_ui": {
