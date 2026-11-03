@@ -209,6 +209,67 @@ try:
     resize(960, 640)
     wait_for(lambda: has_text('1 items'), 'wide_layout_restored')
     check('wide_layout_restores_without_resetting_query', editor().queryText().getText(0, editor().queryText().characterCount) == '中文')
+    resize(760, 520)
+    wait_for(lambda: editor() and button('Settings'), 'preferred_layout')
+    editor().queryEditableText().setTextContents('')
+    wait_for(lambda: has_text('3 items'), 'preferred_all_history')
+    screenshot('preferred.png')
+    button('Settings').queryAction().doAction(0)
+    wait_for(lambda: has_text('Appearance') and editor(), 'general_settings_page')
+    draft = editor()
+    draft.queryEditableText().setTextContents('321')
+    for page, expected in [('Privacy', 'Maximum clipboard item (MiB)'),
+                           ('Shortcuts', 'Enable global shortcut'),
+                           ('AI', 'Local text models'), ('Data', 'Export history')]:
+        navigation = wait_for(lambda page=page: button(page), 'settings_tab_' + page)
+        check('settings_tab_' + page + '_fits_preferred_window', fully_visible(navigation, 760, 520))
+        navigation.queryAction().doAction(0)
+        wait_for(lambda expected=expected: has_text(expected), 'settings_page_' + page)
+        screenshot('settings-' + page.lower() + '.png')
+    button('General').queryAction().doAction(0)
+    wait_for(lambda: has_text('Appearance') and editor(), 'general_return')
+    check('settings_navigation_keeps_original_editor_and_unsaved_draft',
+          not draft.getState().contains(pyatspi.STATE_DEFUNCT) and editor() == draft and
+          draft.queryText().getText(0, draft.queryText().characterCount) == '321')
+    check('inactive_settings_pages_leave_accessibility_navigation', not has_text('Export history') and not has_text('Local text models'))
+    screenshot('settings-general.png')
+    button('Back to history').queryAction().doAction(0)
+    wait_for(lambda: has_text('3 items') and button('All types'), 'history_after_settings_pages')
+    button('Filters').queryAction().doAction(0)
+    wait_for(lambda: button('Hide filters'), 'source_filter_disclosure')
+    check('source_filter_remains_available', len([n for n in nodes() if 'EditableText' in n.get_interfaces()]) == 2)
+    button('Hide filters').queryAction().doAction(0)
+    wait_for(lambda: button('Filters'), 'source_filter_closed')
+    check('closing_source_filters_keeps_native_search', editor().queryText().getText(0, editor().queryText().characterCount) == '')
+    button('Settings').queryAction().doAction(0)
+    wait_for(lambda: button('简体中文'), 'chinese_appearance_settings')
+    button('简体中文').queryAction().doAction(0)
+    wait_for(lambda: button('返回历史'), 'chinese_settings_labels')
+    button('返回历史').queryAction().doAction(0)
+    wait_for(lambda: button('全部类型') and button('混合内容'), 'chinese_history_labels')
+    check('chinese_type_filters_fit_preferred_window', all(
+        fully_visible(button(label), 760, 520) for label in ['全部类型', '文本', '图片', '文件', '富文本', '混合内容']))
+    screenshot('preferred-zh-Hans.png')
+    # A decoded control alone is insufficient: speculative layout can leave
+    # GtkPicture at zero height. Use a real tall PNG and inspect its viewport.
+    app.terminate()
+    app.wait(timeout=5)
+    portrait_root = out / ('portrait-' + uuid.uuid4().hex)
+    subprocess.run(['/usr/bin/python3', str(Path(__file__).with_name('create-preview-fixtures.py')),
+                    '--output', str(portrait_root), '--portrait'], check=True, timeout=10)
+    app = subprocess.Popen([str(Path(args.executable).resolve()), '--data-root', str(portrait_root)],
+                           env=env, stdout=log, stderr=log)
+    wait_for(lambda: has_text('Ready') and has_text('100 items') and editor(), 'portrait_history')
+    editor().queryEditableText().setTextContents('Fixture PNG')
+    wait_for(lambda: has_text('1 items') and has_text('Image preview'), 'portrait_preview')
+    for width, height in [(760, 520), (640, 480)]:
+        resize(width, height)
+        picture = wait_for(lambda: next((n for n in nodes() if n.name == 'Image preview'
+            and n.getRole() == pyatspi.ROLE_IMAGE), None), 'native_portrait')
+        wait_for(lambda: fully_visible(picture, width, height), 'portrait_fits_viewport')
+        rect = picture.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+        check('portrait_image_is_visible_and_fits_' + str(width), rect.width > 0 and rect.height > rect.width)
+        screenshot('portrait-' + str(width) + '.png')
     completed = True
 finally:
     for process in [app, wm]:

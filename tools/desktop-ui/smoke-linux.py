@@ -157,6 +157,20 @@ def click(label):
         raise RuntimeError('invoke_' + label)
 
 
+def settings_page(section):
+    labels = {
+        'General': ['General', '通用', '一般', '일반', 'Allgemein'],
+        'Shortcuts': ['Shortcuts', '快捷键', '快捷鍵', 'ショートカット', '단축키', 'Tastenkürzel', 'Atajos'],
+        'AI': ['AI', 'KI', 'IA'],
+        'Privacy': ['Privacy', '隐私', '隱私', 'プライバシー', '개인정보', 'Datenschutz', 'Privacidad'],
+        'Data': ['Data', '数据', '資料', 'データ', '데이터', 'Daten', 'Datos'],
+    }
+    control = wait_for(lambda: next((button(label) for label in labels[section] if button(label)), None),
+                       'settings_navigation_' + section)
+    if not control.queryAction().doAction(0):
+        raise RuntimeError('settings_navigation_action_' + section)
+
+
 def editor():
     for node in nodes():
         try:
@@ -275,7 +289,10 @@ def click_visible_public_control(label, activate=True):
             parent = control.parent
             while parent and parent.getRole() != pyatspi.ROLE_SCROLL_PANE:
                 parent = parent.parent
-            if not parent: return None
+            if not parent:
+                target = control.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+                return control if (target.x >= 0 and target.y >= 0 and target.width > 0 and target.height > 0
+                    and control.getState().contains(pyatspi.STATE_SENSITIVE)) else None
             viewport = parent.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
             target = control.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
             if viewport.width <= 0 or viewport.height <= 0: return None
@@ -575,6 +592,7 @@ try:
             activate_archive_file_with_pointer(filename, title)
         wait_for(lambda: (history_root / '.model-transfer-fixture-ready').exists(), 'private_transfer_fixture_selected_before_any_request')
         click('Settings')
+        settings_page('AI')
         wait_for(lambda: has_text('Local text models') and controls_ready(), 'model_operation_settings_ready')
         check('passive_model_cards_never_start_a_transfer_or_create_model_root', not (history_root / 'models').exists())
         click_visible_public_control('Download summary model')
@@ -639,6 +657,7 @@ try:
         check('repaired_model_runs_actual_native_entity_inference', True)
         screenshot('repaired-model-result.png')
         click('Settings')
+        settings_page('General')
         wait_for(lambda: has_text('Preferences'), 'model_operation_quit_settings')
         click_visible_public_control('Quit Clipboard')
         app.wait(timeout=10)
@@ -650,9 +669,11 @@ try:
                                stdout=log, stderr=log, start_new_session=True)
         wait_for(lambda: has_text('Ready') and has_text('3 items'), 'verified_import_relaunch')
         click('Settings')
+        settings_page('AI')
         wait_for(lambda: controls_ready() and has_text('Model ready'), 'verified_import_relaunch_ready')
         check('relaunch_reuses_verified_import_without_any_passive_transfer', not list(history_root.glob('.model-transfer-*-started'))
               and hashlib.sha256(model_files['entities'].read_bytes()).hexdigest() == pins['entities']['sha256'])
+        settings_page('General')
         click_visible_public_control('Quit Clipboard')
         app.wait(timeout=10)
         check('verified_import_relaunch_quits_cleanly', app.returncode == 0)
@@ -672,6 +693,7 @@ try:
         def change_file_permission(label, key, query):
             expected = not file_settings().get(key, False)
             click('Settings')
+            settings_page('AI')
             wait_for(lambda: has_text('Preferences'), 'local_file_model_preferences')
             click_visible_public_control(label)
             click_visible_public_control('Save AI settings')
@@ -771,6 +793,7 @@ try:
         click('Pause recording')
         wait_for(lambda: has_text('Recording paused'), 'local_file_model_recording_stopped')
         click('Settings')
+        settings_page('General')
         wait_for(lambda: has_text('Preferences'), 'local_file_model_quit_settings')
         click_visible_public_control('Quit Clipboard')
         app.wait(timeout=10)
@@ -801,6 +824,7 @@ try:
             before = settings()
             expected = {fields[label]: not before.get(fields[label], False) for label in labels}
             click('Settings')
+            settings_page('AI')
             wait_for(lambda: has_text('Preferences'), 'local_text_preferences')
             for label in labels:
                 click_visible_public_control(label)
@@ -894,6 +918,7 @@ try:
         wait_for(lambda: has_texts('Local language and names', names['summary']), 'local_language_result_visible')
         screenshot('local-language-entities.png')
         click('Settings')
+        settings_page('AI')
         wait_for(lambda: has_text('Preferences'), 'local_entity_removal_settings')
         click_visible_public_control('Remove names model')
         wait_for(lambda: not text_model_files['entities'].exists() and not (text_model_files['entities'].parent / 'current.json').exists(), 'entity_model_removed')
@@ -912,6 +937,7 @@ try:
         click('Summarize locally')
         wait_for(lambda: counter('language', 4), 'language_only_active_without_entity_model')
         click('Settings')
+        settings_page('AI')
         wait_for(lambda: has_text('Preferences'), 'language_only_unrelated_removal_settings')
         click_visible_public_control('Remove names model')
         wait_for(lambda: has_text('Names model removal complete') and
@@ -928,6 +954,7 @@ try:
         click('Summarize locally')
         wait_for(lambda: counter('generative', 5), 'manual_generation_before_revocation')
         click('Settings')
+        settings_page('AI')
         wait_for(lambda: has_text('Preferences'), 'unrelated_model_removal_settings')
         click_visible_public_control('Remove names model')
         wait_for(lambda: has_text('Names model removal complete') and
@@ -964,6 +991,7 @@ try:
             return None
         worker = wait_for(worker_holding_model, 'real_worker_has_model_open', seconds=10)
         click('Settings')
+        settings_page('AI')
         wait_for(lambda: has_text('Preferences'), 'active_model_removal_settings')
         click_visible_public_control('Remove summary model')
         wait_for(lambda: counter('generative', 6, True) and not Path('/proc/' + str(worker)).exists()
@@ -973,12 +1001,14 @@ try:
               record(original['id'])['summary'] == result['summary'] and
               (history_root / 'models' / 'unrelated.txt').read_text() == 'synthetic unrelated file' and
               settings()['localGenerativeSummariesEnabled'] and not settings()['ai']['enabled'])
+        settings_page('General')
         click_visible_public_control('Quit Clipboard')
         app.wait(timeout=10)
         check('local_text_profile_quits_with_owned_work_drained', app.returncode == 0)
         raise SystemExit(0)
     if args.model_settings_only:
         click('Settings')
+        settings_page('AI')
         wait_for(lambda: has_texts('Local text models', 'Summary model', 'Language and names'), 'model_cards_visible')
         def enabled(label):
             control = button(label)
@@ -1017,6 +1047,7 @@ try:
         click_visible_public_control('Verify local models')
         wait_for(lambda: enabled('Verify local models') and enabled('Download summary model'), 'passive_model_verification_done')
         check('explicit_passive_model_verification_does_not_download_or_create_root', not (history_root / 'models').exists())
+        settings_page('General')
         click_visible_public_control('Quit Clipboard')
         app.wait(timeout=10)
         check('model_settings_profile_quits_cleanly', app.returncode == 0)
@@ -1065,6 +1096,7 @@ try:
     wait_for(lambda: has_text('1 items'), 'pinned_filter')
     check('pin_and_pinned_filter', True)
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_text('Preferences'), 'settings_view')
     screenshot('settings.png')
     click('Back to history')
@@ -1233,6 +1265,7 @@ try:
         click('All types')
         wait_for(lambda: has_text('4 items'), 'all_content_restored')
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_text('Preferences'), 'preferences_for_save')
     click('Dark')
     wait_for(lambda: has_text('Appearance saved'), 'dark_appearance_saved')
@@ -1244,6 +1277,8 @@ try:
     click('简体中文')
     wait_for(lambda: has_text('偏好设置') and has_text('语言已保存'), 'localized_settings')
     check('language_switch_updates_native_controls', bool(button('返回历史')) and bool(button('保存行为设置')))
+    settings_page('AI')
+    wait_for(lambda: has_text('本地 OCR 使用已安装的语言包，此平台不提供 Apple 专属模型。'), 'localized_ai_page')
     check('localized_service_privacy_and_capability_notes',
           has_text('本地 OCR 使用已安装的语言包，此平台不提供 Apple 专属模型。') and
           has_text('远程 AI 默认关闭。启用后，符合条件的内容会发送到指定服务。'))
@@ -1253,6 +1288,7 @@ try:
     wait_for(lambda: editor().getState().contains(pyatspi.STATE_FOCUSED), 'localized_history_focus')
     check('language_change_preserves_history_focus', True)
     click('设置')
+    settings_page('General')
     wait_for(lambda: has_text('偏好设置'), 'localized_settings_return')
     click('English')
     wait_for(lambda: has_text('Preferences') and has_text('Language saved'), 'english_restored')
@@ -1265,17 +1301,22 @@ try:
                 pass
         return None
     draft_value = 'https://fixture.invalid/localized-draft'
+    settings_page('AI')
     draft_editor = wait_for(lambda: public_endpoint_editor('https://api.openai.com/v1'), 'public_endpoint_editor')
     draft_editor.queryEditableText().setTextContents(draft_value)
     language_cases = [('zh-Hant', '繁體中文', '偏好設定', '語言已保存', '保存行為設定', '本地 OCR 使用已安裝的語言包，此平台不提供 Apple 專屬模型。', '遠端 AI 預設關閉。啓用後，符合條件的內容會發送到指定服務。'), ('ja', '日本語', '環境設定', '言語を保存しました', '動作設定を保存', 'ローカル OCR はインストール済みのシステム言語パックを使用します。Apple 専用モデルは利用できません。', 'リモート AI は初期状態で無効です。有効にすると、対象の内容が指定した接続先に送信されます。'), ('ko', '한국어', '환경설정', '언어를 저장했습니다', '동작 설정 저장', '로컬 OCR은 설치된 시스템 언어 팩을 사용합니다. Apple 전용 모델은 사용할 수 없습니다.', '원격 AI는 기본적으로 꺼져 있습니다. 켜면 조건에 맞는 콘텐츠가 지정한 엔드포인트로 전송됩니다.'), ('de', 'Deutsch', 'Einstellungen', 'Sprache gespeichert', 'Verhalten speichern', 'Lokale OCR nutzt installierte Systemsprachpakete. Apple-exklusive Modelle sind hier nicht verfügbar.', 'Remote-KI ist standardmäßig deaktiviert. Bei Aktivierung werden geeignete Inhalte an deinen gewählten Endpunkt gesendet.'), ('es', 'Español', 'Preferencias', 'Idioma guardado', 'Guardar comportamiento', 'El OCR local usa los paquetes de idioma del sistema instalados. Los modelos exclusivos de Apple no están disponibles aquí.', 'La IA remota está desactivada por defecto. Al activarla, el contenido permitido se envía al destino elegido.')]
     for tag, label, preferences, saved_label, behavior, ocr_note, ai_note in language_cases:
+        settings_page('General')
         click(label)
         wait_for(lambda: has_texts(preferences, saved_label, behavior), 'localized_controls_' + tag)
+        settings_page('AI')
+        wait_for(lambda: has_texts(ocr_note, ai_note), 'localized_ai_notes_' + tag)
         check('language_' + tag + '_updates_controls_and_privacy_notes', has_texts(ocr_note, ai_note))
         check('language_' + tag + '_preserves_editor_draft', not draft_editor.getState().contains(pyatspi.STATE_DEFUNCT) and
               draft_editor.queryText().getText(0, draft_editor.queryText().characterCount) == draft_value and
               public_endpoint_editor(draft_value) == draft_editor)
         screenshot('settings-' + tag + '.png')
+    settings_page('General')
     click('English')
     wait_for(lambda: has_texts('Preferences', 'Language saved'), 'english_after_all_languages')
     click('Save behavior')
@@ -1284,6 +1325,7 @@ try:
     saved = json.loads(settings_file.read_text())
     check('behavior_saved_without_enabling_recording', saved['recordingEnabled'] is False and saved['closeToTray'] is True)
     check('language_switches_keep_remote_AI_disabled_and_endpoint_draft_unsaved', saved['ai']['enabled'] is False and saved['ai']['endpoint'] == 'https://api.openai.com/v1' and saved['languageOverride'] == 'en')
+    settings_page('General')
     click('Quit Clipboard')
     app.wait(timeout=10)
     check('explicit_quit_flushes_and_exits', app.returncode == 0)
@@ -1293,6 +1335,7 @@ try:
     wait_for(lambda: has_text('Ready') and has_text('0 items'), 'fresh_production_history')
     check('normal_launch_has_no_sample_history_and_starts_paused', bool(button('Start recording')))
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_text('Preferences'), 'fresh_settings')
     click('Quit Clipboard')
     app.wait(timeout=10)
@@ -1307,6 +1350,7 @@ try:
     wait_for(lambda: has_text('Ready') and has_text('0 items'), 'background_launch_reopened')
     check('startup_background_instance_can_be_reopened', True)
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_text('Preferences'), 'background_settings')
     click('Quit Clipboard')
     app.wait(timeout=10)
@@ -1352,6 +1396,7 @@ try:
     wait_for(lambda: has_text('1 items') and has_text('Legacy mixed fixture'), 'matched_mixed_kind')
     check('tab_and_type_counts_follow_the_active_query', has_text('(1)') and not has_text('(' + str(expected_all) + ')'))
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_text('Preferences'), 'counted_history_quit_settings')
     click('Quit Clipboard')
     app.wait(timeout=10)
@@ -1405,6 +1450,7 @@ try:
         saved_items[item['id'].lower()]['sourceBundleID'] == item['sourceBundleID'] and
         saved_items[item['id'].lower()]['payloads'] == item['payloads'] for item in metadata_items))
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_text('Preferences'), 'metadata_quit_settings')
     click('Quit Clipboard')
     app.wait(timeout=10)
@@ -1488,6 +1534,7 @@ try:
     check('local_image_summary_keeps_complete_original_copy', original_copy == local_image_bytes)
     if args.clipboard_peer:
         click('Settings')
+        settings_page('AI')
         wait_for(lambda: has_text('Preferences'), 'local_image_automatic_settings')
         click_visible_public_control('Automatically recognize images')
         click_visible_public_control('Include local image labels in automatic recognition')
@@ -1517,6 +1564,7 @@ try:
             wait_for(lambda: has_text('Analyzing image locally…'), 'local_image_auto_progress')
             check('automatic_image_labels_use_their_own_progress_mode', True)
             click('Settings')
+            settings_page('AI')
             wait_for(lambda: has_text('Preferences'), 'local_image_revoke_settings')
             click_visible_public_control('Include local image labels in automatic recognition')
             click_visible_public_control('Save AI settings')
@@ -1532,6 +1580,7 @@ try:
             peer.stdin.close()
             peer.wait(timeout=10)
         click('Settings')
+        settings_page('AI')
         wait_for(lambda: has_text('Preferences'), 'local_image_resume_auto_settings')
         click_visible_public_control('Include local image labels in automatic recognition')
         click_visible_public_control('Save AI settings')
@@ -1573,6 +1622,7 @@ try:
             peer.stdin.close()
             peer.wait(timeout=10)
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_text('Preferences'), 'local_image_quit_settings')
     click('Quit Clipboard')
     app.wait(timeout=10)
@@ -1627,6 +1677,7 @@ try:
         wake_existing()
         wait_for(lambda: has_text('2 items') and editor_with_value('e'), 'activation_reopen_retains_query')
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_text('Preferences'), 'activation_quit_settings')
     click('Quit Clipboard')
     app.wait(timeout=10)
@@ -1649,6 +1700,7 @@ try:
     snapshot = json.loads((history_root / 'history.json').read_text())['items']
     check('failed_native_row_copy_does_not_promote_or_rewrite_original', snapshot[0]['id'] == bad_id and snapshot[0]['createdAt'] == bad['createdAt'])
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_text('Preferences'), 'activation_failure_quit_settings')
     click('Quit Clipboard')
     app.wait(timeout=10)
@@ -1734,6 +1786,7 @@ try:
     wait_for(lambda: has_texts('Item deleted', '4 items'), 'selection_last_deleted')
     check('deleting_last_row_selects_previous_visible_neighbor', copied_selection_is('Selection B'))
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_text('Preferences'), 'selection_quit_settings')
     click('Quit Clipboard')
     app.wait(timeout=10)
@@ -1771,6 +1824,7 @@ try:
         copied = subprocess.check_output(['xclip', '-selection', 'clipboard', '-t', target, '-o'], timeout=10)
         check('rich_' + target.split('/')[1] + '_copy_preserves_complete_payload', copied == body.encode())
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_text('Preferences'), 'rich_budget_quit_settings')
     click('Quit Clipboard')
     app.wait(timeout=10)
@@ -1781,6 +1835,7 @@ try:
                            stdout=log, stderr=log, start_new_session=True)
     wait_for(lambda: has_texts('Ready', '3 items'), 'archive_private_profile')
     click('Settings')
+    settings_page('Data')
     wait_for(lambda: has_text('Preferences'), 'archive_preferences')
     click('Export history')
     name_entry = wait_for(lambda: next((n for n in nodes() if n.name == 'Name:' and 'EditableText' in n.get_interfaces()), None), 'archive_save_filename')
@@ -1806,6 +1861,7 @@ try:
     activate_archive_file_with_pointer('clipboard-history.zip')
     wait_for(lambda: has_text('Imported 0 items; 3 skipped; 0 missing blobs.'), 'archive_duplicate_result')
     check('native_archive_duplicate_import_is_counted', len(json.loads((history_root / 'history.json').read_text())['items']) == 3)
+    settings_page('General')
     click('Quit Clipboard')
     app.wait(timeout=10)
     check('archive_state_profile_quits_cleanly', app.returncode == 0)
@@ -1815,6 +1871,7 @@ try:
                            stdout=log, stderr=log, start_new_session=True)
     wait_for(lambda: has_text('Ready') and has_text('3 items'), 'startup_private_profile')
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_texts('Preferences', 'Enable launch at login'), 'startup_initial_disabled')
     settings_editor = wait_for(editor, 'startup_settings_editor')
     settings_editor.queryEditableText().setTextContents('321')
@@ -1886,6 +1943,7 @@ try:
     saved_file = history_root / 'desktop-settings.json'
     saved_settings = json.loads(saved_file.read_text()) if saved_file.exists() else {}
     check('startup_reconciliation_does_not_save_content_drafts', saved_settings.get('historyCapacity', 100) == 100)
+    settings_page('Privacy')
     size_editor = wait_for(lambda: editor_with_value('10'), 'size_preference_editor')
     size_editor.queryEditableText().setTextContents('0.5')
     click('Save content settings')
@@ -1906,6 +1964,7 @@ try:
     wait_for(lambda: has_text('Enter a capacity of 1–5000 and a valid size in MiB.'), 'negative_size_preference_rejected')
     check('invalid_size_does_not_replace_disabled_preference',
           json.loads(saved_file.read_text()).get('maxClipSizeBytes') == 0)
+    settings_page('AI')
     click('Allow text summaries')
     click_visible_public_control('Save AI settings')
     wait_for(lambda: json.loads(saved_file.read_text())['ai'].get('allowText') is False,
@@ -1971,6 +2030,7 @@ try:
     check('connection_requests_use_only_fixed_prompts_without_keys_or_cookies',
           fixture_report.get('requests') == 4 and fixture_report.get('fixedTestsOnly') and
           fixture_report.get('noAuthorization') and fixture_report.get('noCookies'))
+    settings_page('General')
     click('Quit Clipboard')
     app.wait(timeout=10)
     check('startup_state_profile_quits_cleanly', app.returncode == 0)
@@ -2013,6 +2073,7 @@ try:
             check('file_summary_defaults_do_not_analyze_copied_files',
                   all(item.get('summary') is None for item in snapshot['items']) and not button('Summarize'))
             click('Settings')
+            settings_page('AI')
             wait_for(lambda: has_text('Preferences'), 'file_summary_preferences')
             click_visible_public_control('Allow local file analysis')
             click_visible_public_control('Save AI settings')
@@ -2028,6 +2089,7 @@ try:
             remote_body = 'This synthetic remote file summary uses the current body. ' + 'Private file body context. ' * 10
             target.write_text(remote_body)
             click('Settings')
+            settings_page('AI')
             wait_for(lambda: has_text('Preferences'), 'remote_file_preferences')
             click_visible_public_control('Allow file text uploads')
             click_visible_public_control('Save AI settings')
@@ -2045,6 +2107,7 @@ try:
             if not select.select([server.stdout], [], [], 10)[0] or server.stdout.readline(32).strip() != b'blocked':
                 raise RuntimeError('file_inflight_request_not_active')
             click('Settings')
+            settings_page('AI')
             wait_for(lambda: has_text('Preferences'), 'file_permission_revoke_preferences')
             click_visible_public_control('Allow file text uploads')
             click_visible_public_control('Automatically summarize files locally')
@@ -2101,6 +2164,7 @@ try:
             check('automatic_pdf_result_reaches_native_preview', True)
             screenshot('local-pdf-excerpt.png')
             click('Settings')
+            settings_page('AI')
             wait_for(lambda: has_text('Preferences'), 'pdf_upload_preferences')
             click_visible_public_control('Allow file text uploads')
             click_visible_public_control('Save AI settings')
@@ -2111,6 +2175,7 @@ try:
             check('explicit_pdf_upload_sends_extracted_text_without_name_or_path',
                   json.loads((history_root / 'history.json').read_text())['items'][0].get('summarySource') == 'remoteOpenAI')
             click('Settings')
+            settings_page('General')
             wait_for(lambda: has_text('Preferences'), 'file_summary_quit_preferences')
             click('Quit Clipboard')
             app.wait(timeout=10)
@@ -2158,6 +2223,7 @@ try:
               base64.b64decode(stored['payloads'][0]['inlineData']).decode() == manual_text)
         screenshot('local-text-summary.png')
         click('Settings')
+        settings_page('AI')
         wait_for(lambda: has_text('Preferences'), 'local_summary_settings')
         click('Automatically summarize text locally')
         click_visible_public_control('Save AI settings')
@@ -2184,6 +2250,7 @@ try:
             wait_for(lambda: has_texts('1 items', 'Local excerpt', automatic_lead), 'automatic_local_result_selected')
             click('Pause recording')
             click('Settings')
+            settings_page('General')
             wait_for(lambda: has_text('Preferences'), 'local_summary_quit_settings')
             click('Quit Clipboard')
             app.wait(timeout=10)
@@ -2243,6 +2310,7 @@ try:
         wait_for(lambda: not has_text('Private summary fixture'), 'analysis_result_not_on_other_item')
         check('analysis_result_and_failure_do_not_follow_selection', not has_text('Could not generate a summary.'))
         click('Settings')
+        settings_page('General')
         wait_for(lambda: has_text('Preferences'), 'analysis_settings_for_quit')
         click('Quit Clipboard')
         app.wait(timeout=10)
@@ -2290,6 +2358,7 @@ try:
         snapshot = json.loads((history_root / 'history.json').read_text())
         check('remote_failure_does_not_run_unapproved_local_analysis', not snapshot['items'][0].get('summary'))
         click('Settings')
+        settings_page('AI')
         wait_for(lambda: has_text('Preferences'), 'fallback_preferences')
         click_visible_public_control('Enable local text summaries')
         click_visible_public_control('Save AI settings')
@@ -2303,6 +2372,7 @@ try:
               base64.b64decode(snapshot['payloads'][0]['inlineData']).decode() == body)
         screenshot('remote-local-fallback.png')
         click('Settings')
+        settings_page('General')
         wait_for(lambda: has_text('Preferences'), 'fallback_quit_settings')
         click('Quit Clipboard')
         app.wait(timeout=10)
@@ -2336,20 +2406,26 @@ try:
                                env=update_env, stdout=log, stderr=log, start_new_session=True)
         wait_for(lambda: has_texts('Ready', '3 items'), 'updates_private_profile')
         click('Settings')
+        settings_page('Data')
         wait_for(lambda: has_text('Checks official releases only when you ask.'), 'updates_initial_idle')
         check('updates_show_packaged_version_without_automatic_check', has_text('Installed version: 0.1.0-preview.1'))
+        settings_page('General')
         update_editor = wait_for(lambda: editor_with_value('100'), 'update_draft_editor')
         update_editor.queryEditableText().setTextContents('321')
+        settings_page('Data')
         click_visible_public_control('Check for updates')
         wait_for(lambda: has_text('Could not check for updates. Try again.'), 'updates_failure')
         check('update_failure_keeps_retry_available', button('Check for updates') is not None)
         click_visible_public_control('Check for updates')
         wait_for(lambda: has_texts('A desktop update is available.', 'Available version: 0.2.0'), 'updates_available')
         check('compatible_update_shows_official_manual_release_action', button('Open official release page') is not None)
+        settings_page('General')
+        wait_for(lambda: editor_with_value('321'), 'update_retained_draft')
         check('updates_preserve_native_editor_draft_without_saving_settings',
               not update_editor.getState().contains(pyatspi.STATE_DEFUNCT) and
               editor_with_value('321') == update_editor and not (history_root / 'desktop-settings.json').exists())
         # Scroll only: automated fixtures never launch the external browser.
+        settings_page('Data')
         click_visible_public_control('Open official release page', activate=False)
         screenshot('desktop-update-available.png')
         click_visible_public_control('Check for updates')
@@ -2366,8 +2442,10 @@ try:
         click('Back to history')
         wait_for(lambda: has_text('3 items') and button('All'), 'updates_history_return')
         click('Settings')
+        settings_page('Data')
         wait_for(lambda: has_text('Checks official releases only when you ask.'), 'updates_cancelled_on_leave')
         check('leaving_settings_cancels_updates_and_rejects_late_results', button('Open official release page') is None)
+        settings_page('General')
         click('Quit Clipboard')
         app.wait(timeout=10)
         check('updates_private_profile_quits_cleanly', app.returncode == 0)
@@ -2407,6 +2485,7 @@ try:
     click('Reveal for this session')
     wait_for(lambda: any(node.getRole() == pyatspi.ROLE_IMAGE for node in nodes()), 'sensitive_image_revealed_again')
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_text('Preferences'), 'sensitive_settings_handoff')
     click('Back to history')
     wait_for(lambda: has_text('Sensitive content is hidden.') and button('Reveal for this session'), 'sensitive_remasked_after_settings')
@@ -2438,6 +2517,7 @@ try:
     check('sensitive_reveal_keeps_history_memory_only', len(persisted['items']) == 3 and
           all(not item['sensitive'] for item in persisted['items']) and not list((history_root / 'blobs').iterdir()))
     click('Settings')
+    settings_page('General')
     wait_for(lambda: has_text('Preferences'), 'sensitive_quit_settings')
     click('Quit Clipboard')
     app.wait(timeout=10)

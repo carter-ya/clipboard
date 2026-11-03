@@ -128,6 +128,7 @@ struct DesktopImagePreview: GtkWidgetRepresentable {
   }
   func updateGtkWidget(_ widget: Gtk.Picture, context: Context) {
     widget.alternativeText = accessibilityLabel
+    DesktopChrome.label(accessibilityLabel, on: widget)
     // Layout probes update the same native widget repeatedly. Its textures
     // already own their pixels; replace them only for a different decoded image.
     guard context.coordinator.displayedImage !== image else { return }

@@ -380,6 +380,15 @@ jobs:
           dbus-run-session -- xvfb-run --auto-servernum \
             /usr/bin/python3 tools/desktop-ui/smoke-linux.py \
             --executable "$binary_dir/ClipboardDesktop" --model-settings-only --output ui-artifacts/pr-smoke
+      - name: Check native Linux layout and retained settings pages
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary_dir=$(swift build --package-path Desktop --configuration debug --show-bin-path)
+          dbus-run-session -- xvfb-run --auto-servernum \
+            /usr/bin/python3 tools/desktop-ui/check-linux-layout.py \
+            --executable "$binary_dir/ClipboardDesktop" --output ui-artifacts/pr-layout --scale 1
       - name: Check the native Windows window and model consent controls
         if: runner.os == 'Windows'
         shell: pwsh

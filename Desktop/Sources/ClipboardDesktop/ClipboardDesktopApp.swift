@@ -29,12 +29,13 @@ struct ClipboardDesktopApp: App {
         HistoryView()
       }
     }
-    .defaultSize(width: 960, height: 640)
+    .defaultSize(width: 760, height: 520)
   }
 }
 
 struct HistoryView: View {
   @State var model = HistoryModel()
+  @State var settingsSection = DesktopSettingsSection.general
   @State var showsCompactFilters = false
   @State var archiveDirectory: URL?
   @State var modelImportDirectory: URL?
@@ -45,32 +46,33 @@ struct HistoryView: View {
   var body: some View {
     GeometryReader { geometry in
       let viewportWidth = model.responsiveWidth(proposed: geometry.size.width)
-      let compact = viewportWidth < 820
-      let imageHeight = model.previewImageHeight(proposed: geometry.size.height)
-      VStack(alignment: .leading, spacing: 12) {
-        header(compact: compact)
-        ScrollView {
-          if model.showsSettings {
-            settings
-          } else {
-            history(
-              compact: compact, compactFilters: viewportWidth < 1100, imageHeight: imageHeight
-            )
-            .disabled(model.historyActivationBusy)
-          }
-        }.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-        if !model.showsSettings { itemActions }
+      VStack(alignment: .leading, spacing: 0) {
+        header
+        Divider()
+        if model.showsSettings {
+          settings
+        } else {
+          history(
+            width: geometry.size.width, compactFilters: viewportWidth < 1200,
+            imageHeight: model.previewImageHeight(proposed: geometry.size.height)
+          )
+          .disabled(model.historyActivationBusy)
+        }
         Divider()
         HStack {
-          Text(model.t(model.status)).foregroundColor(.gray)
+          Text(model.t(model.status)).font(.system(size: 11)).lineLimit(1).help(
+            model.t(model.status))
           Spacer()
-          if !compact { Text(model.t("Local history")).foregroundColor(.gray) }
-        }
-      }.padding(compact ? 12 : 24)
-        .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+          Text(model.t("\(model.items.count) items")).font(.system(size: 11)).lineLimit(1)
+        }.padding(8)
+      }
+      .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
     }
     .environment(\.colorScheme, model.effectiveDark ? .dark : .light)
-    .inspectWindow { model.attachWindow($0) }
+    .inspectWindow {
+      DesktopChrome.apply(to: $0, dark: model.effectiveDark)
+      model.attachWindow($0)
+    }
     .task { @MainActor in
       await model.load()
       // Fixture input only: keep the real native chooser/default-name path,
@@ -87,91 +89,106 @@ struct HistoryView: View {
     .onChange(of: model.selectedID) { Task { @MainActor in await model.loadPreview() } }
   }
 
-  func header(compact: Bool) -> some View {
-    HStack {
-      if compact {
-        Text(model.t("Clipboard")).font(.system(size: 22))
+  var header: some View {
+    HStack(spacing: 8) {
+      if model.showsSettings {
+        Text(model.t("Preferences")).font(.system(size: 16))
+          .frame(maxWidth: .infinity, alignment: .leading)
       } else {
-        title
+        TextField(model.t("Search history"), text: $model.query)
+          .inspect {
+            DesktopChrome.setClass("clipboard-search", on: $0)
+            model.attachSearch($0)
+            DesktopImeStateFixture.attach($0)
+          }
+          .onSubmit {
+            Task { @MainActor in
+              guard let id = model.selectedID else { return }
+              await model.activateHistoryItem(id: id)
+            }
+          }
+          .onChange(of: model.query) { Task { @MainActor in await model.refresh() } }
+          .frame(maxWidth: .infinity)
       }
-      Spacer()
       headerActions
-    }
+    }.padding(12)
+      .inspect { DesktopChrome.setClass("clipboard-toolbar", on: $0) }
   }
-  var title: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      Text(model.t("Clipboard")).font(.system(size: 26))
-      Text(model.t("Your clipboard history, on this device.")).foregroundColor(.gray)
-    }
-  }
+
   var headerActions: some View {
-    HStack {
-      Button(model.t(model.recording ? "Pause recording" : "Start recording")) {
+    HStack(spacing: 4) {
+      iconButton(
+        model.recording ? "Pause recording" : "Start recording",
+        symbol: model.recording ? "pause" : "record"
+      ) {
         Task { @MainActor in await model.toggleRecording() }
       }.disabled(!model.ready || model.recordingTransition)
-      if model.canHide { Button(model.t("Hide")) { model.hide() } }
-      Button(model.t("Settings")) { model.showPreferences() }
+      if model.canHide {
+        iconButton("Hide", symbol: "hide") { model.hide() }
+      }
+      iconButton("Settings", symbol: "settings") { model.showPreferences() }
     }
   }
 
-  func history(compact: Bool, compactFilters: Bool, imageHeight: Double) -> some View {
-    VStack(alignment: .leading, spacing: 14) {
-      TextField(model.t("Search history"), text: $model.query)
-        .inspect {
-          model.attachSearch($0)
-          DesktopImeStateFixture.attach($0)
+  func history(width: Double, compactFilters: Bool, imageHeight: Double) -> some View {
+    HStack(spacing: 0) {
+      VStack(alignment: .leading, spacing: 0) {
+        historyFilters(compact: compactFilters)
+        Divider()
+        historyItems.frame(maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+      }.frame(width: max(0, width * 0.56))
+      Divider()
+      VStack(alignment: .leading, spacing: 0) {
+        preview(imageHeight: imageHeight)
+          .frame(maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+        Divider()
+        itemActions.padding(8)
+      }.inspect { DesktopChrome.setClass("clipboard-preview", on: $0) }
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+    }.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+  }
+
+  func historyFilters(compact: Bool) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(spacing: 4) {
+        Spacer()
+        filterButton("All", count: model.allItemsCount, selected: !model.onlyPinned) {
+          Task { @MainActor in await model.selectTab(onlyPinned: false) }
         }
-        .onSubmit {
-          Task { @MainActor in
-            guard let id = model.selectedID else { return }
-            await model.activateHistoryItem(id: id)
-          }
-        }
-        .onChange(of: model.query) { Task { @MainActor in await model.refresh() } }
-      HStack(spacing: 10) {
-        HStack(spacing: 4) {
-          Button(model.t("All")) {
-            Task { @MainActor in await model.selectTab(onlyPinned: false) }
-          }
-          countBadge(model.allItemsCount)
-        }
-        HStack(spacing: 4) {
-          Button(model.t("Pinned")) {
-            Task { @MainActor in await model.selectTab(onlyPinned: true) }
-          }
-          countBadge(model.pinnedItemsCount)
-        }
-        if compact {
-          Button(model.t(showsCompactFilters ? "Hide filters" : "Filters")) {
-            showsCompactFilters.toggle()
-          }
+        filterButton("Pinned", count: model.pinnedItemsCount, selected: model.onlyPinned) {
+          Task { @MainActor in await model.selectTab(onlyPinned: true) }
         }
         Spacer()
-        Text(model.t("\(model.items.count) items")).foregroundColor(.gray)
+        iconButton(showsCompactFilters ? "Hide filters" : "Filters", symbol: "filter") {
+          showsCompactFilters.toggle()
+        }
       }
-      if !compact || showsCompactFilters {
-        if compactFilters {
-          VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-              allTypesButton
-              typeButton(.text)
-              typeButton(.rtf)
-            }
-            HStack(spacing: 8) {
-              typeButton(.image)
-              typeButton(.file)
-              typeButton(.mixed)
-              Spacer()
-            }
-          }
-        } else {
-          HStack(spacing: 8) {
+      if compact {
+        VStack(alignment: .leading, spacing: 3) {
+          HStack(spacing: 3) {
             allTypesButton
-            ForEach(ClipKind.allCases, id: \.self) { kind in
-              typeButton(kind)
-            }
+            typeButton(.text)
+            typeButton(.image)
+          }
+          HStack(spacing: 3) {
+            typeButton(.file)
+            typeButton(.rtf)
+            typeButton(.mixed)
           }
         }
+      } else {
+        HStack(spacing: 3) {
+          allTypesButton
+          typeButton(.text)
+          typeButton(.image)
+          typeButton(.file)
+          typeButton(.rtf)
+          typeButton(.mixed)
+        }
+      }
+      if showsCompactFilters {
+        TextField(model.t("Source app ID (optional)"), text: $model.sourceFilter)
+          .onChange(of: model.sourceFilter) { Task { @MainActor in await model.refresh() } }
         #if os(Linux)
           if ProcessInfo.processInfo.environment["WAYLAND_DISPLAY"] != nil {
             Text(
@@ -179,78 +196,100 @@ struct HistoryView: View {
                 "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply."
               )
             )
-            .font(.system(size: 12)).foregroundColor(.gray)
+            .font(.system(size: 11)).foregroundColor(.gray)
           }
         #endif
-        TextField(model.t("Source app ID (optional)"), text: $model.sourceFilter)
-          .onChange(of: model.sourceFilter) { Task { @MainActor in await model.refresh() } }
       }
-      Divider()
-      if compact {
-        VStack(alignment: .leading, spacing: 16) {
-          historyItems.frame(maxWidth: .infinity, minHeight: 180, maxHeight: 220)
-          Divider()
-          preview(imageHeight: imageHeight).frame(
-            maxWidth: .infinity, minHeight: 200, maxHeight: 300)
-        }
-      } else {
-        HStack(alignment: .top, spacing: 20) {
-          historyItems.frame(minWidth: 300, maxWidth: 340, minHeight: 280, maxHeight: 360)
-          Divider()
-          preview(imageHeight: imageHeight).frame(
-            minWidth: 340, maxWidth: .infinity, minHeight: 280, maxHeight: 360)
-        }
-      }
-    }
+    }.padding(8)
   }
-  func countBadge(_ count: Int) -> some View {
-    Text("(\(count))").font(.system(size: 12)).foregroundColor(.gray)
-      .lineLimit(1).frame(width: 44)
+
+  func filterButton(
+    _ label: String, count: Int, selected: Bool,
+    action: @escaping @MainActor @Sendable () -> Void
+  ) -> some View {
+    Button(action: action) {
+      HStack(spacing: 3) {
+        Text(model.t(label)).font(.system(size: 11)).lineLimit(1)
+        Text("(\(count))").font(.system(size: 11)).lineLimit(1).frame(width: 44)
+      }.padding(5)
+    }
+    .inspect([.onCreate, .afterUpdate]) {
+      DesktopChrome.label(model.t(label), on: $0)
+      DesktopChrome.setClass("clipboard-filter", on: $0)
+      DesktopChrome.setClass("clipboard-selected", on: $0, enabled: selected)
+    }
+    .buttonStyle(.borderless)
   }
   var allTypesButton: some View {
-    HStack(spacing: 4) {
-      Button(model.t("All types")) {
-        Task { @MainActor in await model.selectKind(nil) }
-      }.frame(minWidth: 104)
-      countBadge(model.allTypesCount)
+    filterButton("All types", count: model.allTypesCount, selected: model.kindFilter == nil) {
+      Task { @MainActor in await model.selectKind(nil) }
     }
   }
   func typeButton(_ kind: ClipKind) -> some View {
-    HStack(spacing: 4) {
-      Button(model.t(kind.rawValue.capitalized)) {
-        Task { @MainActor in await model.selectKind(kind) }
-      }.frame(minWidth: 96)
-      countBadge(model.kindCounts[kind, default: 0])
+    filterButton(
+      kind.rawValue.capitalized, count: model.kindCounts[kind, default: 0],
+      selected: model.kindFilter == kind
+    ) {
+      Task { @MainActor in await model.selectKind(kind) }
     }
   }
+
   var historyItems: some View {
     let items = model.items
     let itemIDs = items.map(\.id)
     return ScrollView {
       List(items, selection: $model.selectedID) { item in
-        VStack(alignment: .leading, spacing: 7) {
-          Text(
-            item.sensitive
-              ? model.t("Sensitive content")
-              : model.itemPresentations[item.id]?.rowText
-                ?? DesktopTextPreview(item.preview, maxUTF8Bytes: 512).text
-          ).lineLimit(2)
-          Text(
-            (item.pinned ? model.t("Pinned") + " · " : "") + model.t(item.kind.rawValue.capitalized)
-              + (model.itemPresentations[item.id].map { " · " + $0.createdText } ?? "")
-              + (model.itemPresentations[item.id]?.sourceName.map { " · " + $0 } ?? "")
+        HStack(spacing: 10) {
+          DesktopSymbol(
+            name: item.sensitive ? "lock" : kindSymbol(item.kind), size: 20
           )
-          .font(.system(size: 12)).foregroundColor(.gray).lineLimit(1)
-        }.padding(10)
+          .frame(width: 40, height: 40)
+          .inspect { DesktopChrome.setClass("clipboard-kind", on: $0) }
+          VStack(alignment: .leading, spacing: 3) {
+            Text(
+              item.sensitive
+                ? model.t("Sensitive content")
+                : model.itemPresentations[item.id]?.rowText
+                  ?? DesktopTextPreview(item.preview, maxUTF8Bytes: 512).text
+            ).font(.system(size: 13)).lineLimit(2)
+            Text(
+              (item.pinned ? model.t("Pinned") + " · " : "")
+                + model.t(item.kind.rawValue.capitalized)
+                + (model.itemPresentations[item.id].map { " · " + $0.createdText } ?? "")
+                + (model.itemPresentations[item.id]?.sourceName.map { " · " + $0 } ?? "")
+            )
+            .font(.system(size: 11)).lineLimit(1)
+            .inspect { DesktopChrome.setClass("clipboard-secondary", on: $0) }
+          }.frame(maxWidth: .infinity, alignment: .leading)
+        }.padding(7)
       }.inspect([.onCreate, .afterUpdate]) { list in
+        DesktopChrome.setClass("clipboard-history", on: list)
         model.attachHistoryList(list, itemIDs: itemIDs)
       }
+    }.padding(6)
+  }
+
+  func kindSymbol(_ kind: ClipKind) -> String {
+    switch kind {
+    case .text: return "text"
+    case .image: return "image"
+    case .file: return "file"
+    case .rtf: return "rich"
+    case .mixed: return "copy"
     }
   }
 
   func preview(imageHeight: Double) -> some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text(model.t("Preview")).font(.system(size: 18))
+      HStack {
+        if let item = model.selected {
+          DesktopSymbol(name: kindSymbol(item.kind))
+          Text(model.t(item.kind.rawValue.capitalized)).font(.system(size: 12))
+        } else {
+          Text(model.t("Preview")).font(.system(size: 12))
+        }
+        Spacer()
+      }
       if let item = model.selected, let presentation = model.itemPresentations[item.id] {
         if let source = presentation.sourceName {
           Text(model.t("Source: ") + source).font(.system(size: 12)).foregroundColor(.gray)
@@ -287,7 +326,8 @@ struct HistoryView: View {
                     : model.selected?.kind == .image
                       ? "Could not recognize text."
                       : model.usesOptionalTextAnalysis
-                        ? "Could not analyze text locally." : "Could not create a local excerpt."))
+                        ? "Could not analyze text locally." : "Could not create a local excerpt.")
+            )
             Button(
               model.t(
                 remote
@@ -315,7 +355,7 @@ struct HistoryView: View {
           }
           if let image = model.previewImage {
             DesktopImagePreview(image: image, accessibilityLabel: model.t("Image preview")).frame(
-              minWidth: 250, maxWidth: .infinity, maxHeight: imageHeight)
+              minWidth: 0, maxWidth: .infinity, maxHeight: imageHeight)
           }
           if let count = model.previewFileCount {
             Text(model.t("Files") + ": " + String(count)).font(.system(size: 12)).foregroundColor(
@@ -349,41 +389,45 @@ struct HistoryView: View {
           }
 
         }
-      }.frame(minHeight: 100, maxHeight: 180)
-      Text(model.t("Copy here, then paste in your app."))
-        .font(.system(size: 12)).foregroundColor(.gray)
-    }
+      }.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+    }.padding(12)
   }
 
   var itemActions: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(spacing: 10) {
-        Button(model.t("Copy")) { Task { @MainActor in await model.copySelected() } }.disabled(
+        iconButton("Copy", symbol: "copy") {
+          Task { @MainActor in await model.copySelected() }
+        }.disabled(
           model.historyActivationBusy || model.selected == nil)
-        Button(model.t("Pin / unpin")) { Task { @MainActor in await model.togglePin() } }
-          .disabled(model.historyActivationBusy || model.selected == nil)
-        Button(model.t("Delete")) { Task { @MainActor in await model.deleteSelected() } }
-          .disabled(model.historyActivationBusy || model.selected == nil)
+        iconButton("Pin / unpin", symbol: "pin") {
+          Task { @MainActor in await model.togglePin() }
+        }
+        .disabled(model.historyActivationBusy || model.selected == nil)
+        iconButton("Delete", symbol: "delete") {
+          Task { @MainActor in await model.deleteSelected() }
+        }
+        .disabled(model.historyActivationBusy || model.selected == nil)
       }
       if model.selected?.kind == .image || model.canSummarize || model.canSummarizeLocally {
-        HStack(spacing: 10) {
-          Button(model.t("Recognize text")) { model.analyze(remote: false) }
+        HStack(spacing: 8) {
+          iconButton("Recognize text", symbol: "text") { model.analyze(remote: false) }
             .disabled(
               model.historyActivationBusy || model.selected?.kind != .image
                 || model.selected?.sensitive == true
                 || model.analysisBusy)
           if model.selected?.kind == .image {
-            Button(model.t("Analyze image locally")) {
+            iconButton("Analyze image locally", symbol: "image") {
               model.analyze(remote: false, imageSummary: true)
             }.disabled(
               model.historyActivationBusy || model.selected?.sensitive == true || model.analysisBusy
             )
           }
           if model.canSummarizeLocally {
-            Button(model.t("Summarize locally")) { model.analyze(remote: false) }
+            iconButton("Summarize locally", symbol: "ai") { model.analyze(remote: false) }
               .disabled(model.historyActivationBusy || model.analysisBusy)
           }
-          Button(model.t("Summarize")) { model.analyze(remote: true) }
+          iconButton("Summarize", symbol: "ai") { model.analyze(remote: true) }
             .disabled(model.historyActivationBusy || !model.canSummarize || model.analysisBusy)
         }
       }
@@ -394,6 +438,15 @@ struct HistoryView: View {
     VStack(alignment: .leading, spacing: 12) {
       Text(model.t("History capacity (1–5000)"))
       TextField(model.t("100"), text: $model.capacityDraft)
+      Button(model.t("Save content settings")) {
+        Task { @MainActor in await model.applyContentSettings() }
+      }
+    }
+  }
+
+  var privacySettings: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text(model.t("History stays on this device. Sensitive items stay in memory."))
       Text(model.t("Maximum clipboard item (MiB)"))
       TextField(model.t("10"), text: $model.maxSizeDraft)
       Text(
@@ -407,6 +460,11 @@ struct HistoryView: View {
       Button(model.t("Save content settings")) {
         Task { @MainActor in await model.applyContentSettings() }
       }
+    }
+  }
+
+  var archiveSettings: some View {
+    VStack(alignment: .leading, spacing: 12) {
       Text(model.t("ZIP archives work with Mac. Use .json for the legacy export format."))
       Button(model.t("Export history")) {
         Task { @MainActor in
@@ -504,16 +562,22 @@ struct HistoryView: View {
       .font(.system(size: 12)).foregroundColor(.gray)
     }
   }
-  var serviceSettings: some View {
+  var startupSettings: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text(model.t("System services")).font(.system(size: 18))
       Button(model.t(model.startupEnabled ? "Disable launch at login" : "Enable launch at login")) {
         Task { @MainActor in await model.toggleStartup() }
       }.disabled(!model.startupAvailable || model.startupBusy)
       Text(
         model.t(
           "System startup policy can override this registration. Check Startup apps or your desktop session settings."
-        ))
+        )
+      )
+      .font(.system(size: 12)).foregroundColor(.gray)
+    }
+  }
+
+  var serviceSettings: some View {
+    VStack(alignment: .leading, spacing: 12) {
       localAnalysisSettings
       localFileSettings
       Text(
@@ -564,12 +628,16 @@ struct HistoryView: View {
       Text(model.t("Appearance")).font(.system(size: 18))
       HStack {
         Button(model.t("System")) { Task { @MainActor in await model.setAppearance("system") } }
+          .fixedSize()
         Button(model.t("Light")) { Task { @MainActor in await model.setAppearance("light") } }
+          .fixedSize()
         Button(model.t("Dark")) { Task { @MainActor in await model.setAppearance("dark") } }
+          .fixedSize()
       }
       Text(model.t("Language")).font(.system(size: 18))
       HStack {
         Button(model.t("System language")) { Task { @MainActor in await model.setLanguage(nil) } }
+          .fixedSize()
         languageButton(.english)
         languageButton(.simplifiedChinese)
         languageButton(.traditionalChinese)
@@ -586,7 +654,7 @@ struct HistoryView: View {
   func languageButton(_ language: DesktopUILanguage) -> some View {
     Button(language.nativeName) {
       Task { @MainActor in await model.setLanguage(language.rawValue) }
-    }
+    }.fixedSize()
   }
 
   var updateSettings: some View {
@@ -619,35 +687,77 @@ struct HistoryView: View {
     }
   }
 
-  var settings: some View {
+  var behaviorSettings: some View {
     VStack(alignment: .leading, spacing: 12) {
-      HStack {
-        Text(model.t("Preferences")).font(.system(size: 22))
+      Toggle(model.t("Keep running when closing the window"), isOn: $model.closeToTrayDraft)
+      Toggle(model.t("Show history when starting"), isOn: $model.showOnLaunchDraft)
+      Toggle(model.t("Record when starting"), isOn: $model.recordOnLaunchDraft)
+      Button(model.t("Save behavior")) { Task { @MainActor in await model.applyBehavior() } }
+      if !model.shellStatus.isEmpty { Text(model.t(model.shellStatus)).lineLimit(3) }
+    }
+  }
+
+  var shortcutSettings: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Toggle(model.t("Enable global shortcut"), isOn: $model.shortcutEnabledDraft)
+      TextField(model.t("Ctrl+Alt+V"), text: $model.shortcutDraft)
+      Button(model.t("Apply shortcut")) { Task { @MainActor in await model.applyShortcut() } }
+      if !model.shellStatus.isEmpty { Text(model.t(model.shellStatus)).lineLimit(3) }
+    }
+  }
+
+  var settings: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      HStack(spacing: 4) {
+        iconButton("Back to history", symbol: "back") {
+          Task { @MainActor in await model.showHistory() }
+        }
         Spacer()
-        Button(model.t("Back to history")) { Task { @MainActor in await model.showHistory() } }
-      }
-      ScrollView {
-        VStack(alignment: .leading, spacing: 16) {
-          Text(model.t("History stays on this device. Sensitive items stay in memory."))
+        ForEach(DesktopSettingsSection.allCases, id: \.self) { section in
+          Button {
+            guard settingsSection != section else { return }
+            settingsSection = section
+          } label: {
+            VStack(spacing: 4) {
+              DesktopSymbol(name: section.symbol, size: 20)
+              Text(model.t(section.rawValue)).font(.system(size: 12)).lineLimit(1)
+            }.padding(8)
+          }
+          .inspect([.onCreate, .afterUpdate]) {
+            DesktopChrome.label(model.t(section.rawValue), on: $0)
+            DesktopChrome.setClass("clipboard-filter", on: $0)
+            DesktopChrome.setClass(
+              "clipboard-selected", on: $0, enabled: settingsSection == section)
+          }
+          .buttonStyle(.borderless)
+        }
+        Spacer()
+      }.padding(8)
+      Divider()
+      // All five native pages stay mounted. Hide whole page roots so off-page
+      // editors cannot receive focus, while drafts/IME and scroll positions survive.
+      ZStack(alignment: .topLeading) {
+        settingsPage(.general) {
+          presentationSettings
           contentSettings
+          startupSettings
+          behaviorSettings
+          Button(model.t("Quit Clipboard")) { Task { @MainActor in await model.shutdown() } }
+        }
+        settingsPage(.privacy) { privacySettings }
+        settingsPage(.ai) {
           serviceSettings
           desktopModelSettings
-          presentationSettings
-          Text(model.t("Recording: \(model.recording ? "On" : "Paused")"))
-          Toggle(model.t("Enable global shortcut"), isOn: $model.shortcutEnabledDraft)
-          TextField(model.t("Ctrl+Alt+V"), text: $model.shortcutDraft)
-          Button(model.t("Apply shortcut")) { Task { @MainActor in await model.applyShortcut() } }
-          Toggle(model.t("Keep running when closing the window"), isOn: $model.closeToTrayDraft)
-          Toggle(model.t("Show history when starting"), isOn: $model.showOnLaunchDraft)
-          Toggle(model.t("Record when starting"), isOn: $model.recordOnLaunchDraft)
-          Button(model.t("Save behavior")) { Task { @MainActor in await model.applyBehavior() } }
-          if !model.shellStatus.isEmpty { Text(model.t(model.shellStatus)).lineLimit(3) }
+        }
+        settingsPage(.shortcuts) { shortcutSettings }
+        settingsPage(.data) {
+          archiveSettings
           updateSettings
-          Button(model.t("Quit Clipboard")) { Task { @MainActor in await model.shutdown() } }
-        }.frame(maxWidth: .infinity, alignment: .topLeading)
-      }.frame(minHeight: 320, maxHeight: 360)
-    }.frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+      }.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+    }.frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
   }
+
 }
 
 /// Isolates backend/window/control startup from asynchronous Core history updates.

@@ -6,11 +6,13 @@ import base64, hashlib, json, struct, uuid, zlib
 import argparse
 parser = argparse.ArgumentParser(description='Create synthetic preview/performance fixtures; never use a normal profile.')
 parser.add_argument('--output', required=True, type=Path)
-root = parser.parse_args().output
+parser.add_argument('--portrait', action='store_true', help='Use tall images to verify constrained preview layout')
+args = parser.parse_args()
+root = args.output
 root.mkdir(exist_ok=False)
 def chunk(kind, body):
     return struct.pack('>I',len(body))+kind+body+struct.pack('>I',zlib.crc32(kind+body))
-w,h=640,360
+w,h=(360,960) if args.portrait else (640,360)
 pixels=b''.join(b'\0'+b''.join(bytes((220 if x<w//2 else 20, 60 if y<h//2 else 200, 50)) for x in range(w)) for y in range(h))
 png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',w,h,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(pixels))+chunk(b'IEND',b'')
 def bmp(size,bpp,alpha):

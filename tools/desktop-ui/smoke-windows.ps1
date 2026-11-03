@@ -381,6 +381,23 @@ function Find-Named([string]$Name) {
     [Windows.Automation.AutomationElement]::NameProperty, $Name)
   return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
 }
+function Select-SettingsPage([string]$Section) {
+  $labels = @{
+    General = @('General', '通用', '一般', '일반', 'Allgemein')
+    Shortcuts = @('Shortcuts', '快捷键', '快捷鍵', 'ショートカット', '단축키', 'Tastenkürzel', 'Atajos')
+    AI = @('AI', 'KI', 'IA')
+    Privacy = @('Privacy', '隐私', '隱私', 'プライバシー', '개인정보', 'Datenschutz', 'Privacidad')
+    Data = @('Data', '数据', '資料', 'データ', '데이터', 'Daten', 'Datos')
+  }
+  $label = Wait-For {
+    foreach ($candidate in $labels[$Section]) {
+      if (Find-Named $candidate) { return $candidate }
+    }
+    return $null
+  } ('settings_navigation_' + $Section)
+  Invoke-Button $label
+}
+
 function Get-Editor {
   $condition = [Windows.Automation.PropertyCondition]::new(
     [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)
@@ -675,6 +692,7 @@ function Set-LocalTextSettings([string[]]$Labels, [string]$Query) {
   $expectedTextSettings = @{}
   foreach ($label in $Labels) { $key = $mapping[$label]; $expectedTextSettings[$key] = ![bool]$previousTextSettings.$key }
   Invoke-Button 'Settings'
+  Select-SettingsPage 'AI'
   Wait-For { Find-Named 'Preferences' } 'local_text_preferences' | Out-Null
   foreach ($label in $Labels) { Invoke-VisibleConnectionButton $label }
   Invoke-VisibleConnectionButton 'Save AI settings'
@@ -968,6 +986,7 @@ try {
       Invoke-Button 'Pause recording'
       Wait-For { Find-Named 'Recording paused' } 'local_file_model_recording_stopped' | Out-Null
       Invoke-Button 'Settings'
+      Select-SettingsPage 'General'
       Wait-For { Find-Named 'Preferences' } 'local_file_model_quit_settings' | Out-Null
       Invoke-VisibleConnectionButton 'Quit Clipboard'
       if (!$application.WaitForExit(10000)) { throw 'local_file_model_quit_timeout' }
@@ -982,6 +1001,7 @@ try {
       $entityPointer = Join-Path (Split-Path $entityTarget) 'current.json'
       Wait-For { Test-Path -LiteralPath (Join-Path $historyRoot '.model-transfer-fixture-ready') } 'private_transfer_fixture_selected_before_any_request' | Out-Null
       Invoke-Button 'Settings'
+      Select-SettingsPage 'AI'
       Wait-For { (Find-Named 'Local text models') -and (Test-PublicControlEnabled 'Verify local models') } 'model_operation_settings_ready' | Out-Null
       Add-Check 'passive_model_cards_never_start_a_transfer_or_create_model_root' (!(Test-Path -LiteralPath (Join-Path $historyRoot 'models')))
       Invoke-VisibleConnectionButton 'Download summary model'
@@ -1050,6 +1070,7 @@ try {
       Add-Check 'repaired_model_runs_actual_native_entity_inference' $true
       Save-Screenshot 'repaired-model-result.png'
       Invoke-Button 'Settings'
+      Select-SettingsPage 'General'
       Wait-For { Find-Named 'Preferences' } 'model_operation_quit_settings' | Out-Null
       Invoke-VisibleConnectionButton 'Quit Clipboard'
       if (!$application.WaitForExit(10000)) { throw 'model_operation_quit_timeout' }
@@ -1075,9 +1096,11 @@ try {
       $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
       Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'verified_import_relaunch' | Out-Null
       Invoke-Button 'Settings'
+      Select-SettingsPage 'AI'
       Wait-For { (Test-PublicControlEnabled 'Verify local models') -and (Find-Named 'Model ready') } 'verified_import_relaunch_ready' | Out-Null
       Add-Check 'relaunch_reuses_verified_import_without_any_passive_transfer' (@(Get-ChildItem -LiteralPath $historyRoot -Force -Filter '.model-transfer-*-started').Count -eq 0 -and
         (Get-ModelOperationDigest $entityTarget) -ceq $entityPin.sha256)
+      Select-SettingsPage 'General'
       Invoke-VisibleConnectionButton 'Quit Clipboard'
       if (!$application.WaitForExit(10000)) { throw 'model_operation_relaunch_quit_timeout' }
       Add-Check 'verified_import_relaunch_quits_cleanly' ($application.ExitCode -eq 0)
@@ -1151,6 +1174,7 @@ try {
       Wait-For { (Find-Named 'Local language and names') -and (Find-Named $namesRecord.summary) } 'local_language_result_visible' | Out-Null
       Save-Screenshot 'local-language-entities.png'
       Invoke-Button 'Settings'
+      Select-SettingsPage 'AI'
       Wait-For { Find-Named 'Preferences' } 'local_entity_removal_settings' | Out-Null
       Invoke-VisibleConnectionButton 'Remove names model'
       Wait-For { !(Test-Path -LiteralPath $textModelFiles.entities) -and !(Test-Path -LiteralPath (Join-Path (Split-Path $textModelFiles.entities) 'current.json')) } 'entity_model_removed' | Out-Null
@@ -1164,6 +1188,7 @@ try {
       Invoke-Button 'Summarize locally'
       Wait-For { Test-LocalTextCounter 'language' 4 } 'language_only_active_without_entity_model' | Out-Null
       Invoke-Button 'Settings'
+      Select-SettingsPage 'AI'
       Wait-For { Find-Named 'Preferences' } 'language_only_unrelated_removal_settings' | Out-Null
       Invoke-VisibleConnectionButton 'Remove names model'
       Wait-For { (Find-Named 'Names model removal complete') -and (Test-PublicControlEnabled 'Verify local models') } 'language_only_noop_removal_finished' | Out-Null
@@ -1177,6 +1202,7 @@ try {
       Invoke-Button 'Summarize locally'
       Wait-For { Test-LocalTextCounter 'generative' 5 } 'manual_generation_before_revocation' | Out-Null
       Invoke-Button 'Settings'
+      Select-SettingsPage 'AI'
       Wait-For { Find-Named 'Preferences' } 'unrelated_model_removal_settings' | Out-Null
       Invoke-VisibleConnectionButton 'Remove names model'
       Wait-For { (Find-Named 'Names model removal complete') -and (Test-PublicControlEnabled 'Verify local models') } 'unrelated_model_removal_finished' | Out-Null
@@ -1193,12 +1219,14 @@ try {
       Set-LocalTextRelease 'generative' $true
       Wait-For { Test-LocalTextModelInUse $textModelFiles.generative } 'real_worker_has_model_open' 10 | Out-Null
       Invoke-Button 'Settings'
+      Select-SettingsPage 'AI'
       Wait-For { Find-Named 'Preferences' } 'active_model_removal_settings' | Out-Null
       Invoke-VisibleConnectionButton 'Remove summary model'
       Wait-For { (Test-LocalTextCounter 'generative' 6 $true) -and !(Test-Path -LiteralPath $textModelFiles.generative) } 'actual_model_worker_drained_before_removal' | Out-Null
       Add-Check 'removing_summary_model_drains_its_actual_owned_native_process' $true
       $localSettings = Read-SharedJson (Join-Path $historyRoot 'desktop-settings.json')
       Add-Check 'model_removal_keeps_history_unrelated_files_and_permissions' ((Get-LocalTextRecord $textFixtureIDs[0]).summary -ceq $generatedTextRecord.summary -and [IO.File]::ReadAllText((Join-Path $historyRoot 'models/unrelated.txt')) -ceq 'synthetic unrelated file' -and $localSettings.localGenerativeSummariesEnabled -and !$localSettings.ai.enabled)
+      Select-SettingsPage 'General'
       Invoke-VisibleConnectionButton 'Quit Clipboard'
       if (!$application.WaitForExit(10000)) { throw 'local_text_quit_timeout' }
       Add-Check 'local_text_profile_quits_with_owned_work_drained' ($application.ExitCode -eq 0)
@@ -1206,6 +1234,7 @@ try {
     }
     if ($ModelSettingsOnly) {
       Invoke-Button 'Settings'
+      Select-SettingsPage 'AI'
       Wait-For { (Find-Named 'Local text models') -and (Find-Named 'Language and names') -and
         (Test-PublicControlEnabled 'Download summary model') -and (Test-PublicControlEnabled 'Verify local models') } 'model_support_ready' | Out-Null
       Add-Check 'model_cards_query_real_bundled_workers_without_creating_model_root' (!(Test-Path (Join-Path $historyRoot 'models')))
@@ -1247,6 +1276,7 @@ try {
       Wait-For { (Test-PublicControlEnabled 'Verify local models') -and
         (Test-PublicControlEnabled 'Download summary model') } 'passive_model_verification_done' | Out-Null
       Add-Check 'explicit_passive_model_verification_does_not_download_or_create_root' (!(Test-Path (Join-Path $historyRoot 'models')))
+      Select-SettingsPage 'General'
       Invoke-VisibleConnectionButton 'Quit Clipboard'
       if (!$application.WaitForExit(10000)) { throw 'model_settings_quit_timeout' }
       Add-Check 'model_settings_profile_quits_cleanly' ($application.ExitCode -eq 0)
@@ -1280,6 +1310,7 @@ try {
     Wait-For { Find-Named '1 items' } 'pinned_filter' | Out-Null
     Add-Check 'pin_and_pinned_filter' $true
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named 'Preferences' } 'settings_view' | Out-Null
     Save-Screenshot 'settings.png'
     Invoke-Button 'Back to history'
@@ -1481,6 +1512,7 @@ try {
       Wait-For { Find-Named '4 items' } 'all_content_restored' | Out-Null
     }
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named 'Preferences' } 'preferences_for_save' | Out-Null
     Invoke-Button 'Dark'
     Wait-For { Find-Named 'Appearance saved' } 'dark_appearance_saved' | Out-Null
@@ -1508,6 +1540,7 @@ try {
     Wait-For { (Get-Editor).Current.HasKeyboardFocus } 'localized_history_focus' | Out-Null
     Add-Check 'language_change_preserves_history_focus' $true
     Invoke-Button '设置'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named '偏好设置' } 'localized_settings_return' | Out-Null
     Invoke-Button 'English'
     Wait-For { (Find-Named 'Preferences') -and (Find-Named 'Language saved') } 'english_restored' | Out-Null
@@ -1523,6 +1556,7 @@ try {
       }
     }
     $draftValue = 'https://fixture.invalid/localized-draft'
+    Select-SettingsPage 'AI'
     $draftEditor = Wait-For { Find-PublicEndpointEditor 'https://api.openai.com/v1' } 'public_endpoint_editor'
     $draftID = ($draftEditor.GetRuntimeId() -join ',')
     $draftEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue($draftValue)
@@ -1533,13 +1567,17 @@ try {
       @{ tag = 'de'; label = 'Deutsch'; preferences = 'Einstellungen'; saved = 'Sprache gespeichert'; behavior = 'Verhalten speichern'; ocr = 'Lokale OCR nutzt installierte Systemsprachpakete. Apple-exklusive Modelle sind hier nicht verfügbar.'; ai = 'Remote-KI ist standardmäßig deaktiviert. Bei Aktivierung werden geeignete Inhalte an deinen gewählten Endpunkt gesendet.' },
       @{ tag = 'es'; label = 'Español'; preferences = 'Preferencias'; saved = 'Idioma guardado'; behavior = 'Guardar comportamiento'; ocr = 'El OCR local usa los paquetes de idioma del sistema instalados. Los modelos exclusivos de Apple no están disponibles aquí.'; ai = 'La IA remota está desactivada por defecto. Al activarla, el contenido permitido se envía al destino elegido.' })
     foreach ($case in $languageCases) {
+      Select-SettingsPage 'General'
       Invoke-Button $case.label
       Wait-For { (Find-Named $case.preferences) -and (Find-Named $case.saved) -and (Find-Named $case.behavior) } ('localized_controls_' + $case.tag) | Out-Null
+      Select-SettingsPage 'AI'
+      Wait-For { (Find-Named $case.ocr) -and (Find-Named $case.ai) } ('localized_ai_notes_' + $case.tag) | Out-Null
       Add-Check ('language_' + $case.tag + '_updates_controls_and_privacy_notes') ((Find-Named $case.ocr) -and (Find-Named $case.ai))
       $currentEditor = Find-PublicEndpointEditor $draftValue
       Add-Check ('language_' + $case.tag + '_preserves_editor_draft') ($currentEditor -and ($currentEditor.GetRuntimeId() -join ',') -eq $draftID)
       Save-Screenshot ('settings-' + $case.tag + '.png')
     }
+    Select-SettingsPage 'General'
     Invoke-Button 'English'
     Wait-For { (Find-Named 'Preferences') -and (Find-Named 'Language saved') } 'english_after_all_languages' | Out-Null
     Invoke-Button 'Save behavior'
@@ -1548,6 +1586,7 @@ try {
     $saved = Read-SharedJson $settingsFile
     Add-Check 'behavior_saved_without_enabling_recording' (!$saved.recordingEnabled -and $saved.closeToTray)
     Add-Check 'language_switches_keep_remote_AI_disabled_and_endpoint_draft_unsaved' (!$saved.ai.enabled -and $saved.ai.endpoint -ceq 'https://api.openai.com/v1' -and $saved.languageOverride -ceq 'en')
+    Select-SettingsPage 'General'
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'explicit_quit_timeout' }
     Add-Check 'explicit_quit_flushes_and_exits' ($application.ExitCode -eq 0)
@@ -1565,6 +1604,7 @@ try {
     Wait-For { (Find-Named 'Ready') -and (Find-Named '0 items') } 'fresh_production_history' | Out-Null
     Add-Check 'normal_launch_has_no_sample_history_and_starts_paused' ($null -ne (Find-Named 'Start recording'))
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named 'Preferences' } 'fresh_settings' | Out-Null
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'normal_quit_timeout' }
@@ -1582,6 +1622,7 @@ try {
     Wait-For { (Find-Named 'Ready') -and (Find-Named '0 items') } 'background_launch_reopened' | Out-Null
     Add-Check 'startup_background_instance_can_be_reopened' $true
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named 'Preferences' } 'background_settings' | Out-Null
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'background_quit_timeout' }
@@ -1634,6 +1675,7 @@ try {
     Wait-For { (Find-Named '1 items') -and (Find-Named 'Legacy mixed fixture') } 'matched_mixed_kind' | Out-Null
     Add-Check 'tab_and_type_counts_follow_the_active_query' ((Find-Named '(1)') -and !(Find-Named ('(' + $expectedAll + ')')))
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named 'Preferences' } 'counted_history_quit_settings' | Out-Null
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'counted_history_quit_timeout' }
@@ -1716,6 +1758,7 @@ try {
     }
     Add-Check 'metadata_presentation_does_not_rewrite_original_records' $unchanged
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named 'Preferences' } 'metadata_quit_settings' | Out-Null
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'metadata_quit_timeout' }
@@ -1818,6 +1861,7 @@ try {
       Wait-For { (Find-Named '2 items') -and (Get-EditorWithValue 'e') } 'activation_reopen_retains_query' | Out-Null
     }
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named 'Preferences' } 'activation_quit_settings' | Out-Null
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'activation_quit_timeout' }
@@ -1850,6 +1894,7 @@ try {
     $snapshot = (Read-SharedJson (Join-Path $historyRoot 'history.json')).items
     Add-Check 'failed_native_row_copy_does_not_promote_or_rewrite_original' ($snapshot[0].id -eq $badID -and $snapshot[0].createdAt -eq $badItem.createdAt)
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named 'Preferences' } 'activation_failure_quit_settings' | Out-Null
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'activation_failure_quit_timeout' }
@@ -1949,6 +1994,7 @@ try {
     Add-Check 'local_image_summary_keeps_complete_original_copy' (Test-LocalImageCopy $localImageBytes)
     if ($ClipboardPeer) {
       Invoke-Button 'Settings'
+      Select-SettingsPage 'AI'
       Wait-For { Find-Named 'Preferences' } 'local_image_automatic_settings' | Out-Null
       Invoke-VisibleConnectionButton 'Automatically recognize images'
       Invoke-VisibleConnectionButton 'Include local image labels in automatic recognition'
@@ -1975,6 +2021,7 @@ try {
         Wait-For { Find-Named 'Analyzing image locally…' } 'local_image_auto_progress' | Out-Null
         Add-Check 'automatic_image_labels_use_their_own_progress_mode' $true
         Invoke-Button 'Settings'
+        Select-SettingsPage 'AI'
         Wait-For { Find-Named 'Preferences' } 'local_image_revoke_settings' | Out-Null
         Invoke-VisibleConnectionButton 'Include local image labels in automatic recognition'
         Invoke-VisibleConnectionButton 'Save AI settings'
@@ -1989,6 +2036,7 @@ try {
         if (!$peer.WaitForExit(10000)) { $peer.Kill(); throw 'local_image_peer_quit_timeout' }
       }
       Invoke-Button 'Settings'
+      Select-SettingsPage 'AI'
       Wait-For { Find-Named 'Preferences' } 'local_image_resume_auto_settings' | Out-Null
       Invoke-VisibleConnectionButton 'Include local image labels in automatic recognition'
       Invoke-VisibleConnectionButton 'Save AI settings'
@@ -2031,6 +2079,7 @@ try {
       }
     }
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named 'Preferences' } 'local_image_quit_settings' | Out-Null
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'local_image_quit_timeout' }
@@ -2113,6 +2162,7 @@ try {
     Wait-For { (Find-Named 'Item deleted') -and (Find-Named '4 items') } 'selection_last_deleted' | Out-Null
     Add-Check 'deleting_last_row_selects_previous_visible_neighbor' (Test-CopiedSelection 'Selection B')
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named 'Preferences' } 'selection_quit_settings' | Out-Null
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'selection_quit_timeout' }
@@ -2164,6 +2214,7 @@ try {
       Add-Check ('rich_' + $fixture.kind + '_copy_preserves_complete_payload') ($native -ceq $fixture.body)
     }
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named 'Preferences' } 'rich_budget_quit_settings' | Out-Null
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'rich_budget_quit_timeout' }
@@ -2181,6 +2232,7 @@ try {
     $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
     Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'archive_private_profile' | Out-Null
     Invoke-Button 'Settings'
+    Select-SettingsPage 'Data'
     Wait-For { Find-Named 'Preferences' } 'archive_preferences' | Out-Null
     Invoke-Button 'Export history'
     $archivePath = Join-Path $historyRoot 'clipboard-history.zip'
@@ -2206,6 +2258,7 @@ try {
     Complete-ArchiveDialog 'Import history' $archivePath
     Wait-For { Find-Named 'Imported 0 items; 3 skipped; 0 missing blobs.' } 'archive_duplicate_result' | Out-Null
     Add-Check 'native_archive_duplicate_import_is_counted' ((Read-SharedJson (Join-Path $historyRoot 'history.json')).items.Count -eq 3)
+    Select-SettingsPage 'General'
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'archive_state_quit_timeout' }
     if ($application.ExitCode -ne 0) {
@@ -2229,6 +2282,7 @@ try {
     $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
     Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'startup_private_profile' | Out-Null
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { (Find-Named 'Preferences') -and (Find-Named 'Enable launch at login') } 'startup_initial_disabled' | Out-Null
     $settingsEditor = Get-Editor
     $settingsEditorID = ($settingsEditor.GetRuntimeId() -join ',')
@@ -2301,6 +2355,7 @@ try {
       $draftUnsaved = !(Test-Path $settingsFile)
       if (!$draftUnsaved) { $draftUnsaved = (Read-SharedJson $settingsFile).historyCapacity -eq 100 }
       Add-Check 'startup_reconciliation_does_not_save_content_drafts' $draftUnsaved
+      Select-SettingsPage 'Privacy'
       $sizeEditor = Wait-For { Get-EditorWithValue '10' } 'size_preference_editor'
       $sizeEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('0.5')
       Invoke-Button 'Save content settings'
@@ -2319,6 +2374,7 @@ try {
       Invoke-Button 'Save content settings'
       Wait-For { Find-Named 'Enter a capacity of 1–5000 and a valid size in MiB.' } 'negative_size_preference_rejected' | Out-Null
       Add-Check 'invalid_size_does_not_replace_disabled_preference' ((Read-SharedJson $settingsFile).maxClipSizeBytes -eq 0)
+      Select-SettingsPage 'AI'
       Invoke-Button 'Allow text summaries'
       Invoke-VisibleConnectionButton 'Save AI settings'
       Wait-For { (Read-SharedJson $settingsFile).ai.allowText -eq $false } 'text_summary_opt_out_saved' | Out-Null
@@ -2394,6 +2450,7 @@ try {
       [IO.File]::WriteAllText((Join-Path $OutputDirectory 'connection-audit.json'), ($connectionAudit | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
       Add-Check 'connection_requests_use_only_fixed_prompts_without_keys_or_cookies' ($fixtureReport.requests -eq 4 -and $fixtureReport.fixedTestsOnly -and $fixtureReport.noAuthorization -and $fixtureReport.noCookies)
       $probeServer.Dispose()
+      Select-SettingsPage 'General'
       Invoke-Button 'Quit Clipboard'
       if (!$application.WaitForExit(10000)) { throw 'startup_state_quit_timeout' }
       Add-Check 'startup_state_profile_quits_cleanly' ($application.ExitCode -eq 0)
@@ -2458,6 +2515,7 @@ try {
         $snapshot = Read-SharedJson (Join-Path $historyRoot 'history.json')
         Add-Check 'file_summary_defaults_do_not_analyze_copied_files' (@($snapshot.items | Where-Object { $_.summary }).Count -eq 0 -and !(Find-Named 'Summarize'))
         Invoke-Button 'Settings'
+        Select-SettingsPage 'AI'
         Wait-For { Find-Named 'Preferences' } 'file_summary_preferences' | Out-Null
         Invoke-VisibleConnectionButton 'Allow local file analysis'
         Invoke-VisibleConnectionButton 'Save AI settings'
@@ -2472,6 +2530,7 @@ try {
         $remoteBody = 'This synthetic remote file summary uses the current body. ' + ('Private file body context. ' * 10)
         [IO.File]::WriteAllText($target, $remoteBody, [Text.UTF8Encoding]::new($false))
         Invoke-Button 'Settings'
+        Select-SettingsPage 'AI'
         Wait-For { Find-Named 'Preferences' } 'remote_file_preferences' | Out-Null
         Invoke-VisibleConnectionButton 'Allow file text uploads'
         Invoke-VisibleConnectionButton 'Save AI settings'
@@ -2486,6 +2545,7 @@ try {
         $blocked = $probeServer.StandardOutput.ReadLineAsync()
         if (!$blocked.Wait(10000) -or $blocked.Result -ne 'blocked') { throw 'file_inflight_request_not_active' }
         Invoke-Button 'Settings'
+        Select-SettingsPage 'AI'
         Wait-For { Find-Named 'Preferences' } 'file_permission_revoke_preferences' | Out-Null
         Invoke-VisibleConnectionButton 'Allow file text uploads'
         Invoke-VisibleConnectionButton 'Automatically summarize files locally'
@@ -2545,6 +2605,7 @@ try {
         Add-Check 'automatic_pdf_result_reaches_native_preview' $true
         Save-Screenshot 'local-pdf-excerpt.png'
         Invoke-Button 'Settings'
+        Select-SettingsPage 'AI'
         Wait-For { Find-Named 'Preferences' } 'pdf_upload_preferences' | Out-Null
         Invoke-VisibleConnectionButton 'Allow file text uploads'
         Invoke-VisibleConnectionButton 'Save AI settings'
@@ -2554,6 +2615,7 @@ try {
         Wait-For { (Find-Named 'Summary ready') -and (Find-Named 'Private file summary fixture') } 'remote_pdf_summary_ready' | Out-Null
         Add-Check 'explicit_pdf_upload_sends_extracted_text_without_name_or_path' ((Read-SharedJson (Join-Path $historyRoot 'history.json')).items[0].summarySource -ceq 'remoteOpenAI')
         Invoke-Button 'Settings'
+        Select-SettingsPage 'General'
         Wait-For { Find-Named 'Preferences' } 'file_summary_quit_preferences' | Out-Null
         Invoke-Button 'Quit Clipboard'
         if (!$application.WaitForExit(10000)) { throw 'file_summary_quit_timeout' }
@@ -2601,6 +2663,7 @@ try {
       Add-Check 'local_summary_preserves_original_payload_and_labels_its_engine' ($stored.summary -ceq $manualLead -and $stored.summarySource -ceq 'localExtractive' -and [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($stored.payloads[0].inlineData)) -ceq $manualText)
       Save-Screenshot 'local-text-summary.png'
       Invoke-Button 'Settings'
+      Select-SettingsPage 'AI'
       Wait-For { Find-Named 'Preferences' } 'local_summary_settings' | Out-Null
       Invoke-Button 'Automatically summarize text locally'
       Invoke-VisibleConnectionButton 'Save AI settings'
@@ -2628,6 +2691,7 @@ try {
         Wait-For { (Find-Named '1 items') -and (Find-Named 'Local excerpt') -and (Find-Named $automaticLead) } 'automatic_local_result_selected' | Out-Null
         Invoke-Button 'Pause recording'
         Invoke-Button 'Settings'
+        Select-SettingsPage 'General'
         Wait-For { Find-Named 'Preferences' } 'local_summary_quit_settings' | Out-Null
         Invoke-Button 'Quit Clipboard'
         if (!$application.WaitForExit(10000)) { throw 'local_summary_quit_timeout' }
@@ -2692,6 +2756,7 @@ try {
       Wait-For { !(Find-Named 'Private summary fixture') } 'analysis_result_not_on_other_item' | Out-Null
       Add-Check 'analysis_result_and_failure_do_not_follow_selection' (!(Find-Named 'Could not generate a summary.'))
       Invoke-Button 'Settings'
+      Select-SettingsPage 'General'
       Wait-For { Find-Named 'Preferences' } 'analysis_settings_for_quit' | Out-Null
       Invoke-Button 'Quit Clipboard'
       if (!$application.WaitForExit(10000)) { throw 'analysis_profile_quit_timeout' }
@@ -2750,6 +2815,7 @@ try {
       Wait-For { (Find-Named 'Could not generate a summary.') -and (Find-Named 'Retry summary') } 'fallback_without_permission_failed' | Out-Null
       Add-Check 'remote_failure_does_not_run_unapproved_local_analysis' (!(Read-SharedJson (Join-Path $historyRoot 'history.json')).items[0].summary)
       Invoke-Button 'Settings'
+      Select-SettingsPage 'AI'
       Wait-For { Find-Named 'Preferences' } 'fallback_preferences' | Out-Null
       Invoke-VisibleConnectionButton 'Enable local text summaries'
       Invoke-VisibleConnectionButton 'Save AI settings'
@@ -2762,6 +2828,7 @@ try {
         $savedItem.summary -ceq $lead -and [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($savedItem.payloads[0].inlineData)) -ceq $body)
       Save-Screenshot 'remote-local-fallback.png'
       Invoke-Button 'Settings'
+      Select-SettingsPage 'General'
       Wait-For { Find-Named 'Preferences' } 'fallback_quit_settings' | Out-Null
       Invoke-Button 'Quit Clipboard'
       if (!$application.WaitForExit(10000)) { throw 'fallback_quit_timeout' }
@@ -2810,19 +2877,24 @@ try {
       $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
       Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'updates_private_profile' | Out-Null
       Invoke-Button 'Settings'
+      Select-SettingsPage 'Data'
       Wait-For { Find-Named 'Checks official releases only when you ask.' } 'updates_initial_idle' | Out-Null
       Add-Check 'updates_show_packaged_version_without_automatic_check' ($null -ne (Find-Named 'Installed version: 0.1.0-preview.1'))
+      Select-SettingsPage 'General'
       $updateEditor = Wait-For { Get-EditorWithValue '100' } 'update_draft_editor'
       $updateEditorID = $updateEditor.GetRuntimeId() -join ','
       $updateEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('321')
+      Select-SettingsPage 'Data'
       Invoke-VisibleConnectionButton 'Check for updates'
       Wait-For { Find-Named 'Could not check for updates. Try again.' } 'updates_failure' | Out-Null
       Add-Check 'update_failure_keeps_retry_available' ($null -ne (Find-Named 'Check for updates'))
       Invoke-VisibleConnectionButton 'Check for updates'
       Wait-For { (Find-Named 'A desktop update is available.') -and (Find-Named 'Available version: 0.2.0') } 'updates_available' | Out-Null
       Add-Check 'compatible_update_shows_official_manual_release_action' ($null -ne (Find-Named 'Open official release page'))
-      $currentUpdateEditor = Get-EditorWithValue '321'
+      Select-SettingsPage 'General'
+      $currentUpdateEditor = Wait-For { Get-EditorWithValue '321' } 'update_retained_draft'
       Add-Check 'updates_preserve_native_editor_draft_without_saving_settings' (($currentUpdateEditor.GetRuntimeId() -join ',') -ceq $updateEditorID -and !(Test-Path (Join-Path $historyRoot 'desktop-settings.json')))
+      Select-SettingsPage 'Data'
       # Scroll only: never launch a browser in the automated fixture.
       Invoke-VisibleConnectionButton 'Open official release page' $false
       Save-Screenshot 'desktop-update-available.png'
@@ -2840,8 +2912,10 @@ try {
       Invoke-Button 'Back to history'
       Wait-For { (Find-Named '3 items') -and (Find-Named 'All') } 'updates_history_return' | Out-Null
       Invoke-Button 'Settings'
+      Select-SettingsPage 'Data'
       Wait-For { Find-Named 'Checks official releases only when you ask.' } 'updates_cancelled_on_leave' | Out-Null
       Add-Check 'leaving_settings_cancels_updates_and_rejects_late_results' ($null -eq (Find-Named 'Open official release page'))
+      Select-SettingsPage 'General'
       Invoke-Button 'Quit Clipboard'
       if (!$application.WaitForExit(10000)) { throw 'updates_private_quit_timeout' }
       Add-Check 'updates_private_profile_quits_cleanly' ($application.ExitCode -eq 0)
@@ -2896,6 +2970,7 @@ try {
     Invoke-Button 'Reveal for this session'
     Wait-For { Get-ImagePreview } 'sensitive_image_revealed_again' | Out-Null
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named 'Preferences' } 'sensitive_settings_handoff' | Out-Null
     Invoke-Button 'Back to history'
     Wait-For { (Find-Named 'Sensitive content is hidden.') -and (Find-Named 'Reveal for this session') } 'sensitive_remasked_after_settings' | Out-Null
@@ -2927,6 +3002,7 @@ try {
     $blobFiles = @(Get-ChildItem -File (Join-Path $historyRoot 'blobs'))
     Add-Check 'sensitive_reveal_keeps_history_memory_only' ($persisted.items.Count -eq 3 -and $sensitiveRows.Count -eq 0 -and $blobFiles.Count -eq 0)
     Invoke-Button 'Settings'
+    Select-SettingsPage 'General'
     Wait-For { Find-Named 'Preferences' } 'sensitive_quit_settings' | Out-Null
     Invoke-Button 'Quit Clipboard'
     if (!$application.WaitForExit(10000)) { throw 'sensitive_quit_timeout' }

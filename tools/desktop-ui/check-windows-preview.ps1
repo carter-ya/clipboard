@@ -28,6 +28,29 @@ function Await-Name([string]$Name) {
   }
   throw 'preview_expected_control_missing'
 }
+function Await-PreviewBytes([long]$Bytes) {
+  $condition = [Windows.Automation.PropertyCondition]::new(
+    [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Text)
+  $suffix = ' ' + [char]0x00b7 + ' ' + $Bytes + ' bytes'
+  $deadline = [DateTime]::UtcNow.AddSeconds(15)
+  while ([DateTime]::UtcNow -lt $deadline) {
+    if ($child.HasExited) { throw 'preview_child_exited' }
+    foreach ($label in $script:previewWindow.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)) {
+      if ($label.Current.Name.EndsWith($suffix, [StringComparison]::Ordinal)) { return }
+    }
+    Start-Sleep -Milliseconds 20
+  }
+  throw 'preview_selected_metadata_missing'
+}
+function Invoke-PreviewButton([string]$Name) {
+  $control = Await-Name $Name
+  for ($depth = 0; $depth -lt 10 -and $control -and
+       $control.Current.ControlType -ne [Windows.Automation.ControlType]::Button; $depth++) {
+    $control = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($control)
+  }
+  if (!$control -or !$control.Current.IsEnabled) { throw 'preview_button_unavailable' }
+  $control.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+}
 function Measure-Action([string]$Name, [string]$Expected) {
   $control = Named $Name
   if (!$control) { throw 'preview_action_missing' }
@@ -71,8 +94,6 @@ try {
     [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Edit)
   $editor = $previewWindow.FindFirst([Windows.Automation.TreeScope]::Descendants, $editCondition)
   $value = $editor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
-  $imageCondition = [Windows.Automation.PropertyCondition]::new(
-    [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Image)
   foreach ($kind in @('PNG','BMP24','BMP32','BMPV5opaque','BMPV5zero')) {
     $item = @($history.items | Where-Object {$_.preview -eq ('Fixture ' + $kind)})
     if ($item.Count -ne 1) { throw 'preview_image_fixture_missing' }
@@ -81,11 +102,14 @@ try {
     # Two bitmap variants can have the same byte length. Wait for the exact
     # filtered row too, so the preceding picture cannot satisfy this check.
     $null = Await-Name ('Fixture ' + $kind)
-    $null = Await-Name ('Image ' + [char]0x00b7 + ' ' + $item[0].sizeBytes + ' bytes')
-    $picture = $previewWindow.FindFirst([Windows.Automation.TreeScope]::Descendants, $imageCondition)
-    Check ($kind + '_native_preview_present') ($null -ne $picture)
+    Await-PreviewBytes $item[0].sizeBytes
+    $picture = Await-Name 'Image preview'
+    Check ($kind + '_native_preview_present') ($null -ne $picture -and $picture.Current.ControlType -eq [Windows.Automation.ControlType]::Image)
     $box = $picture.Current.BoundingRectangle
     Check ($kind + '_native_preview_visible') (!$picture.Current.IsOffscreen -and $box.Width -gt 0 -and $box.Height -gt 0)
+    $windowBox = $previewWindow.Current.BoundingRectangle
+    Check ($kind + '_native_preview_fits_window') ($box.Left -ge $windowBox.Left -and
+      $box.Top -ge $windowBox.Top -and $box.Right -le $windowBox.Right -and $box.Bottom -le $windowBox.Bottom)
   }
   $value.SetValue(''); $null = Await-Name '100 items'
   foreach ($round in 1..3) {
@@ -96,6 +120,38 @@ try {
   }
   Measure-Action 'Settings' 'Preferences'
   Check 'all_measured_transitions_complete' ($timings.Count -eq 13)
+  $null = Await-Name 'Appearance'
+  $draftEditor = $previewWindow.FindFirst([Windows.Automation.TreeScope]::Descendants, $editCondition)
+  $draftID = $draftEditor.GetRuntimeId() -join ','
+  $draftEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('321')
+  foreach ($page in @(@{name='Privacy'; expected='Maximum clipboard item (MiB)'},
+                      @{name='Shortcuts'; expected='Enable global shortcut'},
+                      @{name='AI'; expected='Local text models'},
+                      @{name='Data'; expected='Export history'})) {
+    $navigation = Await-Name $page.name
+    $rect = $navigation.Current.BoundingRectangle
+    $windowRect = $previewWindow.Current.BoundingRectangle
+    Check ('settings_' + $page.name + '_navigation_visible') (!$navigation.Current.IsOffscreen -and
+      $rect.Width -gt 0 -and $rect.Height -gt 0 -and $rect.Left -ge $windowRect.Left -and
+      $rect.Right -le $windowRect.Right -and $rect.Top -ge $windowRect.Top -and $rect.Bottom -le $windowRect.Bottom)
+    Invoke-PreviewButton $page.name
+    $null = Await-Name $page.expected
+  }
+  Invoke-PreviewButton 'General'
+  $null = Await-Name 'Appearance'
+  $restoredEditor = $previewWindow.FindFirst([Windows.Automation.TreeScope]::Descendants, $editCondition)
+  Check 'settings_pages_preserve_native_editor_and_unsaved_draft' (
+    ($restoredEditor.GetRuntimeId() -join ',') -ceq $draftID -and
+    $restoredEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -ceq '321')
+  Invoke-PreviewButton 'Back to history'
+  $null = Await-Name 'All types'
+  $null = Await-Name '100 items'
+  Invoke-PreviewButton 'Filters'
+  $null = Await-Name 'Hide filters'
+  Check 'source_filter_remains_available' ($previewWindow.FindAll([Windows.Automation.TreeScope]::Descendants, $editCondition).Count -eq 2)
+  Invoke-PreviewButton 'Hide filters'
+  $null = Await-Name 'Filters'
+  Check 'source_filter_closes_without_removing_search' ($previewWindow.FindAll([Windows.Automation.TreeScope]::Descendants, $editCondition).Count -eq 1)
   Check 'owned_process_survives_preview_and_navigation' (!$child.HasExited)
 } catch {
   $detail = $_.Exception.Message

@@ -1595,7 +1595,14 @@
     "windows_runtime": "GTK 4.22.4 rebuilt with AccessKit C 0.18.0 (0c52a8ce2357bbeb927f90dc9a1c19c8ec1bd2c3), Rust 1.87.0; fixed gvsbuild 2026.8.0 dependency archive; SHA-256 verified inputs",
     "backend_gate": "GTK/AccessKit native UI passes on Windows and Linux. Full services UI passes in 41158347664; the responsive distribution UI passes its Windows debug UI step in 41158346907. Installed Windows package acceptance remains separate; the prior WinUI crash is not treated as success.",
     "fixtures": "Only --smoke-root seeds synthetic content. --data-root and ordinary launches start from real/empty storage. Recording remains off until explicit UI action.",
-    "scope": "Windows/Linux SwiftCrossUI desktop with native shell, rich content, OCR, credentials/startup, opt-in AI, theme/language and accurate Wayland capabilities. Preview installation is CP8; physical IME/shortcut focus/DPI remain release gates."
+    "scope": "Windows/Linux SwiftCrossUI desktop with native shell, rich content, OCR, credentials/startup, opt-in AI, theme/language and accurate Wayland capabilities. Preview installation is CP8; physical IME/shortcut focus/DPI remain release gates.",
+    "visual_design": {
+      "direction": "User-approved macOS-aligned Windows/Linux UI, 2026-11-03. Prefer 760x520, left column 56%, row padding 7 logical pixels. Preserve native OS window management and input.",
+      "history": "Search and compact accessible recording/hide/settings icons above a stable left-list/right-preview split. Counted All/Pinned and all six kind filters stay in the left column; source filtering is an explicit disclosure. Whole-window scrolling and the fixed preview-height cap are removed. Original Copy/Pin/Delete and analysis actions remain independently accessible in the preview-column toolbar.",
+      "settings": "General, Shortcuts, AI, Privacy and Data pages keep all native page roots mounted and hide inactive roots. Existing drafts, permissions/save gates and scroll positions survive page selection; off-page editors leave focus/accessibility navigation.",
+      "rendering": "One scoped GTK stylesheet; theme/selection changes toggle classes without per-row stylesheet reloads. Small application-owned Cairo symbols use the current GTK color and require no host icon-theme or SVG-loader installation.",
+      "verification": "Local Linux release build, 146-check native smoke and 8-check model-settings regression passed. Final layout/image checks cover compact/preferred windows and retained settings editors; see docs/desktop-macos-parity-ui.md for evidence scope. Windows PR compilation/native checks and code review remain required before merging. Linux screenshots are not Windows runtime evidence."
+    }
   },
   "tech_stack": {
     "desktop_ui_dependency": "SwiftCrossUI 0.10.0, SwiftSyntax 603.0.1, GTK 4; Windows runtime pins are recorded in desktop_ui and tools/desktop-ui/install-windows-gtk.ps1.",
