@@ -80,6 +80,10 @@ final class DesktopPreviewImage: @unchecked Sendable {
 struct DesktopImagePreview: GtkWidgetRepresentable {
   let image: DesktopPreviewImage
   let accessibilityLabel: String
+  final class Coordinator {
+    weak var displayedImage: DesktopPreviewImage?
+  }
+  func makeCoordinator() -> Coordinator { Coordinator() }
   func makeGtkWidget(context: Context) -> Gtk.Picture {
     let picture = Gtk.Picture()
     picture.canShrink = true
@@ -124,6 +128,9 @@ struct DesktopImagePreview: GtkWidgetRepresentable {
   }
   func updateGtkWidget(_ widget: Gtk.Picture, context: Context) {
     widget.alternativeText = accessibilityLabel
+    // Layout probes update the same native widget repeatedly. Its textures
+    // already own their pixels; replace them only for a different decoded image.
+    guard context.coordinator.displayedImage !== image else { return }
     let peekTexture = gdk_texture_new_for_pixbuf(image.peekPixbuf)
     g_object_set_data_full(
       UnsafeMutablePointer<CGtk.GObject>(OpaquePointer(widget.widgetPointer)),
@@ -133,6 +140,7 @@ struct DesktopImagePreview: GtkWidgetRepresentable {
     if let texture = gdk_texture_new_for_pixbuf(image.pixbuf) {
       widget.setPaintable(texture)
       g_object_unref(UnsafeMutableRawPointer(texture))
+      context.coordinator.displayedImage = image
     }
     // Refresh an open tooltip if this surviving widget receives another image.
     gtk_widget_trigger_tooltip_query(widget.widgetPointer)

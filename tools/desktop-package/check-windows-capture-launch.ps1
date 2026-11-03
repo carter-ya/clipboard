@@ -1,5 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$Installer,
-      [Parameter(Mandatory=$true)][string]$Output)
+      [Parameter(Mandatory=$true)][string]$Output,
+      [Parameter(Mandatory=$true)][string]$PreviewFixtures)
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:OS -ne 'Windows_NT') {
   throw 'capture_candidate_requires_owned_windows_actions'
@@ -88,6 +89,11 @@ try {
   foreach ($check in @(Test-OwnedTrayActivation $owned $handle)) {
     $checks.Add($check)
   }
+  $owned.Dispose(); $owned = $null
+  $env:Path = $originalPath
+  & (Join-Path $PSScriptRoot '../desktop-ui/check-windows-preview.ps1') -Executable $executable `
+    -Fixtures $PreviewFixtures -Output (Join-Path $Output 'preview-navigation.json')
+  Check 'installed_bitmap_preview_and_navigation_regression' $true
 } catch {
   $diagnostic = $_.Exception.Message
   if ($diagnostic -notmatch '^[a-z0-9_]+$') { $diagnostic = 'candidate_probe_failed' }
