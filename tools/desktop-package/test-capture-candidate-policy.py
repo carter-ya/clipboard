@@ -76,6 +76,19 @@ class CandidatePolicyTests(unittest.TestCase):
         for forbidden in ('SendInput', 'OpenClipboard', 'EnumWindows', 'GetForegroundWindow'):
             self.assertNotIn(forbidden, native)
 
+    def test_tray_regression_uses_owned_callbacks_in_pr_and_installed_candidate(self):
+        for job in ('preview', 'capture-candidate'):
+            self.assertTrue(any('check-windows-tray.py' in step.get('run', '')
+                                for step in DATA['jobs'][job]['steps']))
+        source = (ROOT / 'tools/desktop-package/check-windows-capture-launch.ps1').read_text()
+        self.assertIn('Test-OwnedTrayActivation $owned $handle', source)
+        native = (ROOT / 'tools/desktop-package/windows-owned-tray.cs').read_text()
+        self.assertIn('EnumThreadWindows', native)
+        self.assertIn('RequireOwner(shellWindow)', native)
+        self.assertIn('owner != (uint)processId', native)
+        for forbidden in ('SendInput', 'OpenClipboard', 'EnumWindows', 'GetForegroundWindow'):
+            self.assertNotIn(forbidden, native)
+
 
 if __name__ == '__main__':
     unittest.main()

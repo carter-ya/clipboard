@@ -1487,6 +1487,20 @@
         "conclusion": "success",
         "note": "The combined run remains failed because Windows model acceptance did not finish; Linux success is scoped to its own job."
       }
+    },
+    "windows_tray_activation_followup": {
+      "status": "fix_implemented_native_ci_pending",
+      "report": "Direct single/double click on the Windows tray icon shows history then immediately hides it.",
+      "reproduction": {
+        "platform": "Parallels Windows 11 ARM64, x64 candidate c7bc0a7",
+        "executable_sha256": "86803ebfc4ac6f34f3237b29f885218450f2b31ccaf6dba40a28a01a54ddb9ae",
+        "result": "Owned private child hides after WM_LBUTTONUP then NIN_SELECT; process remains alive. Actual GTK Hide control invoked once before callback sequence. Recording and shortcut registration disabled; no normal history, clipboard or keyboard access."
+      },
+      "cause": "Windows tray callbacks emit toggleHistory, so a subsequent activation reverses the preceding show. Global hotkey toggling is intentional; tray activation should show idempotently.",
+      "change": "Emit showHistory for mouse release, NIN_SELECT and NIN_KEYSELECT; keep global hotkey toggle semantics. No delay, debounce, focus retry or new UI polling.",
+      "regression": "Compile the actual Win32 dispatcher into an invisible private-window native test in PR and candidate CI. Installed candidate invokes its owned native Hide control once, delivers each activation callback once to its PID-validated shell window, then observes visible state without mutation retries. Full model/browser/IME/physical acceptance stays separate.",
+      "validation": "Pre-fix installed executable reproduced tray_repeat_activation_hides_window while process remained alive. Post-fix native CI and candidate/client verification pending.",
+      "fullPlatformAcceptance": false
     }
   },
   "desktop_ui": {

@@ -8,6 +8,8 @@ Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName WindowsBase
 Add-Type -Path (Join-Path $PSScriptRoot 'windows-no-console-process.cs')
+Add-Type -Path (Join-Path $PSScriptRoot 'windows-owned-tray.cs')
+. (Join-Path $PSScriptRoot 'windows-tray-acceptance.ps1')
 $Installer = [IO.Path]::GetFullPath($Installer)
 $Output = [IO.Path]::GetFullPath($Output)
 [IO.Directory]::CreateDirectory($Output) | Out-Null
@@ -83,6 +85,9 @@ try {
   Check 'sensitive_text_and_png_remain_memory_only' (@($snapshot.items | Where-Object {$_.sensitive}).Count -eq 0)
   Start-Sleep -Seconds 5
   Check 'installed_application_stays_alive_after_capture_store_refresh' (!$owned.HasExited)
+  foreach ($check in @(Test-OwnedTrayActivation $owned $handle)) {
+    $checks.Add($check)
+  }
 } catch {
   $diagnostic = $_.Exception.Message
   if ($diagnostic -notmatch '^[a-z0-9_]+$') { $diagnostic = 'candidate_probe_failed' }
@@ -105,7 +110,7 @@ try {
   catch { $checks.Add(@{name='owned_fixture_cleanup'; passed=$false}) }
   $passed = @($checks | Where-Object {!$_.passed}).Count -eq 0
   $report = @{passed=$passed; checks=@($checks.ToArray()); fullPlatformAcceptance=$false;
-    scope='Installed GUI without inherited standard handles; built-in synthetic text/PNG store, private history and owned uninstall only. No clipboard/input mutation, model, browser, IME, upgrade or physical-client acceptance.'}
+    scope='Installed GUI without inherited standard handles; synthetic text/PNG store, private history, owned tray callback activation and uninstall. No clipboard/keyboard mutation, model, browser, IME, upgrade or physical focus acceptance.'}
   $report | ConvertTo-Json -Depth 5 | Out-File -Encoding UTF8 (Join-Path $Output 'capture-launch.json')
   if (!$passed) { exit 1 }
 }
