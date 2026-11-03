@@ -21,7 +21,7 @@ def bmp(size,bpp,alpha):
         struct.pack_into('<IIIII',header,40,0xff0000,0xff00,0xff,0xff000000,0x73524742)
     raw=b''.join(b''.join(bytes((50,60 if y<h//2 else 200,220 if x<w//2 else 20))+(bytes([alpha]) if bpp==32 else b'') for x in range(w))+bytes(stride-w*bpp//8) for y in range(h))
     return b'BM'+struct.pack('<IHHI',14+size+len(raw),0,0,14+size)+header+raw
-fixtures=[('PNG','public.png',png),('BMP24','com.microsoft.bmp',bmp(40,24,0)),('BMP32','com.microsoft.bmp',bmp(40,32,0)),('BMPV5','com.microsoft.bmp',bmp(124,32,255)),('BMPV5zero','com.microsoft.bmp',bmp(124,32,0))]
+fixtures=[('PNG','public.png',png),('BMP24','com.microsoft.bmp',bmp(40,24,0)),('BMP32','com.microsoft.bmp',bmp(40,32,0)),('BMPV5opaque','com.microsoft.bmp',bmp(124,32,255)),('BMPV5zero','com.microsoft.bmp',bmp(124,32,0))]
 items=[]
 for i in range(100):
     if i<len(fixtures):name,kind,data=fixtures[i]; preview='Fixture '+name; item_kind='image'

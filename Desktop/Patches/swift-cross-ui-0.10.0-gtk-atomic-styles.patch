@@ -1,6 +1,24 @@
 --- a/Sources/GtkBackend/Features/TextViews.swift
 +++ b/Sources/GtkBackend/Features/TextViews.swift
-@@ -87,7 +87,6 @@
+@@ -36,14 +36,9 @@
+         if let lineLimitSettings = environment.lineLimitSettings {
+             let multilineString = [String](repeating: "a", count: lineLimitSettings.limit)
+                 .joined(separator: "\n")
+-            updateTextView(
+-                measurementCustomLabel,
+-                content: "",
+-                environment: environment
+-            )
+-
+-            let pango = Pango(for: measurementCustomLabel)
+-
++            // The widget already has this environment's text style. Reuse its
++            // context for the line cap: restyling one shared measurement label
++            // for alternating row fonts invalidates the whole display's styles.
+             let (_, heightLimit) = pango.getTextSize(
+                 multilineString,
+                 ellipsize: .none,
+@@ -87,7 +82,6 @@
              }
  
          textView.selectable = environment.isTextSelectionEnabled
@@ -63,3 +81,34 @@
      }
  
      public func setContent(ofTextEditor textEditor: Widget, to content: String) {
+--- a/Sources/GtkBackend/Helpers/GtkCustomButton.swift
++++ b/Sources/GtkBackend/Helpers/GtkCustomButton.swift
+@@ -5,4 +5,6 @@
+ final class GtkCustomButton: Gtk.Button {
++    private var loadedCSS: String?
++
+     var buttonStyle: ButtonStyle.Kind = .bordered {
+         willSet {
+             buttonStyle.removeClass(from: self)
+@@ -21,7 +23,7 @@
+     @MainActor
+     func loadCSS(environment: EnvironmentValues) {
+         let backgroundColor = GtkBackend.controlBackgroundColor(for: environment)
+-        cssProvider.loadCss(from: """
++        let data = """
+                 button.customButton {
+                     min-width: 0px;
+                     min-height: 0px;
+@@ -47,7 +49,11 @@
+                 button.customButton.flat:disabled {
+                     opacity: 0.5;
+                 }
+-            """)
++            """
++        if loadedCSS != data {
++            cssProvider.loadCss(from: data)
++            loadedCSS = data
++        }
+         // Why 50% disabled opacity was chosen:
+         // https://gnome.pages.gitlab.gnome.org/libadwaita/doc/main/css-variables.html#opacity
+         // (switch to the variable when we have adwaita)

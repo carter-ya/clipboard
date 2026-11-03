@@ -334,6 +334,14 @@ jobs:
         run: python tools/ci/check-portable-logging.py --output ui-artifacts/portable-logging
       - name: Verify search submit survives backend updates
         run: python tools/desktop-ui/test-search-submit.py
+      - name: Verify native text geometry without shared style invalidation
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == 'Linux' ]]; then
+            xvfb-run -a python3 tools/desktop-ui/test-gtk-text-metrics.py --output ui-artifacts/text-metrics.json
+          else
+            python tools/desktop-ui/test-gtk-text-metrics.py --output ui-artifacts/text-metrics.json
+          fi
       - name: Verify actual GTK image and hover orientation
         run: python tools/desktop-ui/test-image-orientation.py --output ui-artifacts/image-orientation.json
       - name: Verify Windows image previews and measure navigation
@@ -712,6 +720,8 @@ jobs:
         run: |
           & python tools/desktop-ui/build-desktop.py --configuration release --jobs 2 2>&1 | Tee-Object -FilePath candidate-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify optimized candidate text metrics
+        run: python tools/desktop-ui/test-gtk-text-metrics.py --output candidate-checks/text-metrics.json
       - name: Save successfully compiled candidate dependencies
         if: steps.candidate-release.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4

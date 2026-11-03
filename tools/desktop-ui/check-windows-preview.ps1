@@ -73,7 +73,7 @@ try {
   $value = $editor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
   $imageCondition = [Windows.Automation.PropertyCondition]::new(
     [Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Image)
-  foreach ($kind in @('PNG','BMP24','BMP32','BMPV5zero')) {
+  foreach ($kind in @('PNG','BMP24','BMP32','BMPV5opaque','BMPV5zero')) {
     $item = @($history.items | Where-Object {$_.preview -eq ('Fixture ' + $kind)})
     if ($item.Count -ne 1) { throw 'preview_image_fixture_missing' }
     $value.SetValue('Fixture ' + $kind)

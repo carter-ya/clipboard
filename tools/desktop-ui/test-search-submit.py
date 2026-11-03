@@ -53,7 +53,7 @@ import Foundation
 }
 @MainActor final class CSS {
   func clear() {}
-  func set(properties: [String: String]) {}
+  func set(properties: [String: String], clear: Bool = false) {}
 }
 enum Gtk { typealias Entry = __Entry }
 typealias __Entry = Entry

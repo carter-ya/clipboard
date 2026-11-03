@@ -169,6 +169,10 @@ else:
     marker = json.loads((gtk / 'clipboard-runtime.json').read_text(encoding='utf-8-sig'))
     if marker.get('accessibility') != 'accesskit' or marker.get('gtk') != '4.22.4':
         raise RuntimeError('Verified GTK/AccessKit runtime is required')
+    image_marker = json.loads((gtk / 'clipboard-image-runtime.json').read_text(encoding='utf-8-sig'))
+    if (image_marker.get('gdkPixbuf') != '2.44.7' or image_marker.get('nativeWindowsLoaders') is not True or
+            image_marker.get('sha256') != '172f80e3626ec31520a970400f1a3694e04718f6c2cd2885f75250fb5a6995a4'):
+        raise RuntimeError('Verified Windows bitmap decoders are required')
     # Preserve the upstream bin/lib/share layout so GTK/GdkPixbuf relocation and
     # its relative loader cache keep working from an arbitrary install folder.
     for directory in ['gdk-pixbuf-2.0', 'gio/modules', 'gtk-4.0']:
@@ -180,6 +184,7 @@ else:
         if source.exists():
             shutil.copytree(source, root / 'share' / directory, dirs_exist_ok=True)
     shutil.copy2(gtk / 'clipboard-runtime.json', root / 'clipboard-runtime.json')
+    shutil.copy2(gtk / 'clipboard-image-runtime.json', root / 'clipboard-image-runtime.json')
     tool = shutil.which('llvm-readobj')
     if not tool:
         raise RuntimeError('llvm-readobj is required to verify the Windows DLL closure')
