@@ -47,7 +47,9 @@ import Foundation
 
     private func write(_ message: Message, level: String) {
       let line = "[\(subsystem):\(category)] \(level) \(message.text)\n"
-      FileHandle.standardError.write(Data(line.utf8))
+      // GUI launches may have no stderr; an absent/unwritable diagnostic sink must
+      // never turn a successful capture into a process-ending forced try.
+      try? FileHandle.standardError.write(contentsOf: Data(line.utf8))
     }
   }
 #endif

@@ -366,3 +366,12 @@ negative-size control is updated and the stored limit remains zero, but an
 older successful save overwrites its error status. Invalid submissions now take
 the same FIFO lease before parsing drafts or publishing errors. Keep the exact
 negative-size rejection/persistence assertions; native confirmation is pending.
+
+
+### Windows client capture crash: missing diagnostic output (2026-11-03)
+
+The x64 preview was reported to exit on both text and image capture in Parallels Windows 11 ARM64. Six guest Application Error records identify `swiftCore.dll+0x168b6`, exception `0xc000001d`. Disassembling the packaged DLL maps that offset to the deliberate `ud2` at Swift assertion failure, rather than establishing an unsupported CPU instruction. A separately owned synthetic profile in the interactive guest session exits with the same code when launched without redirection; the identical executable with redirected stderr stays alive during the bounded observation. Recording is off and no user clipboard or history was read or changed. An initial Session 0 attempt instead failed GTK/DWM initialization and is not capture-crash evidence.
+
+`JSONSnapshotClipStore.insert` logs every new item. The non-Apple logger used the legacy Foundation `FileHandle.write`, whose implementation force-tries the write. A normal GUI launch can have no writable stderr, whereas all prior UI probes redirected stderr. The logger now uses best-effort `write(contentsOf:)` so diagnostics cannot terminate capture. Interpolation remains private by default; macOS keeps OSLog.
+
+`tools/ci/check-portable-logging.py` compiles the exact production logger into a GUI-subsystem Windows probe. Native checks require a completion receipt with absent/invalid/read-only stderr, then verify redacted output with a writable sink. Core and UI toolchains both run this regression. The Linux read-only sink reproduces the old implementation's crash, while the fix survives and retains redaction. Native Windows fixed-probe and updated installed application results remain pending; this evidence does not close other client input/IME/DPI gates.
