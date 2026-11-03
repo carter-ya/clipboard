@@ -133,7 +133,9 @@ static LRESULT CALLBACK shell_window_proc(HWND window, UINT message, WPARAM w,
       show_menu(s);
     else if (event == NIN_SELECT || event == NIN_KEYSELECT ||
              event == WM_LBUTTONUP)
-      emit(s, 1);
+      /* Mouse release and activation callbacks can follow one gesture.
+       * Repeated tray activation must keep history visible. */
+      emit(s, 2);
     return 0;
   }
   if (message == SHELL_RECORDING) {

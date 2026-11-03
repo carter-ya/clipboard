@@ -232,6 +232,9 @@ jobs:
         run: |
           & python tools/desktop-ui/check-windows-png.py 2>&1 | Tee-Object -FilePath platform-png.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify native Windows tray activation semantics
+        if: runner.os == 'Windows'
+        run: python tools/desktop-ui/check-windows-tray.py
       - name: Validate native Windows probe definitions
         if: runner.os == 'Windows'
         shell: pwsh
@@ -653,6 +656,8 @@ jobs:
           }
       - name: Verify no-console logger regression
         run: python tools/ci/check-portable-logging.py --output candidate-checks/logging
+      - name: Verify native tray activation regression
+        run: python tools/desktop-ui/check-windows-tray.py
       - name: Build one optimized candidate configuration
         shell: pwsh
         run: |
@@ -676,7 +681,7 @@ jobs:
           & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-package/check-windows-capture-launch.ps1 -Installer $Installer -Output candidate-checks
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           @{ commit = '${{ github.sha }}'; fullPlatformAcceptance = $false; kind = 'capture-fix-candidate';
-             scope = 'Installed no-console synthetic text/PNG capture-store regression only; full UI/model/browser/IME/upgrade acceptance remains separate.' } |
+             scope = 'Installed no-console synthetic text/PNG store and owned tray activation regression; full UI/model/browser/IME/upgrade acceptance remains separate.' } |
             ConvertTo-Json | Set-Content -Encoding utf8 dist/CANDIDATE.json
       - name: Upload the checked capture fix candidate
         uses: actions/upload-artifact@v4
