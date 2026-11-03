@@ -1390,13 +1390,13 @@
       }
     },
     "windows_capture_crash_followup": {
-      "status": "native_regression_verified_package_pending",
+      "status": "reported_capture_crash_fixed_and_candidate_verified",
       "reported_environment": "Parallels Windows 11 ARM64, x64 preview executable, build 48b872a",
       "confirmed_evidence": "Six Application Error events share swiftCore.dll offset 0x168b6 and exception 0xc000001d; shipped DLL disassembly identifies the Swift assertion-failure UD2. Two new synthetic profiles in the interactive guest session reproduce unredirected process exit 0xc000001d versus redirected process surviving the bounded observation. No real clipboard/history was read or modified.",
       "cause": "JSONSnapshotClipStore.insert logs each new text/image item; legacy FileHandle.write performs try! and terminates when a GUI launch has no writable stderr. Existing native UI fixtures always redirected stderr.",
       "change": "Use best-effort throwing write(contentsOf:). Compile the production logger directly in a GUI-subsystem probe and require completion without stderr, with invalid stderr and a read-only handle, plus redaction with a real writable sink.",
-      "limitation": "The updated optimized package still requires Parallels client verification. A standalone debug probe cannot execute against the optimized package alone because swiftSwiftOnoneSupport.dll is absent; its loader exit is excluded from acceptance. Physical input/IME/DPI gates remain open.",
-      "validation_progress": "The first Windows regression compile succeeded; Python initially rejected a negative INVALID_HANDLE_VALUE integer. The unsigned pointer-width value fixes that test driver and all four native cases now pass. A 20-second redirected guest control persists three synthetic text records and logs all five synthetic text/image inserts without recording enabled. Main package run 41575886212 is in progress.",
+      "limitation": "Candidate verification is limited to the reported capture/store crash and private ordinary-launch regression. Complete Windows model/browser/IME/upgrade/physical-client acceptance remains open; this is not a formal platform release.",
+      "validation_progress": "The fixed production logger passes four native handle cases under Core and UI compilers. Main native Windows UI passes 182 checks and keyboard acceptance 78, but separate model/browser gates block full acceptance. A manually scoped installed candidate passes eight checks plus four logger checks. Its verified optimized executable also survives an ordinary unredirected launch on the user-provided Parallels Windows 11 ARM64 guest for 12 seconds and persists three synthetic public records with no sensitive records. Recording and shortcuts are explicitly off; no real clipboard/history is accessed.",
       "fix_pr": 73,
       "fix_head": "6241206518a951fee6e1ba036a35448293018eee",
       "merged_main": "b6937a65dfc33eb67550d81bb1084bd68ffbefd8",
@@ -1430,7 +1430,7 @@
         "next": "One fresh Windows-only complete verification; source/workflow trees 6241206 and merged b6937a6 both f96ac5c8a9345d510e2331ae30ca70fd2116d029. Preserve ongoing Linux validation. No product changes or assertion relaxation without reproduction evidence."
       },
       "candidate_delivery": {
-        "status": "implemented_pending_native_run",
+        "status": "verified_for_reported_capture_crash",
         "scope": "Explicit manual Windows-only release build and per-user private installer regression. Null inherited standard handles, five built-in text/PNG inserts, three public persistent records, sensitive memory-only behavior, owned-process cleanup and uninstall. No clipboard/input mutation or optional weight download.",
         "inputs": {
           "windows_capture_candidate": true,
@@ -1443,7 +1443,49 @@
         "product_source": "Same ClipboardCore/Desktop application sources as reviewed PR73/main b6937a6; only test/package workflow additions.",
         "concurrency": "Preserve the existing full/PR concurrency key and append -capture-candidate only for explicit manual candidates. New candidate attempts cancel only candidates on the same ref, never ongoing complete acceptance.",
         "native_run": 41581073574,
-        "initial_head": "c7bc0a7bf5271cbb15cf5ef09c625d4c43702485"
+        "initial_head": "c7bc0a7bf5271cbb15cf5ef09c625d4c43702485",
+        "workflow_pr": 74,
+        "reviewed_head": "e6fbfa72defe12bba744315a1e5c65724774d826",
+        "review_receipt": 6595922002,
+        "merged_main": "64bdd6d5fc5afb252c5852b86ae97c9a25ef24ff",
+        "pr_ui_run": 41581537027,
+        "native_job": 125735797129,
+        "artifact_id": 13205399251,
+        "candidate_head": "c7bc0a7bf5271cbb15cf5ef09c625d4c43702485",
+        "installed_checks": 8,
+        "logger_checks": 4,
+        "artifact_sha256": "55936326502c639996cc5915ef1c8b4d0cae310313688b6b1281f93a6663b3fa",
+        "installer_sha256": "452d52a93d80f1e6bcbcee441225c5bf40d3c2bdfd0f788c88828448f889a5c8",
+        "executable_sha256": "86803ebfc4ac6f34f3237b29f885218450f2b31ccaf6dba40a28a01a54ddb9ae",
+        "download_filename": "ClipboardDesktop-0.1.0-preview.1-windows-x64-capture-fix-c7bc0a7-setup.exe",
+        "fullPlatformAcceptance": false,
+        "equivalence": "Candidate job definition and native PS/C# checks are byte-identical at c7bc0a7 and reviewed e6fbfa7. Core/Desktop/App trees match merged capture fix b6937a6; the only subsequent workflow change isolates concurrency."
+      },
+      "client_verification": {
+        "platform": "Parallels Windows 11 ARM64; x64 candidate under emulation",
+        "ordinary_gui_launch": true,
+        "stderr_redirected": false,
+        "observed_seconds": 12,
+        "process_stayed_alive": true,
+        "synthetic_public_records": 3,
+        "persisted_sensitive_records": 0,
+        "recording_enabled": false,
+        "shortcuts_enabled": false,
+        "real_clipboard_access": false,
+        "normal_history_access": false,
+        "private_fixture_cleaned": true,
+        "vm_initial_state": "paused",
+        "vm_final_state": "paused",
+        "clipboard_sharing_initial": "on",
+        "clipboard_sharing_final": "on",
+        "notes": "Clipboard sharing disabled before temporary resume and restored after pause. Guest download folder resolves to the already configured host Downloads mapping; no folder-sharing setting was enabled. The guest verifies the same executable SHA256 as the checked candidate."
+      },
+      "full_linux_integration": {
+        "run": 41575886212,
+        "job": 125719165818,
+        "head": "b6937a65dfc33eb67550d81bb1084bd68ffbefd8",
+        "conclusion": "success",
+        "note": "The combined run remains failed because Windows model acceptance did not finish; Linux success is scoped to its own job."
       }
     }
   },
