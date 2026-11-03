@@ -163,12 +163,15 @@ class InputEnvironmentPolicyTests(unittest.TestCase):
         probe = data['jobs']['input-environment']
         for event in ['push', 'pull_request', 'workflow_dispatch']:
             for choice in ['', 'off', 'inspect', 'prepare', 'browser', 'richtext', 'images', 'application']:
-                expected_probe = event == 'workflow_dispatch' and choice in ['inspect', 'prepare', 'browser', 'richtext', 'images']
-                for job, expected in [(probe, expected_probe), (preview, not expected_probe)]:
-                    expression = job['if'].replace('github.event_name', repr(event)).replace('inputs.windows_input_environment', repr(choice))
-                    selected = eval(expression.replace('&&', ' and ').replace('||', ' or '), {'__builtins__': {}})
-                    with self.subTest(event=event, choice=choice, job=job.get('name', '')):
-                        self.assertEqual(bool(selected), expected)
+                for candidate in [False, True]:
+                    normal = event != 'workflow_dispatch' or not candidate
+                    expected_probe = normal and event == 'workflow_dispatch' and choice in ['inspect', 'prepare', 'browser', 'richtext', 'images']
+                    for job, expected in [(probe, expected_probe), (preview, normal and not expected_probe)]:
+                        expression = job['if'].replace('github.event_name', repr(event)).replace('inputs.windows_input_environment', repr(choice))
+                        expression = expression.replace('!inputs.windows_capture_candidate', repr(not candidate))
+                        selected = eval(expression.replace('&&', ' and ').replace('||', ' or '), {'__builtins__': {}})
+                        with self.subTest(event=event, choice=choice, candidate=candidate, job=job.get('name', '')):
+                            self.assertEqual(bool(selected), expected)
         self.assertIn("'windows-11-arm' || 'windows-2022'", probe['runs-on'])
         self.assertLessEqual(int(probe['timeout-minutes']), 8)
         self.assertNotIn('swift', str(probe['steps']).lower())
