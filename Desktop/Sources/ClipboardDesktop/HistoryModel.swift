@@ -318,6 +318,13 @@ final class HistoryModel: ObservableObject {
     }
   }
 
+  @MainActor func previewThumbnail(for item: ClipItem) -> DesktopPreviewImage? {
+    guard !item.sensitive, item.kind == .image, selectedID == item.id,
+      loadedPreviewID == item.id
+    else { return nil }
+    return previewImage
+  }
+
   @MainActor func loadPreview() async {
     guard let selected else {
       loadedPreviewID = nil

@@ -8,6 +8,24 @@ final class DesktopHistoryPresentationTests: XCTestCase {
       createdAt: Date(timeIntervalSince1970: 1_700_000_000), kind: kind,
       preview: "Original preview", sha256: "synthetic", sizeBytes: 19)
   }
+  func testCompactAgesAreLocalizedWithoutReplacingExactPreviewDates() throws {
+    let value = item()
+    let now = value.createdAt.addingTimeInterval(180)
+    let chinese = try XCTUnwrap(
+      DesktopHistoryPresentation.make(
+        items: [value], language: "zh-Hans", timeZone: TimeZone(secondsFromGMT: 0)!, now: now)[
+          value.id])
+    XCTAssertEqual(chinese.rowCreatedText, "3 分钟前")
+    XCTAssertTrue(chinese.createdText.contains("2023"))
+    let fresh = DesktopHistoryPresentation.make(
+      items: [value], language: "en", now: value.createdAt)[value.id]
+    XCTAssertEqual(fresh?.rowCreatedText, "Just now")
+    let future = DesktopHistoryPresentation.make(
+      items: [value], language: "en", now: value.createdAt.addingTimeInterval(-1))[value.id]
+    XCTAssertNotEqual(future?.rowCreatedText, "Just now")
+    XCTAssertFalse(future?.rowCreatedText.contains("ago") ?? true)
+  }
+
   func testImageRowsPreferBoundedResultsWithoutChangingOriginalOrRevealingSensitiveContent() throws
   {
     var image = item(.image)

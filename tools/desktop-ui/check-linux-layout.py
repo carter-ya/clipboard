@@ -4,6 +4,8 @@ import argparse
 import ctypes
 import json
 import os
+import re
+from types import SimpleNamespace
 from pathlib import Path
 import subprocess
 import time
@@ -105,10 +107,10 @@ def resize(width, height):
 
 def button(label):
     for node in nodes():
-        if node.name != label:
+        if node.name != label and not (label in ['Item actions', 'Appearance options', 'Language options', '条目操作', '选择外观', '选择语言', '選擇外觀', '選擇語言', '外観の選択', '言語の選択', '모양 선택', '언어 선택', 'Darstellung auswählen', 'Sprache auswählen', 'Elegir apariencia', 'Elegir idioma'] and node.name.startswith(label + " ")):
             continue
         for _ in range(10):
-            if node.getRole() == pyatspi.ROLE_PUSH_BUTTON:
+            if node.getRole() in (pyatspi.ROLE_PUSH_BUTTON, pyatspi.ROLE_MENU_ITEM, pyatspi.ROLE_TOGGLE_BUTTON) and node.queryAction().nActions > 0:
                 return node
             node = node.parent
             if node is None:
@@ -116,8 +118,43 @@ def button(label):
     return None
 
 
-def fully_visible(node, width, height):
+def native_bounds(node):
     rect = node.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+    ancestor = node
+    while ancestor and ancestor.getRole() != pyatspi.ROLE_FRAME:
+        if ancestor.name == 'GtkPopover':
+            # GTK 4.6 AT-SPI incorrectly uses the anchor's origin for popovers.
+            # Resolve the actual mapped X11 surface owned by this process; keep
+            # the accessibility-reported local child offset and logical scale.
+            popover = ancestor.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+            tree = subprocess.check_output(['xwininfo', '-root', '-tree'], text=True)
+            candidates = []
+            origin = None
+            main_handle = window()
+            for line in tree.splitlines():
+                match = re.search(r'(0x[0-9a-f]+).*? (\d+)x(\d+)[+-]\d+[+-]\d+\s+([+-]\d+)([+-]\d+)$', line)
+                if not match:
+                    continue
+                handle, w, h, x, y = match.groups()
+                if int(handle, 16) == main_handle:
+                    origin = (int(x), int(y))
+                if (int(w), int(h)) == (popover.width * args.scale, popover.height * args.scale):
+                    props = subprocess.check_output(['xprop', '-id', handle, '_NET_WM_PID'], text=True)
+                    stats = subprocess.check_output(['xwininfo', '-id', handle], text=True)
+                    if props.strip().endswith('= ' + str(app.pid)) and 'Map State: IsViewable' in stats:
+                        candidates.append((int(x), int(y)))
+            if origin is None or len(candidates) != 1:
+                raise RuntimeError('owned_popover_surface_not_unique')
+            x, y = candidates[0]
+            return SimpleNamespace(x=(x-origin[0])/args.scale + rect.x-popover.x,
+                                   y=(y-origin[1])/args.scale + rect.y-popover.y,
+                                   width=rect.width, height=rect.height)
+        ancestor = ancestor.parent
+    return rect
+
+
+def fully_visible(node, width, height):
+    rect = native_bounds(node)
     if not (rect.x >= 0 and rect.y >= 0 and rect.width > 0 and rect.height > 0
             and rect.x + rect.width <= width and rect.y + rect.height <= height):
         return False
@@ -158,9 +195,11 @@ try:
     initial = editor()
     initial.queryEditableText().setTextContents('中文')
     wait_for(lambda: has_text('1 items'), 'unicode_query')
+    button('Item actions').queryAction().doAction(0)
     wait_for(lambda: all(button(label) and fully_visible(button(label), 960, 640)
                          for label in ['Copy', 'Pin / unpin', 'Delete']), 'wide_action_bounds')
     check('wide_item_actions_are_fully_visible', True)
+    button('Item actions').queryAction().doAction(0)
     header_controls = {label: wait_for(lambda label=label: button(label), 'header_' + label)
                        for label in ['Start recording', 'Settings']}
     if button('Hide'):
@@ -178,7 +217,7 @@ try:
         # GTK reports these bounds in logical pixels, independently of GDK_SCALE.
         return rect.x >= 0 and rect.y >= 0 and rect.width > 0 and rect.height > 0 and rect.x + rect.width <= 640 and rect.y + rect.height <= 480
     wait_for(lambda: inside(copy), 'compact_copy_bounds')
-    check('copy_toolbar_remains_inside_small_viewport', inside(copy))
+    check('quick_copy_remains_inside_small_viewport', inside(copy))
     def header_controls_still_live():
         try:
             return all(not node.getState().contains(pyatspi.STATE_DEFUNCT)
@@ -191,6 +230,7 @@ try:
     row = wait_for(lambda: next((node for node in nodes() if node.getRole() == pyatspi.ROLE_LIST_ITEM), None), 'visible_history_row')
     row_bounds = row.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
     check('history_row_remains_readable_inside_small_viewport', inside(row) and row_bounds.height >= 40)
+    check('history_row_uses_approved_seven_pixel_vertical_insets', row_bounds.height == 54)
     bounds = copy.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
     display = x11.XOpenDisplay(None)
     try:
@@ -242,6 +282,7 @@ try:
     wait_for(lambda: button('Filters'), 'source_filter_closed')
     check('closing_source_filters_keeps_native_search', editor().queryText().getText(0, editor().queryText().characterCount) == '')
     button('Settings').queryAction().doAction(0)
+    wait_for(lambda: button('Language options'), 'language_options').queryAction().doAction(0)
     wait_for(lambda: button('简体中文'), 'chinese_appearance_settings')
     button('简体中文').queryAction().doAction(0)
     wait_for(lambda: button('返回历史'), 'chinese_settings_labels')
@@ -272,6 +313,15 @@ try:
         screenshot('portrait-' + str(width) + '.png')
     completed = True
 finally:
+    if not completed and app and app.poll() is None:
+        try:
+            screenshot('failure.png')
+            (out / 'control-bounds.json').write_text(json.dumps([
+                {'name': n.name, 'role': n.getRoleName(),
+                 'bounds': list(n.queryComponent().getExtents(pyatspi.WINDOW_COORDS))}
+                for n in nodes() if n.name in ['Item actions', 'Item actions ⋯', 'Copy', 'Pin / unpin', 'Delete']]))
+        except Exception:
+            pass
     for process in [app, wm]:
         if process and process.poll() is None:
             process.terminate()

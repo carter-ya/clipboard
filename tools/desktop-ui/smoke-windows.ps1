@@ -379,7 +379,15 @@ function Wait-For([scriptblock]$Predicate, [string]$WaitCheckName, [int]$Seconds
 function Find-Named([string]$Name) {
   $condition = [Windows.Automation.PropertyCondition]::new(
     [Windows.Automation.AutomationElement]::NameProperty, $Name)
-  return $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+  $found = $script:window.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+  if ($found) { return $found }
+  if ($Name -in @('Item actions', 'Appearance options', 'Language options', '选择外观', '选择语言', '選擇外觀', '選擇語言', '外観の選択', '言語の選択', '모양 선택', '언어 선택', 'Darstellung auswählen', 'Sprache auswählen', 'Elegir apariencia', 'Elegir idioma')) {
+    $buttons = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty, [Windows.Automation.ControlType]::Button)
+    foreach ($candidate in $script:window.FindAll([Windows.Automation.TreeScope]::Descendants, $buttons)) {
+      if ($candidate.Current.Name.StartsWith($Name + ' ', [StringComparison]::Ordinal)) { return $candidate }
+    }
+  }
+  return $null
 }
 function Select-SettingsPage([string]$Section) {
   $labels = @{
@@ -482,18 +490,29 @@ function Read-SharedJson([string]$Path) {
   } finally { $stream.Dispose() }
 }
 function Invoke-Button([string]$Label) {
+  if ($Label -in @('System', 'Light', 'Dark') -and !(Find-Named $Label)) {
+    $menu = @('Appearance options', '选择外观', '選擇外觀', '外観の選択', '모양 선택', 'Darstellung auswählen', 'Elegir apariencia') | Where-Object { Find-Named $_ } | Select-Object -First 1
+    Invoke-Button $menu
+  }
+  if ($Label -in @('System language', 'English', '简体中文', '繁體中文', '日本語', '한국어', 'Deutsch', 'Español') -and !(Find-Named $Label)) {
+    $menu = @('Language options', '选择语言', '選擇語言', '言語の選択', '언어 선택', 'Sprache auswählen', 'Elegir idioma') | Where-Object { Find-Named $_ } | Select-Object -First 1
+    Invoke-Button $menu
+  }
+  if ($Label -in @('Copy', 'Pin / unpin', 'Delete') -and !(Find-Named $Label)) { Invoke-Button 'Item actions' }
   $operation = Wait-For {
     $candidate = Find-Named $Label
     # A composed label can name its Text child. Resolve the live button again
     # while waiting for an asynchronous transition to enable the control.
     for ($depth = 0; $depth -lt 10 -and $candidate; $depth++) {
       if ($candidate.Current.ControlType -eq [Windows.Automation.ControlType]::Button -or
-          $candidate.Current.ControlType -eq [Windows.Automation.ControlType]::CheckBox) { break }
+          $candidate.Current.ControlType -eq [Windows.Automation.ControlType]::CheckBox -or
+          $candidate.Current.ControlType -eq [Windows.Automation.ControlType]::MenuItem) { break }
       $candidate = [Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($candidate)
     }
     if (!$candidate -or !$candidate.Current.IsEnabled -or
         ($candidate.Current.ControlType -ne [Windows.Automation.ControlType]::Button -and
-         $candidate.Current.ControlType -ne [Windows.Automation.ControlType]::CheckBox)) { return $null }
+         $candidate.Current.ControlType -ne [Windows.Automation.ControlType]::CheckBox -and
+         $candidate.Current.ControlType -ne [Windows.Automation.ControlType]::MenuItem)) { return $null }
     $pattern = $null
     if ($candidate.TryGetCurrentPattern([Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
       return @{ pattern = $pattern; toggle = $false }

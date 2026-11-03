@@ -18,10 +18,30 @@ import SwiftCrossUI
         .clipboard-desktop.clipboard-dark { background: #262627; color: #f3f3f3; }
         .clipboard-desktop .clipboard-preview { background: #f7f6f4; }
         .clipboard-desktop.clipboard-dark .clipboard-preview { background: #2b2b2d; }
-        .clipboard-desktop .clipboard-search { border-radius: 10px; background: #fafaf9; }
-        .clipboard-desktop.clipboard-dark .clipboard-search { background: #38383a; }
+        .clipboard-desktop .clipboard-search-surface { border-radius: 12px; background: #fafaf9; box-shadow: 0 1px 2px #00000013; }
+        .clipboard-desktop.clipboard-dark .clipboard-search-surface { background: #38383a; }
+        .clipboard-desktop entry.clipboard-search:focus-within { outline: none; box-shadow: none; }
+        .clipboard-desktop .clipboard-search-surface:focus-within { outline: 2px solid #74adff; }
+        .clipboard-desktop .clipboard-more button { background: transparent; box-shadow: none; border: none; padding: 0; }
+        .clipboard-desktop .clipboard-more popover button { padding: 6px 12px; border-radius: 5px; }
+        .clipboard-desktop .clipboard-more popover button:hover { background: #e5edf6; }
+        .clipboard-desktop.clipboard-dark .clipboard-more popover button:hover { background: #334257; }
+        .clipboard-desktop entry.clipboard-search { background: transparent; border: none; box-shadow: none; padding: 0; }
+        .clipboard-desktop .clipboard-segments { border-radius: 7px; background: #dcdcd9; }
+        .clipboard-desktop.clipboard-dark .clipboard-segments { background: #3c3c40; }
+        .clipboard-desktop .clipboard-segment { border-radius: 5px; }
+        .clipboard-desktop .clipboard-segment.clipboard-selected { background: #fafaf9; color: #242424; box-shadow: 0 1px 3px #00000013; }
+        .clipboard-desktop .clipboard-segment.clipboard-selected label { color: #242424; }
+        .clipboard-desktop.clipboard-dark .clipboard-segment.clipboard-selected { background: #38383a; color: #f3f3f3; }
+        .clipboard-desktop.clipboard-dark .clipboard-segment.clipboard-selected label { color: #f3f3f3; }
+        .clipboard-desktop .clipboard-settings-tab.clipboard-selected { background: #e5edf6; color: #087af5; }
+        .clipboard-desktop .clipboard-settings-tab.clipboard-selected label { color: #087af5; }
+        .clipboard-desktop.clipboard-dark .clipboard-settings-tab.clipboard-selected { background: #334257; color: #69acfa; }
+        .clipboard-desktop.clipboard-dark .clipboard-settings-tab.clipboard-selected label { color: #69acfa; }
         .clipboard-desktop .clipboard-toolbar button { border-radius: 7px; }
         .clipboard-desktop .clipboard-filter { border-radius: 6px; }
+        .clipboard-desktop .clipboard-preview-badge { border-radius: 12px; background: #e5edf6; color: #087af5; }
+        .clipboard-desktop.clipboard-dark .clipboard-preview-badge { background: #334257; color: #69acfa; }
         .clipboard-desktop .clipboard-selected { background: #087af5; color: white; }
         .clipboard-desktop .clipboard-selected label { color: white; }
         .clipboard-desktop .clipboard-history { background: transparent; }
@@ -32,8 +52,9 @@ import SwiftCrossUI
         .clipboard-desktop .clipboard-history row:selected .clipboard-kind { color: white; }
         .clipboard-desktop .clipboard-secondary { color: #686867; }
         .clipboard-desktop.clipboard-dark .clipboard-secondary { color: #b5b5b5; }
-        .clipboard-desktop .clipboard-kind { color: #087af5; }
-        .clipboard-desktop.clipboard-dark .clipboard-kind { color: #69acfa; }
+        .clipboard-desktop .clipboard-kind { color: #087af5; background: #e5edf6; border-radius: 4px; }
+        .clipboard-desktop .clipboard-history row:selected .clipboard-kind { background: #ffffff26; }
+        .clipboard-desktop.clipboard-dark .clipboard-kind { color: #69acfa; background: #334257; }
         """
       css.withCString { gtk_css_provider_load_from_data(provider, $0, -1) }
       gtk_style_context_add_provider_for_display(
@@ -55,9 +76,9 @@ import SwiftCrossUI
     }
   }
 
-  static func label(_ text: String, on widget: Gtk.Widget) {
+  static func label(_ text: String, on widget: Gtk.Widget, alwaysUpdate: Bool = false) {
     let object = UnsafeMutablePointer<CGtk.GObject>(OpaquePointer(widget.widgetPointer))
-    if let cached = g_object_get_data(object, "clipboard-accessible-label"),
+    if !alwaysUpdate, let cached = g_object_get_data(object, "clipboard-accessible-label"),
       String(cString: cached.assumingMemoryBound(to: CChar.self)) == text
     {
       return
@@ -108,6 +129,9 @@ struct DesktopSymbol: GtkWidgetRepresentable {
           cairo_stroke(cr)
         }
         switch name {
+        case "search":
+          circle(10, 10, 6)
+          path([(15, 15), (21, 21)])
         case "settings":
           circle(12, 12, 3)
           path(

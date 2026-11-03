@@ -3,6 +3,7 @@ import Foundation
 public struct DesktopItemPresentation: Equatable, Sendable {
   public let rowText: String?
   public let createdText: String
+  public let rowCreatedText: String
   public let sourceName: String?
 }
 
@@ -10,7 +11,7 @@ public struct DesktopItemPresentation: Equatable, Sendable {
 /// never resolve payloads, query applications, stat files or modify clip data.
 public enum DesktopHistoryPresentation {
   public static func make(
-    items: [ClipItem], language: String?, timeZone: TimeZone = .current
+    items: [ClipItem], language: String?, timeZone: TimeZone = .current, now: Date = Date()
   ) -> [UUID: DesktopItemPresentation] {
     guard !Task.isCancelled else { return [:] }
     let formatter = DateFormatter()
@@ -19,6 +20,12 @@ public enum DesktopHistoryPresentation {
     formatter.timeZone = timeZone
     formatter.dateStyle = .medium
     formatter.timeStyle = .short
+    let compactFormatter = DateFormatter()
+    compactFormatter.locale = formatter.locale
+    compactFormatter.calendar = formatter.calendar
+    compactFormatter.timeZone = timeZone
+    compactFormatter.dateStyle = .short
+    compactFormatter.timeStyle = .none
     var result: [UUID: DesktopItemPresentation] = [:]
     for item in items {
       if Task.isCancelled { break }
@@ -34,8 +41,21 @@ public enum DesktopHistoryPresentation {
       let seconds = item.createdAt.timeIntervalSince1970
       let validDate = seconds.isFinite && (-62_135_596_800...253_402_300_799).contains(seconds)
       let date = validDate ? formatter.string(from: item.createdAt) : ""
+      let age = now.timeIntervalSince(item.createdAt)
+      let rowDate: String
+      if validDate, age >= 0, age < 60 {
+        rowDate = DesktopStringCatalog.text("Just now", language: language)
+      } else if validDate, age >= 60, age < 3600 {
+        rowDate = String(
+          format: DesktopStringCatalog.text("%d min ago", language: language), Int(age / 60))
+      } else if validDate, age >= 3600, age < 86400 {
+        rowDate = String(
+          format: DesktopStringCatalog.text("%d hr ago", language: language), Int(age / 3600))
+      } else {
+        rowDate = validDate ? compactFormatter.string(from: item.createdAt) : "—"
+      }
       result[item.id] = .init(
-        rowText: row, createdText: date.isEmpty ? "—" : date,
+        rowText: row, createdText: date.isEmpty ? "—" : date, rowCreatedText: rowDate,
         sourceName: sourceName(item.sourceBundleID))
     }
     return result

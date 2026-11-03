@@ -138,10 +138,10 @@ def has_texts(*texts):
 def button(label):
     for node in nodes():
         try:
-            if node.name == label:
+            if node.name == label or (label in ['Item actions', 'Appearance options', 'Language options', '条目操作', '选择外观', '选择语言', '選擇外觀', '選擇語言', '外観の選択', '言語の選択', '모양 선택', '언어 선택', 'Darstellung auswählen', 'Sprache auswählen', 'Elegir apariencia', 'Elegir idioma'] and node.name.startswith(label + " ")):
                 current = node
                 for _ in range(10):
-                    if current.getRole() == pyatspi.ROLE_PUSH_BUTTON:
+                    if current.getRole() in (pyatspi.ROLE_PUSH_BUTTON, pyatspi.ROLE_MENU_ITEM, pyatspi.ROLE_TOGGLE_BUTTON) and current.queryAction().nActions > 0:
                         return current
                     current = current.parent
                     if current is None:
@@ -152,6 +152,12 @@ def button(label):
 
 
 def click(label):
+    if label in ('System', 'Light', 'Dark') and button(label) is None:
+        click(next(name for name in ['Appearance options', '选择外观', '選擇外觀', '外観の選択', '모양 선택', 'Darstellung auswählen', 'Elegir apariencia'] if button(name)))
+    if label in ('System language', 'English', '简体中文', '繁體中文', '日本語', '한국어', 'Deutsch', 'Español') and button(label) is None:
+        click(next(name for name in ['Language options', '选择语言', '選擇語言', '言語の選択', '언어 선택', 'Sprache auswählen', 'Elegir idioma'] if button(name)))
+    if label in ('Copy', 'Pin / unpin', 'Delete') and button(label) is None:
+        click('Item actions')
     control = wait_for(lambda: button(label), 'button_' + label)
     if not control.queryAction().doAction(0):
         raise RuntimeError('invoke_' + label)
