@@ -17,6 +17,7 @@ def main():
         executable = Path(temp) / 'tray-dispatcher.exe'
         subprocess.run([
             compiler, '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
+            '-D_CRT_SECURE_NO_WARNINGS',
             '-I', str(root / 'Core/Sources/CDesktopShell/include'),
             str(root / 'tools/desktop-ui/check-windows-tray.c'),
             '-luser32', '-lshell32', '-o', str(executable)], check=True, timeout=120)
