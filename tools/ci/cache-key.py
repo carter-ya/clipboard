@@ -18,7 +18,8 @@ def cache_key(repo, package, configuration, operating_system, architecture, comp
     if package == 'Desktop':
         paths += ['Desktop/Package.swift', 'Desktop/Package.resolved', 'Desktop/Patches',
                   'tools/desktop-ui/build-desktop.py', 'tools/desktop-ui/install-windows-gtk.ps1',
-                  'tools/desktop-ui/apply-gtk-source-patch.py', 'tools/desktop-ui/gtk-4.22.4-accesskit-actions.patch',
+                  'tools/desktop-ui/apply-gtk-source-patch.py', 'tools/desktop-ui/extract-gtk-source.py',
+                  'tools/desktop-ui/install-windows-image-loaders.ps1', 'tools/desktop-ui/gtk-4.22.4-accesskit-actions.patch',
                   'tools/desktop-pdf', 'tools/desktop-image', 'tools/desktop-language', 'tools/desktop-text']
     # Git object IDs ignore checkout line endings and SwiftPM rewrites. Include
     # native-worker recipes as well as dependency pins; application edits remain

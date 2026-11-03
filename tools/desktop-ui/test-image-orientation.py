@@ -38,6 +38,26 @@ def jpeg(orientation):
     return JPEG[:2] + b'\xff\xe1' + struct.pack('>H',len(metadata)+2) + metadata + JPEG[2:]
 
 
+def bmp(bits=24, v5=False, top_down=False):
+    """Independent Windows clipboard bitmap variants, including unused alpha."""
+    size, width, height = (124 if v5 else 40), 3, 2
+    stride = ((width * bits + 31) // 32) * 4
+    header = bytearray(struct.pack('<IiiHHIIiiII', size, width,
+        -height if top_down else height, 1, bits, 3 if v5 else 0,
+        stride * height, 0, 0, 0, 0) + bytes(size - 40))
+    if v5:
+        struct.pack_into('<IIIII', header, 40, 0xff0000, 0xff00, 0xff,
+                         0xff000000, 0x73524742)
+    rows = []
+    for row in (range(height) if top_down else reversed(range(height))):
+        pixels = b''.join(COLORS[i:i+3][::-1] +
+                         (bytes([255 if v5 else 0]) if bits == 32 else b'')
+                         for i in range(row * width * 3, (row + 1) * width * 3, 3))
+        rows.append(pixels + bytes(stride - len(pixels)))
+    data = b''.join(rows)
+    return b'BM' + struct.pack('<IHHI', 14 + size + len(data), 0, 0, 14 + size) + header + data
+
+
 DRIVER = r'''
 var checks: [[String: Any]] = []
 func check(_ name: String, _ passed: Bool) { checks.append(["name":name,"passed":passed]) }
@@ -86,8 +106,23 @@ for kind in ["jpeg","tiff"] {
 check("empty_input_rejected", DesktopPreviewImage.decode(Data()) == nil)
 check("truncated_jpeg_rejected", DesktopPreviewImage.decode(Data([255,216,255])) == nil)
 check("encoded_input_limit_preserved", DesktopPreviewImage.decode(Data(repeating:0,count:16*1024*1024+1)) == nil)
-let passed = checks.count == 113 && checks.allSatisfy { $0["passed"] as? Bool == true }
-let report: [String:Any] = ["passed":passed,"checks":checks,"scope":"Actual GTK preview decode and hover raster, absent/all8 EXIF orientations, original data and encoded bounds; no UI/clipboard/ICC claim"]
+for name in ["bmp24", "bmp32", "bmpV5", "bmpTopDown"] {
+  let input = try Data(contentsOf: root.appendingPathComponent(name + ".bmp"))
+  let fields = ["decodes", "geometry", "pixels", "peek_geometry", "peek_pixels", "original_bytes_unchanged"]
+  guard let decoded = DesktopPreviewImage.decode(input) else {
+    for field in fields { check(name + "_" + field, false) }
+    continue
+  }
+  let expected: [[UInt8]] = [[255,0,0],[0,255,0],[0,0,255],[255,255,0],[0,255,255],[255,0,255]]
+  check(name + "_decodes", true)
+  check(name + "_geometry", gdk_pixbuf_get_width(decoded.pixbuf) == 3 && gdk_pixbuf_get_height(decoded.pixbuf) == 2)
+  check(name + "_pixels", pixels(decoded.pixbuf) == expected)
+  check(name + "_peek_geometry", gdk_pixbuf_get_width(decoded.peekPixbuf) == 3 && gdk_pixbuf_get_height(decoded.peekPixbuf) == 2)
+  check(name + "_peek_pixels", pixels(decoded.peekPixbuf) == expected)
+  check(name + "_original_bytes_unchanged", input == (try Data(contentsOf: root.appendingPathComponent(name + ".bmp"))))
+}
+let passed = checks.count == 137 && checks.allSatisfy { $0["passed"] as? Bool == true }
+let report: [String:Any] = ["passed":passed,"checks":checks,"scope":"Actual GTK preview decode and hover raster: Windows BMP24/BMP32/BMPV5/top-down, absent/all8 JPEG/TIFF EXIF orientations, original data and encoded bounds; no UI/clipboard/ICC claim"]
 let output = try JSONSerialization.data(withJSONObject:report,options:[.sortedKeys])
 print(String(data:output,encoding:.utf8)!)
 '''
@@ -113,6 +148,9 @@ def main():
         (folder / 'module.modulemap').write_text('module CGtk [system] { header "' + header.as_posix() + '" export * }\n',encoding='utf-8')
         (folder / 'plain.jpeg').write_bytes(JPEG)
         (folder / 'plain.tiff').write_bytes(tiff())
+        for name, data in [('bmp24', bmp()), ('bmp32', bmp(bits=32)),
+                           ('bmpV5', bmp(bits=32, v5=True)), ('bmpTopDown', bmp(top_down=True))]:
+            (folder / (name + '.bmp')).write_bytes(data)
         for orientation in range(1,9):
             (folder / f'orientation{orientation}.jpeg').write_bytes(jpeg(orientation))
             (folder / f'orientation{orientation}.tiff').write_bytes(tiff(orientation))
@@ -129,7 +167,7 @@ def main():
             args.output.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
         failed = [check['name'] for check in report['checks'] if check['passed'] is not True]
         print(json.dumps({'passed':report['passed'],'checks':len(report['checks']),'failed':failed}))
-        if report['passed'] is not True or len(report['checks']) != 113 or failed: raise SystemExit(1)
+        if report['passed'] is not True or len(report['checks']) != 137 or failed: raise SystemExit(1)
 
 
 if __name__ == '__main__': main()

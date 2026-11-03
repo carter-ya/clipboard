@@ -1,0 +1,65 @@
+--- a/Sources/GtkBackend/Features/TextViews.swift
++++ b/Sources/GtkBackend/Features/TextViews.swift
+@@ -87,7 +87,6 @@
+             }
+ 
+         textView.selectable = environment.isTextSelectionEnabled
+-        textView.css.clear()
+-        textView.css.set(properties: Self.cssProperties(for: environment))
++        textView.css.set(properties: Self.cssProperties(for: environment), clear: true)
+     }
+ }
+--- a/Sources/GtkBackend/Features/StringLabelButtons.swift
++++ b/Sources/GtkBackend/Features/StringLabelButtons.swift
+@@ -18,7 +18,6 @@
+         button.sensitive = environment.isEnabled
+         button.label = label
+         button.clicked = { _ in action() }
+-        button.css.clear()
+-        button.css.set(properties: Self.cssProperties(for: environment, isControl: true))
++        button.css.set(properties: Self.cssProperties(for: environment, isControl: true), clear: true)
+     }
+ }
+--- a/Sources/GtkBackend/Features/TextFields.swift
++++ b/Sources/GtkBackend/Features/TextFields.swift
+@@ -24,8 +24,7 @@
+             onSubmit()
+         }
+ 
+-        textField.css.clear()
+-        textField.css.set(properties: Self.cssProperties(for: environment, isControl: true))
++        textField.css.set(properties: Self.cssProperties(for: environment, isControl: true), clear: true)
+     }
+ 
+     public func setContent(ofTextField textField: Widget, to content: String) {
+--- a/Sources/GtkBackend/Features/ToggleButtons.swift
++++ b/Sources/GtkBackend/Features/ToggleButtons.swift
+@@ -19,10 +19,9 @@
+         toggle.toggled = { widget in
+             onChange(widget.active)
+         }
+-        toggle.css.clear()
+         // This is a control, but we set isControl to false anyway because isControl overrides
+         // the button background and makes the on and off states of the toggle look identical.
+-        toggle.css.set(properties: Self.cssProperties(for: environment, isControl: false))
++        toggle.css.set(properties: Self.cssProperties(for: environment, isControl: false), clear: true)
+     }
+ 
+     public func setState(ofToggle toggle: Widget, to state: Bool) {
+--- a/Sources/GtkBackend/Features/TextEditors.swift
++++ b/Sources/GtkBackend/Features/TextEditors.swift
+@@ -19,9 +19,11 @@
+             onChange(buffer.text)
+         }
+ 
+-        textEditor.css.clear()
+-        textEditor.css.set(properties: Self.cssProperties(for: environment, isControl: false))
+-        textEditor.css.set(property: CSSProperty(key: "background", value: "none"))
++        textEditor.css.set(
++            properties: Self.cssProperties(for: environment, isControl: false)
++                + [CSSProperty(key: "background", value: "none")],
++            clear: true
++        )
+     }
+ 
+     public func setContent(ofTextEditor textEditor: Widget, to content: String) {
