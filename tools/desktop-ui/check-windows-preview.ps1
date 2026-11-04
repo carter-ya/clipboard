@@ -36,7 +36,11 @@ function Await-PreviewBytes([long]$Bytes) {
   while ([DateTime]::UtcNow -lt $deadline) {
     if ($child.HasExited) { throw 'preview_child_exited' }
     foreach ($label in $script:previewWindow.FindAll([Windows.Automation.TreeScope]::Descendants, $condition)) {
-      if ($label.Current.Name.EndsWith($suffix, [StringComparison]::Ordinal)) { return }
+      # AccessKit may retire a text node between enumeration and property read.
+      # Only compare available names; the next iteration still needs the exact byte count.
+      try { $candidate = [string]$label.Current.Name }
+      catch [Windows.Automation.ElementNotAvailableException] { continue }
+      if ($candidate.EndsWith($suffix, [StringComparison]::Ordinal)) { return }
     }
     Start-Sleep -Milliseconds 20
   }
@@ -156,7 +160,7 @@ try {
 } catch {
   $detail = $_.Exception.Message
   if ($detail -notmatch '^[a-zA-Z0-9_]+$') { $detail = 'preview_probe_failed' }
-  $checks.Add(@{name='preview_probe'; passed=$false; detail=$detail; errorType=$_.Exception.GetType().FullName})
+  $checks.Add(@{name='preview_probe'; passed=$false; detail=$detail; errorType=$_.Exception.GetType().FullName; scriptLine=$_.InvocationInfo.ScriptLineNumber})
 } finally {
   if ($child) {
     if (!$child.HasExited) { $child.Kill(); [void]$child.WaitForExit(5000) }
