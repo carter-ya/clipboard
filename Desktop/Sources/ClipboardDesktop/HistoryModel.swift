@@ -237,11 +237,13 @@ final class HistoryModel: ObservableObject {
   @MainActor func responsiveWidth(proposed: Double) -> Double {
     nativeWindow?.responsiveWidth(fallback: proposed) ?? proposed
   }
+
   @MainActor func previewImageHeight(proposed: Double) -> Double {
     let height = nativeWindow?.responsiveHeight(fallback: proposed) ?? proposed
-    // Reserve the search, filter, action and status rows. The mapped window
-    // supplies logical pixels even during hidden/zero-size layout proposals.
-    return min(240, max(64, height - 560))
+    // Use the mapped window: speculative nested GeometryReader proposals can
+    // be zero and otherwise leave a decoded image with an empty allocation.
+    // Reserve header, metadata, actions and footer; larger windows can grow.
+    return max(64, height - 300)
   }
 
   @MainActor func attachWindow(_ window: Gtk.Window) {
@@ -314,6 +316,13 @@ final class HistoryModel: ObservableObject {
     {
       hide()
     }
+  }
+
+  @MainActor func previewThumbnail(for item: ClipItem) -> DesktopPreviewImage? {
+    guard !item.sensitive, item.kind == .image, selectedID == item.id,
+      loadedPreviewID == item.id
+    else { return nil }
+    return previewImage
   }
 
   @MainActor func loadPreview() async {

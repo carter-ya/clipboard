@@ -12,9 +12,18 @@ let package = Package(
     .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "603.0.1"),
   ],
   targets: [
+    .systemLibrary(name: "CDesktopGtk", pkgConfig: "gtk4"),
+    .target(
+      name: "CDesktopChrome", dependencies: ["CDesktopGtk"],
+      linkerSettings: [
+        .linkedLibrary("dwmapi", .when(platforms: [.windows])),
+        .linkedLibrary("advapi32", .when(platforms: [.windows])),
+        .linkedLibrary("X11", .when(platforms: [.linux])),
+      ]),
     .executableTarget(
       name: "ClipboardDesktop",
       dependencies: [
+        "CDesktopChrome",
         .product(name: "ClipboardCore", package: "Core"),
         .product(
           name: "DesktopClipboard", package: "Core",
@@ -37,6 +46,6 @@ let package = Package(
           ],
           .when(platforms: [.windows]))
       ]
-    )
+    ),
   ]
 )
