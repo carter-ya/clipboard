@@ -65,19 +65,6 @@ struct HistoryView: View {
           )
           .disabled(model.historyActivationBusy)
         }
-        Divider()
-        HStack(spacing: 0) {
-          HStack(spacing: 4) {
-            Text(model.t("\(model.items.count) items")).font(.system(size: 12)).lineLimit(1)
-              .fixedSize()
-            Spacer()
-            sessionActions
-          }.padding(.horizontal, 12).frame(width: max(0, geometry.size.width * 0.56))
-          Text(model.t(model.status)).font(.system(size: 12)).lineLimit(1)
-            .help(model.t(model.status)).padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }.frame(height: 32)
-
       }
       .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
     }
@@ -126,11 +113,19 @@ struct HistoryView: View {
           .onChange(of: model.query) { Task { @MainActor in await model.refresh() } }
           .font(.system(size: 15)).frame(maxWidth: .infinity)
       }
+      sessionActions
       Divider().frame(height: 18)
       iconButton("Settings", symbol: "settings") { model.showPreferences() }
     }.padding(.horizontal, 14).frame(height: 44)
       .inspect { DesktopChrome.setClass("clipboard-search-surface", on: $0) }
       .padding(12)
+  }
+
+  var statusFeedback: some View {
+    Text(model.t(model.status)).font(.system(size: 12)).lineLimit(1)
+      .help(model.t(model.status))
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .inspect { DesktopChrome.setClass("clipboard-secondary", on: $0) }
   }
 
   var sessionActions: some View {
@@ -154,11 +149,15 @@ struct HistoryView: View {
         historyFilters(compact: compactFilters)
         Divider()
         historyItems.frame(maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+        Text(model.t("\(model.items.count) items")).font(.system(size: 12)).lineLimit(1)
+          .fixedSize().padding(.horizontal, 12).frame(height: 28)
+          .inspect { DesktopChrome.setClass("clipboard-secondary", on: $0) }
       }.frame(width: max(0, width * 0.56))
       Divider()
       VStack(alignment: .leading, spacing: 0) {
         preview(imageHeight: imageHeight)
           .frame(maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+        statusFeedback.padding(.horizontal, 12)
         itemActions.padding(8)
       }.inspect { DesktopChrome.setClass("clipboard-preview", on: $0) }
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
@@ -802,6 +801,7 @@ struct HistoryView: View {
         }
         Spacer()
       }.padding(8)
+      statusFeedback.padding(.horizontal, 24).padding(.bottom, 6)
       Divider()
       // All five native pages stay mounted. Hide whole page roots so off-page
       // editors cannot receive focus, while drafts/IME and scroll positions survive.

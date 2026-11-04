@@ -1,3 +1,4 @@
+import CDesktopChrome
 import CGtk
 import ClipboardCore
 import Foundation
@@ -39,8 +40,15 @@ import SwiftCrossUI
         .clipboard-desktop label, .clipboard-desktop entry, .clipboard-desktop text { font-weight: 400; }
         .clipboard-desktop { background: #eeedeb; color: #242424; }
         .clipboard-desktop.clipboard-dark { background: #262627; color: #f3f3f3; }
+        .clipboard-desktop.csd { border-radius: 16px; }
+        .clipboard-desktop.csd.maximized, .clipboard-desktop.csd.fullscreen { border-radius: 0; }
+        .clipboard-desktop .clipboard-titlebar { min-height: 30px; padding: 0 8px; background: transparent; box-shadow: none; }
+        .clipboard-desktop.clipboard-material { background: rgba(238, 237, 235, 0.82); }
+        .clipboard-desktop.clipboard-material.clipboard-dark { background: rgba(38, 38, 39, 0.85); }
         .clipboard-desktop .clipboard-preview { background: #f7f6f4; }
         .clipboard-desktop.clipboard-dark .clipboard-preview { background: #2b2b2d; }
+        .clipboard-desktop.clipboard-material .clipboard-preview { background: rgba(255, 255, 255, 0.12); }
+        .clipboard-desktop.clipboard-material.clipboard-dark .clipboard-preview { background: rgba(255, 255, 255, 0.025); }
         .clipboard-desktop .clipboard-search-surface { border-radius: 12px; background: #fafaf9; box-shadow: 0 1px 2px #00000013; }
         .clipboard-desktop.clipboard-dark .clipboard-search-surface { background: #38383a; }
         .clipboard-desktop entry.clipboard-search:focus-within { outline: none; box-shadow: none; }
@@ -87,7 +95,10 @@ import SwiftCrossUI
       installed = true
     }
     setClass("clipboard-desktop", on: window, enabled: true)
+    let changed = (gtk_widget_has_css_class(window.widgetPointer, "clipboard-dark") != 0) != dark
     setClass("clipboard-dark", on: window, enabled: dark)
+    clipboard_window_chrome_install(window.widgetPointer)
+    if changed { clipboard_window_chrome_refresh(window.widgetPointer) }
     for (name, matches) in [
       ("sc", language == .simplifiedChinese), ("tc", language == .traditionalChinese),
       ("jp", language == .japanese), ("kr", language == .korean),

@@ -61,6 +61,7 @@ Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 public static class PreviewNative {
+  [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, uint attribute, out int value, uint size);
   [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
   private delegate bool EnumWindowProc(IntPtr hwnd, IntPtr parameter);
   [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowProc callback, IntPtr parameter);
@@ -938,6 +939,18 @@ try {
   } else {
     Wait-For { (Find-Named 'Ready') -and (Find-Named '3 items') } 'initial_history' | Out-Null
     Add-Check 'native_window_and_history_visible' $true
+    # Check the actual owned HWND, not a CSS radius or a screenshot crop.
+    $chromeBuild = [int](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuildNumber
+    if ($chromeBuild -ge 22000) {
+      $corner = 0
+      $cornerResult = [PreviewNative]::DwmGetWindowAttribute($nativeWindowHandle, 33, [ref]$corner, 4)
+      Add-Check 'windows_11_requests_native_rounded_corners' ($cornerResult -eq 0 -and $corner -eq 2)
+    }
+    if ($chromeBuild -ge 22621) {
+      $backdrop = 0
+      $backdropResult = [PreviewNative]::DwmGetWindowAttribute($nativeWindowHandle, 38, [ref]$backdrop, 4)
+      Add-Check 'windows_11_material_is_acrylic_or_explicit_opaque_fallback' ($backdropResult -eq 0 -and $backdrop -in @(1, 3))
+    }
     if ($KeyboardOnly) {
       if ($BrowserPaste) {
         . (Join-Path $PSScriptRoot 'windows-browser-functions.ps1')
