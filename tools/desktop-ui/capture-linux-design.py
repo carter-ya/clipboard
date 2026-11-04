@@ -176,9 +176,11 @@ try:
         # Software-rendered KWin may leave the blur effect disabled by default.
         # Ask the private compositor to load the actual effect and verify that
         # it advertises support before opening the application.
-        subprocess.run(['gdbus', 'call', '--session', '--dest', 'org.kde.KWin',
-                        '--object-path', '/Effects', '--method', 'org.kde.kwin.Effects.loadEffect',
-                        'blur'], check=True, timeout=10, stdout=log, stderr=log)
+        def blur_effect(method):
+            subprocess.run(['gdbus', 'call', '--session', '--dest', 'org.kde.KWin',
+                            '--object-path', '/Effects', '--method', 'org.kde.kwin.Effects.' + method,
+                            'blur'], check=True, timeout=10, stdout=log, stderr=log)
+        blur_effect('loadEffect')
         def blur_property(*target):
             result = subprocess.run(['xprop', *target, '_KDE_NET_WM_BLUR_BEHIND_REGION'],
                                     capture_output=True, text=True, timeout=3)
@@ -196,6 +198,12 @@ try:
     wait(lambda: named('图片预览') and named('5 条'), 'image_history_ready')
     if args.composited:
         wait(lambda: blur_property('-name', 'Clipboard'), 'native_window_requests_blur')
+        blur_effect('unloadEffect')
+        wait(lambda: not blur_property('-root') and not blur_property('-name', 'Clipboard'),
+             'focused_window_returns_to_opaque')
+        blur_effect('loadEffect')
+        wait(lambda: blur_property('-root') and blur_property('-name', 'Clipboard'),
+             'focused_window_restores_blur')
         check_native_drag()
         checks.append('compositor_blur_requested_and_native_titlebar_drags')
     snapshot('history-image.png')

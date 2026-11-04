@@ -67,3 +67,5 @@ Linux uses a GTK header bar for dragging, resizing and window actions. A composi
 The optional `--composited` design capture uses KWin X11, `gdbus`, `xprop` and a synthetic colored backdrop on the private Xvfb display. It enables the real blur effect in that disposable session, checks the compositor and application window properties and captures the composed window. The ordinary Openbox fixture continues to exercise the opaque fallback. Hosted Windows Server checks cover compatibility. Windows 11 visual acceptance requires its own desktop session.
 
 Local checks on November 4 passed 146 functional assertions and 20 layout checks at each display scale. The final material build passed the 1× KWin light/dark capture and the 2× capture with an actual title-bar drag, compositor blur property readback, settings navigation and original PNG copy. Only synthetic test content appears in the captures.
+
+The KWin probe also unloads and reloads blur while the window is mapped, checking that its native blur request disappears and returns without a focus or visibility change. GTK display notifications and root property events drive the transition.

@@ -66,6 +66,22 @@ static gboolean native_material(GtkWidget *widget, GdkSurface *surface) {
   return enabled;
 }
 #elif defined(__linux__)
+static Atom blur_atom(GdkDisplay *display) {
+  return gdk_x11_get_xatom_by_name_for_display(
+      display, "_KDE_NET_WM_BLUR_BEHIND_REGION");
+}
+
+static gboolean root_property_changed(GdkDisplay *display, XEvent *event,
+                                      GtkWidget *window) {
+  Display *xdisplay = gdk_x11_display_get_xdisplay(display);
+  if (event->type == PropertyNotify &&
+      event->xproperty.window == DefaultRootWindow(xdisplay) &&
+      event->xproperty.atom == blur_atom(display) &&
+      gtk_widget_get_mapped(window))
+    clipboard_window_chrome_refresh(window);
+  return FALSE; // Keep GTK's normal event delivery.
+}
+
 static gboolean native_material(GtkWidget *widget, GdkSurface *surface) {
   GdkDisplay *display = gdk_surface_get_display(surface);
   // KDE advertises enabled blur as a root property. Never infer support from
@@ -74,9 +90,7 @@ static gboolean native_material(GtkWidget *widget, GdkSurface *surface) {
   if (!GDK_IS_X11_DISPLAY(display) || !GDK_IS_X11_SURFACE(surface))
     return FALSE;
   Display *xdisplay = gdk_x11_display_get_xdisplay(display);
-  Atom blur = XInternAtom(xdisplay, "_KDE_NET_WM_BLUR_BEHIND_REGION", True);
-  if (blur == None)
-    return FALSE;
+  Atom blur = blur_atom(display);
   gboolean enabled = FALSE;
   if (gdk_display_is_composited(display) && gdk_display_is_rgba(display) &&
       !high_contrast(widget)) {
@@ -134,6 +148,20 @@ void clipboard_window_chrome_install(void *window) {
 #if defined(__linux__)
   // GTK owns CSD corners, shadows, resizing, drag and close controls. Install
   // before realization; do not strip native decorations or synthesize input.
+  GdkDisplay *display = gtk_widget_get_display(widget);
+  if (GDK_IS_X11_DISPLAY(display)) {
+    Display *xdisplay = gdk_x11_display_get_xdisplay(display);
+    Window root = DefaultRootWindow(xdisplay);
+    XWindowAttributes attributes;
+    if (XGetWindowAttributes(xdisplay, root, &attributes) &&
+        !(attributes.your_event_mask & PropertyChangeMask))
+      XSelectInput(xdisplay, root,
+                   attributes.your_event_mask | PropertyChangeMask);
+    g_signal_connect_object(display, "xevent",
+                            G_CALLBACK(root_property_changed), window, 0);
+    g_signal_connect_object(display, "notify::composited", G_CALLBACK(changed),
+                            window, 0);
+  }
   GtkWidget *header = gtk_header_bar_new();
   gtk_header_bar_set_title_widget(GTK_HEADER_BAR(header),
                                   gtk_label_new("Clipboard"));
