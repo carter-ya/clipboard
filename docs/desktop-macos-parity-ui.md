@@ -51,3 +51,11 @@ dbus-run-session -- xvfb-run -a -s '-screen 0 2560x1600x24' \
 ```
 
 Use a display large enough for the logical test window multiplied by `GDK_SCALE`; the 960×640 layout probe at scale 2 requires at least 1920×1280 physical pixels. The capture requires ImageMagick, X11 tools, Openbox and AT-SPI from the existing Linux fixture image. It records only synthetic public data. OS window decorations, fonts and popup shadows remain platform-dependent; these screenshots do not promise pixel-for-pixel identity with macOS.
+
+## Typography follow-up
+
+The 1× screenshot exposed small 11px metadata, overly heavy regular text and inconsistent CJK metrics. The pinned backend maps regular weight to 500 and caps one-line text using the height of “a”. A native Pango measurement in the Linux fixture found 17px Latin versus 20px CJK heights at the old 13px size, and 14px versus 17px at 11px. Noto Sans CJK SC gives matching Latin/CJK heights (22px at 14px, 18px at 12px).
+
+The application now uses regular weight 400, 14px body/history titles and 12px secondary/filter/status text. Script-specific font classes prefer Noto Sans CJK on Linux and native YaHei/JhengHei/Yu Gothic/Malgun UI on Windows, while retaining system fallbacks. No fonts are downloaded or bundled, and OS antialiasing/scaling is unchanged. Secondary color targets the actual label; row selection still takes precedence. A zero additional gap between the two native text lines keeps the existing 40px row-content box and total 7px vertical inset.
+
+`capture-linux-design.py --scale 2` produces a native 1520×1040 capture of the same 760×520 logical window; it does not enlarge an existing screenshot. On 2026-11-04 the release build passed, native layout passed 20/20 at both scales, model/settings controls passed 8/8, and each scale’s design capture passed 3/3 including original PNG Copy/readback. Screenshots were visually inspected in light/dark modes. Swift formatting and Python compilation pass. Evidence is in `dist/desktop-macos-parity-ui/typography`; updated-head hosted Windows checks remain pending.

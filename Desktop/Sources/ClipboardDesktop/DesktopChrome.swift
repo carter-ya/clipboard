@@ -1,4 +1,5 @@
 import CGtk
+import ClipboardCore
 import Foundation
 import Gtk
 import GtkBackend
@@ -9,11 +10,33 @@ import SwiftCrossUI
 @MainActor enum DesktopChrome {
   private static var installed = false
 
-  static func apply(to window: Gtk.Window, dark: Bool) {
+  static func apply(to window: Gtk.Window, dark: Bool, language: DesktopUILanguage) {
     if !installed, let display = gtk_widget_get_display(window.widgetPointer),
       let provider = gtk_css_provider_new()
     {
+      #if os(Windows)
+        let fontRules = """
+          .clipboard-desktop { font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+          .clipboard-desktop.clipboard-font-sc { font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif; }
+          .clipboard-desktop.clipboard-font-tc { font-family: "Microsoft JhengHei UI", "Microsoft JhengHei", "Segoe UI", sans-serif; }
+          .clipboard-desktop.clipboard-font-jp { font-family: "Yu Gothic UI", "Meiryo UI", "Segoe UI", sans-serif; }
+          .clipboard-desktop.clipboard-font-kr { font-family: "Malgun Gothic", "Segoe UI", sans-serif; }
+          """
+      #else
+        let fontRules = """
+          .clipboard-desktop { font-family: "Noto Sans", "Noto Sans CJK SC", sans-serif; }
+          .clipboard-desktop.clipboard-font-sc { font-family: "Noto Sans CJK SC", sans-serif; }
+          .clipboard-desktop.clipboard-font-tc { font-family: "Noto Sans CJK TC", sans-serif; }
+          .clipboard-desktop.clipboard-font-jp { font-family: "Noto Sans CJK JP", sans-serif; }
+          .clipboard-desktop.clipboard-font-kr { font-family: "Noto Sans CJK KR", sans-serif; }
+          """
+      #endif
+      // The pinned backend maps regular to 500. Use native regular 400 for this
+      // application's text; keep OS antialiasing, scaling and fallback intact.
       let css = """
+        \(fontRules)
+        .clipboard-desktop { font-size: 14px; }
+        .clipboard-desktop label, .clipboard-desktop entry, .clipboard-desktop text { font-weight: 400; }
         .clipboard-desktop { background: #eeedeb; color: #242424; }
         .clipboard-desktop.clipboard-dark { background: #262627; color: #f3f3f3; }
         .clipboard-desktop .clipboard-preview { background: #f7f6f4; }
@@ -50,8 +73,9 @@ import SwiftCrossUI
         .clipboard-desktop .clipboard-history row:selected label,
         .clipboard-desktop .clipboard-history row:selected image,
         .clipboard-desktop .clipboard-history row:selected .clipboard-kind { color: white; }
-        .clipboard-desktop .clipboard-secondary { color: #686867; }
-        .clipboard-desktop.clipboard-dark .clipboard-secondary { color: #b5b5b5; }
+        .clipboard-desktop .clipboard-secondary, .clipboard-desktop .clipboard-secondary label { color: #686867; }
+        .clipboard-desktop.clipboard-dark .clipboard-secondary, .clipboard-desktop.clipboard-dark .clipboard-secondary label { color: #b5b5b5; }
+        .clipboard-desktop .clipboard-history row:selected .clipboard-secondary label { color: #ffffffdc; }
         .clipboard-desktop .clipboard-kind { color: #087af5; background: #e5edf6; border-radius: 4px; }
         .clipboard-desktop .clipboard-history row:selected .clipboard-kind { background: #ffffff26; }
         .clipboard-desktop.clipboard-dark .clipboard-kind { color: #69acfa; background: #334257; }
@@ -64,6 +88,12 @@ import SwiftCrossUI
     }
     setClass("clipboard-desktop", on: window, enabled: true)
     setClass("clipboard-dark", on: window, enabled: dark)
+    for (name, matches) in [
+      ("sc", language == .simplifiedChinese), ("tc", language == .traditionalChinese),
+      ("jp", language == .japanese), ("kr", language == .korean),
+    ] {
+      setClass("clipboard-font-" + name, on: window, enabled: matches)
+    }
   }
 
   static func setClass(_ name: String, on widget: Gtk.Widget, enabled: Bool = true) {

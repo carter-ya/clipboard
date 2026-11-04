@@ -13,6 +13,7 @@ import pyatspi
 parser = argparse.ArgumentParser()
 parser.add_argument('--executable', required=True)
 parser.add_argument('--output', type=Path, required=True)
+parser.add_argument('--scale', type=int, choices=[1, 2], default=1)
 args = parser.parse_args()
 out = args.output.resolve()
 out.mkdir(parents=True, exist_ok=True)
@@ -106,7 +107,7 @@ def snapshot(name):
         subprocess.run(['import', '-window', 'root', '-crop', geometry, '+repage', str(out / name)],
                        check=True, timeout=10)
         pixels = subprocess.check_output(['convert', str(out / name), '-crop',
-                                          f"{values['Width']}x{values['Height']-68}+0+68",
+                                          f"{values['Width']}x{values['Height']-68*args.scale}+0+{68*args.scale}",
                                           'rgba:-'], timeout=10)
         if pixels == previous:
             return
@@ -116,7 +117,7 @@ def snapshot(name):
 
 
 try:
-    env = dict(os.environ, GSK_RENDERER='cairo')
+    env = dict(os.environ, GSK_RENDERER='cairo', GDK_SCALE=str(args.scale), GDK_DPI_SCALE='1')
     wm = subprocess.Popen(['openbox', '--sm-disable'], stdout=log, stderr=log)
     app = subprocess.Popen([str(Path(args.executable).resolve()), '--data-root', str(profile)],
                            env=env, stdout=log, stderr=log)
