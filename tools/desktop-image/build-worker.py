@@ -36,12 +36,17 @@ output.mkdir(parents=True, exist_ok=True)
 cache.mkdir(parents=True, exist_ok=True)
 
 
-def verified(url, name, digest, maximum, size=None):
+def verified(url, name, digest, maximum, size=None, release_asset_id=None):
     target = cache / name
     if not target.exists():
         for attempt in range(3):
             try:
-                with urllib.request.urlopen(url, timeout=60) as response:
+                request = url
+                if attempt and release_asset_id:
+                    request = urllib.request.Request(
+                        'https://api.github.com/repos/microsoft/onnxruntime/releases/assets/' + str(release_asset_id),
+                        headers={'Accept': 'application/octet-stream'})
+                with urllib.request.urlopen(request, timeout=60) as response:
                     data = response.read(maximum + 1)
                 break
             except urllib.error.HTTPError as error:
@@ -61,7 +66,7 @@ def verified(url, name, digest, maximum, size=None):
     return data
 
 
-runtime = verified(asset['url'], name, asset['sha256'], 100 * 1024 * 1024, asset['size'])
+runtime = verified(asset['url'], name, asset['sha256'], 100 * 1024 * 1024, asset['size'], asset['releaseAssetID'])
 models = {name: verified(value['url'], name, value['sha256'], 15 * 1024 * 1024, value['size'])
           for name, value in pins['models'].items()}
 texts = {}

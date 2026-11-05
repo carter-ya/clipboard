@@ -176,7 +176,7 @@ just clean   # 清理 build 与生成的 .xcodeproj
 
 - PowerShell wait diagnostic variables must not shadow predicate caller variables. Keep the real helper scope regression, exact public-control predicates and per-action deadlines; correct screenshots alone do not prove accessibility predicates succeeded.
 
-- The expanded offline Linux installed suite has a 1200-second aggregate budget within the 90-minute CI job. Preserve all native per-action deadlines, owned-service/process limits and assertions; a stalled individual operation must still fail promptly. This budget follows the recorded x64 600-second outer timeout during successful file/PDF checks.
+- The expanded offline Linux installed suite has an 1800-second aggregate budget within the 90-minute CI job. Preserve all native per-action deadlines, owned-service/process limits and assertions; a stalled individual operation must still fail promptly. Run 41994633976 was still passing analysis and retry checks five seconds before the previous 1200-second outer limit.
 
 - Optional desktop model installation uses DesktopModelStore with immutable bundled definitions and anonymous bounded streaming. No passive download or history/credential transfer. Require entity-license acceptance before filesystem/network work. Stage and verify exact size/SHA256 off UI before atomic publication; synchronize cancellation with commit, drain owned work and preserve old availability on failed replacement. Remove only validated owned model files; callers must first drain analyses using them. Model cards, full packaged notices/consent and native UI/installed acceptance remain dependent work.
 
