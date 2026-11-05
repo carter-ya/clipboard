@@ -8,13 +8,13 @@ extension HistoryView {
       Text(
         model.t("Models run on this device. Downloading them does not upload clipboard content.")
       )
-      .font(.system(size: 12)).foregroundColor(.gray)
+      .desktopCaption()
       modelCard(.generative)
       modelCard(.entities)
       Button(model.t("Verify local models")) { model.refreshModels() }
         .disabled(!model.ready || model.modelWorkBusy)
       Text(model.t("Downloads continue while Clipboard is running. Quitting cancels the download."))
-        .font(.system(size: 12)).foregroundColor(.gray)
+        .desktopCaption()
     }
   }
   func modelCard(_ kind: DesktopModelKind) -> some View {
@@ -33,7 +33,7 @@ extension HistoryView {
             : "Language detection is included. Add this model to recognize people, organizations and places."
         )
       )
-      .font(.system(size: 12)).foregroundColor(.gray)
+      .desktopCaption()
       if let asset {
         Text("\((asset.size + 999999) / 1_000_000) MB · \(asset.license)")
         Button(model.t(summary ? "Read summary model license" : "Read names model license")) {
@@ -52,7 +52,7 @@ extension HistoryView {
       }
       if model.modelAssetSupport[kind] == false {
         Text(model.t("This local model is unavailable on this computer."))
-          .font(.system(size: 12)).foregroundColor(.gray)
+          .desktopCaption()
       }
       VStack(alignment: .leading, spacing: 6) {
         Button(model.t(download)) { model.installModel(kind) }
@@ -78,7 +78,7 @@ extension HistoryView {
       }
       if state.installed, case .failed = state.status {
         Text(model.t("The previously verified model is still available."))
-          .font(.system(size: 12)).foregroundColor(.gray)
+          .desktopCaption()
       }
       Divider()
     }

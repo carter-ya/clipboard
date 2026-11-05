@@ -68,7 +68,7 @@ struct HistoryView: View {
       }
       .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
     }
-    .font(.system(size: 14))
+    .font(.system(size: 15))
     .environment(\.colorScheme, model.effectiveDark ? .dark : .light)
     .inspectWindow {
       DesktopChrome.apply(
@@ -111,18 +111,18 @@ struct HistoryView: View {
             }
           }
           .onChange(of: model.query) { Task { @MainActor in await model.refresh() } }
-          .font(.system(size: 15)).frame(maxWidth: .infinity)
+          .font(.system(size: 16)).frame(maxWidth: .infinity)
       }
       sessionActions
       Divider().frame(height: 18)
       iconButton("Settings", symbol: "settings") { model.showPreferences() }
     }.padding(.horizontal, 14).frame(height: 44)
       .inspect { DesktopChrome.setClass("clipboard-search-surface", on: $0) }
-      .padding(12)
+      .padding(.horizontal, 12).padding(.bottom, 12)
   }
 
   var statusFeedback: some View {
-    Text(model.t(model.status)).font(.system(size: 12)).lineLimit(1)
+    Text(model.t(model.status)).font(.system(size: 13)).lineLimit(1)
       .help(model.t(model.status))
       .frame(maxWidth: .infinity, alignment: .leading)
       .inspect { DesktopChrome.setClass("clipboard-secondary", on: $0) }
@@ -149,7 +149,7 @@ struct HistoryView: View {
         historyFilters(compact: compactFilters)
         Divider()
         historyItems.frame(maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-        Text(model.t("\(model.items.count) items")).font(.system(size: 12)).lineLimit(1)
+        Text(model.t("\(model.items.count) items")).font(.system(size: 13)).lineLimit(1)
           .fixedSize().padding(.horizontal, 12).frame(height: 28)
           .inspect { DesktopChrome.setClass("clipboard-secondary", on: $0) }
       }.frame(width: max(0, width * 0.56))
@@ -215,7 +215,7 @@ struct HistoryView: View {
                 "Wayland does not identify clipboard source apps. App exclusions cannot match unknown sources; sensitive hints still apply."
               )
             )
-            .font(.system(size: 12)).foregroundColor(.gray)
+            .desktopCaption()
           }
         #endif
       }
@@ -236,8 +236,8 @@ struct HistoryView: View {
               : label == "All types"
                 ? "All types compact" : label == "Mixed" ? "Mixed compact" : label)
         )
-        .font(.system(size: 12)).lineLimit(1).fixedSize()
-        Text("(\(count))").font(.system(size: 12)).lineLimit(1)
+        .font(.system(size: segment ? 13 : 12)).lineLimit(1).fixedSize()
+        Text("(\(count))").font(.system(size: segment ? 13 : 12)).lineLimit(1)
           .fixedSize()
       }.padding(.horizontal, segment ? 16 : 3).padding(.vertical, 4)
         .frame(minWidth: segment ? 110 : nil)
@@ -277,19 +277,20 @@ struct HistoryView: View {
             }
           }.frame(width: 40, height: 40)
             .inspect { DesktopChrome.setClass("clipboard-kind", on: $0) }
-          VStack(alignment: .leading, spacing: 0) {
+          VStack(alignment: .leading, spacing: 3) {
             Text(
               item.sensitive
                 ? model.t("Sensitive content")
                 : model.itemPresentations[item.id]?.rowText
                   ?? DesktopTextPreview(item.preview, maxUTF8Bytes: 512).text
-            ).font(.system(size: 14)).lineLimit(1)
+            ).font(.system(size: 15)).lineLimit(1)
+              .inspect { DesktopChrome.setClass("clipboard-row-title", on: $0) }
             Text(
               (item.pinned ? model.t("Pinned") + " · " : "")
                 + (model.itemPresentations[item.id].map { $0.rowCreatedText } ?? "")
                 + (model.itemPresentations[item.id]?.sourceName.map { " · " + $0 } ?? "")
             )
-            .font(.system(size: 12)).lineLimit(1)
+            .font(.system(size: 13)).lineLimit(1)
             .inspect { DesktopChrome.setClass("clipboard-secondary", on: $0) }
           }.frame(maxWidth: .infinity, alignment: .leading)
           // The pinned List adds 6px vertically and 8px horizontally itself.
@@ -319,11 +320,11 @@ struct HistoryView: View {
           HStack(spacing: 4) {
             DesktopSymbol(name: kindSymbol(model.selected?.kind ?? .text), size: 12)
             Text(model.t(model.selected.map { $0.kind.rawValue.capitalized } ?? "Preview"))
-              .font(.system(size: 12)).lineLimit(1)
+              .font(.system(size: 13)).lineLimit(1)
           }.padding(.horizontal, 7).padding(.vertical, 3)
             .inspect { DesktopChrome.setClass("clipboard-preview-badge", on: $0) }
           if let item = model.selected, let source = model.itemPresentations[item.id]?.sourceName {
-            Text(source).font(.system(size: 12)).lineLimit(1)
+            Text(source).font(.system(size: 13)).lineLimit(1)
               .help(DesktopTextPreview(item.sourceBundleID ?? "", maxUTF8Bytes: 4096).text)
               .inspect([.onCreate, .afterUpdate]) {
                 DesktopChrome.label(model.t("Source: ") + source, on: $0, alwaysUpdate: true)
@@ -337,7 +338,7 @@ struct HistoryView: View {
             presentation.createdText + " · " + String(max(0, item.sizeBytes)) + " "
               + model.t("bytes")
           )
-          .font(.system(size: 12)).foregroundColor(.gray).lineLimit(1)
+          .desktopCaption().lineLimit(1)
         }
       }.padding(12)
       Divider()
@@ -387,7 +388,7 @@ struct HistoryView: View {
           if let summary = model.selected?.summary, model.selected?.sensitive != true {
             Text(
               model.t(model.summaryResultLabel)
-            ).font(.system(size: 14))
+            ).font(.system(size: 15))
             Text(summary).frame(maxWidth: .infinity, alignment: .leading)
             Button(model.t("Copy result")) {
               Task { @MainActor in await model.copyAnalysisResult() }
@@ -398,8 +399,7 @@ struct HistoryView: View {
               minWidth: 0, maxWidth: .infinity, maxHeight: imageHeight)
           }
           if let count = model.previewFileCount {
-            Text(model.t("Files") + ": " + String(count)).font(.system(size: 12)).foregroundColor(
-              .gray)
+            Text(model.t("Files") + ": " + String(count)).desktopCaption()
             ForEach(
               Array(model.previewText.components(separatedBy: "\n").enumerated()), id: \.offset
             ) { entry in
@@ -407,7 +407,7 @@ struct HistoryView: View {
             }
           } else if model.previewImage != nil {
             Text(model.previewMessage.map { model.t($0) } ?? model.previewText)
-              .font(.system(size: 12)).foregroundColor(.gray)
+              .desktopCaption()
               .frame(maxWidth: .infinity, alignment: .center)
           } else {
             DesktopTextPreviewView(
@@ -429,7 +429,7 @@ struct HistoryView: View {
                   ? "Preview truncated. Copy keeps the full text."
                   : "File list truncated. Copy keeps every original file reference.")
             )
-            .font(.system(size: 12)).foregroundColor(.gray)
+            .desktopCaption()
           }
 
         }.frame(
@@ -510,7 +510,7 @@ struct HistoryView: View {
           "0 disables size filtering. Use a dot for decimals. Clipboard transfers remain limited to 16 MiB."
         )
       )
-      .font(.system(size: 12)).foregroundColor(.gray)
+      .desktopCaption()
       Toggle(model.t("Mark blocked source apps as sensitive"), isOn: $model.blocklistEnabledDraft)
       TextField(model.t("Blocked app IDs, separated by commas"), text: $model.blockedAppsDraft)
       Button(model.t("Save content settings")) {
@@ -573,11 +573,11 @@ struct HistoryView: View {
           "Reads image text first, then uses local image labels when text is absent. Nothing is uploaded."
         )
       )
-      .font(.system(size: 12)).foregroundColor(.gray)
+      .desktopCaption()
       optionalTextAnalysisSettings
       Toggle(model.t("Enable local text summaries"), isOn: $model.localTextSummariesDraft)
       Text(model.t("Creates a short excerpt on this device. Nothing is uploaded."))
-        .font(.system(size: 12)).foregroundColor(.gray)
+        .desktopCaption()
       Toggle(
         model.t("Automatically summarize text locally"), isOn: $model.automaticLocalSummariesDraft
       )
@@ -594,12 +594,12 @@ struct HistoryView: View {
           "Reads the first copied UTF-8 text or PDF file on this device. File and extracted text: at most 1 MiB; PDF: at most 256 pages."
         )
       )
-      .font(.system(size: 12)).foregroundColor(.gray)
+      .desktopCaption()
       Text(
         model.t(
           "This file permission also gates local generation and language analysis. Automatic file analysis additionally requires that engine's automatic permission."
         )
-      ).font(.system(size: 12)).foregroundColor(.gray)
+      ).desktopCaption()
       Toggle(
         model.t("Automatically summarize files locally"),
         isOn: $model.automaticLocalFileSummariesDraft
@@ -615,7 +615,7 @@ struct HistoryView: View {
           "Uploads text from the first copied UTF-8 or PDF file only. File and extracted text: at most 1 MiB; PDF: at most 256 pages. Encrypted or image-only PDFs are unavailable."
         )
       )
-      .font(.system(size: 12)).foregroundColor(.gray)
+      .desktopCaption()
     }
   }
   var startupSettings: some View {
@@ -628,7 +628,7 @@ struct HistoryView: View {
           "System startup policy can override this registration. Check Startup apps or your desktop session settings."
         )
       )
-      .font(.system(size: 12)).foregroundColor(.gray)
+      .desktopCaption()
     }
   }
 
@@ -659,7 +659,7 @@ struct HistoryView: View {
           "Tests these fields with the saved key when selected. Only a test message is sent; clipboard history is not included."
         )
       )
-      .font(.system(size: 12)).foregroundColor(.gray)
+      .desktopCaption()
       HStack {
         Button(model.t("Test AI connection")) { model.testAIConnection() }
           .disabled(!model.canTestAIConnection || model.connectionBusy)
@@ -684,7 +684,7 @@ struct HistoryView: View {
   {
     VStack(spacing: 12) {
       HStack(spacing: 16) {
-        Text(model.t(title)).font(.system(size: 14))
+        Text(model.t(title)).font(.system(size: 15))
         Spacer()
         control().frame(width: 210)
       }
@@ -751,7 +751,7 @@ struct HistoryView: View {
           "Updates are installed manually. Quit Clipboard, verify SHA-256, then use the official package instructions."
         )
       )
-      .font(.system(size: 12)).foregroundColor(.gray).lineLimit(4)
+      .desktopCaption().lineLimit(4)
     }
   }
 
@@ -788,7 +788,7 @@ struct HistoryView: View {
           } label: {
             VStack(spacing: 4) {
               DesktopSymbol(name: section.symbol, size: 20)
-              Text(model.t(section.rawValue)).font(.system(size: 12)).lineLimit(1)
+              Text(model.t(section.rawValue)).font(.system(size: 13)).lineLimit(1)
             }.padding(8)
           }
           .inspect([.onCreate, .afterUpdate]) {

@@ -18,12 +18,12 @@ extension HistoryView {
         model.t(
           "Uses installed local models only. Summary weights are required for generation; names require the optional licensed model. Language detection works without those weights."
         )
-      ).font(.system(size: 12)).foregroundColor(.gray)
+      ).desktopCaption()
       Text(
         model.t(
           "Tries permitted engines in order: configured AI, local generation, language and names, then excerpt. Each automatic engine needs its own permission."
         )
-      ).font(.system(size: 12)).foregroundColor(.gray)
+      ).desktopCaption()
     }
   }
 }

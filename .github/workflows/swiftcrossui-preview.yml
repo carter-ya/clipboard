@@ -398,6 +398,9 @@ jobs:
           & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
             -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -ModelSettingsOnly -OutputDirectory ui-artifacts/pr-smoke
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & powershell.exe -NoProfile -MTA -ExecutionPolicy Bypass -File tools/desktop-ui/smoke-windows.ps1 `
+            -Executable (Join-Path $BinaryDirectory 'ClipboardDesktop.exe') -DesignOnly -OutputDirectory ui-artifacts/design
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Exercise native Windows keyboard focus and explicit paste
         if: runner.os == 'Windows'
         shell: pwsh

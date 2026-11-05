@@ -146,8 +146,6 @@ void clipboard_window_chrome_install(void *window) {
   g_object_set_data(G_OBJECT(window), "clipboard-chrome-installed",
                     GINT_TO_POINTER(1));
 #if defined(__linux__)
-  // GTK owns CSD corners, shadows, resizing, drag and close controls. Install
-  // before realization; do not strip native decorations or synthesize input.
   GdkDisplay *display = gtk_widget_get_display(widget);
   if (GDK_IS_X11_DISPLAY(display)) {
     Display *xdisplay = gdk_x11_display_get_xdisplay(display);
@@ -162,12 +160,12 @@ void clipboard_window_chrome_install(void *window) {
     g_signal_connect_object(display, "notify::composited", G_CALLBACK(changed),
                             window, 0);
   }
-  GtkWidget *header = gtk_header_bar_new();
-  gtk_header_bar_set_title_widget(GTK_HEADER_BAR(header),
-                                  gtk_label_new("Clipboard"));
-  gtk_widget_add_css_class(header, "clipboard-titlebar");
-  gtk_window_set_titlebar(GTK_WINDOW(window), header);
 #endif
+  // Use the search surface's existing top inset as a native move handle.
+  // A client decoration retains edge resizing, window menus and CSD shadows.
+  GtkWidget *inset = gtk_window_handle_new();
+  gtk_widget_add_css_class(inset, "clipboard-top-inset");
+  gtk_window_set_titlebar(GTK_WINDOW(window), inset);
   g_signal_connect(widget, "map", G_CALLBACK(mapped), NULL);
   g_signal_connect(widget, "notify::is-active", G_CALLBACK(changed), window);
   g_signal_connect_object(gtk_widget_get_settings(widget),
