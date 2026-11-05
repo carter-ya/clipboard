@@ -11,7 +11,6 @@ import subprocess
 import time
 import uuid
 import pyatspi
-from gi.repository import GdkPixbuf
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--executable', required=True)
@@ -195,12 +194,11 @@ try:
     # Compare the opaque pixels registered on the actual mapped X11 window.
     # GTK may round partially transparent colors during premultiplication.
     icon_file = Path(args.executable).resolve().parent / 'ClipboardDesktop_ClipboardDesktop.resources/icons/com.clipboard.desktop.png'
-    reference = GdkPixbuf.Pixbuf.new_from_file(str(icon_file))
+    rgba = subprocess.check_output(['convert', str(icon_file), '-depth', '8', 'rgba:-'])
     prop = subprocess.check_output(['xprop', '-id', hex(window()), '-notype', '-f', '_NET_WM_ICON', '32c', '_NET_WM_ICON'], text=True)
     values = list(map(int, re.findall(r'\b\d+\b', prop)))
-    rgba = reference.get_pixels()
-    check('mapped_window_has_application_icon', values[:2] == [reference.get_width(), reference.get_height()]
-          and len(values) == 2 + reference.get_width() * reference.get_height()
+    check('mapped_window_has_application_icon', values[:2] == [128, 128]
+          and len(rgba) == 128 * 128 * 4 and len(values) == 2 + 128 * 128
           and all(values[2+i//4] == 0xff000000 | int.from_bytes(rgba[i:i+3], 'big')
                   for i in range(0, len(rgba), 4) if rgba[i+3] == 255))
     resize(960, 640)
