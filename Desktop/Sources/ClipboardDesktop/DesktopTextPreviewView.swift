@@ -58,6 +58,14 @@ struct DesktopTextPreviewView: GtkWidgetRepresentable {
     guard context.coordinator.text != text else { return }
     context.coordinator.text = text
     context.coordinator.heights.removeAll()
+    // Pango repeatedly scans a long unbroken word for a word boundary on every
+    // wrapped line. Character wrapping avoids that cost for token-heavy data.
+    var runLength = 0
+    let hasLongToken = text.unicodeScalars.contains { scalar in
+      runLength = scalar.properties.isWhitespace ? 0 : runLength + 1
+      return runLength >= 1024
+    }
+    widget.lineWrapMode = hasLongToken ? .character : .wordCharacter
     widget.label = text
   }
 
@@ -73,10 +81,13 @@ struct DesktopTextPreviewView: GtkWidgetRepresentable {
     if let cached = context.coordinator.heights[width] {
       height = cached
     } else {
-      height =
-        Pango(for: gtkWidget).getTextSize(
-          text, ellipsize: .none, proposedWidth: Double(max(1, width))
-        ).height
+      let layout = gtk_widget_create_pango_layout(gtkWidget.widgetPointer, text)!
+      defer { g_object_unref(UnsafeMutableRawPointer(layout)) }
+      pango_layout_set_wrap(layout, gtk_label_get_wrap_mode(gtkWidget.opaquePointer))
+      pango_layout_set_width(layout, Int32(max(1, width)) * PANGO_SCALE)
+      var pixels: Int32 = 0
+      pango_layout_get_pixel_size(layout, nil, &pixels)
+      height = Int(pixels)
       if context.coordinator.heights.count >= 8 { context.coordinator.heights.removeAll() }
       context.coordinator.heights[width] = height
     }
