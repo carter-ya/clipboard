@@ -134,12 +134,14 @@ static void mapped(GtkWidget *widget, gpointer icon) {
   GdkSurface *surface = gtk_native_get_surface(GTK_NATIVE(widget));
   HWND window = gdk_win32_surface_get_handle(surface);
   HINSTANCE module = GetModuleHandleW(NULL);
-  HICON small = LoadImageW(module, MAKEINTRESOURCEW(101), IMAGE_ICON,
+  HICON small_icon = LoadImageW(module, MAKEINTRESOURCEW(101), IMAGE_ICON,
                            GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_SHARED);
-  HICON large = LoadImageW(module, MAKEINTRESOURCEW(101), IMAGE_ICON,
+  HICON large_icon = LoadImageW(module, MAKEINTRESOURCEW(101), IMAGE_ICON,
                            GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_SHARED);
-  if (small) SendMessageW(window, WM_SETICON, ICON_SMALL, (LPARAM)small);
-  if (large) SendMessageW(window, WM_SETICON, ICON_BIG, (LPARAM)large);
+  if (small_icon)
+    SendMessageW(window, WM_SETICON, ICON_SMALL, (LPARAM)small_icon);
+  if (large_icon)
+    SendMessageW(window, WM_SETICON, ICON_BIG, (LPARAM)large_icon);
 #elif defined(__linux__)
   GdkSurface *surface = gtk_native_get_surface(GTK_NATIVE(widget));
   if (icon && GDK_IS_TOPLEVEL(surface)) {
