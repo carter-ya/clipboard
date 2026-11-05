@@ -230,7 +230,13 @@ try:
     row = wait_for(lambda: next((node for node in nodes() if node.getRole() == pyatspi.ROLE_LIST_ITEM), None), 'visible_history_row')
     row_bounds = row.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
     check('history_row_remains_readable_inside_small_viewport', inside(row) and row_bounds.height >= 40)
-    check('history_row_uses_approved_seven_pixel_vertical_insets', row_bounds.height == 54)
+    lines = sorted((node.queryComponent().getExtents(pyatspi.WINDOW_COORDS) for node in walk(row)
+                    if node.getRole() == pyatspi.ROLE_LABEL and node.name), key=lambda rect: rect.y)
+    check('history_row_fits_both_text_lines_with_native_font_metrics', len(lines) == 2
+          and lines[0].y >= row_bounds.y + 7
+          and lines[1].y >= lines[0].y + lines[0].height + 3
+          and lines[1].y + lines[1].height <= row_bounds.y + row_bounds.height - 7
+          and row_bounds.height == max(40, lines[0].height + 3 + lines[1].height) + 14)
     bounds = copy.queryComponent().getExtents(pyatspi.WINDOW_COORDS)
     display = x11.XOpenDisplay(None)
     try:

@@ -87,9 +87,10 @@ def check_native_drag():
                  .split('Window id: ', 1)[1].split()[0])
     bounds = window_geometry(handle)
     x = bounds['Absolute upper-left X'] + bounds['Width'] // 2
-    # Anchor to the actual toolbar so CSD shadow extents can vary by theme.
-    settings = named('设置').queryComponent().getExtents(pyatspi.WINDOW_COORDS)
-    y = bounds['Absolute upper-left Y'] + (settings.y + settings.height // 2 - 22 - 6) * args.scale
+    # X includes CSD shadows; GTK reports the search inset in logical pixels.
+    extents = subprocess.check_output(['xprop', '-id', hex(handle), '_GTK_FRAME_EXTENTS'], text=True)
+    _, _, top, _ = map(int, extents.split('=', 1)[1].split(','))
+    y = bounds['Absolute upper-left Y'] + top + 6 * args.scale
     mouse = pyatspi.Registry.generateMouseEvent
     mouse(x, y, 'abs')
     mouse(x, y, 'b1p')

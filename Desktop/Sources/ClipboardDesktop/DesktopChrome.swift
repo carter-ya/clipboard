@@ -52,7 +52,7 @@ import SwiftCrossUI
         .clipboard-desktop .clipboard-search-surface { border-radius: 12px; background: #fafaf9; box-shadow: 0 1px 2px #00000013; }
         .clipboard-desktop.clipboard-dark .clipboard-search-surface { background: #38383a; }
         .clipboard-desktop entry.clipboard-search:focus-within { outline: none; box-shadow: none; }
-        .clipboard-desktop .clipboard-search-surface:focus-within { outline: 2px solid #74adff; }
+        .clipboard-desktop .clipboard-search-surface:focus-within { outline: none; box-shadow: inset 0 0 0 1px #74adff; }
         .clipboard-desktop .clipboard-more button { background: transparent; box-shadow: none; border: none; padding: 0; }
         .clipboard-desktop .clipboard-more popover button { padding: 6px 12px; border-radius: 5px; }
         .clipboard-desktop .clipboard-more popover button:hover { background: #e5edf6; }
