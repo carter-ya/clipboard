@@ -93,9 +93,9 @@ try:
         probe_environment['PATH'] = str(root / 'commands') + os.pathsep + probe_environment.get('PATH', '')
         # The complete suite includes independent analysis profiles, private HTTP
         # services, rich/sensitive previews and twenty installed lifecycle cycles.
-        # Hosted x64 coverage exceeds ten minutes while individual checks pass.
-        # Keep all per-action deadlines; bound only the expanded suite at twenty minutes.
-        probe = subprocess.run(probe_command, env=probe_environment, timeout=1200)
+        # Hosted x64 run 41994633976 still completed fresh checks at 1195 s.
+        # Bound the whole suite independently of its shorter per-action deadlines.
+        probe = subprocess.run(probe_command, env=probe_environment, timeout=1800)
         check('installed_application_passes_native_ui_probe', probe.returncode == 0)
         model_ui = subprocess.run(
             ['dbus-run-session', '--', 'xvfb-run', '-a', '/usr/bin/python3', args.probe,

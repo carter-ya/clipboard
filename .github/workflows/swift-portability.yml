@@ -193,6 +193,11 @@ jobs:
           dbus-run-session -- /usr/bin/python3 tools/desktop-ui/check-linux-wayland.py --executable "$binary_dir/scenario-runner" --output wayland-sway
           dbus-run-session -- /usr/bin/python3 tools/desktop-ui/check-linux-wayland.py --executable "$binary_dir/scenario-runner" --compositor weston --output wayland-weston
           dbus-run-session -- /usr/bin/python3 tools/desktop-ui/check-linux-portal.py --executable "$binary_dir/scenario-runner" --output platform-portal.json
+      - name: Cache verified image SDK downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/clipboard-local-image-sdk-1.31.1
+          key: image-sdk-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/desktop-image/upstream.json') }}
       - name: Verify secure credentials, startup, local OCR and bounded HTTP
         shell: pwsh
         run: |

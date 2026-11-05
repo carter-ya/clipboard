@@ -59,7 +59,11 @@ static int add_icon(clipboard_shell *s) {
   data.uID = 1;
   data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
   data.uCallbackMessage = SHELL_NOTIFY;
-  data.hIcon = LoadIconW(NULL, MAKEINTRESOURCEW(32512));
+  data.hIcon = LoadImageW(GetModuleHandleW(NULL), MAKEINTRESOURCEW(101),
+                          IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
+                          GetSystemMetrics(SM_CYSMICON), LR_SHARED);
+  if (!data.hIcon) // Non-UI hosts of DesktopShell may have no application resource.
+    data.hIcon = LoadIconW(NULL, MAKEINTRESOURCEW(32512));
   const WCHAR *tip = tray_title(s);
   lstrcpynW(data.szTip, tip, 128);
   int added = Shell_NotifyIconW(NIM_ADD, &data) != 0;
@@ -201,7 +205,7 @@ static DWORD WINAPI shell_thread(void *value) {
   return 0;
 }
 clipboard_shell *clipboard_shell_create(const char *key, uint32_t modifiers,
-                                        int recording,
+                                        int recording, const uint8_t *icon_argb32,
                                         clipboard_shell_callback callback,
                                         void *context, int *error) {
   if (error)
@@ -213,6 +217,7 @@ clipboard_shell *clipboard_shell_create(const char *key, uint32_t modifiers,
   }
   strcpy(s->key, key);
   s->modifiers = modifiers;
+  (void)icon_argb32;
   s->recording = recording;
   s->callback = callback;
   s->context = context;
@@ -297,6 +302,8 @@ struct clipboard_shell {
   DBusConnection *bus;
   clipboard_portal *portal;
   dbus_uint32_t menu_revision;
+  unsigned char icon_argb32[32 * 32 * 4];
+  int has_icon;
   char key[32];
   clipboard_shell_callback callback;
   void *context;
@@ -470,6 +477,23 @@ static const char *item_signature(const char *property) {
     return "s";
   return NULL;
 }
+static void append_tray_pixmap(clipboard_shell *s, DBusMessageIter *iter) {
+  DBusMessageIter images;
+  dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "(iiay)", &images);
+  if (s->has_icon) {
+    DBusMessageIter image, pixels;
+    dbus_int32_t size = 32;
+    const unsigned char *bytes = s->icon_argb32;
+    dbus_message_iter_open_container(&images, DBUS_TYPE_STRUCT, NULL, &image);
+    dbus_message_iter_append_basic(&image, DBUS_TYPE_INT32, &size);
+    dbus_message_iter_append_basic(&image, DBUS_TYPE_INT32, &size);
+    dbus_message_iter_open_container(&image, DBUS_TYPE_ARRAY, "y", &pixels);
+    dbus_message_iter_append_fixed_array(&pixels, DBUS_TYPE_BYTE, &bytes, sizeof(s->icon_argb32));
+    dbus_message_iter_close_container(&image, &pixels);
+    dbus_message_iter_close_container(&images, &image);
+  }
+  dbus_message_iter_close_container(iter, &images);
+}
 static void append_item_value(clipboard_shell *s, DBusMessageIter *iter,
                               const char *property) {
   if (!strcmp(property, "Menu")) {
@@ -482,16 +506,12 @@ static void append_item_value(clipboard_shell *s, DBusMessageIter *iter,
     dbus_uint32_t value = 0;
     dbus_message_iter_append_basic(iter, DBUS_TYPE_UINT32, &value);
   } else if (!strcmp(property, "IconPixmap")) {
-    DBusMessageIter array;
-    dbus_message_iter_open_container(iter, DBUS_TYPE_ARRAY, "(iiay)", &array);
-    dbus_message_iter_close_container(iter, &array);
+    append_tray_pixmap(s, iter);
   } else if (!strcmp(property, "ToolTip")) {
-    DBusMessageIter structure, array;
+    DBusMessageIter structure;
     dbus_message_iter_open_container(iter, DBUS_TYPE_STRUCT, NULL, &structure);
-    append_string(&structure, "edit-paste");
-    dbus_message_iter_open_container(&structure, DBUS_TYPE_ARRAY, "(iiay)",
-                                     &array);
-    dbus_message_iter_close_container(&structure, &array);
+    append_string(&structure, s->has_icon ? "" : "edit-paste");
+    append_tray_pixmap(s, &structure);
     append_string(&structure, "Clipboard");
     append_string(&structure, shell_label(atomic_load(&s->language),
                                          atomic_load(&s->recording) ? 5 : 6));
@@ -507,7 +527,7 @@ static void append_item_value(clipboard_shell *s, DBusMessageIter *iter,
     else if (!strcmp(property, "Status"))
       value = "Active";
     else if (!strcmp(property, "IconName"))
-      value = "edit-paste";
+      value = s->has_icon ? "" : "edit-paste";
     append_string(iter, value);
   }
 }
@@ -1008,7 +1028,7 @@ static void *shell_thread(void *value) {
   return NULL;
 }
 clipboard_shell *clipboard_shell_create(const char *key, uint32_t modifiers,
-                                        int recording,
+                                        int recording, const uint8_t *icon_argb32,
                                         clipboard_shell_callback callback,
                                         void *context, int *error) {
   if (error)
@@ -1022,6 +1042,10 @@ clipboard_shell *clipboard_shell_create(const char *key, uint32_t modifiers,
   s->modifiers = modifiers;
   s->callback = callback;
   s->context = context;
+  if (icon_argb32) {
+    memcpy(s->icon_argb32, icon_argb32, sizeof(s->icon_argb32));
+    s->has_icon = 1;
+  }
   atomic_init(&s->stopping, 0);
   atomic_init(&s->recording, recording);
   atomic_init(&s->capabilities, 0);
@@ -1100,12 +1124,13 @@ struct clipboard_shell {
   int unused;
 };
 clipboard_shell *clipboard_shell_create(const char *key, uint32_t modifiers,
-                                        int recording,
+                                        int recording, const uint8_t *icon_argb32,
                                         clipboard_shell_callback callback,
                                         void *context, int *error) {
   (void)key;
   (void)modifiers;
   (void)recording;
+  (void)icon_argb32;
   (void)callback;
   (void)context;
   if (error)

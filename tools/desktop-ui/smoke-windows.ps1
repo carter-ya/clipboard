@@ -99,6 +99,7 @@ public static class PreviewNative {
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetWindowText(IntPtr hwnd, System.Text.StringBuilder text, int max);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder text, int max);
   [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+  [DllImport("user32.dll")] public static extern IntPtr SendMessageW(IntPtr hwnd, uint message, IntPtr wparam, IntPtr lparam);
   public static IntPtr FindWindow(uint processId) {
     IntPtr found = IntPtr.Zero;
     EnumWindows((hwnd, _) => {
@@ -939,6 +940,11 @@ try {
   [PreviewNative]::SetForegroundWindow($nativeWindowHandle) | Out-Null
   Start-Sleep -Seconds 2
   Add-Check 'native_window_survives_without_ui_automation' (!$application.HasExited)
+  if (!$Baseline) {
+    Add-Check 'mapped_window_supplies_small_and_large_taskbar_icons' (
+      [PreviewNative]::SendMessageW($nativeWindowHandle, 0x7f, [IntPtr]0, [IntPtr]0) -ne [IntPtr]0 -and
+      [PreviewNative]::SendMessageW($nativeWindowHandle, 0x7f, [IntPtr]1, [IntPtr]0) -ne [IntPtr]0)
+  }
   Save-Screenshot 'startup-without-uia.png'
   # Start accessibility traversal only after retaining ordinary-window evidence.
   $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
@@ -1775,7 +1781,9 @@ try {
       return $false
     } 'metadata_image_row_result' | Out-Null
     Add-Check 'image_row_displays_its_analysis_result' $true
-    Wait-For { Find-Named 'Source: PhotoTool.exe' } 'metadata_readable_source' | Out-Null
+    # UIA exposes the GtkLabel's displayed text. The history row combines date and source,
+    # so an exact name matches only the preview.
+    Wait-For { Find-Named 'PhotoTool.exe' } 'metadata_readable_source' | Out-Null
     Add-Check 'preview_source_uses_readable_executable_name' $true
     Wait-For {
       $labels = $window.FindAll([Windows.Automation.TreeScope]::Descendants,
@@ -1788,7 +1796,7 @@ try {
     Add-Check 'preview_reports_capture_time_and_recorded_bytes' $true
     Save-Screenshot 'history-image-metadata.png'
     Invoke-Button 'File'
-    Wait-For { (Find-Named '1 items') -and (Find-Named 'Files: 2') -and (Find-Named 'Source: FixtureFiles') -and
+    Wait-For { (Find-Named '1 items') -and (Find-Named 'Files: 2') -and (Find-Named 'FixtureFiles') -and
       (Find-Named '设计 😀.txt') -and (Find-Named 'second.pdf') } 'metadata_file_names' | Out-Null
     Add-Check 'file_preview_shows_decoded_names_and_reference_count' (@($metadataPaths | Where-Object { [IO.File]::Exists($_) }).Count -eq 0)
     Save-Screenshot 'history-file-metadata.png'

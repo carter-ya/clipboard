@@ -85,7 +85,10 @@ try:
     props = dbus.Interface(item, 'org.freedesktop.DBus.Properties')
     values = props.GetAll('org.kde.StatusNotifierItem')
     check('tray_native_properties_and_menu_path', values['Status'] == 'Active' and values['Menu'] == '/MenuBar'
-          and values['Title'] == 'Clipboard - paused' and values['IconName'] == 'edit-paste')
+          and values['Title'] == 'Clipboard - paused' and not values['IconName'])
+    width, height, pixels = values['IconPixmap'][0]
+    reference = Path(__file__).resolve().parents[2] / 'Core/Sources/DesktopShell/Resources/tray-32.argb'
+    check('tray_exports_application_icon_pixels', width == height == 32 and bytes(pixels) == reference.read_bytes())
     menu_object = bus.get_object(watcher.owner, '/MenuBar', introspect=False)
     menu = dbus.Interface(menu_object, 'com.canonical.dbusmenu')
     menu_props = dbus.Interface(menu_object, 'org.freedesktop.DBus.Properties')

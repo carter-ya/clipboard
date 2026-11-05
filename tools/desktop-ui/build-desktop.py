@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -40,7 +41,20 @@ for patch in sorted((package / 'Patches').glob('swift-cross-ui-0.10.0-*.patch'))
         subprocess.run(['git', '-C', str(checkout), 'apply', '--check', str(patch)], check=True)
         subprocess.run(['git', '-C', str(checkout), 'apply', str(patch)], check=True)
     print('Applied pinned GTK compatibility patch: ' + patch.name, flush=True)
-subprocess.run(['swift', 'build'] + common + ['--configuration', args.configuration, '--jobs', args.jobs,
+link_flags = []
+if sys.platform == 'win32':
+    icon = package / 'Packaging/clipboard.ico'
+    # Include the icon digest in the linker input so incremental builds relink on changes.
+    resources = build / 'application-icons' / hashlib.sha256(icon.read_bytes()).hexdigest()
+    resources.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(icon, resources / 'clipboard.ico')
+    (resources / 'clipboard.rc').write_text('101 ICON "clipboard.ico"\n', encoding='ascii')
+    compiler = shutil.which('rc.exe') or shutil.which('llvm-rc.exe')
+    if not compiler:
+        raise RuntimeError('Windows SDK or LLVM resource compiler required')
+    subprocess.run([compiler, '/FO', 'clipboard.res', 'clipboard.rc'], cwd=resources, check=True)
+    link_flags = ['-Xlinker', str(resources / 'clipboard.res')]
+subprocess.run(['swift', 'build'] + common + link_flags + ['--configuration', args.configuration, '--jobs', args.jobs,
                                             '--product', 'ClipboardDesktop'], check=True)
 binary_dir = subprocess.check_output(['swift', 'build'] + common + [
     '--configuration', args.configuration, '--show-bin-path'], text=True).strip()

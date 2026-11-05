@@ -46,15 +46,28 @@ public final class NativeDesktopShell: DesktopShellAccess, @unchecked Sendable {
       }
       var error: Int32 = 0
       let context = Unmanaged.passUnretained(bridge).toOpaque()
-      let next = (shortcut?.key ?? "").withCString { key in
-        clipboard_shell_create(
-          key, shortcut?.modifiers.rawValue ?? 0, recording ? 1 : 0,
-          { context, rawAction, token in
-            guard let context, let action = DesktopShellAction(rawValue: rawAction) else { return }
-            Unmanaged<ShellEventBridge>.fromOpaque(context).takeUnretainedValue()
-              .continuation.yield(
-                .init(action: action, activationToken: token.map { String(cString: $0) }))
-          }, context, &error)
+      // SNI pixmaps are ARGB32 bytes in network order. The C shell copies them before
+      // starting its service thread. Windows loads the icon from the application PE.
+      var icon = Data()
+      #if os(Linux)
+        if let url = Bundle.module.url(forResource: "tray-32", withExtension: "argb") {
+          icon = (try? Data(contentsOf: url)) ?? Data()
+        }
+      #endif
+      let next = icon.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
+        (shortcut?.key ?? "").withCString { key in
+          clipboard_shell_create(
+            key, shortcut?.modifiers.rawValue ?? 0, recording ? 1 : 0,
+            bytes.count == 32 * 32 * 4 ? bytes.bindMemory(to: UInt8.self).baseAddress : nil,
+            { context, rawAction, token in
+              guard let context, let action = DesktopShellAction(rawValue: rawAction) else {
+                return
+              }
+              Unmanaged<ShellEventBridge>.fromOpaque(context).takeUnretainedValue()
+                .continuation.yield(
+                  .init(action: action, activationToken: token.map { String(cString: $0) }))
+            }, context, &error)
+        }
       }
       guard let next else { throw DesktopShellError.unavailable }
       // Keep a working previous binding if the new shortcut conflicts. Creating

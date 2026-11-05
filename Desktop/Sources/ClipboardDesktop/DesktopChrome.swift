@@ -10,6 +10,9 @@ import SwiftCrossUI
 /// classes; layout passes never reload a stylesheet or replace an editor.
 @MainActor enum DesktopChrome {
   private static var installed = false
+  private static let iconPath = Bundle.module.resourceURL?.appendingPathComponent(
+    "icons/com.clipboard.desktop.png"
+  ).path
 
   static func apply(to window: Gtk.Window, dark: Bool, language: DesktopUILanguage) {
     if !installed, let display = gtk_widget_get_display(window.widgetPointer),
@@ -102,7 +105,7 @@ import SwiftCrossUI
     setClass("clipboard-desktop", on: window, enabled: true)
     let changed = (gtk_widget_has_css_class(window.widgetPointer, "clipboard-dark") != 0) != dark
     setClass("clipboard-dark", on: window, enabled: dark)
-    clipboard_window_chrome_install(window.widgetPointer)
+    clipboard_window_chrome_install(window.widgetPointer, iconPath)
     if changed { clipboard_window_chrome_refresh(window.widgetPointer) }
     for (name, matches) in [
       ("sc", language == .simplifiedChinese), ("tc", language == .traditionalChinese),

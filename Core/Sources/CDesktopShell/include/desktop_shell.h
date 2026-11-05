@@ -7,9 +7,9 @@ typedef void (*clipboard_shell_callback)(void *context, int32_t action,
                                         const char *activation_token);
 /* Key is an ASCII letter/digit, F1...F24, SPACE, or empty to disable binding.
    Modifiers: control=1, alt=2, shift=4, super=8. Errors: unavailable=1,
-   conflict=2. */
+   conflict=2. icon_argb32 is NULL or a borrowed 32x32 array of ARGB bytes. */
 clipboard_shell *clipboard_shell_create(const char *key, uint32_t modifiers,
-                                        int recording,
+                                        int recording, const uint8_t *icon_argb32,
                                         clipboard_shell_callback callback,
                                         void *context, int *error);
 uint32_t clipboard_shell_capabilities(clipboard_shell *shell);

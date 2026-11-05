@@ -60,7 +60,7 @@ try:
     icon = prefix / 'share/icons/hicolor/256x256/apps' / (APP_ID + '.png')
     entry.write_text('[Desktop Entry]\nType=Application\nName=Clipboard\nComment=Local clipboard history\nExec=' +
                      quoted_exec(prefix / 'bin/ClipboardDesktop') + '\nIcon=' + str(icon) +
-                     '\nTerminal=false\nCategories=Utility;\nStartupNotify=true\nX-Clipboard-InstallRoot=' + str(prefix) + '\n')
+                     '\nTerminal=false\nCategories=Utility;\nStartupNotify=true\nStartupWMClass=ClipboardDesktop\nX-Clipboard-InstallRoot=' + str(prefix) + '\n')
 except Exception:
     remove_managed(prefix, value)
     if old:

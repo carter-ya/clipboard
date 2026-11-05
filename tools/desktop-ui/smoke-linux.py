@@ -103,7 +103,9 @@ def root():
 
 def nodes():
     current = root()
-    return list(walk(current)) if current else []
+    # Most probes need only the first matching live widget. Stop making D-Bus
+    # calls once it has been found; exhaustive checks still consume the whole walk.
+    return walk(current) if current else ()
 
 
 def has_text(text):

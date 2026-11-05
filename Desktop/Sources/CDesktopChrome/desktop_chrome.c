@@ -128,8 +128,27 @@ void clipboard_window_chrome_refresh(void *window) {
   set_class(widget, "clipboard-material", enabled);
 }
 
-static void mapped(GtkWidget *widget, gpointer data) {
-  (void)data;
+static void mapped(GtkWidget *widget, gpointer icon) {
+  (void)icon;
+#ifdef _WIN32
+  GdkSurface *surface = gtk_native_get_surface(GTK_NATIVE(widget));
+  HWND window = gdk_win32_surface_get_handle(surface);
+  HINSTANCE module = GetModuleHandleW(NULL);
+  HICON small_icon = LoadImageW(module, MAKEINTRESOURCEW(101), IMAGE_ICON,
+                           GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_SHARED);
+  HICON large_icon = LoadImageW(module, MAKEINTRESOURCEW(101), IMAGE_ICON,
+                           GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_SHARED);
+  if (small_icon)
+    SendMessageW(window, WM_SETICON, ICON_SMALL, (LPARAM)small_icon);
+  if (large_icon)
+    SendMessageW(window, WM_SETICON, ICON_BIG, (LPARAM)large_icon);
+#elif defined(__linux__)
+  GdkSurface *surface = gtk_native_get_surface(GTK_NATIVE(widget));
+  if (icon && GDK_IS_TOPLEVEL(surface)) {
+    GList images = {icon, NULL, NULL};
+    gdk_toplevel_set_icon_list(GDK_TOPLEVEL(surface), &images);
+  }
+#endif
   clipboard_window_chrome_refresh(widget);
 }
 
@@ -139,13 +158,20 @@ static void changed(GObject *object, GParamSpec *property, gpointer window) {
   clipboard_window_chrome_refresh(window);
 }
 
-void clipboard_window_chrome_install(void *window) {
+void clipboard_window_chrome_install(void *window, const char *icon_path) {
   GtkWidget *widget = GTK_WIDGET(window);
   if (g_object_get_data(G_OBJECT(window), "clipboard-chrome-installed"))
     return;
   g_object_set_data(G_OBJECT(window), "clipboard-chrome-installed",
                     GINT_TO_POINTER(1));
+  GdkTexture *icon = NULL;
 #if defined(__linux__)
+  if (icon_path) {
+    GFile *file = g_file_new_for_path(icon_path);
+    icon = gdk_texture_new_from_file(file, NULL);
+    g_object_unref(file);
+    g_object_set_data_full(G_OBJECT(widget), "clipboard-window-icon", icon, g_object_unref);
+  }
   GdkDisplay *display = gtk_widget_get_display(widget);
   if (GDK_IS_X11_DISPLAY(display)) {
     Display *xdisplay = gdk_x11_display_get_xdisplay(display);
@@ -166,7 +192,9 @@ void clipboard_window_chrome_install(void *window) {
   GtkWidget *inset = gtk_window_handle_new();
   gtk_widget_add_css_class(inset, "clipboard-top-inset");
   gtk_window_set_titlebar(GTK_WINDOW(window), inset);
-  g_signal_connect(widget, "map", G_CALLBACK(mapped), NULL);
+  (void)icon_path;
+  g_signal_connect_after(widget, "map", G_CALLBACK(mapped), icon);
+  if (gtk_widget_get_mapped(widget)) mapped(widget, icon);
   g_signal_connect(widget, "notify::is-active", G_CALLBACK(changed), window);
   g_signal_connect_object(gtk_widget_get_settings(widget),
                           "notify::gtk-theme-name", G_CALLBACK(changed), window,
