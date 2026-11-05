@@ -8,7 +8,6 @@ from pathlib import Path
 import platform
 import re
 import shutil
-import struct
 import subprocess
 import tarfile
 import zipfile
@@ -249,9 +248,7 @@ else:
                 raise RuntimeError('Unresolved Windows runtime dependency: ' + dependency)
     icon = root / 'share/icons/clipboard.ico'
     icon.parent.mkdir(parents=True, exist_ok=True)
-    png = (repo / 'App/Assets.xcassets/AppIcon.appiconset/icon_256x256.png').read_bytes()
-    # Windows ICO permits a PNG payload. Preserve the existing icon pixels.
-    icon.write_bytes(struct.pack('<HHHBBBBHHII', 0, 1, 1, 0, 0, 0, 0, 1, 32, len(png), 22) + png)
+    shutil.copy2(repo / 'Desktop/Packaging/clipboard.ico', icon)
     archive = output / (name + '.zip')
 
 # An explicit manifest makes the runtime closure and exact binary hashes reviewable.

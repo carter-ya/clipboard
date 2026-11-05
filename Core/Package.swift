@@ -49,7 +49,9 @@ let package = Package(
         .linkedLibrary("X11", .when(platforms: [.linux])),
       ]
     ),
-    .target(name: "DesktopShell", dependencies: ["ClipboardCore", "CDesktopShell"]),
+    .target(
+      name: "DesktopShell", dependencies: ["ClipboardCore", "CDesktopShell"],
+      resources: [.copy("Resources/tray-32.argb")]),
     .target(
       name: "CDesktopClipboard",
       dependencies: [.target(name: "CWayland", condition: .when(platforms: [.linux]))],

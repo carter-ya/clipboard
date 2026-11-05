@@ -11,6 +11,7 @@ import subprocess
 import time
 import uuid
 import pyatspi
+from gi.repository import GdkPixbuf
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--executable', required=True)
@@ -191,6 +192,17 @@ try:
     app = subprocess.Popen([str(Path(args.executable).resolve()), '--smoke-root', str(out / ('history-' + uuid.uuid4().hex))],
                            env=env, stdout=log, stderr=log)
     wait_for(lambda: has_text('Ready') and editor() and window(), 'initial_scaled_window')
+    # Compare the opaque pixels registered on the actual mapped X11 window.
+    # GTK may round partially transparent colors during premultiplication.
+    icon_file = Path(args.executable).resolve().parent / 'ClipboardDesktop_ClipboardDesktop.resources/icons/com.clipboard.desktop.png'
+    reference = GdkPixbuf.Pixbuf.new_from_file(str(icon_file))
+    prop = subprocess.check_output(['xprop', '-id', hex(window()), '-notype', '-f', '_NET_WM_ICON', '32c', '_NET_WM_ICON'], text=True)
+    values = list(map(int, re.findall(r'\b\d+\b', prop)))
+    rgba = reference.get_pixels()
+    check('mapped_window_has_application_icon', values[:2] == [reference.get_width(), reference.get_height()]
+          and len(values) == 2 + reference.get_width() * reference.get_height()
+          and all(values[2+i//4] == 0xff000000 | int.from_bytes(rgba[i:i+3], 'big')
+                  for i in range(0, len(rgba), 4) if rgba[i+3] == 255))
     resize(960, 640)
     initial = editor()
     initial.queryEditableText().setTextContents('中文')

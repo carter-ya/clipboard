@@ -20,7 +20,7 @@ def entry_for(executable):
     text = text.replace('\\', '\\\\').replace('\t', '\\t')
     return ('[Desktop Entry]\nType=Application\nName=Clipboard\n'
             'Comment=Local clipboard history\nExec="' + text + '"\n'
-            'Icon=edit-paste\nTerminal=false\nCategories=Utility;\nStartupNotify=true\n'
+            'Icon=' + str(Path(__file__).resolve().parents[2] / 'Desktop/Sources/ClipboardDesktop/Resources/icons/com.clipboard.desktop.png').replace('\\', '\\\\') + '\nTerminal=false\nCategories=Utility;\nStartupNotify=true\nStartupWMClass=ClipboardDesktop\n'
             'X-Clipboard-DevelopmentEntry=true\n')
 
 
