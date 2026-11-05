@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Create a new synthetic profile matching the approved visual reference.
 
-Requires ImageMagick only to draw the public test image; no user clipboard,
-existing profile, network or private file is read.
+Uses a shared public palette image on both desktops.
 """
 import argparse
 import base64
@@ -10,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from pathlib import Path
-import subprocess
+import shutil
 import uuid
 
 parser = argparse.ArgumentParser()
@@ -19,16 +18,7 @@ args = parser.parse_args()
 root = args.output.resolve()
 root.mkdir(parents=True, exist_ok=False)
 image = root / 'palette.png'
-command = ['convert', '-size', '1200x800', 'xc:#a9d4ed',
-           '-fill', '#f2d1bb', '-draw', 'rectangle 400,0 799,799',
-           '-fill', '#d5dfbc', '-draw', 'rectangle 800,0 1199,799',
-           '-font', 'DejaVu-Sans', '-pointsize', '40', '-fill', '#203342']
-for x, index, name, color in [(40, '01', 'Sky blue', '#A9D4ED'),
-                              (440, '02', 'Apricot', '#F2D1BB'),
-                              (840, '03', 'Sage', '#D5DFBC')]:
-    for y, text in [(80, index), (420, name), (740, color)]:
-        command += ['-draw', f'text {x},{y} "{text}"']
-subprocess.run(command + [str(image)], check=True, timeout=15)
+shutil.copyfile(Path(__file__).with_name('design-palette.png'), image)
 palette = image.read_bytes()
 text = '下周产品评审安排\n\n周二 10:00\n确认桌面端交互方案\n\n周三 14:00\n整理测试反馈与问题优先级\n\n周五 16:00\n演示本周迭代成果'
 rich = '<p>让内容占据主要空间</p><p>图片完整显示，文本保持清晰的段落。</p><p>常用操作靠近内容，低频操作适度收起。</p>'

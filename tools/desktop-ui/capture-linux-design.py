@@ -87,7 +87,9 @@ def check_native_drag():
                  .split('Window id: ', 1)[1].split()[0])
     bounds = window_geometry(handle)
     x = bounds['Absolute upper-left X'] + bounds['Width'] // 2
-    y = bounds['Absolute upper-left Y'] + 28 * args.scale
+    # Anchor to the actual toolbar so CSD shadow extents can vary by theme.
+    settings = named('设置').queryComponent().getExtents(pyatspi.WINDOW_COORDS)
+    y = bounds['Absolute upper-left Y'] + (settings.y + settings.height // 2 - 22 - 6) * args.scale
     mouse = pyatspi.Registry.generateMouseEvent
     mouse(x, y, 'abs')
     mouse(x, y, 'b1p')
@@ -100,7 +102,7 @@ def check_native_drag():
     finally:
         mouse(x + 80, y + 50, 'b1r')
     wait(lambda: window_geometry(handle)['Absolute upper-left X'] != bounds['Absolute upper-left X'],
-         'native_titlebar_drag_moves_window')
+         'top_inset_drag_moves_window')
 
 
 def snapshot(name):
@@ -205,7 +207,7 @@ try:
         wait(lambda: blur_property('-root') and blur_property('-name', 'Clipboard'),
              'focused_window_restores_blur')
         check_native_drag()
-        checks.append('compositor_blur_requested_and_native_titlebar_drags')
+        checks.append('compositor_blur_requested_and_top_inset_drags')
     snapshot('history-image.png')
     checks.append('actual_five_record_image_history')
     click('条目操作')

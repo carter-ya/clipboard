@@ -36,13 +36,13 @@ import SwiftCrossUI
       // application's text; keep OS antialiasing, scaling and fallback intact.
       let css = """
         \(fontRules)
-        .clipboard-desktop { font-size: 14px; }
+        .clipboard-desktop { font-size: 15px; }
         .clipboard-desktop label, .clipboard-desktop entry, .clipboard-desktop text { font-weight: 400; }
         .clipboard-desktop { background: #eeedeb; color: #242424; }
         .clipboard-desktop.clipboard-dark { background: #262627; color: #f3f3f3; }
         .clipboard-desktop.csd { border-radius: 16px; }
         .clipboard-desktop.csd.maximized, .clipboard-desktop.csd.fullscreen { border-radius: 0; }
-        .clipboard-desktop .clipboard-titlebar { min-height: 30px; padding: 0 8px; background: transparent; box-shadow: none; }
+        .clipboard-desktop .clipboard-top-inset { min-height: 12px; margin: 0; padding: 0; border: none; background: transparent; box-shadow: none; }
         .clipboard-desktop.clipboard-material { background: rgba(238, 237, 235, 0.82); }
         .clipboard-desktop.clipboard-material.clipboard-dark { background: rgba(38, 38, 39, 0.85); }
         .clipboard-desktop .clipboard-preview { background: #f7f6f4; }
@@ -81,9 +81,14 @@ import SwiftCrossUI
         .clipboard-desktop .clipboard-history row:selected label,
         .clipboard-desktop .clipboard-history row:selected image,
         .clipboard-desktop .clipboard-history row:selected .clipboard-kind { color: white; }
-        .clipboard-desktop .clipboard-secondary, .clipboard-desktop .clipboard-secondary label { color: #686867; }
-        .clipboard-desktop.clipboard-dark .clipboard-secondary, .clipboard-desktop.clipboard-dark .clipboard-secondary label { color: #b5b5b5; }
-        .clipboard-desktop .clipboard-history row:selected .clipboard-secondary label { color: #ffffffdc; }
+        .clipboard-desktop .clipboard-row-title, .clipboard-desktop .clipboard-row-title label { color: #28292c; }
+        .clipboard-desktop.clipboard-dark .clipboard-row-title, .clipboard-desktop.clipboard-dark .clipboard-row-title label { color: #f2f2f4; }
+        .clipboard-desktop .clipboard-secondary, .clipboard-desktop .clipboard-secondary label { color: #5b5e64; }
+        .clipboard-desktop.clipboard-dark .clipboard-secondary, .clipboard-desktop.clipboard-dark .clipboard-secondary label { color: #bfc0c6; }
+        .clipboard-desktop .clipboard-history row:selected .clipboard-row-title,
+        .clipboard-desktop .clipboard-history row:selected .clipboard-row-title label { color: white; }
+        .clipboard-desktop .clipboard-history row:selected .clipboard-secondary,
+        .clipboard-desktop .clipboard-history row:selected .clipboard-secondary label { color: #fffffff0; }
         .clipboard-desktop .clipboard-kind { color: #087af5; background: #e5edf6; border-radius: 4px; }
         .clipboard-desktop .clipboard-history row:selected .clipboard-kind { background: #ffffff26; }
         .clipboard-desktop.clipboard-dark .clipboard-kind { color: #69acfa; background: #334257; }
@@ -262,6 +267,13 @@ struct DesktopSymbol: GtkWidgetRepresentable {
     -> ViewSize
   {
     ViewSize(Double(size), Double(size))
+  }
+}
+
+extension View {
+  func desktopCaption() -> some View {
+    font(.system(size: 13))
+      .inspect { DesktopChrome.setClass("clipboard-secondary", on: $0) }
   }
 }
 

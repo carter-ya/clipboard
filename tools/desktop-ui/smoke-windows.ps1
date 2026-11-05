@@ -6,6 +6,7 @@
       [switch]$Baseline,
       [switch]$ValidateOnly,
       [switch]$ModelSettingsOnly,
+      [switch]$DesignOnly,
       [switch]$KeyboardOnly,
       [switch]$ChineseIme,
       [switch]$BrowserPaste,
@@ -22,7 +23,7 @@ if ($ChineseIme -and !$KeyboardOnly) { throw 'chinese_ime_requires_keyboard_only
 if ($BrowserPaste -and !$KeyboardOnly) { throw 'browser_paste_requires_keyboard_only_profile' }
 if ($RtfPaste -and !$KeyboardOnly) { throw 'rtf_paste_requires_keyboard_only_profile' }
 if ($RtfPaste -and ($env:GITHUB_ACTIONS -ne 'true' -or $env:OS -ne 'Windows_NT')) { throw 'rtf_paste_requires_owned_windows_actions' }
-if (@($ModelSettingsOnly, $KeyboardOnly, $LocalTextOnly, $ModelOperationsOnly, $LocalFileModelsOnly | Where-Object { $_ }).Count -gt 1) {
+if (@($DesignOnly, $ModelSettingsOnly, $KeyboardOnly, $LocalTextOnly, $ModelOperationsOnly, $LocalFileModelsOnly | Where-Object { $_ }).Count -gt 1) {
   throw 'private_model_modes_are_mutually_exclusive'
 }
 . (Join-Path $PSScriptRoot 'private-fixture-python.ps1')
@@ -906,6 +907,12 @@ try {
   $primaryHistoryRoot = $historyRoot
   if ($LocalTextOnly -or $LocalFileModelsOnly -or $ModelOperationsOnly) { Initialize-LocalTextFixture }
   $launchArguments = @('--smoke-root', ('"' + $historyRoot + '"'))
+  if ($DesignOnly) {
+    $python = Resolve-PrivateFixturePython $FixturePython
+    & $python (Join-Path $PSScriptRoot 'create-design-fixtures.py') --output $historyRoot
+    if ($LASTEXITCODE -ne 0) { throw 'design_fixture_creation' }
+    $launchArguments = @('--data-root', ('"' + $historyRoot + '"'))
+  }
   if ($ChineseIme) { $launchArguments += '--smoke-ime-state' }
   if ($LocalTextOnly) { $launchArguments += '--smoke-local-text' }
   if ($ModelOperationsOnly) { $launchArguments += '--smoke-model-transfers' }
@@ -929,6 +936,12 @@ try {
   Save-Screenshot 'startup-without-uia.png'
   # Start accessibility traversal only after retaining ordinary-window evidence.
   $window = [Windows.Automation.AutomationElement]::FromHandle($nativeWindowHandle)
+  if ($DesignOnly) {
+    Wait-For { (Find-Named '5 条') -and (Find-Named '春日配色参考') -and (Find-Named '图片预览') } 'localized_design_profile_visible' | Out-Null
+    Save-Screenshot 'history-image.png'
+    Add-Check 'localized_image_history_rendered' $true
+    return
+  }
   if ($Baseline) {
     Wait-For { Find-Named 'SwiftCrossUI baseline' } 'baseline_window' | Out-Null
     Add-Check 'baseline_window_visible' $true
