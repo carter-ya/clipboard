@@ -306,6 +306,7 @@
         },
         {
           "id": "CP9_rich_preview",
+          "regression_probe_41970372206": "On local Linux arm64 the same 64 KiB unbroken RTF preview checkpoint took 20.68 s before and 1.60 s with character wrapping for long tokens. Exact HTML/RTF preview and full original clipboard readback are required. On Windows 11 the settings probe waits for the localized chooser after page navigation; five consecutive locale switches preserved the unsaved AI endpoint and native editor identity, followed by a successful return to English.",
           "branch": "codex/cross-platform-rich-preview",
           "scope": "Visible truncation and 64 KiB plain rendering for rich-only payloads",
           "status": "verified",

@@ -411,3 +411,9 @@ Verified artifact 13210099579 (`windows-capture-fix-candidate-x64`):
 | Optimized executable | `8375820bb15802aab0c1440e6ce005513bc20c1aef595cb212db6f2051f249ca` |
 
 The new Downloads filename is `ClipboardDesktop-0.1.0-preview.1-windows-x64-tray-fix-c401d7c-setup.exe`; the older candidate is preserved. This closes the reported tray hiding defect. Candidate metadata remains `fullPlatformAcceptance=false`: full model/browser/IME/upgrade and physical focus/DPI/suspend acceptance remain separate.
+
+### Long RTF preview and localized menu regression
+
+[Main desktop acceptance run 41970372206](https://github.com/carter-ya/clipboard/actions/runs/41970372206) timed out on two separate paths. In an isolated Linux arm64 desktop, displaying the first 65,536 characters of the 70,022-byte RTF fixture took 20.68 seconds with word-first wrapping and 1.60 seconds after switching long tokens to character wrapping for measurement and display. The original HTML and RTF bytes were read back through a separate X11 client. These are single local measurements of the native accessibility checkpoint.
+
+On Windows the first Traditional Chinese selection raced with the transition from AI to General. The probe now waits for the localized menu to become available. The focused Windows 11 run exercised Traditional Chinese, Japanese, Korean, German and Spanish, checked the draft and editor identity in each language, then restored English.
