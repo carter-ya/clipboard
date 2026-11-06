@@ -242,6 +242,8 @@ try:
     check('history_row_remains_readable_inside_small_viewport', inside(row) and row_bounds.height >= 40)
     lines = sorted((node.queryComponent().getExtents(pyatspi.WINDOW_COORDS) for node in walk(row)
                     if node.getRole() == pyatspi.ROLE_LABEL and node.name), key=lambda rect: rect.y)
+    (out / 'row-metrics.json').write_text(json.dumps(dict(
+        row=list(row_bounds), lines=[list(rect) for rect in lines])))
     check('history_row_fits_both_text_lines_with_native_font_metrics', len(lines) == 2
           and lines[0].y >= row_bounds.y + 7
           and lines[1].y >= lines[0].y + lines[0].height + 3

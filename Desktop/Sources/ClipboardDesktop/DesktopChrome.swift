@@ -84,7 +84,8 @@ import SwiftCrossUI
         .clipboard-desktop .clipboard-history row:selected label,
         .clipboard-desktop .clipboard-history row:selected image,
         .clipboard-desktop .clipboard-history row:selected .clipboard-kind { color: white; }
-        .clipboard-desktop .clipboard-row-title, .clipboard-desktop .clipboard-row-title label { color: #28292c; }
+        .clipboard-desktop .clipboard-row-title, .clipboard-desktop .clipboard-row-title label { color: #28292c; font-size: 15px; }
+        .clipboard-desktop .clipboard-row-subtitle { font-size: 13px; }
         .clipboard-desktop.clipboard-dark .clipboard-row-title, .clipboard-desktop.clipboard-dark .clipboard-row-title label { color: #f2f2f4; }
         .clipboard-desktop .clipboard-secondary, .clipboard-desktop .clipboard-secondary label { color: #5b5e64; }
         .clipboard-desktop.clipboard-dark .clipboard-secondary, .clipboard-desktop.clipboard-dark .clipboard-secondary label { color: #bfc0c6; }

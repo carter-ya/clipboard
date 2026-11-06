@@ -3,8 +3,12 @@
 Windows/Linux desktop application built with SwiftCrossUI 0.10.0 and GTK 4.
 The existing macOS SwiftUI/AppKit application remains independent. This package
 uses the real Core store and native rich clipboard adapter; normal launches do
-not insert sample history. Recording starts paused unless the user explicitly saves
-record-on-start behavior. Runtime pause does not change that startup preference.
+not insert sample history. Normal profiles automatically monitor the clipboard,
+including upgrades with an old record-on-start preference set to false. There is
+no recording switch in the normal window, preferences, or tray. Explicit private
+test profiles retain manual capture controls for bounded synthetic clipboard tests.
+Unreadable privacy settings or an unsupported session keep capture stopped and
+report the problem.
 
 ## Build
 

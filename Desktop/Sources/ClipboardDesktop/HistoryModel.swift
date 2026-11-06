@@ -151,7 +151,7 @@ final class HistoryModel: ObservableObject {
   @Published var shortcutEnabledDraft = true
   @Published var closeToTrayDraft = true
   @Published var showOnLaunchDraft = true
-  @Published var recordOnLaunchDraft = false
+  @MainActor var isCaptureFixture: Bool { DesktopApplicationContext.profile != "production" }
 
   private var store: JSONSnapshotClipStore?
   private var settingsStore: (any DesktopSettingsPersisting)?
@@ -429,7 +429,9 @@ final class HistoryModel: ObservableObject {
       credentials = NativeDesktopCredentials(namespace: DesktopApplicationContext.profile)
       let settingsStore = JSONDesktopSettingsStore(root: directory)
       self.settingsStore = settingsStore
+      var settingsReadable = true
       do { settings = try await settingsStore.load() } catch {
+        settingsReadable = false
         shellStatus = "Saved settings could not be read. Recording starts paused."
       }
       uiLanguage = settings.languageOverride
@@ -483,7 +485,6 @@ final class HistoryModel: ObservableObject {
       shortcutEnabledDraft = settings.shortcutEnabled
       closeToTrayDraft = settings.closeToTray
       showOnLaunchDraft = settings.showOnLaunch
-      recordOnLaunchDraft = settings.recordingEnabled
       let store = try await JSONSnapshotClipStore(
         root: directory, cap: settings.historyCapacity, sensitiveTextMasking: settings.skipSensitive
       )
@@ -553,10 +554,15 @@ final class HistoryModel: ObservableObject {
       await refresh()
       await configureShell()
       ready = true
-      status = "Ready"
+      status =
+        settingsReadable ? "Ready" : "Saved settings could not be read. Recording starts paused."
       if showsSettings { await refreshStartup() }
       if !showsSettings { nativeWindow?.focusSearch() }
-      if settings.recordingEnabled { await setRecording(true) }
+      // Ignore the legacy opt-in for ordinary profiles, including upgrades.
+      // A corrupt privacy configuration must not start capture with defaults.
+      if settingsReadable && (!isCaptureFixture || settings.recordingEnabled) {
+        await setRecording(true)
+      }
       if (!settings.showOnLaunch || CommandLine.arguments.contains("--background")) && canHide
         && !startupActivationRequested
       {
@@ -603,7 +609,8 @@ final class HistoryModel: ObservableObject {
           self.nativeWindow?.activationToken = event.activationToken
           await self.showHistory()
         case .showPreferences: self.showPreferences()
-        case .toggleRecording: await self.toggleRecording()
+        case .toggleRecording:
+          if self.isCaptureFixture { await self.toggleRecording() }
         case .quit: await self.shutdown()
         case .capabilitiesChanged: self.reconcileShellCapabilities()
         }
@@ -708,12 +715,12 @@ final class HistoryModel: ObservableObject {
       sourceFilter == requestedSource
     else { return }
     presentationTask = nil
-    itemPresentations = presentations
-    allItemsCount = projection.allCount
-    pinnedItemsCount = projection.pinnedCount
-    allTypesCount = projection.allTypesCount
-    kindCounts = projection.kindCounts
-    items = projection.items
+    if itemPresentations != presentations { itemPresentations = presentations }
+    if allItemsCount != projection.allCount { allItemsCount = projection.allCount }
+    if pinnedItemsCount != projection.pinnedCount { pinnedItemsCount = projection.pinnedCount }
+    if allTypesCount != projection.allTypesCount { allTypesCount = projection.allTypesCount }
+    if kindCounts != projection.kindCounts { kindCounts = projection.kindCounts }
+    if items != projection.items { items = projection.items }
     if !items.contains(where: { $0.id == selectedID }) { selectedID = items.first?.id }
     await loadPreview()
   }
@@ -903,7 +910,6 @@ final class HistoryModel: ObservableObject {
     var next = settings
     next.closeToTray = closeToTrayDraft
     next.showOnLaunch = showOnLaunchDraft
-    next.recordingEnabled = recordOnLaunchDraft
     do {
       try await settingsStore.save(next)
       settings = next
