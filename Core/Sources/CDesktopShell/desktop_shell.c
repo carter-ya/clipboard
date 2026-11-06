@@ -90,8 +90,6 @@ static void show_menu(clipboard_shell *s) {
     return;
   int language = InterlockedCompareExchange(&s->language, 0, 0);
   AppendMenuW(menu, MF_STRING, 1, shell_label(language, 0));
-  AppendMenuW(menu, MF_STRING, 2,
-              shell_label(language, InterlockedCompareExchange(&s->recording, 0, 0) ? 2 : 1));
   AppendMenuW(menu, MF_STRING, 3, shell_label(language, 3));
   AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
   AppendMenuW(menu, MF_STRING, 4, shell_label(language, 4));
@@ -104,8 +102,6 @@ static void show_menu(clipboard_shell *s) {
   DestroyMenu(menu);
   if (selected == 1)
     emit(s, 2);
-  else if (selected == 2)
-    emit(s, 4);
   else if (selected == 3)
     emit(s, 3);
   else if (selected == 4)
@@ -582,7 +578,6 @@ static DBusHandlerResult item_properties(clipboard_shell *s,
 static const char *menu_label(clipboard_shell *s, int id) {
   int language = atomic_load(&s->language);
   if (id == 1) return shell_label(language, 0);
-  if (id == 2) return shell_label(language, atomic_load(&s->recording) ? 2 : 1);
   if (id == 3) return shell_label(language, 3);
   if (id == 4) return shell_label(language, 4);
   return "";
@@ -607,6 +602,7 @@ static void menu_layout(clipboard_shell *s, DBusMessageIter *iter) {
   dbus_message_iter_close_container(&root, &properties);
   dbus_message_iter_open_container(&root, DBUS_TYPE_ARRAY, "v", &children);
   for (id = 1; id <= 4; ++id) {
+    if (id == 2) continue; // Monitoring is automatic; no manual toggle.
     DBusMessageIter variant, item, dict, empty;
     dbus_message_iter_open_container(&children, DBUS_TYPE_VARIANT, "(ia{sv}av)",
                                      &variant);
@@ -717,8 +713,6 @@ static DBusHandlerResult menu_message(clipboard_shell *s,
     if (event && !strcmp(event, "clicked")) {
       if (id == 1)
         emit(s, 2);
-      else if (id == 2)
-        emit(s, 4);
       else if (id == 3)
         emit(s, 3);
       else if (id == 4)
@@ -729,6 +723,7 @@ static DBusHandlerResult menu_message(clipboard_shell *s,
     dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "(ia{sv})",
                                      &array);
     for (dbus_int32_t id = 0; id <= 4; ++id) {
+      if (id == 2) continue;
       DBusMessageIter row, dict;
       dbus_message_iter_open_container(&array, DBUS_TYPE_STRUCT, NULL, &row);
       dbus_message_iter_append_basic(&row, DBUS_TYPE_INT32, &id);
@@ -812,7 +807,7 @@ static DBusHandlerResult object_message(DBusConnection *connection,
       emit(s, 2);
     } else if (dbus_message_is_method_call(
                    request, "org.kde.StatusNotifierItem", "SecondaryActivate"))
-      emit(s, 4);
+      emit(s, 2);
     else if (dbus_message_is_method_call(request, "org.kde.StatusNotifierItem",
                                          "ContextMenu"))
       emit(s, 3);

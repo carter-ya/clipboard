@@ -130,12 +130,16 @@ struct HistoryView: View {
 
   var sessionActions: some View {
     HStack(spacing: 4) {
-      iconButton(
-        model.recording ? "Pause recording" : "Start recording",
-        symbol: model.recording ? "pause" : "record"
-      ) {
-        Task { @MainActor in await model.toggleRecording() }
-      }.disabled(!model.ready || model.recordingTransition)
+      // Private acceptance profiles need to bound synthetic clipboard ownership.
+      // Normal profiles always monitor automatically and expose no switch.
+      if model.isCaptureFixture {
+        iconButton(
+          model.recording ? "Pause recording" : "Start recording",
+          symbol: model.recording ? "pause" : "record"
+        ) {
+          Task { @MainActor in await model.toggleRecording() }
+        }.disabled(!model.ready || model.recordingTransition)
+      }
       if model.canHide { iconButton("Hide", symbol: "hide") { model.hide() } }
       iconButton(showsCompactFilters ? "Hide filters" : "Filters", symbol: "filter") {
         showsCompactFilters.toggle()
@@ -277,22 +281,16 @@ struct HistoryView: View {
             }
           }.frame(width: 40, height: 40)
             .inspect { DesktopChrome.setClass("clipboard-kind", on: $0) }
-          VStack(alignment: .leading, spacing: 3) {
-            Text(
+          DesktopRowLabels(
+            title:
               item.sensitive
-                ? model.t("Sensitive content")
-                : model.itemPresentations[item.id]?.rowText
-                  ?? DesktopTextPreview(item.preview, maxUTF8Bytes: 512).text
-            ).font(.system(size: 15)).lineLimit(1)
-              .inspect { DesktopChrome.setClass("clipboard-row-title", on: $0) }
-            Text(
-              (item.pinned ? model.t("Pinned") + " · " : "")
-                + (model.itemPresentations[item.id].map { $0.rowCreatedText } ?? "")
-                + (model.itemPresentations[item.id]?.sourceName.map { " · " + $0 } ?? "")
-            )
-            .font(.system(size: 13)).lineLimit(1)
-            .inspect { DesktopChrome.setClass("clipboard-secondary", on: $0) }
-          }.frame(maxWidth: .infinity, alignment: .leading)
+              ? model.t("Sensitive content")
+              : model.itemPresentations[item.id]?.rowText
+                ?? DesktopTextPreview(item.preview, maxUTF8Bytes: 512).text,
+            subtitle: (item.pinned ? model.t("Pinned") + " · " : "")
+              + (model.itemPresentations[item.id].map { $0.rowCreatedText } ?? "")
+              + (model.itemPresentations[item.id]?.sourceName.map { " · " + $0 } ?? "")
+          )
           // The pinned List adds 6px vertically and 8px horizontally itself.
           // Add only the remainder to reach the approved 7px / 10px row inset.
         }.padding(.vertical, 1).padding(.horizontal, 2)
@@ -759,7 +757,6 @@ struct HistoryView: View {
     VStack(alignment: .leading, spacing: 12) {
       Toggle(model.t("Keep running when closing the window"), isOn: $model.closeToTrayDraft)
       Toggle(model.t("Show history when starting"), isOn: $model.showOnLaunchDraft)
-      Toggle(model.t("Record when starting"), isOn: $model.recordOnLaunchDraft)
       Button(model.t("Save behavior")) { Task { @MainActor in await model.applyBehavior() } }
       if !model.shellStatus.isEmpty { Text(model.t(model.shellStatus)).lineLimit(3) }
     }
@@ -789,7 +786,7 @@ struct HistoryView: View {
             VStack(spacing: 4) {
               DesktopSymbol(name: section.symbol, size: 20)
               Text(model.t(section.rawValue)).font(.system(size: 13)).lineLimit(1)
-            }.padding(8)
+            }.frame(width: 80, height: 52)
           }
           .inspect([.onCreate, .afterUpdate]) {
             DesktopChrome.label(model.t(section.rawValue), on: $0)

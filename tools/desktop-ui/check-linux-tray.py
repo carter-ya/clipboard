@@ -63,13 +63,15 @@ def check(name, value):
         raise RuntimeError(name)
 
 
-def wait_line(expected):
+def wait_line(expected, forbidden=None):
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
         if peer.poll() is not None:
             raise RuntimeError('tray_peer_exited')
         if selector.select(timeout=0.2):
             line = peer.stdout.readline().decode('ascii').strip()
+            if forbidden and line == forbidden:
+                raise RuntimeError('unexpected_tray_action_' + line)
             if line == expected:
                 return
     raise RuntimeError('tray_peer_checkpoint_' + expected)
@@ -95,23 +97,23 @@ try:
     check('menu_protocol_version', menu_props.Get('com.canonical.dbusmenu', 'Version') == 3)
     layout = menu.GetLayout(dbus.Int32(0), dbus.Int32(-1), dbus.Array([], signature='s'))
     labels = [str(child[1]['label']) for child in layout[1][2]]
-    check('menu_contains_real_native_actions', labels == ['Show history', 'Start recording', 'Settings', 'Quit'])
+    check('menu_contains_real_native_actions', labels == ['Show history', 'Settings', 'Quit'])
     peer.stdin.write(b'language:zh\n')
     peer.stdin.flush()
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline and props.Get('org.kde.StatusNotifierItem', 'Title') != 'Clipboard - 已暂停':
         time.sleep(0.05)
     layout = menu.GetLayout(dbus.Int32(0), dbus.Int32(-1), dbus.Array([], signature='s'))
-    check('native_tray_menu_localizes_without_restart', [str(child[1]['label']) for child in layout[1][2]] == ['显示历史', '开始录制', '设置', '退出'])
+    check('native_tray_menu_localizes_without_restart', [str(child[1]['label']) for child in layout[1][2]] == ['显示历史', '设置', '退出'])
     check('native_tray_tooltip_localizes_without_restart', props.Get('org.kde.StatusNotifierItem', 'ToolTip')[3] == '已暂停')
     localized = [
-        ('zh-Hant', ['顯示歷程', '開始錄製', '設定', '退出'], '已暫停', '正在錄製', '暫停錄製'),
-        ('ja', ['履歴を表示', '記録を開始', '設定', '終了'], '一時停止中', '記録中', '記録を一時停止'),
-        ('ko', ['기록 표시', '기록 시작', '설정', '종료'], '일시 정지됨', '기록 중', '기록 일시 정지'),
-        ('de', ['Verlauf anzeigen', 'Aufzeichnung starten', 'Einstellungen', 'Beenden'], 'Pausiert', 'Aufzeichnung läuft', 'Aufzeichnung pausieren'),
-        ('es', ['Mostrar historial', 'Iniciar registro', 'Ajustes', 'Salir'], 'Pausado', 'Registrando', 'Pausar registro'),
+        ('zh-Hant', ['顯示歷程', '設定', '退出'], '已暫停', '正在錄製'),
+        ('ja', ['履歴を表示', '設定', '終了'], '一時停止中', '記録中'),
+        ('ko', ['기록 표시', '설정', '종료'], '일시 정지됨', '기록 중'),
+        ('de', ['Verlauf anzeigen', 'Einstellungen', 'Beenden'], 'Pausiert', 'Aufzeichnung läuft'),
+        ('es', ['Mostrar historial', 'Ajustes', 'Salir'], 'Pausado', 'Registrando'),
     ]
-    for tag, expected, paused, recording, pause_action in localized:
+    for tag, expected, paused, recording in localized:
         peer.stdin.write(('language:' + tag + '\n').encode())
         peer.stdin.flush()
         deadline = time.monotonic() + 5
@@ -126,7 +128,7 @@ try:
         while time.monotonic() < deadline and props.Get('org.kde.StatusNotifierItem', 'Title') != 'Clipboard - ' + recording:
             time.sleep(0.05)
         layout = menu.GetLayout(dbus.Int32(0), dbus.Int32(-1), dbus.Array([], signature='s'))
-        check('native_recording_action_' + tag + '_matches_state', str(layout[1][2][1][1]['label']) == pause_action and
+        check('recording_keeps_menu_' + tag + '_and_updates_tooltip', [str(child[1]['label']) for child in layout[1][2]] == expected and
               props.Get('org.kde.StatusNotifierItem', 'ToolTip')[3] == recording)
         peer.stdin.write(b'recording:off\n')
         peer.stdin.flush()
@@ -150,11 +152,13 @@ try:
     while time.monotonic() < deadline and props.Get('org.kde.StatusNotifierItem', 'Title') != 'Clipboard - recording':
         time.sleep(0.05)
     layout = menu.GetLayout(dbus.Int32(0), dbus.Int32(-1), dbus.Array([], signature='s'))
-    check('recording_updates_native_menu_and_tooltip', str(layout[1][2][1][1]['label']) == 'Pause recording'
+    check('recording_updates_native_menu_and_tooltip', [str(child[1]['label']) for child in layout[1][2]] == ['Show history', 'Settings', 'Quit']
           and props.Get('org.kde.StatusNotifierItem', 'ToolTip')[3] == 'Recording')
     menu.Event(dbus.Int32(2), 'clicked', dbus.Int32(0, variant_level=1), dbus.UInt32(0))
-    wait_line('action:4')
-    check('native_recording_menu_reaches_action_stream', True)
+    # A stale menu activation must not pause automatic recording.
+    dbus.Interface(item, 'org.kde.StatusNotifierItem').SecondaryActivate(dbus.Int32(0), dbus.Int32(0))
+    wait_line('action:2', forbidden='action:4')
+    check('stale_recording_action_is_ignored_and_secondary_activation_shows_history', True)
     menu.Event(dbus.Int32(4), 'clicked', dbus.Int32(0, variant_level=1), dbus.UInt32(0))
     wait_line('action:5')
     check('native_quit_menu_reaches_action_stream', True)

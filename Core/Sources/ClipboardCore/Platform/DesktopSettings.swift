@@ -2,6 +2,7 @@ import Foundation
 
 /// Desktop behavior only. API credentials never enter this file-backed model.
 public struct DesktopSettings: Codable, Equatable, Sendable {
+  // Legacy/private-fixture preference. Normal desktop profiles monitor automatically.
   public var recordingEnabled = false
   public var shortcutEnabled = true
   public var shortcut = "Ctrl+Alt+V"

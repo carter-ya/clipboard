@@ -1,15 +1,50 @@
 import Foundation
 
+#if os(Windows)
+  import WinSDK
+#endif
+
 /// Shared system message languages for desktop controls and local analysis.
 public enum DesktopLanguagePreferences {
-  public static var preferredLanguages: [String] {
+  // A session's display language is stable. Resolving it for every label used
+  // to enumerate the process environment / query Foundation during layout.
+  public static let preferredLanguages: [String] = {
     #if os(Linux)
       // Linux Foundation can return en-001 even when a desktop locale is set.
       return linuxPreferredLanguages(
         environment: ProcessInfo.processInfo.environment, fallback: Locale.preferredLanguages)
+    #elseif os(Windows)
+      var count: ULONG = 0
+      var length: ULONG = 0
+      if GetUserPreferredUILanguages(DWORD(MUI_LANGUAGE_NAME), &count, nil, &length),
+        length > 1, length <= 65536
+      {
+        var buffer = [WCHAR](repeating: 0, count: Int(length))
+        if GetUserPreferredUILanguages(DWORD(MUI_LANGUAGE_NAME), &count, &buffer, &length) {
+          let languages = windowsPreferredLanguages(buffer: buffer)
+          if !languages.isEmpty { return languages }
+        }
+      }
+      return Locale.preferredLanguages
     #else
       return Locale.preferredLanguages
     #endif
+  }()
+
+  /// Windows returns UTF-16 language names separated and terminated by NULs.
+  static func windowsPreferredLanguages(buffer: [UInt16]) -> [String] {
+    var result: [String] = []
+    var start = 0
+    for end in buffer.indices where buffer[end] == 0 {
+      guard end > start else { break }
+      if let tag = normalizedTag(String(decoding: buffer[start..<end], as: UTF16.self)),
+        !result.contains(tag)
+      {
+        result.append(tag)
+      }
+      start = end + 1
+    }
+    return result
   }
 
   /// GNU message-locale precedence, with normalized language tags for callers.

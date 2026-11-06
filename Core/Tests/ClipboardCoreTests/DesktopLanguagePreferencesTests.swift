@@ -3,6 +3,29 @@ import XCTest
 @testable import ClipboardCore
 
 final class DesktopLanguagePreferencesTests: XCTestCase {
+  func testWindowsDisplayLanguageListOverridesEnglishFoundationFallback() {
+    let buffer = Array("zh-CN\0en-US\0\0".utf16)
+    let languages = DesktopLanguagePreferences.windowsPreferredLanguages(buffer: buffer)
+    XCTAssertEqual(languages, ["zh-cn", "en-us"])
+    XCTAssertEqual(
+      DesktopUILanguage.resolve(override: nil, preferredLanguages: languages), .simplifiedChinese)
+    XCTAssertEqual(
+      DesktopStringCatalog.text("Preferences", language: nil, preferredLanguages: languages), "偏好设置"
+    )
+    XCTAssertEqual(
+      DesktopUILanguage.resolve(override: "en", preferredLanguages: languages), .english)
+  }
+
+  func testWindowsMultiStringStopsAtTerminatorAndKeepsPriority() {
+    XCTAssertEqual(
+      DesktopLanguagePreferences.windowsPreferredLanguages(
+        buffer: Array("zh-TW\0ja-JP\0zh-TW\0\0en-US\0".utf16)), ["zh-tw", "ja-jp"])
+    XCTAssertEqual(DesktopLanguagePreferences.windowsPreferredLanguages(buffer: [0, 0]), [])
+    XCTAssertEqual(DesktopLanguagePreferences.windowsPreferredLanguages(buffer: []), [])
+    XCTAssertEqual(
+      DesktopLanguagePreferences.windowsPreferredLanguages(buffer: Array("en-US".utf16)), [])
+  }
+
   func testMessageLocalePrecedenceAndEncodingNormalization() {
     XCTAssertEqual(
       DesktopLanguagePreferences.linuxPreferredLanguages(

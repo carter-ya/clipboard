@@ -125,6 +125,12 @@ try {
   Measure-Action 'Settings' 'Preferences'
   Check 'all_measured_transitions_complete' ($timings.Count -eq 13)
   $null = Await-Name 'Appearance'
+  $tabWidths = @('General','Shortcuts','AI','Privacy','Data') | ForEach-Object {
+    (Await-Name $_).Current.BoundingRectangle.Width
+  }
+  $widthRange = $tabWidths | Measure-Object -Minimum -Maximum
+  Check 'settings_tabs_have_equal_clickable_widths' ($widthRange.Minimum -gt 0 -and
+    $widthRange.Maximum - $widthRange.Minimum -le 1)
   $draftEditor = $previewWindow.FindFirst([Windows.Automation.TreeScope]::Descendants, $editCondition)
   $draftID = $draftEditor.GetRuntimeId() -join ','
   $draftEditor.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('321')
@@ -138,11 +144,9 @@ try {
     Check ('settings_' + $page.name + '_navigation_visible') (!$navigation.Current.IsOffscreen -and
       $rect.Width -gt 0 -and $rect.Height -gt 0 -and $rect.Left -ge $windowRect.Left -and
       $rect.Right -le $windowRect.Right -and $rect.Top -ge $windowRect.Top -and $rect.Bottom -le $windowRect.Bottom)
-    Invoke-PreviewButton $page.name
-    $null = Await-Name $page.expected
+    Measure-Action $page.name $page.expected
   }
-  Invoke-PreviewButton 'General'
-  $null = Await-Name 'Appearance'
+  Measure-Action 'General' 'Appearance'
   $restoredEditor = $previewWindow.FindFirst([Windows.Automation.TreeScope]::Descendants, $editCondition)
   Check 'settings_pages_preserve_native_editor_and_unsaved_draft' (
     ($restoredEditor.GetRuntimeId() -join ',') -ceq $draftID -and
@@ -157,6 +161,54 @@ try {
   $null = Await-Name 'Filters'
   Check 'source_filter_closes_without_removing_search' ($previewWindow.FindAll([Windows.Automation.TreeScope]::Descendants, $editCondition).Count -eq 1)
   Check 'owned_process_survives_preview_and_navigation' (!$child.HasExited)
+
+  # Restart the same isolated profile with the default language selection.
+  # Query Windows independently of Swift/Foundation to check the rendered UI.
+  Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class ClipboardPreviewUILanguages {
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode)]
+  static extern bool GetUserPreferredUILanguages(uint flags, out uint count, char[] buffer, ref uint size);
+  public static string[] Read() {
+    uint count, size=0;
+    if (!GetUserPreferredUILanguages(8, out count, null, ref size)) throw new Exception("native_languages_unavailable");
+    var buffer=new char[size];
+    if (!GetUserPreferredUILanguages(8, out count, buffer, ref size)) throw new Exception("native_languages_unavailable");
+    return new String(buffer).Split(new char[]{'\0'}, StringSplitOptions.RemoveEmptyEntries);
+  }
+}
+'@
+  $language = 'en'
+  foreach ($tag in [ClipboardPreviewUILanguages]::Read()) {
+    $parts = $tag.ToLowerInvariant().Replace('_','-').Split('-')
+    if ($parts[0] -eq 'zh') {
+      $language = if ($parts -contains 'hant' -or
+        (!($parts -contains 'hans') -and @($parts | Where-Object { $_ -in @('tw','hk','mo') }).Count)) { 'zh-Hant' } else { 'zh-Hans' }
+      break
+    }
+    if ($parts[0] -in @('en','ja','ko','de','es')) { $language=$parts[0]; break }
+  }
+  $catalogPath = Join-Path $PSScriptRoot '../../Core/Sources/ClipboardCore/Resources/DesktopStrings.json'
+  $strings = (Get-Content -Raw -Encoding UTF8 $catalogPath | ConvertFrom-Json).$language
+  $child.Kill(); [void]$child.WaitForExit(5000); $child.Dispose()
+  $settings.languageOverride = $null
+  $settings | ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $profile 'desktop-settings.json')
+  $child = [Diagnostics.Process]::Start($start)
+  $deadline = [DateTime]::UtcNow.AddSeconds(30)
+  do {
+    if ($child.HasExited) { throw 'system_language_child_exited' }
+    $child.Refresh()
+    $handle = $child.MainWindowHandle
+    if ($handle -ne [IntPtr]::Zero) { break }
+    Start-Sleep -Milliseconds 100
+  } while ([DateTime]::UtcNow -lt $deadline)
+  if ($handle -eq [IntPtr]::Zero) { throw 'system_language_window_missing' }
+  $script:previewWindow = [Windows.Automation.AutomationElement]::FromHandle($handle)
+  $null = Await-Name $strings.Ready
+  Invoke-PreviewButton $strings.Settings
+  $null = Await-Name $strings.Preferences
+  Check 'default_ui_language_matches_native_windows_display_preferences' ($null -ne (Await-Name $strings.'System language'))
 } catch {
   $detail = $_.Exception.Message
   if ($detail -notmatch '^[a-zA-Z0-9_]+$') { $detail = 'preview_probe_failed' }
