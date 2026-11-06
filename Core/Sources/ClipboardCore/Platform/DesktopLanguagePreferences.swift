@@ -16,11 +16,11 @@ public enum DesktopLanguagePreferences {
     #elseif os(Windows)
       var count: ULONG = 0
       var length: ULONG = 0
-      if GetUserPreferredUILanguages(DWORD(MUI_LANGUAGE_NAME), &count, nil, &length) != 0,
+      if GetUserPreferredUILanguages(DWORD(MUI_LANGUAGE_NAME), &count, nil, &length),
         length > 1, length <= 65536
       {
         var buffer = [WCHAR](repeating: 0, count: Int(length))
-        if GetUserPreferredUILanguages(DWORD(MUI_LANGUAGE_NAME), &count, &buffer, &length) != 0 {
+        if GetUserPreferredUILanguages(DWORD(MUI_LANGUAGE_NAME), &count, &buffer, &length) {
           let languages = windowsPreferredLanguages(buffer: buffer)
           if !languages.isEmpty { return languages }
         }
